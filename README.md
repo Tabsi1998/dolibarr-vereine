@@ -37,6 +37,9 @@ with a REST API for the association's website.
 - **Tab *Membership*** on the third party card and **tab *Association*** on the
   member card, and guardians of minor members as contacts in the category
   *Guardian*.
+- **Tax profiles** (0.2.3, Austria): sphere, VAT treatment, rate and invoice
+  note with their legal basis, suggested profiles and checks for combinations
+  the law excludes. Assigning them to products and invoice lines follows.
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 
@@ -45,7 +48,7 @@ with a REST API for the association's website.
 | Place in Dolibarr | What the module adds or uses |
 | --- | --- |
 | *Home > Setup > Company/Organisation* | Name, address, e-mail, phone, website and first month of the fiscal year - the module reads them, it does not keep a copy |
-| *Home > Setup > Modules > Vereine* | Setup: country profile and register data; about page with version and licence |
+| *Home > Setup > Modules > Vereine* | Setup: country profile and register data; tax profiles; about page with version and licence |
 | *Members*, *Third parties*, *Categories* (Dolibarr's own modules) | Required and enabled with Vereine; the Members menu gets *Association*, *Members and third parties* and, for administrators, *Third party settings* |
 | *Members > Association* | Overview with the association's data and the checks |
 | *Members > Association > Members and third parties* | Reconciliation of members and their third parties |

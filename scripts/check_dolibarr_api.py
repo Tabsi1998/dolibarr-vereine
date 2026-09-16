@@ -143,6 +143,11 @@ CONTRACTS = (
     ("htdocs/core/modules/DolibarrModules.class.php", "if (isset($value['data']) && is_array($value['data'])) {", "hooks declared with data and entity"),
     ("htdocs/core/lib/member.lib.php", "function member_prepare_head(Adherent $object)", "tabs of the member card"),
     ("htdocs/core/lib/member.lib.php", "complete_head_from_modules($conf, $langs, $object, $head, $h, 'member', 'add', 'external');", "tab Association from the descriptor"),
+    # Tax profiles (issue #36)
+    ("htdocs/core/lib/functions.lib.php", "function img_edit(", "edit link on the tax profile setup"),
+    ("htdocs/core/lib/functions.lib.php", "function dol_trunc(", "short invoice note in the tax profile list"),
+    ("htdocs/install/mysql/data/llx_c_tva.sql", "values (41,  '10','0','VAT rate - reduced', 1,__ENTITY__);", "Dolibarr's Austrian VAT rates: 10 %"),
+    ("htdocs/install/mysql/data/llx_c_tva.sql", "values (41,  '20','0','VAT rate - standard',1,__ENTITY__);", "Dolibarr's Austrian VAT rates: 20 %"),
 )
 
 LANG_KEYS = {
@@ -151,7 +156,8 @@ LANG_KEYS = {
                                      "January", "February", "March", "April", "May", "June", "July",
                                      "August", "September", "October", "November", "December",
                                      "Type", "Categories", "BackToList", "DateDue", "AmountTTC", "Ref",
-                                     "None", "Date", "Action", "Description", "Confirm", "Cancel", "Email"),
+                                     "None", "Date", "Action", "Description", "Confirm", "Cancel", "Email",
+                                     "Enabled", "Disabled", "Modify"),
     # Loaded by partners.php and partner_membership.php.
     "htdocs/langs/en_US/members.lang": ("MemberRef", "Member"),
     # Loaded by admin/setup.php and admin/about.php.

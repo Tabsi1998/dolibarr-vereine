@@ -45,6 +45,11 @@ function vereineAdminPrepareHead()
 	$head[$h][2] = 'partners';
 	$h++;
 
+	$head[$h][0] = dol_buildpath('/vereine/admin/taxprofiles.php', 1);
+	$head[$h][1] = $langs->trans('VereineSetupTabTaxProfiles');
+	$head[$h][2] = 'taxprofiles';
+	$h++;
+
 	$head[$h][0] = dol_buildpath('/vereine/admin/about.php', 1);
 	$head[$h][1] = $langs->trans('About');
 	$head[$h][2] = 'about';
@@ -68,6 +73,18 @@ function vereineMonthName($month)
 
 	$keys = array(1 => 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December');
 	return isset($keys[$month]) ? $langs->trans($keys[$month]) : '';
+}
+
+/**
+ * A VAT rate as people write it: 10, 13, 20, 0 - decimals only when there are any.
+ *
+ * @param float $rate Rate in percent
+ * @return string
+ */
+function vereineRate($rate)
+{
+	$text = number_format((float) $rate, 3, ',', '');
+	return rtrim(rtrim($text, '0'), ',');
 }
 
 /**

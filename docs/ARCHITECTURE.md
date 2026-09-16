@@ -33,6 +33,8 @@ legal source, not in code, so a changed threshold is a data update.
 | `core/triggers/interface_99_modVereine_VereineTriggers.class.php` | Member events keep the third party in line |
 | `partners.php`, `partner_membership.php`, `member_association.php`, `admin/partners.php` | Reconciliation, tab on the third party, tab on the member, partner setup |
 | `class/actions_vereine.class.php` | Hooks on Dolibarr's member card |
+| `class/vereinetaxrules.class.php` | Spheres, VAT treatments, tax profile checks and suggestions, plain PHP |
+| `class/vereinetaxprofiles.class.php`, `admin/taxprofiles.php` | Tax profiles in `llx_vereine_taxprofile` and their setup tab |
 | `js/partners.js` | Select all and the row dialog of the reconciliation page |
 | `sql/` | Tables, created on activation and kept on deactivation |
 | `lib/vereine.lib.php` | Shared page helpers |

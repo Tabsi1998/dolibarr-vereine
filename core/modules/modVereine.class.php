@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '0.2.2-beta';
+		$this->version = '0.2.3-beta';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -202,6 +202,16 @@ class modVereine extends DolibarrModules
 		if ($service->ensureCategories($user, $langs) < 0) {
 			$this->error = $service->error;
 			dol_syslog('modVereine::init '.$service->error, LOG_ERR);
+		}
+
+		// Standard tax profiles arrive as suggestions; a profile the association
+		// changed keeps its code, so it is never replaced.
+		dol_include_once('/vereine/class/vereinetaxprofiles.class.php');
+		$langs->load('vereine@vereine');
+		$taxProfiles = new VereineTaxProfiles($this->db);
+		if ($taxProfiles->ensureStandard($langs, $user) < 0) {
+			$this->error = $taxProfiles->error;
+			dol_syslog('modVereine::init '.$taxProfiles->error, LOG_ERR);
 		}
 
 		// A first activation picks the profile of the company's country. A later

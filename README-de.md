@@ -40,6 +40,10 @@ Vereinswebsite mit.
 - **Reiter *Mitgliedschaft*** am Geschäftspartner und **Reiter *Verein*** an der
   Mitgliedskarte, dazu Erziehungsberechtigte von Minderjährigen als Kontakte in
   der Kategorie *Erziehungsberechtigt*.
+- **Steuerprofile** (0.2.3, Österreich): Sphäre, Umsatzsteuer-Behandlung, Satz
+  und Rechnungshinweis mit Rechtsgrundlage, vorgeschlagene Profile und Prüfung
+  von Kombinationen, die das Gesetz ausschließt. Die Zuordnung zu Produkten und
+  Rechnungszeilen folgt.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.
@@ -49,7 +53,7 @@ Vereinswebsite mit.
 | Stelle in Dolibarr | Was das Modul ergänzt oder nutzt |
 | --- | --- |
 | *Start > Einstellungen > Unternehmen/Organisation* | Name, Anschrift, E-Mail, Telefon, Website und erster Monat des Rechnungsjahres – das Modul liest sie, es führt keine eigene Kopie |
-| *Start > Einstellungen > Module > Vereine* | Einrichtung: Länderprofil und Registerdaten; Über-Seite mit Version und Lizenz |
+| *Start > Einstellungen > Module > Vereine* | Einrichtung: Länderprofil und Registerdaten; Steuerprofile; Über-Seite mit Version und Lizenz |
 | *Mitglieder*, *Geschäftspartner*, *Kategorien* (Dolibarr-eigene Module) | Pflicht und werden mit Vereine aktiviert; das Mitglieder-Menü bekommt *Verein*, *Mitglieder und Partner* und für Administratoren *Partner-Einstellungen* |
 | *Mitglieder > Verein* | Übersicht mit Vereinsdaten und Prüfungen |
 | *Mitglieder > Verein > Mitglieder und Partner* | Abgleich von Mitgliedern und ihren Geschäftspartnern |
