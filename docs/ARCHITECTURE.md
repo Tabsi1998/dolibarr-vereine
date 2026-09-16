@@ -32,6 +32,7 @@ legal source, not in code, so a changed threshold is a data update.
 | `class/vereinelog.class.php` | The append-only log `llx_vereine_log` |
 | `core/triggers/interface_99_modVereine_VereineTriggers.class.php` | Member events keep the third party in line |
 | `partners.php`, `partner_membership.php`, `admin/partners.php` | Reconciliation, membership tab, partner setup |
+| `js/partners.js` | Select all and the row dialog of the reconciliation page |
 | `sql/` | Tables, created on activation and kept on deactivation |
 | `lib/vereine.lib.php` | Shared page helpers |
 | `vereineindex.php` | Overview under Members |
@@ -72,6 +73,10 @@ the module updates or deletes a row.
   `MAIN_SUPPORT_SHARED_CONTACT_BETWEEN_THIRDPARTIES`, which it calls unstable.
 - A trigger never makes a member's own action fail. Problems go to the log as
   `partner_error`.
+- The reconciliation page prints the steps of each row as real forms and links
+  (with CSRF token) after its main form, because forms cannot nest;
+  `js/partners.js` only shows them in a jQuery UI dialog and ticks *select all*.
+  The runtime tests submit those forms exactly as a browser would.
 
 ## Rules for every change
 

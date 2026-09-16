@@ -187,7 +187,7 @@ if ($link !== '' && preg_match('/^(\d+)_(\d+)$/', $link, $parts)) {
 $report = $service->report(dol_print_date(dol_now(), '%Y-%m-%d'));
 
 $title = $langs->trans('VereinePartnersTitle');
-llxHeader('', $title, '', '', 0, 0, '', '', '', 'mod-vereine page-partners');
+llxHeader('', $title, '', '', 0, 0, array('/vereine/js/partners.js'), '', '', 'mod-vereine page-partners');
 print load_fiche_titre($title, '', 'fa-landmark');
 print '<span class="opacitymedium">'.$langs->trans('VereinePartnersIntro').'</span><br><br>';
 
@@ -225,6 +225,72 @@ function vereinePartnerLink($db, array $partner)
 	$object->name = (string) $partner['name'];
 	$object->client = (int) $partner['client'];
 	return $object->getNomUrl(1);
+}
+
+/**
+ * One step of a row's action dialog that changes something: a form of its own
+ * that leads to the same preview or link as the section's buttons.
+ *
+ * @param string               $id     Form id, unique on the page
+ * @param array<string,string> $fields Hidden fields
+ * @param string               $label  Button label, already translated
+ * @return string HTML
+ */
+function vereineRowForm($id, array $fields, $label)
+{
+	$html = '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" id="'.$id.'" name="vereinerowaction">';
+	$html .= '<input type="hidden" name="token" value="'.newToken().'">';
+	foreach ($fields as $name => $value) {
+		$html .= '<input type="hidden" name="'.$name.'" value="'.dol_escape_htmltag($value).'">';
+	}
+	return $html.'<button type="submit" class="button">'.$label.'</button></form>';
+}
+
+/**
+ * What the user can do with one row of the report. Changes go through the preview;
+ * edits open Dolibarr's own cards. Nothing is offered the user has no right for.
+ *
+ * @param string              $section  Section of the report
+ * @param array<string,mixed> $row      Row of the report
+ * @param bool                $canWrite User may link and bring in line
+ * @return string[] HTML of each step
+ */
+function vereineRowActions($section, array $row, $canWrite)
+{
+	global $langs, $user;
+
+	$member = isset($row['member']) ? $row['member'] : ($section === 'orphans' ? null : $row);
+	$partners = isset($row['partners']) ? $row['partners'] : (isset($row['partner']) ? array($row['partner']) : array());
+	$operations = array('without_partner' => 'create', 'attributes' => 'attributes', 'differences' => 'copy', 'orphans' => 'orphans');
+	$back = urlencode(dol_buildpath('/vereine/partners.php', 1));
+	$actions = array();
+
+	if ($canWrite && isset($operations[$section])) {
+		$op = $operations[$section];
+		if ($section === 'without_partner' && $row['candidates']) {
+			foreach ($row['candidates'] as $candidate) {
+				$value = ((int) $row['id']).'_'.((int) $candidate['id']);
+				$actions[] = vereineRowForm('vereineaction-link-'.$value, array('link' => $value), $langs->trans('VereineRowActionLink', $candidate['name']));
+			}
+			$actions[] = vereineRowForm('vereineaction-force-'.((int) $row['id']), array('force' => (string) ((int) $row['id'])), $langs->trans('VereinePartnerCreateAnyway'));
+		} else {
+			$id = $section === 'orphans' ? (int) $row['partner']['id'] : (int) $member['id'];
+			$actions[] = vereineRowForm('vereineaction-'.$op.'-'.$id, array('op' => $op, 'sel_'.$op.'[]' => (string) $id), $langs->trans('VereinePartnerPreviewButton_'.$op));
+		}
+	}
+	if ($section === 'minors' && $row['fk_soc'] > 0 && $user->hasRight('societe', 'contact', 'creer')) {
+		$actions[] = '<a class="button" href="'.DOL_URL_ROOT.'/contact/card.php?action=create&amp;socid='.((int) $row['fk_soc']).'&amp;backtopage='.$back.'">'.$langs->trans('VereineGuardianAdd').'</a>';
+	}
+	if ($member && $user->hasRight('adherent', 'creer')) {
+		$actions[] = '<a class="button" href="'.DOL_URL_ROOT.'/adherents/card.php?id='.((int) $member['id']).'&amp;action=edit&amp;backtopage='.$back.'">'.$langs->trans('VereineRowActionEditMember').'</a>';
+	}
+	if ($user->hasRight('societe', 'creer')) {
+		foreach ($partners as $partner) {
+			$label = count($partners) > 1 ? $langs->trans('VereineRowActionEditPartnerNamed', $partner['name']) : $langs->trans('VereineRowActionEditPartner');
+			$actions[] = '<a class="button" href="'.DOL_URL_ROOT.'/societe/card.php?socid='.((int) $partner['id']).'&amp;action=edit">'.$label.'</a>';
+		}
+	}
+	return $actions;
 }
 
 if ($preview) {
@@ -291,16 +357,18 @@ if ($preview) {
 
 $sections = array(
 	'without_partner' => array('op' => 'create', 'columns' => array('Member', 'Type', 'Status', 'Email', 'VereinePartnerCandidates')),
-	'attributes' => array('op' => 'attributes', 'columns' => array('Member', 'ThirdParty', 'VereinePartnerProblems')),
-	'differences' => array('op' => 'copy', 'columns' => array('Member', 'ThirdParty', 'VereinePartnerDifferencesColumn')),
-	'orphans' => array('op' => 'orphans', 'columns' => array('ThirdParty', 'Member')),
-	'minors' => array('op' => '', 'columns' => array('Member', 'ThirdParty', 'VereineGuardians')),
+	'attributes' => array('op' => 'attributes', 'columns' => array('Member', 'VereinePartnerColumn', 'VereinePartnerProblems')),
+	'differences' => array('op' => 'copy', 'columns' => array('Member', 'VereinePartnerColumn', 'VereinePartnerDifferencesColumn')),
+	'orphans' => array('op' => 'orphans', 'columns' => array('VereinePartnerColumn', 'Member')),
+	'minors' => array('op' => '', 'columns' => array('Member', 'VereinePartnerColumn', 'VereineGuardians')),
 	'duplicates' => array('op' => '', 'columns' => array('Member', 'VereinePartnerDuplicatesColumn')),
 );
 
 print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereinepartners">';
 print '<input type="hidden" name="token" value="'.newToken().'">';
 
+// Each row's steps live in a dialog printed after this form: forms cannot nest.
+$dialogs = array();
 foreach ($sections as $section => $definition) {
 	$rows = $report[$section];
 	$badge = dolGetBadge((string) count($rows), '', count($rows) ? 'warning' : 'success');
@@ -315,18 +383,38 @@ foreach ($sections as $section => $definition) {
 	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
 	print '<tr class="liste_titre">';
 	if ($definition['op'] && $canWrite) {
-		print '<td class="width20"></td>';
+		print '<td class="width20"><input type="checkbox" class="vereine-select-all" data-select="sel_'.$definition['op'].'[]" title="'.dol_escape_htmltag($langs->trans('VereineSelectAll')).'" aria-label="'.dol_escape_htmltag($langs->trans('VereineSelectAll')).'"></td>';
 	}
 	foreach ($definition['columns'] as $column) {
 		print '<td>'.$langs->trans($column).'</td>';
 	}
+	print '<td></td>';
 	print '</tr>';
 
 	foreach ($rows as $row) {
 		$member = isset($row['member']) ? $row['member'] : ($section === 'orphans' ? null : $row);
 		$partner = isset($row['partner']) ? $row['partner'] : null;
 		$selectId = $section === 'orphans' ? (int) $partner['id'] : (int) $member['id'];
-		print '<tr class="oddeven" data-row="'.$selectId.'">';
+		$actions = vereineRowActions($section, $row, $canWrite);
+		$dialogId = 'vereinerow-'.$section.'-'.$selectId;
+		if ($actions) {
+			$detail = '';
+			if ($section === 'attributes') {
+				$detail = implode(', ', array_map(array($langs, 'transnoentitiesnoconv'), $row['problems']));
+			} elseif ($section === 'differences') {
+				$detail = implode(', ', array_map(function ($field) use ($langs) {
+					return $langs->transnoentitiesnoconv('VereineField_'.$field);
+				}, array_keys($row['fields'])));
+			}
+			$name = $member ? VereinePartnerRules::partnerName($member) : (string) $partner['name'];
+			$dialog = '<div id="'.$dialogId.'" class="vereine-row-dialog" data-row-dialog="'.$section.'" title="'.dol_escape_htmltag($name).'" data-cancel="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Cancel')).'" style="display: none">';
+			$dialog .= '<p>'.$langs->trans('VereinePartnerSection_'.$section).($detail !== '' ? ': '.dol_escape_htmltag($detail) : '').'</p>';
+			foreach ($actions as $step) {
+				$dialog .= '<div class="marginbottomonly">'.$step.'</div>';
+			}
+			$dialogs[] = $dialog.'<p class="opacitymedium small">'.$langs->trans('VereineRowActionsHint').'</p></div>';
+		}
+		print '<tr class="oddeven'.($actions ? ' cursorpointer' : '').'" data-row="'.$selectId.'"'.($actions ? ' data-dialog="'.$dialogId.'"' : '').'>';
 		if ($definition['op'] && $canWrite) {
 			$disabled = $section === 'without_partner' && !empty($row['candidates']);
 			print '<td><input type="checkbox" name="sel_'.$definition['op'].'[]" value="'.$selectId.'"'.($disabled ? ' disabled' : '').'></td>';
@@ -383,6 +471,11 @@ foreach ($sections as $section => $definition) {
 				print '</td>';
 				break;
 		}
+		print '<td class="right nowraponall">';
+		if ($actions) {
+			print '<button type="button" class="button small vereine-row-button" data-dialog="'.$dialogId.'" aria-haspopup="dialog">'.$langs->trans('VereineRowActions').'</button>';
+		}
+		print '</td>';
 		print '</tr>';
 	}
 	print '</table></div>';
@@ -392,6 +485,7 @@ foreach ($sections as $section => $definition) {
 	print '<br></div>';
 }
 print '</form>';
+print implode("\n", $dialogs);
 
 print info_admin($langs->trans('VereinePartnersFooter'), 0, 0, '1', '');
 

@@ -114,3 +114,9 @@ raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
 - The runtime `upgrade` scenario deploys the newest earlier release (built from
   its tag), enables it, stores data, deploys the current package, disables and
   enables, checks, and then resets with `fixtures.php reset`.
+- Menu entries are written at activation: a new entry reaches an installation
+  only after disabling and enabling the module once.
+- The member edit form and the new contact form keep `backtopage`; the third
+  party edit form does not and always ends on the third party card.
+- Page JavaScript goes through `llxHeader(..., array('/vereine/js/...'))`, which
+  adds Dolibarr's CSP nonce; an inline `<script>` would not get it.
