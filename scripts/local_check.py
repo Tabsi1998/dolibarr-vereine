@@ -982,29 +982,36 @@ def dolibarr_steps() -> list:
 # ------------------------------------------------------------------- package
 
 def package(context: Context) -> str:
-    """The installable ZIP, built twice from the snapshot, identical and complete.
+    """The installable ZIP, built two ways, byte for byte identical and complete.
 
-    The first build writes into a folder inside the source, as ci.yml does; the
-    second outside it. Both must hold exactly the module.
+    The first build runs in the Git working copy with its output inside the
+    repository, as ci.yml does on GitHub; only tracked files may reach it. The
+    second runs from the snapshot, which has no .git, as release.py builds from
+    git archive. Both must be the same package.
     """
     builder = scripts_module("build_release")
-    for folder in (PACKAGE_OUT, SNAPSHOT / "dist-a"):
+    inside = ROOT / "dist-local-check"
+    for folder in (PACKAGE_OUT, inside):
         if folder.exists():
             shutil.rmtree(folder)
     try:
-        first, digest = builder.build(SNAPSHOT, SNAPSHOT / "dist-a")
-        second, again = builder.build(SNAPSHOT, PACKAGE_OUT / "second")
-    except builder.BuildError as error:
-        raise StepFailed(str(error)) from error
-    if digest != again or first.read_bytes() != second.read_bytes():
-        raise StepFailed(f"two builds of the same source differ: {digest} / {again}")
-    problems = builder.verify(first, SNAPSHOT)
+        try:
+            working, digest = builder.build(ROOT, inside)
+            archive, again = builder.build(SNAPSHOT, PACKAGE_OUT / "snapshot")
+        except builder.BuildError as error:
+            raise StepFailed(str(error)) from error
+        if digest != again or working.read_bytes() != archive.read_bytes():
+            raise StepFailed(f"the working copy and the snapshot give different packages: {digest} / {again}")
+        problems = builder.verify(working, ROOT) + builder.verify(archive, SNAPSHOT)
+    finally:
+        if inside.exists():
+            shutil.rmtree(inside)
     if problems:
         raise StepFailed("the ZIP is not what Dolibarr should install:\n  " + "\n  ".join(problems))
-    with zipfile.ZipFile(first) as bundle:
+    with zipfile.ZipFile(archive) as bundle:
         files = sum(1 for info in bundle.infolist() if not info.is_dir())
-    context.cache["package"] = first
-    return f"{first.name}: {files} files, reproducible, sha256 {digest[:16]}"
+    context.cache["package"] = archive
+    return f"{archive.name}: {files} files, identical from working copy and snapshot, sha256 {digest[:16]}"
 
 
 def package_steps() -> list:
