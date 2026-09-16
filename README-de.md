@@ -8,13 +8,13 @@ Vereinswebsite mit.
 
 [English description](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/README.md)
 
-> **Beta.** Version 0.1 legt das Fundament: Länderprofil, Registerdaten, eine
-> Übersicht mit Prüfungen und die ersten API-Aufrufe. Steuerprofile,
+> **Beta.** Version 0.2 verknüpft Mitglieder und Geschäftspartner – auf dem
+> Fundament von 0.1 (Länderprofil, Registerdaten, Übersicht, API). Steuerprofile,
 > Beitragsläufe, Spendenmeldung, Ehrenamtspauschalen, Funktionäre,
 > Rechnungslegung und Versammlungen folgen Meilenstein für Meilenstein – siehe
 > [Fahrplan](https://github.com/Tabsi1998/dolibarr-vereine/milestones).
 
-## Was Version 0.1 kann
+## Was das Modul bisher kann
 
 - **Länderprofil** Österreich (vollständig) oder Deutschland (Vorschau bis 1.1).
 - **Vereinsdaten**, die Dolibarr nicht kennt: ZVR-Zahl (Österreich) bzw.
@@ -26,6 +26,16 @@ Vereinswebsite mit.
   Website stehen muss (§ 18 VerG).
 - **REST-API** für Websites: `GET /api/index.php/vereine/organization` und
   `GET /api/index.php/vereine/status`. Details in [docs/API.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/API.md).
+- **Mitglieder und Geschäftspartner** (0.2): Ein aktiviertes Mitglied kann
+  automatisch seinen Geschäftspartner bekommen; gibt es schon einen mit derselben
+  E-Mail (oder Name und PLZ), wird er vorgeschlagen statt doppelt angelegt.
+  Partner von Mitgliedern tragen je nach Status die Kategorie *Mitglied* oder
+  *Ehemaliges Mitglied*, sind als Kunde gekennzeichnet und bekommen den Kundentyp
+  Privatperson, wenn sie noch keinen haben.
+- **Abgleichsseite** *Mitglieder > Verein > Mitglieder und Partner*: was nicht
+  verknüpft ist oder nicht zusammenpasst – mit Vorschau vor jeder Änderung.
+- **Reiter *Mitgliedschaft*** am Geschäftspartner und Erziehungsberechtigte von
+  Minderjährigen als Kontakte in der Kategorie *Erziehungsberechtigt*.
 
 ## Wo das Modul in Dolibarr sitzt
 
@@ -33,15 +43,22 @@ Vereinswebsite mit.
 | --- | --- |
 | *Start > Einstellungen > Unternehmen/Organisation* | Name, Anschrift, E-Mail, Telefon, Website und erster Monat des Rechnungsjahres – das Modul liest sie, es führt keine eigene Kopie |
 | *Start > Einstellungen > Module > Vereine* | Einrichtung: Länderprofil und Registerdaten; Über-Seite mit Version und Lizenz |
-| *Mitglieder* (Dolibarr-eigenes Modul) | Pflicht und wird mit Vereine aktiviert; das linke Menü bekommt den Eintrag *Verein* |
+| *Mitglieder*, *Geschäftspartner*, *Kategorien* (Dolibarr-eigene Module) | Pflicht und werden mit Vereine aktiviert; das Mitglieder-Menü bekommt *Verein* und *Mitglieder und Partner* |
 | *Mitglieder > Verein* | Übersicht mit Vereinsdaten und Prüfungen |
-| *Benutzer & Gruppen > Berechtigungen* | *Vereine: Vereinsübersicht und Vereinsdaten lesen* – für die Übersicht und die API |
+| *Mitglieder > Verein > Mitglieder und Partner* | Abgleich von Mitgliedern und ihren Geschäftspartnern |
+| Karte eines Geschäftspartners | Reiter *Mitgliedschaft*; Kategorien *Mitglied* und *Ehemaliges Mitglied* |
+| Kontakte des Partners eines Mitglieds | Kategorie *Erziehungsberechtigt* für Minderjährige |
+| *Start > Einstellungen > Module > Vereine > Mitglieder und Partner* | Automatisch anlegen, Kategorien, Kundentypen |
+| *Benutzer & Gruppen > Berechtigungen* | *Vereinsübersicht und Vereinsdaten lesen* (Übersicht, API); *Mitglieder und Geschäftspartner verknüpfen und abgleichen* (Änderungen im Abgleich) |
 | Modul *API REST* | Nötig für `/api/index.php/vereine/...`; die Übersicht warnt, solange es aus ist |
 
 So hängt es zusammen: Die Einrichtung speichert die Vereinsdaten als
 Dolibarr-Konstanten; Übersicht und API lesen dieselben Daten über eine Klasse
 (`VereineOrganization`). Eine Website sieht also genau das, was die Übersicht
-zeigt.
+zeigt. Mitgliedsereignisse (aktivieren, austreten, ausschließen, ändern,
+löschen) erreichen das Modul über einen Dolibarr-Trigger, der den verknüpften
+Geschäftspartner nachzieht; das Mahnwesen-Modul erkennt Mitglieder dann an
+Kategorie und Kundentyp.
 
 ## Versionen und Updates
 
@@ -58,7 +75,7 @@ ohne `-beta`, weil Dolibarr nur diesen Namen annimmt.
 | --- | --- | --- |
 | Dolibarr | 22.0 | 22.0.5, 23.0.4, 24.0.1 |
 | PHP | 7.4 | 7.4, 8.1, 8.2, 8.3, 8.4 |
-| Dolibarr-Module | Mitglieder | REST-API für die Website-Aufrufe |
+| Dolibarr-Module | Mitglieder, Geschäftspartner, Kategorien | REST-API für die Website-Aufrufe |
 
 ## Installation
 
@@ -74,8 +91,9 @@ ohne `-beta`, weil Dolibarr nur diesen Namen annimmt.
    Registerdaten eintragen.
 5. Benutzern das Recht *Vereinsübersicht und Vereinsdaten lesen* geben.
 
-Ein Update läuft genauso: das neuere ZIP bereitstellen und das Modul neu
-aktivieren. Die Vereinsdaten bleiben erhalten.
+Ein Update läuft genauso: das neuere ZIP bereitstellen, dann das Modul in der
+Modulliste einmal deaktivieren und wieder aktivieren, damit neue Tabellen,
+Rechte und Kategorien entstehen. Die Vereinsdaten bleiben erhalten.
 
 ## Die API von einer Website aus nutzen
 

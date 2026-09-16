@@ -7,13 +7,13 @@ with a REST API for the association's website.
 
 [Deutsche Beschreibung](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/README-de.md)
 
-> **Beta.** Version 0.1 lays the foundation: country profile, register data,
-> an overview with checks, and the first API endpoints. Tax profiles,
+> **Beta.** Version 0.2 links members and third parties on top of the
+> foundation of 0.1 (country profile, register data, overview, API). Tax profiles,
 > membership fee runs, donation reporting, volunteer allowances, officers,
 > annual accounts and general meetings follow milestone by milestone - see the
 > [roadmap](https://github.com/Tabsi1998/dolibarr-vereine/milestones).
 
-## What version 0.1 does
+## What it does so far
 
 - **Country profile** Austria (complete) or Germany (preview until 1.1).
 - **Association data** Dolibarr does not know: ZVR number (Austria) or register
@@ -25,6 +25,15 @@ with a REST API for the association's website.
   invoices and the website (§ 18 VerG).
 - **REST API** for websites: `GET /api/index.php/vereine/organization` and
   `GET /api/index.php/vereine/status`. See [docs/API.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/API.md).
+- **Members and third parties** (0.2): a validated member can get its third
+  party automatically; an existing third party with the same e-mail (or name
+  and postcode) is suggested instead of duplicated. Third parties of members
+  carry the category *Member* or *Former member* according to the member status,
+  are marked as customers and get the private customer type when they have none.
+- **Reconciliation page** *Members > Association > Members and third parties*:
+  what is not linked or not consistent - with a preview before every change.
+- **Tab *Membership*** on the third party card, and guardians of minor members as
+  contacts in the category *Guardian*.
 
 ## Where it sits in Dolibarr
 
@@ -32,14 +41,21 @@ with a REST API for the association's website.
 | --- | --- |
 | *Home > Setup > Company/Organisation* | Name, address, e-mail, phone, website and first month of the fiscal year - the module reads them, it does not keep a copy |
 | *Home > Setup > Modules > Vereine* | Setup: country profile and register data; about page with version and licence |
-| *Members* (Dolibarr's own module) | Required and enabled with Vereine; the left menu gets the entry *Association* |
+| *Members*, *Third parties*, *Categories* (Dolibarr's own modules) | Required and enabled with Vereine; the Members menu gets *Association* and *Members and third parties* |
 | *Members > Association* | Overview with the association's data and the checks |
-| *Users & Groups > Permissions* | *Vereine: Read the association overview and its data* - for the overview and the API |
+| *Members > Association > Members and third parties* | Reconciliation of members and their third parties |
+| Third party card | Tab *Membership*; categories *Member* and *Former member* |
+| Contacts of a member's third party | Category *Guardian* for guardians of minors |
+| *Home > Setup > Modules > Vereine > Members and third parties* | Automatic creation, categories, customer types |
+| *Users & Groups > Permissions* | *Read the association overview and its data* (overview, API); *Link members and third parties and bring them in line* (reconciliation changes) |
 | *API REST* module | Needed for `/api/index.php/vereine/...`; the overview warns while it is off |
 
 How the parts connect: the setup stores the association data as Dolibarr
 constants; the overview and the API read the same data through one class
 (`VereineOrganization`), so a website sees exactly what the overview shows.
+Member events (validate, resign, exclude, change, delete) reach the module
+through a Dolibarr trigger, which keeps the linked third party in line; the
+dunning module can then tell members apart by category and customer type.
 
 ## Versions and updates
 
@@ -56,7 +72,7 @@ accepts that name.
 | --- | --- | --- |
 | Dolibarr | 22.0 | 22.0.5, 23.0.4, 24.0.1 |
 | PHP | 7.4 | 7.4, 8.1, 8.2, 8.3, 8.4 |
-| Dolibarr modules | Members | REST API for the website endpoints |
+| Dolibarr modules | Members, Third parties, Categories | REST API for the website endpoints |
 
 ## Installation
 
@@ -70,8 +86,9 @@ accepts that name.
    data.
 5. Give users the right *Read the association overview and its data*.
 
-Updating works the same way: deploy the newer ZIP and re-enable the module.
-The association data stays.
+Updating works the same way: deploy the newer ZIP, then disable and enable the
+module once in the module list, so new tables, rights and categories are
+created. The association data stays.
 
 ## Using the API from a website
 

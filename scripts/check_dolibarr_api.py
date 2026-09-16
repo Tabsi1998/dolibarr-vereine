@@ -75,17 +75,58 @@ CONTRACTS = (
     ("htdocs/admin/modules.php", "'/^(module[a-zA-Z0-9]*_|theme_|).*\\-([0-9][0-9\\.]*)(\\s\\(\\d+\\)\\s)?\\.zip$/i'",
      "ZIP name rule of Deploy an external module"),
     ("htdocs/admin/modules.php", "name=\"fileinstall\"", "upload field of Deploy an external module"),
+    # Members and third parties (issue #15)
+    ("htdocs/societe/class/societe.class.php", "public function create_from_member(Adherent $member, $socname = '', $socalias = '', $customercode = '')", "third party created the way Dolibarr does it"),
+    ("htdocs/societe/class/societe.class.php", "$this->typent_code = ($member->morphy == 'phy' ? 'TE_PRIVATE' : 0);", "create_from_member sets the private customer type"),
+    ("htdocs/adherents/class/adherent.class.php", "public function setThirdPartyId($thirdpartyid)", "linking a member to a third party"),
+    ("htdocs/adherents/class/adherent.class.php", "SET fk_soc = null", "one member per third party (setThirdPartyId unlinks others)"),
+    ("htdocs/adherents/class/adherent.class.php", "const STATUS_VALIDATED = 1;", "member status values of VereinePartnerRules"),
+    ("htdocs/adherents/class/adherent.class.php", "const STATUS_RESILIATED = 0;", "member status values of VereinePartnerRules"),
+    ("htdocs/adherents/class/adherent.class.php", "const STATUS_EXCLUDED = -2;", "member status values of VereinePartnerRules"),
+    ("htdocs/adherents/class/adherent.class.php", "const STATUS_DRAFT = -1;", "member status values of VereinePartnerRules"),
+    ("htdocs/adherents/class/adherent.class.php", "call_trigger('MEMBER_VALIDATE'", "trigger on validation"),
+    ("htdocs/adherents/class/adherent.class.php", "call_trigger('MEMBER_RESILIATE'", "trigger on resignation"),
+    ("htdocs/adherents/class/adherent.class.php", "call_trigger('MEMBER_EXCLUDE'", "trigger on exclusion"),
+    ("htdocs/adherents/class/adherent.class.php", "call_trigger('MEMBER_DELETE'", "trigger on deletion"),
+    ("htdocs/adherents/class/adherent.class.php", "$this->statut = self::STATUS_VALIDATED;", "statut property the trigger reads"),
+    ("htdocs/adherents/class/adherent.class.php", "public function fetch_subscriptions()", "member since on the membership tab"),
+    ("htdocs/adherents/class/adherent.class.php", "public function LibStatut($status, $need_subscription, $date_end_subscription, $mode = 0)", "status badge on the reconciliation page"),
+    ("htdocs/categories/class/categorie.class.php", "public function add_type($obj, $type = '')", "adding a third party to a category"),
+    ("htdocs/categories/class/categorie.class.php", "public function del_type($obj, $type)", "removing a third party from a category"),
+    ("htdocs/categories/class/categorie.class.php", "public function containing($id, $type, $mode = 'object')", "categories on the membership tab"),
+    ("htdocs/categories/class/categorie.class.php", "public function fetch($id, $label = '', $type = null, $ref_ext = '')", "finding a category by label"),
+    ("htdocs/categories/class/categorie.class.php", "'customer'				=> 2,", "customer category type id 2"),
+    ("htdocs/categories/class/categorie.class.php", "'contact'				=> 4,", "contact category type id 4"),
+    ("htdocs/core/class/commonobject.class.php", "public function setValueFrom($field, $value, $table = '', $id = null, $format = '', $id_field = '', $fuser = null, $trigkey = '', $fk_user_field = 'fk_user_modif')", "changing single third party fields"),
+    ("htdocs/core/triggers/dolibarrtriggers.class.php", "const VERSIONS = [", "trigger version constant"),
+    ("htdocs/core/triggers/dolibarrtriggers.class.php", "abstract public function runTrigger($action, $object, User $user, Translate $langs, Conf $conf);", "trigger signature"),
+    ("htdocs/core/lib/company.lib.php", "function societe_prepare_head(Societe $object", "tabs of the third party card"),
+    ("htdocs/core/lib/company.lib.php", "complete_head_from_modules($conf, $langs, $object, $head, $h, 'thirdparty', 'add', 'external');", "module tab type thirdparty"),
+    ("htdocs/core/lib/functions.lib.php", "function dol_banner_tab(", "third party banner"),
+    ("htdocs/core/lib/functions.lib.php", "function dol_getIdFromCode(", "customer type code and id"),
+    ("htdocs/core/lib/functions.lib.php", "function getEntity(", "multi-company filter"),
+    ("htdocs/core/lib/functions.lib.php", "function dol_print_email(", "guardian e-mail"),
+    ("htdocs/core/lib/functions.lib.php", "function dol_trunc(", "log message length"),
+    ("htdocs/core/lib/security.lib.php", "function restrictedArea(", "third party access on the membership tab"),
+    ("htdocs/compta/facture/class/facture.class.php", "const STATUS_VALIDATED = 1;", "open invoices on the membership tab"),
+    ("htdocs/install/mysql/tables/llx_categorie_societe.sql", "fk_soc", "customer category links"),
+    ("htdocs/install/mysql/tables/llx_categorie_contact.sql", "fk_socpeople", "contact category links"),
+    ("htdocs/install/mysql/data/llx_c_typent.sql", "'TE_PRIVATE'", "private customer type"),
 )
 
 LANG_KEYS = {
     # Loaded by every page through main.inc.php.
     "htdocs/langs/en_US/main.lang": ("About", "Parameter", "Value", "Save", "Error", "Name", "Status",
                                      "January", "February", "March", "April", "May", "June", "July",
-                                     "August", "September", "October", "November", "December"),
+                                     "August", "September", "October", "November", "December",
+                                     "Type", "Categories", "BackToList", "DateDue", "AmountTTC", "Ref",
+                                     "None", "Date", "Action", "Description", "Confirm", "Cancel", "Email"),
+    # Loaded by partners.php and partner_membership.php.
+    "htdocs/langs/en_US/members.lang": ("MemberRef", "Member"),
     # Loaded by admin/setup.php and admin/about.php.
     "htdocs/langs/en_US/admin.lang": ("Version", "Publisher", "BackToModuleList", "SetupSaved"),
     # Loaded by vereineindex.php.
-    "htdocs/langs/en_US/companies.lang": ("Address",),
+    "htdocs/langs/en_US/companies.lang": ("Address", "ThirdParty"),
 }
 
 

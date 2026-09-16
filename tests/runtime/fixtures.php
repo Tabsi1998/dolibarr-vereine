@@ -96,4 +96,155 @@ if ($stage === 'rights') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base or rights');
+if ($stage === 'members') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent_type.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
+
+	rt_const($db, 'ADHERENT_LOGIN_NOT_REQUIRED', '1');
+	rt_const($db, 'ADHERENT_MAIL_REQUIRED', '0');
+	$conf->setValues($db);
+	$countryId = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+
+	$type = new AdherentType($db);
+	$type->label = 'Ordentliches Mitglied';
+	$type->morphy = '';
+	$type->subscription = 0;
+	$typeId = $type->create($admin);
+	if ($typeId <= 0) {
+		rt_fail('member type: '.$type->error);
+	}
+
+	/**
+	 * Create a third party without member.
+	 *
+	 * @param DoliDB $db        Database handler
+	 * @param User   $admin     Administrator
+	 * @param string $name      Name
+	 * @param string $email     E-mail
+	 * @param int    $countryId Country
+	 * @return int
+	 */
+	function rt_partner($db, $admin, $name, $email, $countryId)
+	{
+		$partner = new Societe($db);
+		$partner->name = $name;
+		$partner->email = $email;
+		$partner->address = 'Teststraße 1';
+		$partner->zip = '6020';
+		$partner->town = 'Innsbruck';
+		$partner->country_id = $countryId;
+		$partner->client = 1;
+		$partner->code_client = -1;
+		if ($partner->create($admin) <= 0) {
+			rt_fail('third party '.$name.': '.$partner->error);
+		}
+		return (int) $partner->id;
+	}
+
+	$annaPartner = rt_partner($db, $admin, 'Anna Vorhanden', 'anna@runtime-verein.test', $countryId);
+	$oldPartner = rt_partner($db, $admin, 'Alt Partner', 'alt@runtime-verein.test', $countryId);
+	$memberCategory = new Categorie($db);
+	$memberCategory->fetch((int) getDolGlobalInt('VEREINE_CATEGORY_MEMBER'));
+	$old = new Societe($db);
+	$old->fetch($oldPartner);
+	if ($memberCategory->add_type($old, 'customer') < 0) {
+		rt_fail('orphan category: '.$memberCategory->error);
+	}
+
+	/**
+	 * Create a member and validate it unless it stays a draft.
+	 *
+	 * @param DoliDB $db        Database handler
+	 * @param User   $admin     Administrator
+	 * @param int    $typeId    Member type
+	 * @param array  $fields    Member fields
+	 * @param bool   $validate  Whether to validate
+	 * @param int    $countryId Country
+	 * @return int
+	 */
+	function rt_member($db, $admin, $typeId, array $fields, $validate, $countryId)
+	{
+		$member = new Adherent($db);
+		$member->typeid = $typeId;
+		$member->morphy = 'phy';
+		$member->address = 'Teststraße 1';
+		$member->zip = '6020';
+		$member->town = 'Innsbruck';
+		$member->country_id = $countryId;
+		$member->public = 0;
+		foreach ($fields as $name => $value) {
+			$member->$name = $value;
+		}
+		if ($member->create($admin) <= 0) {
+			rt_fail('member '.$member->lastname.': '.$member->error.' '.implode(' | ', (array) $member->errors));
+		}
+		if ($validate && $member->validate($admin) <= 0) {
+			rt_fail('validate member '.$member->lastname.': '.$member->error);
+		}
+		return (int) $member->id;
+	}
+
+	$members = array(
+		'lisa' => rt_member($db, $admin, $typeId, array('firstname' => 'Lisa', 'lastname' => 'Neu', 'email' => 'lisa@runtime-verein.test'), true, $countryId),
+		'anna' => rt_member($db, $admin, $typeId, array('firstname' => 'Anna', 'lastname' => 'Vorhanden', 'email' => 'anna@runtime-verein.test'), true, $countryId),
+		'kind' => rt_member($db, $admin, $typeId, array('firstname' => 'Kim', 'lastname' => 'Jung', 'email' => 'kind@runtime-verein.test', 'birth' => dol_mktime(12, 0, 0, 5, 5, 2015)), true, $countryId),
+		'sponsor' => rt_member($db, $admin, $typeId, array('morphy' => 'mor', 'company' => 'Sponsor GmbH', 'societe' => 'Sponsor GmbH', 'firstname' => 'Max', 'lastname' => 'Kontakt', 'email' => 'sponsor@runtime-verein.test'), true, $countryId),
+		'draft' => rt_member($db, $admin, $typeId, array('firstname' => 'Erik', 'lastname' => 'Entwurf', 'email' => 'entwurf@runtime-verein.test'), false, $countryId),
+	);
+	print json_encode(array('type' => $typeId, 'members' => $members, 'partners' => array('anna' => $annaPartner, 'old' => $oldPartner)))."\n";
+	exit(0);
+}
+
+if ($stage === 'resiliate') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	$member = new Adherent($db);
+	if ($member->fetch((int) rt_env('RT_MEMBER_ID')) <= 0 || $member->resiliate($admin) <= 0) {
+		rt_fail('resiliate member: '.$member->error);
+	}
+	print json_encode(array('resiliated' => (int) $member->id))."\n";
+	exit(0);
+}
+
+if ($stage === 'guardian') {
+	require_once DOL_DOCUMENT_ROOT.'/contact/class/contact.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
+	$contact = new Contact($db);
+	$contact->socid = (int) rt_env('RT_PARTNER_ID');
+	$contact->firstname = 'Gerda';
+	$contact->lastname = 'Jung';
+	$contact->email = 'gerda.jung@runtime-verein.test';
+	$contact->statut = 1;
+	if ($contact->create($admin) <= 0) {
+		rt_fail('guardian contact: '.$contact->error);
+	}
+	$category = new Categorie($db);
+	if ($category->fetch((int) getDolGlobalInt('VEREINE_CATEGORY_GUARDIAN')) <= 0 || $category->add_type($contact, 'contact') < 0) {
+		rt_fail('guardian category: '.$category->error);
+	}
+	print json_encode(array('guardian' => (int) $contact->id))."\n";
+	exit(0);
+}
+
+if ($stage === 'reset') {
+	// After the upgrade test: back to a Dolibarr that never had the module, apart from its files.
+	require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
+	unActivateModule('modVereine');
+	foreach (array('VEREINE_CATEGORY_MEMBER', 'VEREINE_CATEGORY_FORMER', 'VEREINE_CATEGORY_GUARDIAN') as $name) {
+		$category = new Categorie($db);
+		if (getDolGlobalInt($name) > 0 && $category->fetch(getDolGlobalInt($name)) > 0 && $category->delete($admin) < 0) {
+			rt_fail('delete category '.$name.': '.$category->error);
+		}
+	}
+	if (!$db->query("DELETE FROM ".MAIN_DB_PREFIX."const WHERE name LIKE 'VEREINE\\_%'")) {
+		rt_fail('delete constants: '.$db->lasterror());
+	}
+	if (!$db->query("DROP TABLE IF EXISTS ".MAIN_DB_PREFIX."vereine_log")) {
+		rt_fail('drop log table: '.$db->lasterror());
+	}
+	print json_encode(array('reset' => 1))."\n";
+	exit(0);
+}
+
+rt_fail('unknown stage "'.$stage.'", use base, rights, members, resiliate, guardian or reset');

@@ -100,3 +100,17 @@ raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
   to users; enabling it again restores them.
 - The official Dolibarr images ship `custom/` read-only; web deployment needs a
   writable `custom/`.
+
+## Facts found while building 0.2
+
+- One member per third party in Dolibarr (`setThirdPartyId` unlinks others).
+- `Societe::update()` does not sync back to the member by default
+  (`$nosyncmember = 1`), so changing a member's third party cannot loop through
+  `MEMBER_MODIFY`; the service still guards against re-entry.
+- `Adherent::validate()` sets `datevalid` only after `MEMBER_VALIDATE` ran.
+- Third party contact roles need the hidden, unstable option
+  `MAIN_SUPPORT_SHARED_CONTACT_BETWEEN_THIRDPARTIES`; guardians use a contact
+  category instead.
+- The runtime `upgrade` scenario deploys the newest earlier release (built from
+  its tag), enables it, stores data, deploys the current package, disables and
+  enables, checks, and then resets with `fixtures.php reset`.

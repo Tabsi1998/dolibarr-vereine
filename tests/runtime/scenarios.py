@@ -57,6 +57,7 @@ class Stack:
     docker: str
     fixtures: dict = field(default_factory=dict)
     notes: dict = field(default_factory=dict)
+    previous_package: Path | None = None
 
     @property
     def url(self) -> str:
@@ -64,9 +65,7 @@ class Stack:
 
     @property
     def module_version(self) -> str:
-        with zipfile.ZipFile(self.package) as bundle:
-            text = bundle.read("vereine/core/modules/modVereine.class.php").decode("utf-8")
-        return re.search(r"\$this->version\s*=\s*'([^']+)'", text).group(1)
+        return package_version(self.package)
 
     def browser(self, who: str = "admin") -> Browser:
         passwords = {"admin": self.admin_password, "rtreader": self.reader_password,
@@ -90,13 +89,16 @@ class Stack:
     def const(self, name: str) -> str | None:
         return self.value(f"SELECT value FROM llx_const WHERE name = '{name}' AND entity IN (0, 1) ORDER BY entity DESC LIMIT 1")
 
-    def php_fixture(self, stage: str) -> dict:
-        completed = self.run(self.docker, "exec", "-u", "www-data",
-                             "--env", f"RT_READER_PASSWORD={self.reader_password}",
-                             "--env", f"RT_NOBODY_PASSWORD={self.nobody_password}",
-                             "--env", f"RT_READER_KEY={self.reader_key}",
-                             "--env", f"RT_NOBODY_KEY={self.nobody_key}",
-                             self.web, "php", "/opt/vereine-tests/fixtures.php", stage, check=False, timeout=600)
+    def php_fixture(self, stage: str, **extra: str) -> dict:
+        arguments = [self.docker, "exec", "-u", "www-data",
+                     "--env", f"RT_READER_PASSWORD={self.reader_password}",
+                     "--env", f"RT_NOBODY_PASSWORD={self.nobody_password}",
+                     "--env", f"RT_READER_KEY={self.reader_key}",
+                     "--env", f"RT_NOBODY_KEY={self.nobody_key}"]
+        for name, value in extra.items():
+            arguments += ["--env", f"{name}={value}"]
+        completed = self.run(*arguments, self.web, "php", "/opt/vereine-tests/fixtures.php", stage,
+                             check=False, timeout=600)
         if completed.returncode != 0:
             raise CheckFailed(f"fixtures.php {stage} failed on Dolibarr {self.version}:\n"
                               f"{(completed.stdout + completed.stderr)[-1500:]}")
@@ -136,7 +138,8 @@ def denied(page: Page) -> bool:
     if page.denied():
         return True
     # accessforbidden() prints its reason in <div class="error"> and nothing of the page it refused.
-    refused_page_parts = ('name="vereinesetup"', "data-check=", "page-admin-about")
+    refused_page_parts = ('name="vereinesetup"', "data-check=", "page-admin-about", "data-section=",
+                          "data-membership=", 'name="vereinepartnersetup"')
     return '<div class="error">' in page.text and not any(part in page.text for part in refused_page_parts)
 
 
@@ -153,6 +156,43 @@ def module_list(browser: Browser) -> Page:
     return page_ok(browser.get("/admin/modules.php?mode=common&search_keyword=vereine"), "module list")
 
 
+def package_version(package: Path) -> str:
+    """The module version inside a package."""
+    with zipfile.ZipFile(package) as bundle:
+        text = bundle.read("vereine/core/modules/modVereine.class.php").decode("utf-8")
+    return re.search(r"\$this->version\s*=\s*'([^']+)'", text).group(1)
+
+
+def upload(stack: Stack, package: Path) -> list[str]:
+    """Deploy an external module, as an administrator does it; the installed files must be the package."""
+    browser = stack.browser()
+    page = page_ok(browser.get("/admin/modules.php?mode=deploy"), "deploy page")
+    form = page.form(name="forminstall")
+    # checkforcompliance asks dolibarr.org for a blacklist; the check runs offline.
+    fields = [(name, value) for name, value in form.values() if name != "checkforcompliance"]
+    result = browser.post_multipart(form.url(), fields, [("fileinstall", package.name, package.read_bytes())])
+    expect(result.status == 200, f"uploading {package.name} answered HTTP {result.status}")
+    expect(not result.errors(), f"the upload page shows {', '.join(result.errors())}")
+    installed = stack.shell(f"cd {MODULE_DIR} && find . -type f | sort")
+    expect(installed.returncode == 0, f"the upload did not create {MODULE_DIR}:\n{result.text[-800:]}")
+    files = [line[2:] for line in installed.stdout.splitlines() if line.startswith("./")]
+    with zipfile.ZipFile(package) as bundle:
+        packaged = sorted(info.filename[len("vereine/"):] for info in bundle.infolist() if not info.is_dir())
+    expect(files == packaged, f"deployed files differ from {package.name}: "
+                              f"missing {sorted(set(packaged) - set(files))[:5]}, extra {sorted(set(files) - set(packaged))[:5]}")
+    return files
+
+
+def switch_module(stack: Stack, action: str) -> None:
+    """Enable (set) or disable (reset) the module from Dolibarr's module list."""
+    browser = stack.browser()
+    page_ok(browser.get(module_link(module_list(browser), action)), f"module list action {action}")
+
+
+def section_counts(page: Page) -> dict:
+    return dict(re.findall(r'data-section="([a-z_]+)" data-count="(\d+)"', page.text))
+
+
 def data_status(page: Page, check: str) -> str | None:
     match = re.search(rf'data-check="{re.escape(check)}" data-status="([a-z]+)"', page.text)
     return match.group(1) if match else None
@@ -160,26 +200,49 @@ def data_status(page: Page, check: str) -> str | None:
 
 # ------------------------------------------------------------------ scenarios
 
-def deploy(stack: Stack) -> str:
-    """The package goes in the way an administrator installs it: Deploy an external module."""
+CATEGORY_CONSTANTS = ("VEREINE_CATEGORY_MEMBER", "VEREINE_CATEGORY_FORMER", "VEREINE_CATEGORY_GUARDIAN")
+
+
+def upgrade(stack: Stack) -> str:
+    """An installation of the previous release takes the new package: its data stays, the new parts arrive."""
     expect(stack.fixtures.get("dolibarr", "").startswith(stack.version.rsplit(".", 1)[0]),
            f"the container runs Dolibarr {stack.fixtures.get('dolibarr')}, expected {stack.version}")
-    expect(stack.shell(f"test ! -e {MODULE_DIR}").returncode == 0, "the module exists before the upload")
+    if stack.previous_package is None:
+        return "no earlier release to upgrade from"
+    old = package_version(stack.previous_package)
+    upload(stack, stack.previous_package)
+    switch_module(stack, "set")
+    expect(stack.const("MAIN_MODULE_VEREINE") == "1", f"{old} could not be enabled")
     browser = stack.browser()
-    page = page_ok(browser.get("/admin/modules.php?mode=deploy"), "deploy page")
-    form = page.form(name="forminstall")
-    # checkforcompliance asks dolibarr.org for a blacklist; the check runs offline.
-    fields = [(name, value) for name, value in form.values() if name != "checkforcompliance"]
-    result = browser.post_multipart(form.url(), fields, [("fileinstall", stack.package.name, stack.package.read_bytes())])
-    expect(result.status == 200, f"the upload answered HTTP {result.status}")
-    expect(not result.errors(), f"the upload page shows {', '.join(result.errors())}")
-    installed = stack.shell(f"cd {MODULE_DIR} && find . -type f | sort")
-    expect(installed.returncode == 0, f"the upload did not create {MODULE_DIR}:\n{result.text[-800:]}")
-    files = [line[2:] for line in installed.stdout.splitlines() if line.startswith("./")]
-    with zipfile.ZipFile(stack.package) as bundle:
-        packaged = sorted(info.filename[len("vereine/"):] for info in bundle.infolist() if not info.is_dir())
-    expect(files == packaged, f"deployed files differ from the package: "
-                              f"missing {sorted(set(packaged) - set(files))[:5]}, extra {sorted(set(files) - set(packaged))[:5]}")
+    form = browser.get("/custom/vereine/admin/setup.php").form(name="vereinesetup")
+    page_ok(browser.submit(form, {"VEREINE_REGISTER_NUMBER": "987654321", "VEREINE_AUTHORITY": "BH Innsbruck"}),
+            f"setup of {old}")
+    expect(stack.const("VEREINE_REGISTER_NUMBER") == "987654321", f"{old} did not store the ZVR number")
+
+    upload(stack, stack.package)
+    switch_module(stack, "reset")
+    switch_module(stack, "set")
+    about = page_ok(stack.browser().get("/custom/vereine/admin/about.php"), "about after the upgrade")
+    expect(stack.module_version in about.text, f"the about page does not show {stack.module_version} after the upgrade")
+    expect(stack.const("VEREINE_REGISTER_NUMBER") == "987654321" and stack.const("VEREINE_AUTHORITY") == "BH Innsbruck",
+           "the upgrade lost the association data")
+    expect(stack.sql("SHOW TABLES LIKE 'llx_vereine_log'") == [["llx_vereine_log"]], "the upgrade did not create the log table")
+    rights = {row[0] for row in stack.sql("SELECT id FROM llx_rights_def WHERE module = 'vereine' AND entity = 1")}
+    expect("49210002" in rights, f"the upgrade did not add the partner right: {rights}")
+    categories = [stack.const(name) or "" for name in CATEGORY_CONSTANTS]
+    expect(all(value.isdigit() and int(value) > 0 for value in categories), f"categories after the upgrade: {categories}")
+
+    stack.php_fixture("reset")
+    expect(stack.const("MAIN_MODULE_VEREINE") is None and stack.const("VEREINE_REGISTER_NUMBER") is None,
+           "the reset after the upgrade test left module state behind")
+    return f"{old} -> {stack.module_version}: association data kept; log table, partner right and categories added"
+
+
+def deploy(stack: Stack) -> str:
+    """The package goes in the way an administrator installs it: Deploy an external module."""
+    if stack.previous_package is None:
+        expect(stack.shell(f"test ! -e {MODULE_DIR}").returncode == 0, "the module exists before the upload")
+    files = upload(stack, stack.package)
     return f"{stack.package.name} deployed: {len(files)} files in custom/vereine on Dolibarr {stack.fixtures['dolibarr']}"
 
 
@@ -190,16 +253,28 @@ def enable(stack: Stack) -> str:
     expect("Vereine (AT/DE)" in page.text, "the module list does not show the translated module name")
     page_ok(browser.get(module_link(page, "set")), "enable")
     expect(stack.const("MAIN_MODULE_VEREINE") == "1", "MAIN_MODULE_VEREINE is not 1 after enabling")
-    expect(stack.const("MAIN_MODULE_ADHERENT") == "1", "the Members module is not enabled")
+    for module in ("MAIN_MODULE_ADHERENT", "MAIN_MODULE_SOCIETE", "MAIN_MODULE_CATEGORIE"):
+        expect(stack.const(module) == "1", f"{module} was not enabled together with Vereine")
     expect(stack.const("VEREINE_COUNTRY_PROFILE") == "AT",
            f"an Austrian company should start with profile AT, found {stack.const('VEREINE_COUNTRY_PROFILE')!r}")
-    right = stack.sql("SELECT id, perms, subperms FROM llx_rights_def WHERE module = 'vereine' AND entity = 1")
-    expect(right == [["49210001", "association", "read"]], f"rights after enabling: {right}")
-    menu = stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1")
-    expect(menu == [["members", "vereine", "/vereine/vereineindex.php"]], f"menu entries after enabling: {menu}")
+    rights = stack.sql("SELECT id, perms, subperms FROM llx_rights_def WHERE module = 'vereine' AND entity = 1 ORDER BY id")
+    expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"]], f"rights after enabling: {rights}")
+    menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
+    expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_partners", "/vereine/partners.php"]],
+           f"menu entries after enabling: {menu}")
+    expect(stack.sql("SHOW TABLES LIKE 'llx_vereine_log'") == [["llx_vereine_log"]], "the log table was not created")
+    categories = {name: stack.const(name) or "0" for name in CATEGORY_CONSTANTS}
+    types = {name: stack.value(f"SELECT type FROM llx_categorie WHERE rowid = {int(value)}") for name, value in categories.items()}
+    expect(types == {"VEREINE_CATEGORY_MEMBER": "2", "VEREINE_CATEGORY_FORMER": "2", "VEREINE_CATEGORY_GUARDIAN": "4"},
+           f"categories after enabling: {categories}, types {types}")
+    label = stack.value(f"SELECT label FROM llx_categorie WHERE rowid = {int(categories['VEREINE_CATEGORY_MEMBER'])}")
+    expect(label == "Mitglied", f"the member category is called {label!r}, expected the German 'Mitglied'")
+    expect(stack.const("VEREINE_PARTNER_AUTOCREATE") == "0" and stack.const("VEREINE_PARTNER_TYPENT_NATURAL") == "TE_PRIVATE",
+           "the defaults for members and third parties were not written")
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
-    return f"module {stack.module_version} on, Members on, profile AT, right 49210001, menu under Members"
+    return (f"module {stack.module_version} on with Members, third parties and categories; profile AT; "
+            "2 rights, 2 menu entries, log table, 3 categories")
 
 
 def pages(stack: Stack) -> str:
@@ -219,7 +294,16 @@ def pages(stack: Stack) -> str:
     expect(stack.module_version in about.text and "IT-Tabelander" in about.text, "the about page lacks version or publisher")
     members = page_ok(browser.get("/adherents/index.php?mainmenu=members&leftmenu="), "Members home")
     expect("/custom/vereine/vereineindex.php" in members.text, "the Members menu has no entry for the association")
-    return "overview with checks, setup, about and the Members menu entry render in German"
+    expect(data_status(overview, "partners") == "ok", "an empty Dolibarr reports open points between members and third parties")
+    reconciliation = page_ok(browser.get("/custom/vereine/partners.php"), "members and third parties")
+    sections = re.findall(r'data-section="([a-z_]+)"', reconciliation.text)
+    expect(sections == ["without_partner", "attributes", "differences", "orphans", "minors", "duplicates"],
+           f"reconciliation sections: {sections}")
+    partner_setup = page_ok(browser.get("/custom/vereine/admin/partners.php"), "partner setup")
+    form = partner_setup.form(name="vereinepartnersetup")
+    expect(form.value("VEREINE_PARTNER_TYPENT_NATURAL") == "TE_PRIVATE" and form.value("VEREINE_PARTNER_AUTOCREATE") is None,
+           "the partner setup does not show its defaults")
+    return "overview with checks, setup, partner setup, about, reconciliation and the Members menu entry render in German"
 
 
 def setup(stack: Stack) -> str:
@@ -285,6 +369,9 @@ def access(stack: Stack) -> str:
     page_ok(reader.get("/custom/vereine/vereineindex.php"), "overview for a reader")
     expect(denied(reader.get("/custom/vereine/admin/setup.php")), "a non-administrator opens the setup")
     expect(denied(reader.get("/custom/vereine/admin/about.php")), "a non-administrator opens the about page")
+    expect(denied(reader.get("/custom/vereine/admin/partners.php")), "a non-administrator opens the partner setup")
+    expect(denied(reader.get("/custom/vereine/partners.php")),
+           "a user without the member and third party rights opens the reconciliation")
     nobody = stack.browser("rtnobody")
     expect(denied(nobody.get("/custom/vereine/vereineindex.php")), "a user without the right opens the overview")
     members = nobody.get("/adherents/index.php?mainmenu=members&leftmenu=")
@@ -317,6 +404,115 @@ def api(stack: Stack) -> str:
     return "status and organization match the setup; without right 403, without key 401"
 
 
+def partners(stack: Stack) -> str:
+    """Members get their third party, a possible duplicate is only suggested, and the reconciliation fixes the rest."""
+    browser = stack.browser()
+    form = page_ok(browser.get("/custom/vereine/admin/partners.php"), "partner setup").form(name="vereinepartnersetup")
+    page_ok(browser.submit(form, {"VEREINE_PARTNER_AUTOCREATE": "1"}), "switch on automatic third parties")
+    expect(stack.const("VEREINE_PARTNER_AUTOCREATE") == "1", "automatic third parties were not switched on")
+
+    data = stack.php_fixture("members")
+    members, existing = data["members"], data["partners"]
+    private = stack.value("SELECT id FROM llx_c_typent WHERE code = 'TE_PRIVATE'")
+    member_category = stack.const("VEREINE_CATEGORY_MEMBER")
+    former_category = stack.const("VEREINE_CATEGORY_FORMER")
+
+    def partner_of(key: str) -> str | None:
+        value = stack.value(f"SELECT fk_soc FROM llx_adherent WHERE rowid = {int(members[key])}")
+        return None if value in (None, "NULL", "0") else value
+
+    def categories_of(socid) -> set:
+        return {row[0] for row in stack.sql(f"SELECT fk_categorie FROM llx_categorie_societe WHERE fk_soc = {int(socid)}")}
+
+    lisa = partner_of("lisa")
+    expect(lisa is not None, "validating Lisa did not create a third party")
+    row = stack.sql(f"SELECT client, fk_typent, nom FROM llx_societe WHERE rowid = {int(lisa)}")[0]
+    expect(row == ["1", private, "Lisa Neu"], f"Lisa's third party is {row}, expected customer, private, 'Lisa Neu'")
+    expect(member_category in categories_of(lisa), "Lisa's third party is not in the member category")
+    expect(partner_of("anna") is None, "Anna was linked or duplicated although a third party with her e-mail exists")
+    suggested = stack.value("SELECT fk_soc FROM llx_vereine_log WHERE action = 'partner_suggested' "
+                            f"AND fk_adherent = {int(members['anna'])}")
+    expect(suggested == str(existing["anna"]), f"the log does not suggest Anna's existing third party ({suggested})")
+    kind = partner_of("kind")
+    expect(kind is not None, "the minor member got no third party")
+    sponsor = partner_of("sponsor")
+    sponsor_row = stack.sql(f"SELECT nom, fk_typent FROM llx_societe WHERE rowid = {int(sponsor or 0)}")
+    expect(sponsor_row and sponsor_row[0][0] == "Sponsor GmbH" and sponsor_row[0][1] in ("0", "NULL"),
+           f"the sponsor's third party is {sponsor_row}, expected 'Sponsor GmbH' without customer type")
+    expect(partner_of("draft") is None, "a draft member got a third party")
+
+    page = page_ok(browser.get("/custom/vereine/partners.php"), "reconciliation")
+    counts = section_counts(page)
+    expect(counts.get("without_partner") == "2" and counts.get("orphans") == "1" and counts.get("minors") == "1",
+           f"reconciliation counts {counts}; expected 2 without third party, 1 orphan, 1 minor")
+    link_value = f"{members['anna']}_{existing['anna']}"
+    expect(f'value="{link_value}"' in page.text, "Anna's existing third party is not offered for linking")
+    page_ok(browser.submit(page.form(name="vereinepartners"), button=("link", link_value)), "link Anna")
+    expect(partner_of("anna") == str(existing["anna"]), "linking did not set Anna's third party")
+    expect(member_category in categories_of(existing["anna"]), "Anna's linked third party is not in the member category")
+    expect(stack.value(f"SELECT fk_typent FROM llx_societe WHERE rowid = {int(existing['anna'])}") == private,
+           "Anna's third party did not get the private customer type")
+
+    form = page_ok(browser.get("/custom/vereine/partners.php"), "reconciliation").form(name="vereinepartners")
+    preview = page_ok(browser.submit(form, {"sel_create[]": str(members["draft"])}, button=("op", "create")), "preview create")
+    expect('data-preview="create"' in preview.text and f'data-preview-row="{members["draft"]}"' in preview.text,
+           "no preview before creating third parties")
+    expect(partner_of("draft") is None, "the preview already created a third party")
+    page_ok(browser.submit(preview.form(name="vereinepreview")), "confirm create")
+    draft = partner_of("draft")
+    expect(draft is not None, "confirming did not create the draft member's third party")
+    expect(member_category not in categories_of(draft), "a draft member's third party got the member category")
+
+    stack.sql(f"UPDATE llx_societe SET email = 'veraltet@runtime-verein.test' WHERE rowid = {int(kind)}")
+    form = page_ok(browser.get("/custom/vereine/partners.php"), "reconciliation").form(name="vereinepartners")
+    preview = page_ok(browser.submit(form, {"sel_copy[]": str(members["kind"])}, button=("op", "copy")), "preview copy")
+    expect("veraltet@runtime-verein.test" in preview.text and "kind@runtime-verein.test" in preview.text,
+           "the copy preview does not show the old and the new e-mail")
+    page_ok(browser.submit(preview.form(name="vereinepreview")), "confirm copy")
+    expect(stack.value(f"SELECT email FROM llx_societe WHERE rowid = {int(kind)}") == "kind@runtime-verein.test",
+           "the member's e-mail was not copied to the third party")
+
+    form = page_ok(browser.get("/custom/vereine/partners.php"), "reconciliation").form(name="vereinepartners")
+    preview = page_ok(browser.submit(form, {"sel_orphans[]": str(existing["old"])}, button=("op", "orphans")), "preview orphans")
+    page_ok(browser.submit(preview.form(name="vereinepreview")), "confirm orphans")
+    expect(member_category not in categories_of(existing["old"]), "the third party without member kept the member category")
+
+    stack.php_fixture("resiliate", RT_MEMBER_ID=str(members["lisa"]))
+    lisa_categories = categories_of(lisa)
+    expect(former_category in lisa_categories and member_category not in lisa_categories,
+           f"after resigning, Lisa's third party is in categories {lisa_categories}")
+    stack.php_fixture("guardian", RT_PARTNER_ID=str(kind))
+    page = page_ok(browser.get("/custom/vereine/partners.php"), "reconciliation after the fixes")
+    counts = section_counts(page)
+    expect(set(counts.values()) == {"0"}, f"open points left after the fixes: {counts}")
+
+    tab = page_ok(browser.get(f"/custom/vereine/partner_membership.php?socid={int(lisa)}"), "membership tab")
+    expect(f'data-membership="{members["lisa"]}"' in tab.text, "the membership tab does not show Lisa's membership")
+    expect("Geschäftspartner angelegt" in html.unescape(tab.text), "the membership tab does not show the module's log")
+    card = page_ok(browser.get(f"/societe/card.php?socid={int(lisa)}"), "third party card")
+    expect(f"partner_membership.php?socid={int(lisa)}" in card.text, "the third party card has no membership tab")
+    overview = page_ok(browser.get("/custom/vereine/vereineindex.php"), "overview")
+    expect(data_status(overview, "partners") == "ok", "the overview still reports open partner points")
+    reader = stack.browser("rtreader")
+    expect(denied(reader.get(f"/custom/vereine/partner_membership.php?socid={int(lisa)}")),
+           "a user without member rights opens the membership tab")
+    actions = {row[0] for row in stack.sql("SELECT DISTINCT action FROM llx_vereine_log")}
+    wanted = {"partner_created", "partner_suggested", "partner_linked", "partner_attributes", "partner_updated"}
+    expect(wanted <= actions, f"log actions {sorted(actions)} lack {sorted(wanted - actions)}")
+
+    form = page_ok(browser.get("/custom/vereine/admin/partners.php"), "partner setup").form(name="vereinepartnersetup")
+    page_ok(browser.submit(form, {"VEREINE_PARTNER_CATEGORY_PER_TYPE": "1"}), "switch on sub-categories per member type")
+    tab = page_ok(browser.get(f"/custom/vereine/partner_membership.php?socid={int(sponsor)}"), "sponsor membership tab")
+    page_ok(browser.submit(tab.form(name="vereineapply")), "bring the sponsor in line")
+    child = stack.value(f"SELECT rowid FROM llx_categorie WHERE fk_parent = {int(member_category)} "
+                        "AND label = 'Ordentliches Mitglied' AND type = 2")
+    expect(child is not None and child in categories_of(sponsor),
+           "the sub-category for the member type was not created below the member category or not assigned")
+    return ("created on validation, existing third party suggested and linked, draft created after preview, "
+            "e-mail copied, orphan corrected, resignation -> former member, guardian clears the minor, "
+            "sub-category per member type")
+
+
 def disable(stack: Stack) -> str:
     """Disabling hides pages and API but keeps data and granted rights for the next activation."""
     browser = stack.browser()
@@ -347,13 +543,15 @@ def php_messages(stack: Stack) -> set:
 
 
 SCENARIOS = (
-    ("deploy", "The package deploys through Deploy an external module", deploy, ()),
+    ("upgrade", "An installation of the previous release upgrades to this package", upgrade, ()),
+    ("deploy", "The package deploys through Deploy an external module", deploy, ("upgrade",)),
     ("enable", "Enabling registers rights, menu and the country profile", enable, ("deploy",)),
     ("pages", "Overview, setup, about and the menu entry render", pages, ("enable",)),
     ("setup", "Setup validates, normalises and stores the association", setup, ("pages",)),
     ("access", "Rights decide who sees overview and setup", access, ("setup",)),
     ("api", "REST API answers with the right and refuses without", api, ("setup",)),
-    ("disable", "Disabling keeps data and rights for the next activation", disable, ("access", "api")),
+    ("partners", "Members and third parties are linked and reconciled", partners, ("access", "api")),
+    ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 
 

@@ -87,7 +87,18 @@ if (!$user->hasRight('vereine', 'association', 'read')) {
  */
 
 $organization = VereineOrganization::load($mysoc);
-$checks = VereineOrganization::checks($organization, isModEnabled('api'));
+// Open points between members and third parties, for users who may see both.
+$partnerIssues = null;
+if ($user->hasRight('adherent', 'lire') && $user->hasRight('societe', 'lire')) {
+	require_once __DIR__.'/class/vereinepartnerservice.class.php';
+	$partnerService = new VereinePartnerService($db);
+	$partnerReport = $partnerService->report(dol_print_date(dol_now(), '%Y-%m-%d'));
+	$partnerIssues = 0;
+	foreach (array('without_partner', 'attributes', 'differences', 'orphans', 'minors', 'duplicates') as $section) {
+		$partnerIssues += count($partnerReport[$section]);
+	}
+}
+$checks = VereineOrganization::checks($organization, isModEnabled('api'), $partnerIssues);
 $profile = $organization['country_profile'];
 $notSet = '<span class="opacitymedium">'.$langs->trans('VereineNotSet').'</span>';
 
@@ -140,16 +151,18 @@ $fixLinks = array(
 	'setup' => array(dol_buildpath('/vereine/admin/setup.php', 1), 'VereineFixInSetup'),
 	'company' => array(DOL_URL_ROOT.'/admin/company.php', 'VereineFixInCompany'),
 	'modules' => array(DOL_URL_ROOT.'/admin/modules.php?search_keyword=api', 'VereineFixInModules'),
+	'partners' => array(dol_buildpath('/vereine/partners.php', 1), 'VereineFixInPartners'),
 );
 print '<div class="div-table-responsive-no-min">';
 print '<table class="noborder centpercent">';
 print '<tr class="liste_titre"><th>'.$langs->trans('VereineChecks').'</th><th class="center">'.$langs->trans('Status').'</th><th></th></tr>';
 foreach ($checks as $check) {
 	print '<tr class="oddeven" data-check="'.dol_escape_htmltag($check['code']).'" data-status="'.dol_escape_htmltag($check['status']).'">';
-	print '<td>'.$langs->trans($check['label']).'</td>';
+	print '<td>'.$langs->trans($check['label'], $check['value']).'</td>';
 	print '<td class="center nowraponall">'.vereineCheckBadge($check['status']).'</td>';
 	print '<td class="right nowraponall">';
-	if ($check['fix'] !== '' && isset($fixLinks[$check['fix']]) && !empty($user->admin)) {
+	// Setup pages need an administrator; the reconciliation page only its own rights.
+	if ($check['fix'] !== '' && isset($fixLinks[$check['fix']]) && (!empty($user->admin) || $check['fix'] === 'partners')) {
 		print '<a href="'.$fixLinks[$check['fix']][0].'">'.$langs->trans($fixLinks[$check['fix']][1]).'</a>';
 	}
 	print '</td></tr>';

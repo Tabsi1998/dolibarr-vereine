@@ -27,6 +27,12 @@ legal source, not in code, so a changed threshold is a data update.
 | `class/vereineprofile.class.php` | Country profiles and input rules, plain PHP |
 | `class/vereineorganization.class.php` | Association data and checks, plain PHP; `load()` reads Dolibarr |
 | `class/api_vereine.class.php` | REST API class `Vereine` |
+| `class/vereinepartnerrules.class.php` | Member and third party decisions, plain PHP |
+| `class/vereinepartnerservice.class.php` | Links, creates and reconciles members and third parties in Dolibarr |
+| `class/vereinelog.class.php` | The append-only log `llx_vereine_log` |
+| `core/triggers/interface_99_modVereine_VereineTriggers.class.php` | Member events keep the third party in line |
+| `partners.php`, `partner_membership.php`, `admin/partners.php` | Reconciliation, membership tab, partner setup |
+| `sql/` | Tables, created on activation and kept on deactivation |
 | `lib/vereine.lib.php` | Shared page helpers |
 | `vereineindex.php` | Overview under Members |
 | `admin/setup.php`, `admin/about.php` | Setup and about pages |
@@ -40,11 +46,32 @@ the API only read input, call those classes and render.
 
 ## Data
 
-Version 0.1 stores the association's data as Dolibarr constants
-(`VEREINE_COUNTRY_PROFILE`, `VEREINE_REGISTER_NUMBER`, `VEREINE_REGISTER_COURT`,
-`VEREINE_AUTHORITY`, `VEREINE_FOUNDED`, `VEREINE_NONPROFIT`, `VEREINE_PURPOSE`)
-per entity. Deactivating the module keeps them. Tables arrive with the first
-feature that needs them, each with an `entity` column for multi-company setups.
+The association's data are Dolibarr constants (`VEREINE_COUNTRY_PROFILE`,
+`VEREINE_REGISTER_NUMBER`, `VEREINE_REGISTER_COURT`, `VEREINE_AUTHORITY`,
+`VEREINE_FOUNDED`, `VEREINE_NONPROFIT`, `VEREINE_PURPOSE`) per entity.
+Deactivating the module keeps them.
+
+`llx_vereine_log` records what the module changed, by whom and when. Nothing in
+the module updates or deletes a row.
+
+## Members and third parties
+
+- Dolibarr links one member to one third party (`llx_adherent.fk_soc`;
+  `Adherent::setThirdPartyId` unlinks any other member). A family paying for
+  several members therefore cannot share one third party through this link;
+  fee runs (issue #4) handle the payer separately.
+- Third parties are created with Dolibarr's `Societe::create_from_member` and
+  linked with `Adherent::setThirdPartyId`; single fields change through
+  `CommonObject::setValueFrom`, categories through `Categorie::add_type`.
+- The categories *Member*, *Former member* (customer) and *Guardian* (contact)
+  are created on activation and found again by the ids in
+  `VEREINE_CATEGORY_MEMBER`, `VEREINE_CATEGORY_FORMER`, `VEREINE_CATEGORY_GUARDIAN`,
+  so the association may rename them.
+- Guardians are a contact category, not a third party contact role: Dolibarr
+  offers roles on third parties only behind the hidden option
+  `MAIN_SUPPORT_SHARED_CONTACT_BETWEEN_THIRDPARTIES`, which it calls unstable.
+- A trigger never makes a member's own action fail. Problems go to the log as
+  `partner_error`.
 
 ## Rules for every change
 
