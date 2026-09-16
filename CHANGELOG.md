@@ -7,6 +7,27 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.2.4-beta] - 2026-09-16
+
+Tax profiles in plain words.
+
+### Changed
+
+- The tax profile setup starts with three questions (what kind of income, is
+  VAT due, what the invoice says) and explains every area of an association and
+  every VAT treatment in everyday language, with the examples of the Austrian
+  ministry of finance's brochure "Vereine und Steuern".
+- Areas and VAT treatments are named by what they mean first, the technical
+  term second; the legal basis is a small link for the tax advisor.
+- Refusals say in plain words why a combination does not work and name the
+  legal basis at the end.
+
+### Upgrade
+
+Deploy the new ZIP. No need to disable and enable the module: only texts and the
+setup page changed. Profile names and invoice notes the association already has
+stay as they are.
+
 ## [0.2.3-beta] - 2026-09-16
 
 Tax profiles for Austrian associations, part 1 of 5 (issue #3).
@@ -155,7 +176,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.3-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.4-beta...HEAD
+[0.2.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.4-beta
 [0.2.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.3-beta
 [0.2.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.2-beta
 [0.2.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.1-beta

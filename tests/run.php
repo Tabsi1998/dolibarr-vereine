@@ -388,6 +388,8 @@ $prefixes = array(
 	'VereineSettingHelp_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT'),
 	'VereineSphere_' => array_keys(VereineTaxRules::spheres()),
 	'VereineTreatment_' => array_keys(VereineTaxRules::treatments()),
+	'VereineSphereHelp_' => array_keys(VereineTaxRules::spheres()),
+	'VereineTreatmentHelp_' => array_keys(VereineTaxRules::treatments()),
 );
 foreach (array_keys($used) as $key) {
 	if (isset($prefixes[$key])) {

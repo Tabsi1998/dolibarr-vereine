@@ -43,6 +43,17 @@ with a REST API for the association's website.
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 
+## Tax profiles in plain words
+
+A tax profile says how one kind of income is treated for tax. Three questions
+lead there: what kind of income is it (the area of the association), is VAT due
+(treatment and rate), and what the invoice says when no VAT is charged. The
+setup page explains every area with the examples of the Austrian ministry of
+finance, for example a theatre association's performance as indispensable
+auxiliary business or a canteen the association runs itself as business harmful
+to tax privileges. The module calculates and warns; it gives no advice. Sources
+are listed in [docs/LEGAL-SOURCES.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/LEGAL-SOURCES.md).
+
 ## Where it sits in Dolibarr
 
 | Place in Dolibarr | What the module adds or uses |

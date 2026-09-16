@@ -138,6 +138,19 @@ if ($action === 'save') {
  * View
  */
 
+/**
+ * The legal basis as a small grey link, for the tax advisor.
+ *
+ * @param array{basis:string,source:string} $rule Sphere or treatment
+ * @return string HTML
+ */
+function vereineLegalBasis(array $rule)
+{
+	global $langs;
+
+	return '<span class="opacitymedium small">'.$langs->trans('VereineTaxLegalBasis').': <a href="'.dol_escape_htmltag($rule['source']).'" target="_blank" rel="noopener noreferrer">'.dol_escape_htmltag($rule['basis']).'</a></span>';
+}
+
 $title = $langs->trans('VereineSetupTitle');
 llxHeader('', $title, '', '', 0, 0, '', '', '', 'mod-vereine page-admin-taxprofiles');
 
@@ -147,7 +160,13 @@ print load_fiche_titre($title, $linkback, 'title_setup');
 $head = vereineAdminPrepareHead();
 print dol_get_fiche_head($head, 'taxprofiles', $title, -1, 'fa-landmark');
 
-print '<span class="opacitymedium">'.$langs->trans('VereineTaxProfilesIntro').'</span><br>';
+print '<span class="opacitymedium">'.$langs->trans('VereineTaxProfilesIntro').'</span><br><br>';
+// The three questions in the order a treasurer answers them.
+print '<div class="info" data-howto="1"><strong>'.$langs->trans('VereineTaxHowToTitle').'</strong><ol>';
+foreach (array('VereineTaxHowTo1', 'VereineTaxHowTo2', 'VereineTaxHowTo3') as $step) {
+	print '<li>'.$langs->trans($step).'</li>';
+}
+print '</ol></div>';
 print info_admin($langs->trans('VereineTaxProfilesHonest'), 0, 0, '1', '');
 
 print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
@@ -165,9 +184,8 @@ foreach ($profiles->fetchAll() as $profile) {
 	}
 	print '</td>';
 	print '<td>'.dol_escape_htmltag($profile['label']).'</td>';
-	print '<td>'.$langs->trans('VereineSphere_'.$profile['sphere']).'<br><span class="opacitymedium small">'.dol_escape_htmltag($sphere['basis']).'</span></td>';
-	print '<td>'.$langs->trans('VereineTreatment_'.$profile['treatment']);
-	print '<br><a class="small" href="'.dol_escape_htmltag($treatment['source']).'" target="_blank" rel="noopener noreferrer">'.dol_escape_htmltag($treatment['basis']).'</a></td>';
+	print '<td>'.$langs->trans('VereineSphere_'.$profile['sphere']).'<br>'.vereineLegalBasis($sphere).'</td>';
+	print '<td>'.$langs->trans('VereineTreatment_'.$profile['treatment']).'<br>'.vereineLegalBasis($treatment).'</td>';
 	print '<td class="right nowraponall">'.vereineRate($profile['rate']).' %</td>';
 	print '<td class="small">'.dol_escape_htmltag(dol_trunc($profile['note'], 80)).'</td>';
 	print '<td class="center">'.dolGetBadge($langs->trans($profile['active'] ? 'Enabled' : 'Disabled'), '', $profile['active'] ? 'success' : 'secondary').'</td>';
@@ -183,13 +201,29 @@ foreach ($profiles->fetchAll() as $profile) {
 }
 print '</table></div><br>';
 
-$sphereOptions = array();
+// What each area and each VAT treatment means, in everyday words with the ministry's examples.
+print load_fiche_titre($langs->trans('VereineTaxSpheresTitle'), '', '');
+print '<table class="noborder centpercent">';
 foreach ($spheres as $code => $sphere) {
-	$sphereOptions[$code] = $langs->transnoentitiesnoconv('VereineSphere_'.$code).' ('.$sphere['basis'].')';
+	print '<tr class="oddeven" data-sphere-help="'.$code.'"><td class="titlefieldcreate"><strong>'.$langs->trans('VereineSphere_'.$code).'</strong></td>';
+	print '<td>'.$langs->trans('VereineSphereHelp_'.$code).'<br>'.vereineLegalBasis($sphere).'</td></tr>';
+}
+print '</table><br>';
+print load_fiche_titre($langs->trans('VereineTaxTreatmentsTitle'), '', '');
+print '<table class="noborder centpercent">';
+foreach ($treatments as $code => $treatment) {
+	print '<tr class="oddeven" data-treatment-help="'.$code.'"><td class="titlefieldcreate"><strong>'.$langs->trans('VereineTreatment_'.$code).'</strong></td>';
+	print '<td>'.$langs->trans('VereineTreatmentHelp_'.$code).'<br>'.vereineLegalBasis($treatment).'</td></tr>';
+}
+print '</table><br>';
+
+$sphereOptions = array();
+foreach (array_keys($spheres) as $code) {
+	$sphereOptions[$code] = $langs->transnoentitiesnoconv('VereineSphere_'.$code);
 }
 $treatmentOptions = array();
-foreach ($treatments as $code => $treatment) {
-	$treatmentOptions[$code] = $langs->transnoentitiesnoconv('VereineTreatment_'.$code).' - '.vereineRate($treatment['rate']).' % ('.$treatment['basis'].')';
+foreach (array_keys($treatments) as $code) {
+	$treatmentOptions[$code] = $langs->transnoentitiesnoconv('VereineTreatment_'.$code);
 }
 
 print load_fiche_titre($langs->trans($edit['id'] > 0 ? 'VereineTaxEdit' : 'VereineTaxNew'), '', '');
