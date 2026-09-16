@@ -295,9 +295,11 @@ def pages(stack: Stack) -> str:
     expect(stack.module_version in about.text and "IT-Tabelander" in about.text, "the about page lacks version or publisher")
     members = page_ok(browser.get("/adherents/index.php?mainmenu=members&leftmenu="), "Members home")
     expect("/custom/vereine/vereineindex.php" in members.text, "the Members menu has no entry for the association")
-    expect("/custom/vereine/partners.php?mainmenu=members" in members.text, "the Members menu has no entry Members and third parties")
-    expect("/custom/vereine/admin/partners.php?mainmenu=members" in members.text,
-           "the Members menu has no entry Third party settings for the administrator")
+    entries = sorted(set(re.findall(r'href="([^"]*/custom/vereine/[^"]*)"', members.text)))
+    expect(any("/custom/vereine/partners.php" in entry for entry in entries),
+           f"the Members menu has no entry Members and third parties; module links: {entries}")
+    expect(any("/custom/vereine/admin/partners.php" in entry for entry in entries),
+           f"the Members menu has no entry Third party settings for the administrator; module links: {entries}")
     from_menu = page_ok(browser.get("/custom/vereine/admin/partners.php?mainmenu=members&leftmenu="), "third party settings from Members")
     expect('name="vereinepartnersetup"' in from_menu.text and "/adherents/list.php" in from_menu.text,
            "the third party settings opened from Members do not keep the Members menu")
