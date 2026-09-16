@@ -36,6 +36,7 @@ $root = dirname(__DIR__);
 require_once $root.'/class/vereineprofile.class.php';
 require_once $root.'/class/vereineorganization.class.php';
 require_once $root.'/class/vereinepartnerrules.class.php';
+require_once $root.'/class/vereinetaxrules.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -274,6 +275,60 @@ same(
 same('ok', $statusOf(VereineOrganization::checks($organization, true, 0))['partners'], 'no open partner points');
 same(false, isset($statusOf(VereineOrganization::checks($organization, true))['partners']), 'without the rights to check, no partner check');
 
+// ------------------------------------------------------------- tax rules
+
+$valid = array('code' => 'KANTINE', 'label' => 'Kantine', 'sphere' => 'harmful', 'treatment' => 'standard20', 'rate' => 20, 'note' => '');
+same(array(), VereineTaxRules::validate($valid), 'a canteen in the harmful business with 20 % is valid');
+same(array('VereineTaxErrorRate'), VereineTaxRules::validate(array_merge($valid, array('rate' => 10))), '20 % treatment with rate 10 is refused');
+same(array('VereineTaxErrorRate'), VereineTaxRules::validate(array_merge($valid, array('rate' => 'abc'))), 'a rate that is no number is refused');
+same(array(), VereineTaxRules::validate(array_merge($valid, array('rate' => '20.000'))), 'a rate as stored by the database is accepted');
+same(array('VereineTaxErrorReducedHarmful', 'VereineTaxErrorRate'), VereineTaxRules::validate(array_merge($valid, array('treatment' => 'reduced10'))), '10 % in the harmful business is refused (and 20 no longer fits)');
+same(array('VereineTaxErrorReducedHarmful'), VereineTaxRules::validate(array_merge($valid, array('treatment' => 'reduced10', 'rate' => 10))), '10 % in the harmful business is refused by § 10 (2) no. 4 UStG');
+same(array('VereineTaxErrorSportHarmful', 'VereineTaxErrorNoteRequired'), VereineTaxRules::validate(array_merge($valid, array('treatment' => 'sport', 'rate' => 0))), 'the sports exemption does not reach the harmful business');
+same(array('VereineTaxErrorIdealNoSupply'), VereineTaxRules::validate(array_merge($valid, array('sphere' => 'ideal'))), 'the idealistic sphere has no taxable supplies');
+same(array(), VereineTaxRules::validate(array('code' => 'BEITRAG', 'label' => 'Beitrag', 'sphere' => 'ideal', 'treatment' => 'nonbusiness', 'rate' => 0, 'note' => '')), 'a genuine membership fee is valid without note');
+same(array('VereineTaxErrorNonbusinessSphere'), VereineTaxRules::validate(array('code' => 'FEST', 'label' => 'Fest', 'sphere' => 'festival', 'treatment' => 'nonbusiness', 'rate' => 0, 'note' => '')), 'a festival is not without consideration');
+same(array(), VereineTaxRules::validate(array('code' => 'ZINSEN', 'label' => 'Zinsen', 'sphere' => 'assets', 'treatment' => 'nonbusiness', 'rate' => 0, 'note' => '')), 'interest in asset management is without consideration');
+same(array('VereineTaxErrorHobbySphere'), VereineTaxRules::validate(array('code' => 'MIETE', 'label' => 'Miete', 'sphere' => 'assets', 'treatment' => 'hobby', 'rate' => 0, 'note' => '')), 'Liebhaberei is not presumed for asset management');
+foreach (array('essential', 'auxiliary', 'festival') as $sphere) {
+	same('', VereineTaxRules::combinationError($sphere, 'hobby'), 'Liebhaberei may be used for '.$sphere);
+}
+same(array('VereineTaxErrorNoteRequired'), VereineTaxRules::validate(array('code' => 'KU', 'label' => 'KU', 'sphere' => 'harmful', 'treatment' => 'small_business', 'rate' => 0, 'note' => '  ')), 'a small business exemption needs its invoice note');
+same(array('VereineTaxErrorNoteLength'), VereineTaxRules::validate(array_merge($valid, array('note' => str_repeat('ä', 1001)))), 'a note of 1001 characters is refused');
+same(array(), VereineTaxRules::validate(array_merge($valid, array('note' => str_repeat('ä', 1000)))), 'a note of 1000 umlauts is accepted');
+same(array('VereineTaxErrorCode'), VereineTaxRules::validate(array_merge($valid, array('code' => 'kantine'))), 'lower case codes are refused');
+same(array('VereineTaxErrorCode'), VereineTaxRules::validate(array_merge($valid, array('code' => '1KANTINE'))), 'codes start with a letter');
+same(array('VereineTaxErrorCode'), VereineTaxRules::validate(array_merge($valid, array('code' => str_repeat('A', 33)))), 'codes have at most 32 characters');
+same(array('VereineTaxErrorLabel'), VereineTaxRules::validate(array_merge($valid, array('label' => ' '))), 'a blank label is refused');
+same(array('VereineTaxErrorSphere'), VereineTaxRules::validate(array_merge($valid, array('sphere' => 'other'))), 'an unknown sphere is refused');
+same(array('VereineTaxErrorTreatment'), VereineTaxRules::validate(array_merge($valid, array('treatment' => 'other'))), 'an unknown treatment is refused');
+same(array('VereineTaxErrorCode', 'VereineTaxErrorLabel', 'VereineTaxErrorSphere', 'VereineTaxErrorTreatment'), VereineTaxRules::validate(array()), 'an empty profile lists every missing field');
+same(10.0, VereineTaxRules::rateOf('reduced10'), 'rate of 10 %');
+same(13.0, VereineTaxRules::rateOf('reduced13'), 'rate of 13 %');
+same(20.0, VereineTaxRules::rateOf('standard20'), 'rate of 20 %');
+same(0.0, VereineTaxRules::rateOf('sport'), 'an exemption has rate 0');
+same(null, VereineTaxRules::rateOf('other'), 'an unknown treatment has no rate');
+foreach (VereineTaxRules::treatments() as $code => $treatment) {
+	expect(strpos($treatment['source'], 'https://') === 0 && $treatment['basis'] !== '', 'treatment '.$code.' names its legal basis and source');
+}
+foreach (VereineTaxRules::spheres() as $code => $sphere) {
+	expect(strpos($sphere['source'], 'https://') === 0 && $sphere['basis'] !== '', 'sphere '.$code.' names its legal basis and source');
+}
+$codes = array();
+foreach (VereineTaxRules::standardProfiles() as $standard) {
+	$codes[] = $standard['code'];
+	$profile = array_merge($standard, array('label' => 'x', 'note' => $standard['note'] !== '' ? 'Hinweis' : '', 'rate' => VereineTaxRules::rateOf($standard['treatment'])));
+	same(array(), VereineTaxRules::validate($profile), 'standard profile '.$standard['code'].' is valid');
+}
+same(count($codes), count(array_unique($codes)), 'standard profile codes are unique');
+$inactive = array();
+foreach (VereineTaxRules::standardProfiles() as $standard) {
+	if (!$standard['active']) {
+		$inactive[] = $standard['code'];
+	}
+}
+same(array('SPORT', 'HILFSBETRIEB_10'), $inactive, 'the sports exemption and 10 % without Liebhaberei start inactive');
+
 // ------------------------------------------------------------ language files
 
 $english = langEntries($root.'/langs/en_US/vereine.lang');
@@ -292,6 +347,8 @@ foreach ($languages as $file) {
 		expect(isset($entries[$key]), $language.': key '.$key.' of en_US is not translated');
 	}
 	foreach ($entries as $key => $value) {
+		// Dolibarr passes every translation through sprintf(): a lone % stops the page with a ValueError.
+		expect(preg_match('/%(?!%|(?:\d+\$)?[sd])/', str_replace('%%', '', $value)) === 0, $language.': '.$key.' has a lone %, write %% for a percent sign');
 		if (isset($english[$key]) && strpos($key, '!') !== 0) {
 			preg_match_all('/%(?:\d+\$)?[sd]/', $english[$key], $left);
 			preg_match_all('/%(?:\d+\$)?[sd]/', $value, $right);
@@ -329,6 +386,8 @@ $prefixes = array(
 	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked'),
 	'VereineSetting_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT_NATURAL', 'VEREINE_PARTNER_TYPENT_LEGAL', 'VEREINE_CATEGORY_MEMBER', 'VEREINE_CATEGORY_FORMER', 'VEREINE_CATEGORY_GUARDIAN'),
 	'VereineSettingHelp_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT'),
+	'VereineSphere_' => array_keys(VereineTaxRules::spheres()),
+	'VereineTreatment_' => array_keys(VereineTaxRules::treatments()),
 );
 foreach (array_keys($used) as $key) {
 	if (isset($prefixes[$key])) {

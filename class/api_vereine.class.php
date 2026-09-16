@@ -101,6 +101,47 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Tax profiles
+	 *
+	 * The association's tax profiles: sphere and VAT treatment with their legal basis,
+	 * rate in percent, invoice note and whether the profile is active. Profiles are
+	 * suggestions of the module or the association's own; the classification of an
+	 * activity remains the association's decision.
+	 *
+	 * @return array List of profiles with the fields documented in docs/API.md
+	 *
+	 * @url GET taxprofiles
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getTaxprofiles()
+	{
+		$this->checkAccess();
+		dol_include_once('/vereine/class/vereinetaxprofiles.class.php');
+		$spheres = VereineTaxRules::spheres();
+		$treatments = VereineTaxRules::treatments();
+		$profiles = new VereineTaxProfiles($this->db);
+
+		$result = array();
+		foreach ($profiles->fetchAll() as $profile) {
+			$result[] = array(
+				'code' => $profile['code'],
+				'label' => $profile['label'],
+				'sphere' => $profile['sphere'],
+				'sphere_basis' => isset($spheres[$profile['sphere']]) ? $spheres[$profile['sphere']]['basis'] : '',
+				'treatment' => $profile['treatment'],
+				'treatment_basis' => isset($treatments[$profile['treatment']]) ? $treatments[$profile['treatment']]['basis'] : '',
+				'rate' => $profile['rate'],
+				'note' => $profile['note'],
+				'active' => $profile['active'],
+				'standard' => $profile['standard'],
+			);
+		}
+		return $result;
+	}
+
+	/**
 	 * Refuse the call unless the module is on and the user may read the association.
 	 *
 	 * @return void

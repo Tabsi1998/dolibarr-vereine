@@ -208,6 +208,18 @@ def data_status(page: Page, check: str) -> str | None:
 # ------------------------------------------------------------------ scenarios
 
 CATEGORY_CONSTANTS = ("VEREINE_CATEGORY_MEMBER", "VEREINE_CATEGORY_FORMER", "VEREINE_CATEGORY_GUARDIAN")
+# Code, sphere, treatment, rate, active - as class/vereinetaxrules.class.php suggests them.
+STANDARD_TAX_PROFILES = [
+    ["BETRIEB_20", "harmful", "standard20", "20.000", "1"],
+    ["HILFSBETRIEB", "essential", "hobby", "0.000", "1"],
+    ["HILFSBETRIEB_10", "auxiliary", "reduced10", "10.000", "0"],
+    ["KLEINUNTERNEHMER", "harmful", "small_business", "0.000", "1"],
+    ["MITGLIEDSBEITRAG", "ideal", "nonbusiness", "0.000", "1"],
+    ["SPENDE", "ideal", "nonbusiness", "0.000", "1"],
+    ["SPORT", "essential", "sport", "0.000", "0"],
+    ["SUBVENTION", "ideal", "nonbusiness", "0.000", "1"],
+    ["VEREINSFEST", "festival", "hobby", "0.000", "1"],
+]
 
 
 def upgrade(stack: Stack) -> str:
@@ -238,6 +250,8 @@ def upgrade(stack: Stack) -> str:
     expect("49210002" in rights, f"the upgrade did not add the partner right: {rights}")
     categories = [stack.const(name) or "" for name in CATEGORY_CONSTANTS]
     expect(all(value.isdigit() and int(value) > 0 for value in categories), f"categories after the upgrade: {categories}")
+    profiles = stack.value("SELECT COUNT(*) FROM llx_vereine_taxprofile WHERE entity = 1 AND standard = 1")
+    expect(profiles == str(len(STANDARD_TAX_PROFILES)), f"the upgrade brought {profiles} standard tax profiles, expected {len(STANDARD_TAX_PROFILES)}")
 
     stack.php_fixture("reset")
     expect(stack.const("MAIN_MODULE_VEREINE") is None and stack.const("VEREINE_REGISTER_NUMBER") is None,
@@ -644,6 +658,77 @@ def membercard(stack: Stack) -> str:
             "a removed link takes the category away; tab Association on the member card; viewing changes nothing")
 
 
+def taxprofiles(stack: Stack) -> str:
+    """Suggested tax profiles arrive on activation; the setup refuses what the law excludes and keeps the association's changes."""
+    stored = stack.sql("SELECT code, sphere, treatment, rate, active FROM llx_vereine_taxprofile WHERE entity = 1 AND standard = 1 ORDER BY code")
+    expect(stored == STANDARD_TAX_PROFILES, f"standard tax profiles after enabling: {stored}")
+    note = stack.value("SELECT note FROM llx_vereine_taxprofile WHERE code = 'KLEINUNTERNEHMER'") or ""
+    expect("§ 6 Abs. 1 Z 27 UStG" in note, f"the small business profile lacks its German invoice note: {note!r}")
+
+    browser = stack.browser()
+    page = page_ok(browser.get("/custom/vereine/admin/taxprofiles.php"), "tax profile setup")
+    rows = re.findall(r'data-taxprofile="([A-Z0-9_]+)" data-active="([01])"', page.text)
+    expect(sorted(rows) == sorted((row[0], row[4]) for row in STANDARD_TAX_PROFILES), f"the setup lists {rows}")
+
+    # 10 % in the business harmful to tax privileges: § 10 (2) no. 4 UStG excludes it.
+    form = page.form(name="vereinetaxprofile")
+    refused = page_ok(browser.submit(form, {"code": "KANTINE", "label": "Kantine beim Turnier", "sphere": "harmful", "treatment": "reduced10"}),
+                      "tax profile with 10 % in the harmful business")
+    expect("§ 10 Abs. 2 Z 4 UStG" in html.unescape(refused.text), "the refusal does not name § 10 Abs. 2 Z 4 UStG")
+    expect(refused.form(name="vereinetaxprofile").value("label") == "Kantine beim Turnier", "the refused form lost what was entered")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_taxprofile WHERE code = 'KANTINE'") == "0", "a refused tax profile was stored")
+
+    # An exemption needs its invoice note.
+    form = browser.get("/custom/vereine/admin/taxprofiles.php").form(name="vereinetaxprofile")
+    refused = page_ok(browser.submit(form, {"code": "KANTINE", "label": "Kantine", "sphere": "harmful", "treatment": "small_business", "note": ""}),
+                      "small business profile without note")
+    expect("§ 11 Abs. 1 Z 3 lit. e UStG" in html.unescape(refused.text), "an exemption without invoice note was not refused")
+
+    form = browser.get("/custom/vereine/admin/taxprofiles.php").form(name="vereinetaxprofile")
+    page_ok(browser.submit(form, {"code": "KANTINE", "label": "Kantine beim Turnier", "sphere": "harmful", "treatment": "standard20"}),
+            "own tax profile")
+    expect(stack.sql("SELECT sphere, treatment, rate, active, standard FROM llx_vereine_taxprofile WHERE code = 'KANTINE'")
+           == [["harmful", "standard20", "20.000", "1", "0"]], "the own tax profile was not stored with 20 %")
+
+    # The association renames a suggestion and switches one off; enabling again changes neither.
+    page = page_ok(browser.get("/custom/vereine/admin/taxprofiles.php"), "tax profile setup")
+    festival = stack.value("SELECT rowid FROM llx_vereine_taxprofile WHERE code = 'VEREINSFEST'")
+    edit = page_ok(browser.get(action_link_for(page, "edit", festival)), "edit a suggested tax profile")
+    page_ok(browser.submit(edit.form(name="vereinetaxprofile"), {"label": "LAN-Party im Vereinsheim"}), "rename the festival profile")
+    toggles = [form for form in page.forms() if form.name == "vereinetaxtoggle" and form.value("id") == stack.value("SELECT rowid FROM llx_vereine_taxprofile WHERE code = 'SPENDE'")]
+    expect(len(toggles) == 1, "the donation profile has no switch")
+    page_ok(browser.submit(toggles[0]), "switch off the donation profile")
+    switch_module(stack, "reset")
+    switch_module(stack, "set")
+    expect(stack.sql("SELECT label FROM llx_vereine_taxprofile WHERE code = 'VEREINSFEST'") == [["LAN-Party im Vereinsheim"]],
+           "enabling again replaced the renamed festival profile")
+    expect(stack.value("SELECT active FROM llx_vereine_taxprofile WHERE code = 'SPENDE'") == "0", "enabling again switched the donation profile back on")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_taxprofile WHERE entity = 1") == str(len(STANDARD_TAX_PROFILES) + 1),
+           "enabling again added tax profiles twice")
+
+    status, body = stack.api("vereine/taxprofiles", stack.reader_key)
+    expect(status == 200 and isinstance(body, list), f"GET vereine/taxprofiles answered HTTP {status}: {body}")
+    by_code = {profile.get("code"): profile for profile in body}
+    kantine = by_code.get("KANTINE", {})
+    expect(kantine.get("rate") == 20 and kantine.get("treatment_basis") == "§ 10 Abs. 1 UStG" and kantine.get("active") is True
+           and kantine.get("standard") is False, f"GET vereine/taxprofiles returns KANTINE as {kantine}")
+    expect(by_code.get("SPENDE", {}).get("active") is False, "the API does not show the donation profile as inactive")
+    status, _ = stack.api("vereine/taxprofiles", stack.nobody_key)
+    expect(status == 403, f"a user without the right got HTTP {status} for the tax profiles, expected 403")
+    expect(denied(stack.browser("rtreader").get("/custom/vereine/admin/taxprofiles.php")), "a non-administrator opens the tax profile setup")
+    return ("9 suggested profiles, 10 % in the harmful business and an exemption without note refused, own profile stored, "
+            "renamed and switched-off suggestions survive enabling again, API with and without right")
+
+
+def action_link_for(page: Page, action: str, row_id: str | None) -> str:
+    """The link a setup list offers for an action on one row."""
+    for href in re.findall(r'href="([^"]*[?&](?:amp;)?action=' + re.escape(action) + r'[^"]*)"', page.text):
+        target = html.unescape(href)
+        if re.search(r"[?&]id=" + re.escape(str(row_id)) + r"(&|#|$)", target):
+            return target
+    raise CheckFailed(f"{page.url} offers no link for action={action} on id {row_id}")
+
+
 def disable(stack: Stack) -> str:
     """Disabling hides pages and API but keeps data and granted rights for the next activation."""
     browser = stack.browser()
@@ -683,6 +768,7 @@ SCENARIOS = (
     ("api", "REST API answers with the right and refuses without", api, ("setup",)),
     ("partners", "Members and third parties are linked and reconciled", partners, ("access", "api")),
     ("membercard", "Dolibarr's own member card creates and links third parties the module follows", membercard, ("partners",)),
+    ("taxprofiles", "Tax profiles: suggestions, legal checks, own profiles and the API", taxprofiles, ("api",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

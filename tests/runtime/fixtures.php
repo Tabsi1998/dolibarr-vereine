@@ -281,8 +281,10 @@ if ($stage === 'reset') {
 	if (!$db->query("DELETE FROM ".MAIN_DB_PREFIX."const WHERE name LIKE 'VEREINE\\_%'")) {
 		rt_fail('delete constants: '.$db->lasterror());
 	}
-	if (!$db->query("DROP TABLE IF EXISTS ".MAIN_DB_PREFIX."vereine_log")) {
-		rt_fail('drop log table: '.$db->lasterror());
+	foreach (array('vereine_log', 'vereine_taxprofile') as $table) {
+		if (!$db->query("DROP TABLE IF EXISTS ".MAIN_DB_PREFIX.$table)) {
+			rt_fail('drop table '.$table.': '.$db->lasterror());
+		}
 	}
 	print json_encode(array('reset' => 1))."\n";
 	exit(0);

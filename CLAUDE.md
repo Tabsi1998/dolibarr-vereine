@@ -127,3 +127,8 @@ raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
   the links a page offers (`action_link`) instead of building URLs.
 - `Adherent::fetch` reads `fk_soc` in 22 and `fk_soc as socid` in 23 and 24;
   both fill `$member->fk_soc`.
+- Dolibarr passes every translation through `sprintf()`: a lone `%` in a
+  language file stops the page with a ValueError. Write `%%`; `tests/run.php`
+  checks it.
+- Pages must not use `$form` for their own data: Dolibarr's page header sets the
+  global `$form` to a `Form` object.

@@ -69,6 +69,39 @@ come from Dolibarr's company settings; the rest from the module's setup.
 
 Every text field is a string, empty when not set - never `null`.
 
+## GET /vereine/taxprofiles
+
+The association's tax profiles (Austria): sphere and VAT treatment with their
+legal basis, rate and invoice note. Profiles marked `standard` were suggested by
+the module; the association may have changed them. The classification of an
+activity remains the association's decision.
+
+```json
+[
+  {
+    "code": "MITGLIEDSBEITRAG",
+    "label": "Mitgliedsbeitrag (echt)",
+    "sphere": "ideal",
+    "sphere_basis": "§§ 34 bis 47 BAO",
+    "treatment": "nonbusiness",
+    "treatment_basis": "kein Leistungsaustausch",
+    "rate": 0,
+    "note": "Echter Mitgliedsbeitrag ohne Gegenleistung, nicht umsatzsteuerbar.",
+    "active": true,
+    "standard": true
+  }
+]
+```
+
+| Field | Content |
+| --- | --- |
+| `code` | Stable identifier, capital letters, digits and `_` |
+| `sphere` | `ideal`, `assets`, `essential` (§ 45 (2) BAO), `auxiliary` (§ 45 (1) BAO), `festival` (§ 45 (1a) BAO), `harmful` (§ 45 (3) BAO) |
+| `treatment` | `nonbusiness`, `hobby` (Liebhaberei), `small_business` (§ 6 (1) no. 27 UStG), `sport` (§ 6 (1) no. 14 UStG), `reduced10`, `reduced13`, `standard20` |
+| `rate` | VAT rate in percent, a number |
+| `note` | Invoice note, may be empty |
+| `active`, `standard` | Booleans |
+
 ## Example
 
 ```bash

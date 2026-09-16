@@ -7,6 +7,34 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.2.3-beta] - 2026-09-16
+
+Tax profiles for Austrian associations, part 1 of 5 (issue #3).
+
+### Added
+
+- Spheres of an Austrian association (idealistic sphere, asset management,
+  indispensable and dispensable auxiliary business, small association festival,
+  business harmful to tax privileges) and VAT treatments (not subject to VAT
+  without consideration or as Liebhaberei, exempt as small business or sports
+  association, 10 %, 13 %, 20 %), each with its legal basis.
+- Tax profiles: sphere, treatment, rate and invoice note. Nine suggested
+  profiles arrive on activation; the sports exemption and 10 % without
+  Liebhaberei start inactive. Enabling again never replaces a profile the
+  association changed.
+- Setup tab *Tax profiles* to add, edit and switch profiles on and off. The rate
+  follows from the treatment. Combinations the law excludes are refused: 10 % or
+  the sports exemption in a business harmful to tax privileges, an exemption
+  without invoice note.
+- REST API `GET /vereine/taxprofiles`.
+- Legal sources for spheres, rates and exemptions in `docs/LEGAL-SOURCES.md`,
+  read in the law itself.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that creates the tax profile table and the suggested profiles. Data stays.
+
 ## [0.2.2-beta] - 2026-09-16
 
 The member card and the module work together.
@@ -127,7 +155,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.2-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.3-beta...HEAD
+[0.2.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.3-beta
 [0.2.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.2-beta
 [0.2.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.1-beta
 [0.2.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.0-beta
