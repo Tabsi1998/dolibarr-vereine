@@ -44,13 +44,18 @@ for page in "${pages[@]}"; do
 done
 for file in *.php admin/*.php; do
   [ -f "$file" ] || continue
-  printf '%s\n' "${pages[@]}" | grep -qx "$file" || fail "$file is a page the security contract does not know; add it to pages in scripts/check-module.sh"
+  known=0
+  for page in "${pages[@]}"; do
+    if [ "$page" = "$file" ]; then known=1; fi
+  done
+  [ "$known" -eq 1 ] || fail "$file is a page the security contract does not know; add it to pages in scripts/check-module.sh"
 done
 
 # Every form posts Dolibarr's CSRF token.
 while IFS= read -r -d '' file; do
-  forms=$(grep -o '<form' "$file" | wc -l)
-  tokens=$(grep -o 'name="token" value="'"'"'.newToken()' "$file" | wc -l)
+  # grep exits 1 when a file has no form; with pipefail that must not end the script.
+  forms=$( (grep -o '<form' "$file" || true) | wc -l)
+  tokens=$( (grep -o 'name="token" value="'"'"'.newToken()' "$file" || true) | wc -l)
   if [ "$forms" -ne "$tokens" ]; then
     fail "$file has $forms forms but $tokens CSRF tokens"
   fi
@@ -78,8 +83,8 @@ fi
 
 # The API answers only to users with the right, and only while the module is on.
 grep -q "private function checkAccess()" class/api_vereine.class.php || fail "the API lost its access check"
-public_methods=$(grep -cE '^[[:space:]]*public function (get|post|put|delete)[A-Za-z]*\(' class/api_vereine.class.php)
-checked=$(grep -c '\$this->checkAccess();' class/api_vereine.class.php)
+public_methods=$(grep -cE '^[[:space:]]*public function (get|post|put|delete)[A-Za-z]*\(' class/api_vereine.class.php || true)
+checked=$(grep -c '\$this->checkAccess();' class/api_vereine.class.php || true)
 [ "$public_methods" -eq "$checked" ] || fail "class/api_vereine.class.php has $public_methods endpoints but $checked access checks"
 grep -q "^class Vereine extends DolibarrApi" class/api_vereine.class.php \
   || fail "the API class must be named Vereine: Dolibarr 22 and 23 dispatch /vereine only to that name"

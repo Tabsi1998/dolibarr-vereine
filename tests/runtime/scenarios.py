@@ -232,13 +232,21 @@ def setup(stack: Stack) -> str:
            "the refused form does not keep what was entered")
     expect(not stack.const("VEREINE_REGISTER_NUMBER"), "a bad ZVR number was stored")
 
+    # Dolibarr's own injection filter (main.inc.php) refuses a script before the
+    # module sees it; nothing may be stored.
+    form = browser.get("/custom/vereine/admin/setup.php").form(name="vereinesetup")
+    blocked = browser.submit(form, {"VEREINE_PURPOSE": "Zweck <script>alert(1)</script>"})
+    expect(blocked.status == 403, f"a script in the purpose was not refused by Dolibarr (HTTP {blocked.status})")
+    expect(not stack.const("VEREINE_PURPOSE"), "a refused request stored a purpose")
+
+    # Markup Dolibarr lets through is the module's to strip and escape.
     form = browser.get("/custom/vereine/admin/setup.php").form(name="vereinesetup")
     saved = browser.submit(form, {
         "VEREINE_REGISTER_NUMBER": " 123 456 789 ",
         "VEREINE_AUTHORITY": "Landespolizeidirektion Tirol",
         "foundedday": "1", "foundedmonth": "3", "foundedyear": "2019",
         "VEREINE_NONPROFIT": "1",
-        "VEREINE_PURPOSE": "Förderung des E-Sports <script>alert(1)</script>",
+        "VEREINE_PURPOSE": 'Förderung des E-Sports <i>im Verein</i> & "gemeinsam"',
     })
     page_ok(saved, "setup after saving")
     expected = {"VEREINE_REGISTER_NUMBER": "123456789", "VEREINE_AUTHORITY": "Landespolizeidirektion Tirol",
@@ -247,12 +255,13 @@ def setup(stack: Stack) -> str:
     expect(stored == expected, f"stored {stored}, expected {expected}")
     purpose = stack.const("VEREINE_PURPOSE") or ""
     expect(purpose.startswith("Förderung des E-Sports"), f"the purpose lost its text or its umlaut: {purpose!r}")
-    expect("<script" not in purpose, f"markup was stored in the purpose: {purpose!r}")
+    expect("<i>" not in purpose, f"markup was stored in the purpose: {purpose!r}")
 
     overview = page_ok(browser.get("/custom/vereine/vereineindex.php"), "overview after saving")
     expect(data_status(overview, "register") == "ok", "the overview still reports the ZVR number as missing")
-    expect("123456789" in overview.text and "<script>alert(1)" not in overview.text,
-           "the overview does not show the stored data safely")
+    expect("123456789" in overview.text, "the overview does not show the stored ZVR number")
+    expect('& "gemeinsam"' not in overview.text and "&amp;" in overview.text,
+           "the overview prints the purpose without escaping")
 
     form = browser.get("/custom/vereine/admin/setup.php").form(name="vereinesetup")
     page_ok(browser.submit(form, {"VEREINE_COUNTRY_PROFILE": "DE"}), "switch to Germany")
