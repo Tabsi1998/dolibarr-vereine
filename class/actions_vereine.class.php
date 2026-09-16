@@ -64,6 +64,11 @@ class ActionsVereine
 	private $pending = array();
 
 	/**
+	 * @var array<int,string|null> Invoice id => its public note before the PDF was built
+	 */
+	private $notes = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @param DoliDB $db Database handler
@@ -152,6 +157,73 @@ class ActionsVereine
 			$html .= '<li>'.$langs->trans('VereineTaxLineDeviation', $where, VereineTaxRules::formatRate($line['rate']), $line['profile'], VereineTaxRules::formatRate($line['profile_rate'])).'</li>';
 		}
 		$this->resprints = $html.'</ul>'.$langs->trans('VereineTaxLinesDeviateHint').'</div>';
+		return 0;
+	}
+
+	/**
+	 * Before an invoice PDF is built: add the tax profile notes and the register number to the public note.
+	 *
+	 * Only the object in memory changes, for this PDF; afterPDFCreation puts the note back.
+	 * Dolibarr's PDF templates print the public note, so no template is changed.
+	 *
+	 * @param array<string,mixed> $parameters  Hook parameters: file, object, outputlangs
+	 * @param CommonObject        $object      Invoice
+	 * @param string              $action      Current action
+	 * @param HookManager         $hookmanager Hook manager
+	 * @return int 0, the PDF is always built
+	 */
+	public function beforePDFCreation($parameters, &$object, &$action, $hookmanager)
+	{
+		global $langs, $mysoc;
+
+		if (!is_object($object) || !isset($object->element) || $object->element !== 'facture' || (int) $object->id <= 0) {
+			return 0;
+		}
+		$outputlangs = isset($parameters['outputlangs']) && is_object($parameters['outputlangs']) ? $parameters['outputlangs'] : $langs;
+		$outputlangs->load('vereine@vereine');
+		$texts = array();
+
+		if (getDolGlobalString('VEREINE_PDF_TAX_NOTES', '1') === '1') {
+			dol_include_once('/vereine/class/vereinetaxassign.class.php');
+			$assign = new VereineTaxAssign($this->db);
+			foreach ($assign->invoiceNotes('facturedet', (int) $object->id) as $group) {
+				$key = count($group['positions']) > 1 ? 'VereinePdfNoteLines' : 'VereinePdfNoteLine';
+				$texts[] = $outputlangs->transnoentitiesnoconv($key, implode(', ', $group['positions']), $group['note']);
+			}
+		}
+		if (getDolGlobalString('VEREINE_PDF_REGISTER', '1') === '1') {
+			dol_include_once('/vereine/class/vereineorganization.class.php');
+			$organization = VereineOrganization::load($mysoc);
+			if ($organization['register']['number'] !== '') {
+				$texts[] = $outputlangs->transnoentitiesnoconv('VereinePdfRegister_'.$organization['register']['kind'], $organization['register']['number']);
+				if ($organization['register']['court'] !== '') {
+					$texts[] = $outputlangs->transnoentitiesnoconv('VereinePdfRegisterCourt', $organization['register']['court']);
+				}
+			}
+		}
+		if ($texts) {
+			$this->notes[(int) $object->id] = $object->note_public;
+			$object->note_public = dol_concatdesc((string) $object->note_public, implode("\n", $texts));
+		}
+		return 0;
+	}
+
+	/**
+	 * After an invoice PDF is built: the public note is what it was, so nothing unintended is saved.
+	 *
+	 * @param array<string,mixed> $parameters  Hook parameters: file, object, outputlangs
+	 * @param CommonDocGenerator  $object      PDF template
+	 * @param string              $action      Current action
+	 * @param HookManager         $hookmanager Hook manager
+	 * @return int 0
+	 */
+	public function afterPDFCreation($parameters, &$object, &$action, $hookmanager)
+	{
+		$invoice = isset($parameters['object']) && is_object($parameters['object']) ? $parameters['object'] : null;
+		if ($invoice && isset($invoice->id) && array_key_exists((int) $invoice->id, $this->notes)) {
+			$invoice->note_public = $this->notes[(int) $invoice->id];
+			unset($this->notes[(int) $invoice->id]);
+		}
 		return 0;
 	}
 

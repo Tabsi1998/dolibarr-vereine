@@ -216,6 +216,30 @@ class VereineTaxRules
 	}
 
 	/**
+	 * Invoice notes grouped by text, in the order the lines come, each with its line positions.
+	 *
+	 * Lines without note are left out; the same note on several lines is printed once.
+	 *
+	 * @param array<int,array{position:int,note:string}> $lines Invoice lines in their order
+	 * @return array<int,array{positions:int[],note:string}>
+	 */
+	public static function groupNotes(array $lines)
+	{
+		$groups = array();
+		foreach ($lines as $line) {
+			$note = trim((string) $line['note']);
+			if ($note === '') {
+				continue;
+			}
+			if (!isset($groups[$note])) {
+				$groups[$note] = array('positions' => array(), 'note' => $note);
+			}
+			$groups[$note]['positions'][] = (int) $line['position'];
+		}
+		return array_values($groups);
+	}
+
+	/**
 	 * Profiles the module suggests on activation. Labels and notes are language keys.
 	 *
 	 * Only suggestions: the sport exemption applies only to associations whose statutory

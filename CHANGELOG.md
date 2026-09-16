@@ -7,6 +7,34 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.2.6-beta] - 2026-09-16
+
+Invoice PDFs, part 3 of 5 (issue #3).
+
+### Added
+
+- Invoice PDFs print the invoice notes of the lines' tax profiles in the note
+  area, with the lines they apply to, for example "Line 1: Genuine membership
+  fee without consideration, not subject to VAT." The same note on several
+  lines is printed once.
+- Invoice PDFs print the association's ZVR number (in Germany the register
+  number and court).
+- Both can be switched off: *Tax profiles* tab and association setup. Both are
+  on by default.
+- Dolibarr's PDF templates stay as they are: the text is added to the invoice's
+  public note for the PDF only and put back afterwards; nothing is stored.
+
+### Changed
+
+- The reason for exemption for e-invoices (VATEX) moved to its own issue: in
+  Dolibarr 24 it is a column of the VAT dictionary that no core code reads, one
+  code per rate.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that registers the PDF hook. Build an invoice PDF again to see the notes.
+
 ## [0.2.5-beta] - 2026-09-16
 
 Tax profiles on products and invoices, part 2 of 5 (issue #3).
@@ -201,7 +229,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.5-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.6-beta...HEAD
+[0.2.6-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.6-beta
 [0.2.5-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.5-beta
 [0.2.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.4-beta
 [0.2.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.3-beta

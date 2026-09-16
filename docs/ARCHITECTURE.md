@@ -83,6 +83,10 @@ the module updates or deletes a row.
   `addMoreActionsButtons` runs later in the same request with the member loaded
   again and calls `VereinePartnerService::onMemberCardLink`. Dolibarr's actions
   are not replaced, and viewing the card changes nothing.
+- Invoice PDFs: the hook `beforePDFCreation` adds the tax profile notes and the
+  register number to the invoice's `note_public` in memory, which Dolibarr's
+  templates print; `afterPDFCreation` puts the note back. No template changes,
+  nothing is stored.
 - The reconciliation page prints the steps of each row as real forms and links
   (with CSRF token) after its main form, because forms cannot nest;
   `js/partners.js` only shows them in a jQuery UI dialog and ticks *select all*.

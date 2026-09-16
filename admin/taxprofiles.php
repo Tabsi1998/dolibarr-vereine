@@ -126,6 +126,11 @@ if ($action === 'save') {
 	}
 	header('Location: '.$_SERVER['PHP_SELF']);
 	exit;
+} elseif ($action === 'pdfsettings') {
+	dolibarr_set_const($db, 'VEREINE_PDF_TAX_NOTES', GETPOSTINT('VEREINE_PDF_TAX_NOTES') ? '1' : '0', 'chaine', 0, '', $conf->entity);
+	setEventMessages($langs->trans('SetupSaved'), null, 'mesgs');
+	header('Location: '.$_SERVER['PHP_SELF']);
+	exit;
 } elseif ($action === 'edit' && $id > 0) {
 	$current = $profiles->fetch($id);
 	if ($current) {
@@ -168,6 +173,16 @@ foreach (array('VereineTaxHowTo1', 'VereineTaxHowTo2', 'VereineTaxHowTo3') as $s
 }
 print '</ol></div>';
 print info_admin($langs->trans('VereineTaxProfilesHonest'), 0, 0, '1', '');
+
+// Whether the invoice notes appear on invoice PDFs.
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereinetaxpdf">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="pdfsettings">';
+print '<input type="checkbox" id="VEREINE_PDF_TAX_NOTES" name="VEREINE_PDF_TAX_NOTES" value="1"'.(getDolGlobalString('VEREINE_PDF_TAX_NOTES', '1') === '1' ? ' checked' : '').'>';
+print ' <label for="VEREINE_PDF_TAX_NOTES">'.$langs->trans('VereinePdfTaxNotesSetting').'</label> ';
+print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'">';
+print '<div class="opacitymedium small">'.$langs->trans('VereinePdfTaxNotesHelp').'</div>';
+print '</form><br>';
 
 print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
 print '<tr class="liste_titre"><td>'.$langs->trans('VereineTaxCode').'</td><td>'.$langs->trans('VereineTaxLabel').'</td>';

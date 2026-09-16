@@ -166,6 +166,13 @@ CONTRACTS = (
     ("htdocs/fourn/facture/card.php", "$hookmanager->initHooks(array('invoicesuppliercard', 'globalcard'));", "hook context of the supplier invoice"),
     ("htdocs/fourn/facture/card.php", "executeHooks('formConfirm', $parameters, $object, $action)", "warning on the supplier invoice"),
     ("htdocs/core/lib/functions.lib.php", "function dol_string_nohtmltag(", "line description in the warning"),
+    # Tax profile notes and register number on invoice PDFs (issue #38)
+    ("htdocs/core/modules/facture/doc/pdf_sponge.modules.php", "$hookmanager->initHooks(array('pdfgeneration'));", "hook context of the invoice PDF"),
+    ("htdocs/core/modules/facture/doc/pdf_sponge.modules.php", "$parameters = array('file' => $file, 'object' => $object, 'outputlangs' => $outputlangs);", "the invoice and its language reach the PDF hooks"),
+    ("htdocs/core/modules/facture/doc/pdf_sponge.modules.php", "executeHooks('beforePDFCreation', $parameters, $object, $action)", "notes are added before the PDF is built"),
+    ("htdocs/core/modules/facture/doc/pdf_sponge.modules.php", "executeHooks('afterPDFCreation', $parameters, $this, $action)", "the public note is put back afterwards"),
+    ("htdocs/core/modules/facture/doc/pdf_sponge.modules.php", "$notetoshow = empty($object->note_public) ? '' : $object->note_public;", "the invoice PDF prints the public note"),
+    ("htdocs/core/lib/functions.lib.php", "function dol_concatdesc(", "notes joined with the existing public note"),
 )
 
 LANG_KEYS = {
