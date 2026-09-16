@@ -136,9 +136,8 @@ def page_ok(page: Page, what: str) -> Page:
     problems = page.errors()
     if problems:
         # Show where the first marker stands, so a failure explains itself.
-        visible = re.sub(r"<script[^>]*>.*?</script>", "", page.text, flags=re.S | re.I)
-        at = visible.find(problems[0].split()[0])
-        context = re.sub(r"\s+", " ", visible[max(0, at - 160):at + 160])
+        at = page.text.find(problems[0].split()[0])
+        context = re.sub(r"\s+", " ", page.text[max(0, at - 160):at + 160])
         raise CheckFailed(f"{what}: the page shows {', '.join(problems)} - near: {context}")
     return page
 
