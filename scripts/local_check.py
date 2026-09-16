@@ -1011,7 +1011,37 @@ def package(context: Context) -> str:
     with zipfile.ZipFile(archive) as bundle:
         files = sum(1 for info in bundle.infolist() if not info.is_dir())
     context.cache["package"] = archive
-    return f"{archive.name}: {files} files, identical from working copy and snapshot, sha256 {digest[:16]}"
+    previous = previous_package(context, builder)
+    return f"{archive.name}: {files} files, identical from working copy and snapshot, sha256 {digest[:16]}{previous}"
+
+
+def previous_package(context: Context, builder) -> str:
+    """The package of the newest earlier release, built from its tag, for the upgrade test."""
+    import io
+    import tarfile
+    releaser = scripts_module("release")
+    current = builder.module_version(SNAPSHOT)
+    earlier = [version for version in releaser.released_versions()
+               if releaser.version_key(version) < releaser.version_key(current)]
+    if not earlier:
+        return "; no earlier release to upgrade from"
+    version = earlier[0]
+    completed = subprocess.run([git(context), "archive", "--format=tar", f"v{version}"], cwd=str(ROOT),
+                               capture_output=True, timeout=300)
+    if completed.returncode != 0:
+        raise StepFailed(f"git archive v{version} failed: {completed.stderr.decode('utf-8', 'replace')}")
+    source = STATE / "previous-source"
+    if source.exists():
+        shutil.rmtree(source)
+    source.mkdir(parents=True)
+    with tarfile.open(fileobj=io.BytesIO(completed.stdout)) as bundle:
+        if hasattr(tarfile, "data_filter"):
+            bundle.extractall(source, filter="data")
+        else:
+            bundle.extractall(source)
+    zip_path, _ = builder.build(source, PACKAGE_OUT / "previous")
+    context.cache["previous_package"] = zip_path
+    return f"; upgrade test from v{version}"
 
 
 def package_steps() -> list:
@@ -1089,7 +1119,8 @@ def start_runtime_stack(context: Context, version: str):
         admin_password=secrets.token_urlsafe(18), reader_password=secrets.token_urlsafe(18),
         nobody_password=secrets.token_urlsafe(18), reader_key=secrets.token_hex(20),
         nobody_key=secrets.token_hex(20), db_password=secrets.token_urlsafe(18),
-        package=context.cache["package"], run=context.run, docker=binary)
+        package=context.cache["package"], run=context.run, docker=binary,
+        previous_package=context.cache.get("previous_package"))
     context.cache.setdefault("runtime-networks", []).append(network)
     context.run(binary, "network", "create", network, timeout=60)
     context.cache.setdefault("runtime-containers", []).extend([names["db"], names["web"]])
@@ -1189,7 +1220,7 @@ def runtime_steps() -> list:
             steps.append(Step("runtime", f"{prefix}{name}", f"Dolibarr {version}: {describe}",
                               runtime_step(version, action), requirements))
         steps.append(Step("runtime", f"{prefix}php-messages", f"Dolibarr {version}: no PHP messages from module code",
-                          runtime_php_messages(version), (f"{prefix}deploy",)))
+                          runtime_php_messages(version), (f"{prefix}upgrade",)))
     return steps
 
 

@@ -35,6 +35,7 @@ ini_set('display_errors', 'stderr');
 $root = dirname(__DIR__);
 require_once $root.'/class/vereineprofile.class.php';
 require_once $root.'/class/vereineorganization.class.php';
+require_once $root.'/class/vereinepartnerrules.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -209,6 +210,70 @@ $germanChecks = VereineOrganization::checks(VereineOrganization::build(array('VE
 same('warning', $statusOf($germanChecks)['register'], 'a German register number without court is incomplete');
 same('warning', $statusOf($germanChecks)['profile'], 'the German profile is reported as preview');
 
+// ---------------------------------------------------------- partner rules
+
+same('anna@verein.test', VereinePartnerRules::normalizeEmail('  Anna@Verein.TEST '), 'e-mail compared in lower case without spaces');
+same('müller hans', VereinePartnerRules::normalizeName(' MÜLLER,  Hans. '), 'names compared in lower case, umlauts kept, punctuation gone');
+
+$natural = array('morphy' => 'phy', 'firstname' => 'Lisa', 'lastname' => 'Neu', 'company' => 'Neu Handel', 'email' => 'lisa@verein.test', 'zip' => '6020');
+$legal = array('morphy' => 'mor', 'firstname' => 'Max', 'lastname' => 'Kontakt', 'company' => 'Sponsor GmbH', 'email' => '', 'zip' => '6020');
+same('Lisa Neu', VereinePartnerRules::partnerName($natural), 'a natural person is named by first and last name');
+same('Sponsor GmbH', VereinePartnerRules::partnerName($legal), 'a legal entity is named by its company');
+
+$partners = array(
+	array('id' => 1, 'name' => 'Lisa Neu', 'email' => 'other@verein.test', 'zip' => '6020', 'linked_member' => 0),
+	array('id' => 2, 'name' => 'Irgendwer', 'email' => 'LISA@verein.test', 'zip' => '1010', 'linked_member' => 0),
+	array('id' => 3, 'name' => 'Lisa Neu', 'email' => 'lisa@verein.test', 'zip' => '6020', 'linked_member' => 9),
+	array('id' => 4, 'name' => 'Lisa Neu', 'email' => '', 'zip' => '1010', 'linked_member' => 0),
+);
+same(
+	array(array('id' => 2, 'match' => 'email'), array('id' => 1, 'match' => 'name_zip')),
+	VereinePartnerRules::candidates($natural, $partners),
+	'e-mail matches first, then name and postcode; a partner linked to another member and a different postcode never match'
+);
+same(array(), VereinePartnerRules::candidates(array_merge($natural, array('email' => '', 'zip' => '')), $partners), 'without e-mail and postcode nothing matches');
+same(array(), VereinePartnerRules::candidates($legal, $partners), 'a company name matches no person');
+
+$memberAddress = array('email' => 'lisa@verein.test', 'address' => 'Teststraße 1', 'zip' => '6020', 'town' => 'Innsbruck');
+same(array(), VereinePartnerRules::differences($memberAddress, array('email' => 'LISA@verein.test', 'address' => 'teststraße 1.', 'zip' => '6020', 'town' => 'INNSBRUCK')), 'case and trailing punctuation are no difference');
+same(
+	array('email' => array('member' => 'lisa@verein.test', 'partner' => 'alt@verein.test'), 'zip' => array('member' => '6020', 'partner' => '6060')),
+	VereinePartnerRules::differences($memberAddress, array('email' => 'alt@verein.test', 'address' => 'Teststraße 1', 'zip' => '6060', 'town' => 'Innsbruck')),
+	'changed e-mail and postcode are reported with both values'
+);
+
+same(array('member' => true, 'former' => false), VereinePartnerRules::categoriesFor(1, true), 'an active member is in the member category only');
+same(array('member' => false, 'former' => true), VereinePartnerRules::categoriesFor(0, true), 'a resigned member is a former member');
+same(array('member' => false, 'former' => true), VereinePartnerRules::categoriesFor(-2, true), 'an excluded member is a former member');
+same(null, VereinePartnerRules::categoriesFor(-1, false), 'a draft leaves the categories alone');
+same(array('member' => false, 'former' => true), VereinePartnerRules::categoriesFor(1, true, true), 'a deleted member that was active becomes former');
+same(array('member' => false, 'former' => false), VereinePartnerRules::categoriesFor(-1, false, true), 'a deleted draft leaves no category');
+
+same(array('set' => 'TE_PRIVATE', 'mismatch' => false), VereinePartnerRules::customerType('phy', '', 'TE_PRIVATE', ''), 'an empty customer type is filled');
+same(array('set' => '', 'mismatch' => false), VereinePartnerRules::customerType('phy', 'TE_PRIVATE', 'TE_PRIVATE', ''), 'a matching customer type stays');
+same(array('set' => '', 'mismatch' => true), VereinePartnerRules::customerType('phy', 'TE_SMALL', 'TE_PRIVATE', ''), 'a sole trader keeps the business type and is reported');
+same(array('set' => '', 'mismatch' => false), VereinePartnerRules::customerType('mor', 'TE_SMALL', 'TE_PRIVATE', ''), 'no type configured for legal entities means leave unchanged');
+same(array('set' => 'TE_OTHER', 'mismatch' => false), VereinePartnerRules::customerType('mor', '0', 'TE_PRIVATE', 'TE_OTHER'), 'id 0 counts as empty');
+
+same(1, VereinePartnerRules::customerFlag(0), 'no flag becomes customer');
+same(3, VereinePartnerRules::customerFlag(2), 'a prospect becomes customer and prospect');
+same(1, VereinePartnerRules::customerFlag(1), 'a customer stays customer');
+same(3, VereinePartnerRules::customerFlag(3), 'customer and prospect stays');
+
+same(true, VereinePartnerRules::isMinor('2008-09-17', '2026-09-16'), 'the day before the 18th birthday is under age');
+same(false, VereinePartnerRules::isMinor('2008-09-16', '2026-09-16'), 'on the 18th birthday of age');
+same(false, VereinePartnerRules::isMinor('', '2026-09-16'), 'an unknown birth date is not treated as under age');
+same(true, VereinePartnerRules::isMinor('2015-05-05 00:00:00', '2026-09-16'), 'a date time from the database works');
+
+$checksWithPartners = VereineOrganization::checks($organization, true, 3);
+same(
+	array('code' => 'partners', 'status' => 'warning', 'label' => 'VereineCheckPartnersOpen', 'fix' => 'partners', 'value' => 3),
+	end($checksWithPartners),
+	'open partner points are reported with their number'
+);
+same('ok', $statusOf(VereineOrganization::checks($organization, true, 0))['partners'], 'no open partner points');
+same(false, isset($statusOf(VereineOrganization::checks($organization, true))['partners']), 'without the rights to check, no partner check');
+
 // ------------------------------------------------------------ language files
 
 $english = langEntries($root.'/langs/en_US/vereine.lang');
@@ -244,12 +309,27 @@ foreach ($iterator as $file) {
 	if (substr($path, -4) !== '.php' || preg_match('#/(tests|scripts|\.local-testing|\.git|dist)/#', $path)) {
 		continue;
 	}
-	preg_match_all("/'((?:Vereine|ModuleVereine|Permission492100)[A-Za-z0-9]*)'/", (string) file_get_contents($path), $matches);
+	preg_match_all("/'((?:Vereine|ModuleVereine|Permission492100)[A-Za-z0-9_]*)'/", (string) file_get_contents($path), $matches);
 	foreach ($matches[1] as $key) {
 		$used[$key] = true;
 	}
 }
-$prefixes = array('VereineProfile' => VereineProfile::codes(), 'VereineRegisterNumber' => array('ZVR', 'VR'), 'VereineRegisterNumberHelp' => array('ZVR', 'VR'));
+$sections = array('without_partner', 'attributes', 'differences', 'orphans', 'minors', 'duplicates');
+$operations = array('create', 'attributes', 'copy', 'orphans');
+$prefixes = array(
+	'VereineProfile' => VereineProfile::codes(),
+	'VereineRegisterNumber' => array('ZVR', 'VR'),
+	'VereineRegisterNumberHelp' => array('ZVR', 'VR'),
+	'VereinePartnerSection_' => $sections,
+	'VereinePartnerSectionHelp_' => $sections,
+	'VereinePartnerPreviewButton_' => $operations,
+	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
+	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
+	'VereineField_' => array('email', 'address', 'zip', 'town'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error'),
+	'VereineSetting_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT_NATURAL', 'VEREINE_PARTNER_TYPENT_LEGAL', 'VEREINE_CATEGORY_MEMBER', 'VEREINE_CATEGORY_FORMER', 'VEREINE_CATEGORY_GUARDIAN'),
+	'VereineSettingHelp_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT'),
+);
 foreach (array_keys($used) as $key) {
 	if (isset($prefixes[$key])) {
 		foreach ($prefixes[$key] as $ending) {
