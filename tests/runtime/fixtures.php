@@ -25,6 +25,7 @@
  * php fixtures.php readmembers  the reader may also read, not change, members and third parties
  * php fixtures.php cardmember  a validated member without third party, for the member card
  * php fixtures.php invoicing  products, a customer and a supplier invoice with tax profiles
+ * php fixtures.php turnover  validated invoices at the turn of 2025 to 2026; the reader may read invoices
  *
  * Prints one JSON object. Passwords and API keys come from the environment only.
  */
@@ -334,6 +335,48 @@ if ($stage === 'invoicing') {
 	exit(0);
 }
 
+// Validated invoices on both sides of a new year, for the thresholds.
+if ($stage === 'turnover') {
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+	$reader = new User($db);
+	$rightId = (int) rt_value($db, "SELECT id FROM ".MAIN_DB_PREFIX."rights_def WHERE module = 'facture' AND perms = 'lire' AND (subperms IS NULL OR subperms = '') AND entity = 1");
+	if ($reader->fetch(0, 'rtreader') <= 0 || $rightId <= 0 || $reader->addrights($rightId) < 0) {
+		rt_fail('granting facture/lire to the reader: '.$reader->error);
+	}
+	$canteen = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."vereine_taxprofile WHERE code = 'BETRIEB_20'");
+	$fee = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."vereine_taxprofile WHERE code = 'MITGLIEDSBEITRAG'");
+	$socid = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."societe WHERE nom = 'Rechnung Kunde'");
+	// Date, lines (label, net, VAT, profile id or 0), validate.
+	$invoices = array(
+		'2025' => array(dol_mktime(12, 0, 0, 12, 31, 2025), array(array('Kantine Silvester', 1000, 20, $canteen)), true),
+		'2026' => array(dol_mktime(12, 0, 0, 1, 1, 2026), array(array('Kantine Turniersaison', 50000, 20, $canteen), array('Mitgliedsbeiträge', 20000, 0, $fee), array('Ohne Profil', 500, 20, 0)), true),
+		'draft' => array(dol_mktime(12, 0, 0, 6, 1, 2026), array(array('Entwurf Kantine', 99999, 20, $canteen)), false),
+	);
+	$ids = array();
+	foreach ($invoices as $key => $data) {
+		$invoice = new Facture($db);
+		$invoice->socid = $socid;
+		$invoice->type = Facture::TYPE_STANDARD;
+		$invoice->date = $data[0];
+		if ($invoice->create($admin) <= 0) {
+			rt_fail('invoice '.$key.': '.$invoice->error);
+		}
+		foreach ($data[1] as $index => $line) {
+			$options = $line[3] > 0 ? array('options_vereine_taxprofile' => $line[3]) : array();
+			if ($invoice->addline($line[0], $line[1], 1, $line[2], 0, 0, 0, 0, '', '', 0, 0, 0, 'HT', 0, 1, $index + 1, 0, '', 0, 0, null, 0, '', $options) <= 0) {
+				rt_fail('invoice line '.$line[0].': '.$invoice->error);
+			}
+		}
+		if ($data[2] && $invoice->validate($admin) <= 0) {
+			rt_fail('validate invoice '.$key.': '.$invoice->error.' '.implode(' | ', (array) $invoice->errors));
+		}
+		$ids[$key] = (int) $invoice->id;
+	}
+	print json_encode(array('invoices' => $ids))."\n";
+	exit(0);
+}
+
 if ($stage === 'resiliate') {
 	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
 	$member = new Adherent($db);
@@ -391,4 +434,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, resiliate, guardian or reset');

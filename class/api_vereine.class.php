@@ -144,6 +144,38 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Thresholds of a year
+	 *
+	 * The small business limit and the limit for businesses harmful to tax privileges
+	 * of a calendar year: counted income, limit, status and legal basis. Needs the right
+	 * to read invoices as well. Income from invoice lines without tax profile is reported
+	 * separately and not counted.
+	 *
+	 * @param int $year Calendar year, the current one when left out
+	 * @return array Fields year, thresholds, unassigned, as documented in docs/API.md
+	 *
+	 * @url GET thresholds
+	 *
+	 * @throws RestException 400 Year out of range
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getThresholds($year = 0)
+	{
+		$this->checkAccess();
+		if (!DolibarrApiAccess::$user->hasRight('facture', 'lire')) {
+			throw new RestException(403, 'Not allowed: the user needs the right to read invoices');
+		}
+		$year = (int) $year > 0 ? (int) $year : (int) dol_print_date(dol_now(), '%Y');
+		if ($year < 2000 || $year > 2100) {
+			throw new RestException(400, 'The year must be between 2000 and 2100');
+		}
+		dol_include_once('/vereine/class/vereinethresholdreport.class.php');
+		$report = new VereineThresholdReport($this->db);
+		return $report->report($year);
+	}
+
+	/**
 	 * Refuse the call unless the module is on and the user may read the association.
 	 *
 	 * @return void

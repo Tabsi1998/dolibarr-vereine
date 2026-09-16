@@ -36,6 +36,8 @@ legal source, not in code, so a changed threshold is a data update.
 | `class/vereinetaxrules.class.php` | Spheres, VAT treatments, tax profile checks and suggestions, plain PHP |
 | `class/vereinetaxprofiles.class.php`, `admin/taxprofiles.php` | Tax profiles in `llx_vereine_taxprofile` and their setup tab |
 | `class/vereinetaxassign.class.php` | Extra field `vereine_taxprofile` on products and invoice lines, product VAT, line profiles, deviations |
+| `class/vereinethresholds.class.php` | Dated threshold table and traffic light, plain PHP |
+| `class/vereinethresholdreport.class.php`, `core/boxes/box_vereine_thresholds.php` | Income per tax profile from invoices; home page box |
 | `js/partners.js` | Select all and the row dialog of the reconciliation page |
 | `sql/` | Tables, created on activation and kept on deactivation |
 | `lib/vereine.lib.php` | Shared page helpers |

@@ -46,6 +46,9 @@ Vereinswebsite mit.
   tragen ein Steuerprofil (0.2.5): Der USt-Satz des Produkts folgt ihm, neue
   Rechnungszeilen übernehmen es, und eine Rechnung zeigt Zeilen, deren Satz nicht
   passt. Das Rechnungs-PDF druckt die Hinweise je Zeile und die ZVR-Zahl (0.2.6).
+- **Grenzen als Ampel** (0.2.7): Kleinunternehmer-Grenze und § 45a BAO je
+  Kalenderjahr aus den Rechnungen, auf der Übersicht, als Startseiten-Widget und
+  in der API.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.
@@ -79,7 +82,8 @@ Bereich fällt, hängt vom Einzelfall ab. Quellen und Stand stehen in
 | *Start > Einstellungen > Unternehmen/Organisation* | Name, Anschrift, E-Mail, Telefon, Website und erster Monat des Rechnungsjahres – das Modul liest sie, es führt keine eigene Kopie |
 | *Start > Einstellungen > Module > Vereine* | Einrichtung: Länderprofil und Registerdaten; Steuerprofile; Über-Seite mit Version und Lizenz |
 | *Mitglieder*, *Geschäftspartner*, *Kategorien* (Dolibarr-eigene Module) | Pflicht und werden mit Vereine aktiviert; das Mitglieder-Menü bekommt *Verein*, *Mitglieder und Partner* und für Administratoren *Partner-Einstellungen* |
-| *Mitglieder > Verein* | Übersicht mit Vereinsdaten und Prüfungen |
+| *Mitglieder > Verein* | Übersicht mit Vereinsdaten, Prüfungen und den Grenzen des Jahres |
+| Startseite | Widget *Vereine: Grenzen des Jahres* (für Benutzer, die Rechnungen lesen dürfen) |
 | *Mitglieder > Verein > Mitglieder und Partner* | Abgleich von Mitgliedern und ihren Geschäftspartnern |
 | Karte eines Geschäftspartners | Reiter *Mitgliedschaft*; Kategorien *Mitglied* und *Ehemaliges Mitglied* |
 | Mitgliedskarte | Reiter *Verein*; *Geschäftspartner anlegen* und *Verknüpfung mit Geschäftspartner* zieht das Modul nach |

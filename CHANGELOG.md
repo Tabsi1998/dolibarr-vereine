@@ -7,6 +7,34 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.2.7-beta] - 2026-09-16
+
+Thresholds and traffic light, part 4 of 5 (issue #3).
+
+### Added
+
+- The overview shows the thresholds of a calendar year as a traffic light, with a
+  sentence in plain words: the small business limit (35,000 EUR net until 2024,
+  55,000 EUR gross with 10 % tolerance from 2025) and the turnover of businesses
+  harmful to tax privileges (§ 45a BAO: 40,000 EUR until 2023, 100,000 EUR from
+  2024). Earlier years can be opened; the cash register duty and the 72 hours of
+  small festivals are listed and checked later.
+- Income counts from validated and paid invoices, credit notes and replacements
+  by invoice date, each line through its tax profile. Drafts, abandoned and
+  deposit invoices do not count; lines without tax profile are reported, not
+  counted. Income of auxiliary businesses (Liebhaberei) and the sports
+  exemption does not count towards the small business limit, as the ministry of
+  finance says. For § 45a BAO the module compares gross amounts, to warn early
+  rather than late.
+- A small business limit exceeded in the year before is reported.
+- Home page box *Vereine: thresholds of the year* and REST API
+  `GET /vereine/thresholds?year=`, both only for users who may read invoices.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that registers the home page box.
+
 ## [0.2.6-beta] - 2026-09-16
 
 Invoice PDFs, part 3 of 5 (issue #3).
@@ -229,7 +257,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.6-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.7-beta...HEAD
+[0.2.7-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.7-beta
 [0.2.6-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.6-beta
 [0.2.5-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.5-beta
 [0.2.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.4-beta

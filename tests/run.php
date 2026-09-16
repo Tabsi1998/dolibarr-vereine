@@ -37,6 +37,7 @@ require_once $root.'/class/vereineprofile.class.php';
 require_once $root.'/class/vereineorganization.class.php';
 require_once $root.'/class/vereinepartnerrules.class.php';
 require_once $root.'/class/vereinetaxrules.class.php';
+require_once $root.'/class/vereinethresholds.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -347,6 +348,72 @@ foreach (VereineTaxRules::standardProfiles() as $standard) {
 }
 same(array('SPORT', 'HILFSBETRIEB_10'), $inactive, 'the sports exemption and 10 % without Liebhaberei start inactive');
 
+// ------------------------------------------------------------- thresholds
+
+same(35000.0, VereineThresholds::validOn('small_business', '2024-12-31')['amount'], 'small business limit on the last day of 2024');
+same(false, VereineThresholds::validOn('small_business', '2024-12-31')['gross'], 'until 2024 the small business limit was net');
+same(55000.0, VereineThresholds::validOn('small_business', '2025-01-01')['amount'], 'small business limit from 2025');
+same(true, VereineThresholds::validOn('small_business', '2025-01-01')['gross'], 'from 2025 the small business limit is gross');
+same(null, VereineThresholds::validOn('small_business', '2019-12-31'), 'no small business limit is listed before 2020');
+same(40000.0, VereineThresholds::validOn('harmful_business', '2023-12-31')['amount'], 'harmful business limit until 2023');
+same(100000.0, VereineThresholds::validOn('harmful_business', '2024-01-01')['amount'], 'harmful business limit from 2024');
+foreach (VereineThresholds::table() as $threshold) {
+	expect(strpos($threshold['source'], 'https://') === 0 && $threshold['basis'] !== '', 'threshold '.$threshold['code'].' from '.$threshold['valid_from'].' names basis and source');
+	expect($threshold['valid_to'] === '' || $threshold['valid_from'] <= $threshold['valid_to'], 'threshold '.$threshold['code'].' has a valid period');
+}
+foreach (array('small_business', 'harmful_business', 'cash_register', 'festival_hours') as $code) {
+	$periods = array();
+	foreach (VereineThresholds::table() as $threshold) {
+		if ($threshold['code'] === $code) {
+			$periods[] = array($threshold['valid_from'], $threshold['valid_to']);
+		}
+	}
+	$periodCount = count($periods);
+	for ($i = 1; $i < $periodCount; $i++) {
+		expect($periods[$i - 1][1] !== '' && $periods[$i - 1][1] < $periods[$i][0], 'periods of '.$code.' follow each other without overlap');
+	}
+}
+
+expect(VereineThresholds::counts('small_business', 'harmful', 'standard20'), 'a taxable canteen counts towards the small business limit');
+expect(VereineThresholds::counts('small_business', 'harmful', 'small_business'), 'turnover exempt as small business counts');
+expect(!VereineThresholds::counts('small_business', 'essential', 'hobby'), 'auxiliary businesses (Liebhaberei) do not count, as the ministry says');
+expect(!VereineThresholds::counts('small_business', 'essential', 'sport'), 'the sports exemption does not count towards the small business limit');
+expect(!VereineThresholds::counts('small_business', 'ideal', 'nonbusiness'), 'membership fees do not count');
+expect(VereineThresholds::counts('harmful_business', 'harmful', 'small_business'), 'every turnover of a harmful business counts towards § 45a BAO');
+expect(!VereineThresholds::counts('harmful_business', 'auxiliary', 'reduced10'), 'a dispensable auxiliary business does not count towards § 45a BAO');
+expect(!VereineThresholds::counts('cash_register', 'harmful', 'standard20'), 'the cash register duty is not evaluated from invoices');
+
+same('ok', VereineThresholds::status(43999.99, 55000, 10), 'just below 80 % is green');
+same('near', VereineThresholds::status(44000, 55000, 10), '80 % is yellow');
+same('near', VereineThresholds::status(55000, 55000, 10), 'exactly the limit is still yellow');
+same('tolerance', VereineThresholds::status(55000.01, 55000, 10), 'just above the limit with tolerance is orange');
+same('tolerance', VereineThresholds::status(60500, 55000, 10), '110 % is still within the tolerance');
+same('exceeded', VereineThresholds::status(60500.01, 55000, 10), 'above the tolerance is red');
+same('exceeded', VereineThresholds::status(100000.01, 100000, 0), 'without tolerance, above the limit is red');
+same('ok', VereineThresholds::status(-50, 55000, 10), 'more credit notes than invoices is green');
+
+// A calendar year counts on its own; the year before only decides whether the exemption holds.
+$income2026 = array(
+	array('sphere' => 'harmful', 'treatment' => 'standard20', 'net' => 50000.0, 'gross' => 60000.0),
+	array('sphere' => 'essential', 'treatment' => 'hobby', 'net' => 9000.0, 'gross' => 9000.0),
+	array('sphere' => 'ideal', 'treatment' => 'nonbusiness', 'net' => 20000.0, 'gross' => 20000.0),
+);
+$income2025 = array(array('sphere' => 'harmful', 'treatment' => 'standard20', 'net' => 1000.0, 'gross' => 1200.0));
+$result = VereineThresholds::evaluate(2026, $income2026, $income2025);
+same(array('small_business', 'harmful_business'), array($result[0]['code'], $result[1]['code']), 'both evaluated thresholds for 2026');
+same(60000.0, $result[0]['amount'], 'small business limit counts the gross canteen only');
+same('tolerance', $result[0]['status'], '60,000 gross is within the tolerance of 55,000');
+same(false, $result[0]['previous_exceeded'], '2025 was below the limit');
+same('ok', $result[1]['status'], '60,000 of 100,000 for § 45a BAO is green');
+same(0.6, $result[1]['ratio'], 'ratio of the harmful business limit');
+$result = VereineThresholds::evaluate(2025, $income2025, $income2026);
+same(1200.0, $result[0]['amount'], '2025 counts only its own invoices');
+same(true, $result[0]['previous_exceeded'], 'a year before above the limit is reported');
+$result = VereineThresholds::evaluate(2024, array(array('sphere' => 'harmful', 'treatment' => 'standard20', 'net' => 34000.0, 'gross' => 40800.0)), array());
+same(34000.0, $result[0]['amount'], 'until 2024 the small business limit counts net amounts');
+same('near', $result[0]['status'], '34,000 net of 35,000 is yellow');
+same(array(), VereineThresholds::evaluate(2015, $income2025, array()), 'no thresholds are known for 2015');
+
 // ------------------------------------------------------------ language files
 
 $english = langEntries($root.'/langs/en_US/vereine.lang');
@@ -411,6 +478,11 @@ $prefixes = array(
 	'VereineTreatment_' => array_keys(VereineTaxRules::treatments()),
 	'VereineSphereHelp_' => array_keys(VereineTaxRules::spheres()),
 	'VereinePdfRegister_' => array('ZVR', 'VR'),
+	'VereineThreshold_' => array('small_business', 'harmful_business', 'cash_register', 'festival_hours'),
+	'VereineThresholdHelp_' => array('cash_register', 'festival_hours'),
+	'VereineThresholdStatus_' => array('ok', 'near', 'tolerance', 'exceeded'),
+	'VereineThresholdText_' => array('ok', 'near'),
+	'VereineThresholdText_exceeded_' => array('small_business', 'harmful_business'),
 	'VereineTreatmentHelp_' => array_keys(VereineTaxRules::treatments()),
 );
 foreach (array_keys($used) as $key) {

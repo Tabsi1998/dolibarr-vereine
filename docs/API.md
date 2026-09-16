@@ -104,6 +104,45 @@ activity remains the association's decision.
 | `note` | Invoice note, may be empty |
 | `active`, `standard` | Booleans |
 
+## GET /vereine/thresholds
+
+Thresholds of a calendar year (`?year=2026`, the current year when left out).
+Needs the right to read invoices as well. Income counts from validated and paid
+customer invoices, credit notes and replacements, each line through its tax
+profile; lines without profile are reported in `unassigned` and not counted.
+
+```json
+{
+  "year": 2026,
+  "thresholds": [
+    {
+      "code": "small_business",
+      "year": 2026,
+      "limit": 55000,
+      "gross": true,
+      "tolerance": 10,
+      "amount": 60000,
+      "remaining": -5000,
+      "ratio": 1.0909,
+      "status": "tolerance",
+      "basis": "§ 6 Abs. 1 Z 27 UStG",
+      "source": "https://www.jusline.at/gesetz/ustg/paragraf/6",
+      "previous_exceeded": false
+    }
+  ],
+  "unassigned": { "net": 500, "gross": 600, "lines": 1 }
+}
+```
+
+| Field | Content |
+| --- | --- |
+| `code` | `small_business` (§ 6 (1) no. 27 UStG) or `harmful_business` (§ 45a BAO) |
+| `gross` | Whether gross amounts are compared; for `harmful_business` the module compares gross amounts to warn early |
+| `status` | `ok` below 80 %, `near` up to the limit, `tolerance` above within the tolerance, `exceeded` |
+| `previous_exceeded` | `small_business` only: the year before was above the limit, so the exemption does not apply |
+
+Answers 400 for a year before 2000 or after 2100.
+
 ## Example
 
 ```bash
