@@ -24,6 +24,7 @@
  * php fixtures.php rights  after the module is enabled: the reader gets the read right
  * php fixtures.php readmembers  the reader may also read, not change, members and third parties
  * php fixtures.php cardmember  a validated member without third party, for the member card
+ * php fixtures.php invoicing  products, a customer and a supplier invoice with tax profiles
  *
  * Prints one JSON object. Passwords and API keys come from the environment only.
  */
@@ -238,6 +239,101 @@ if ($stage === 'cardmember') {
 	exit(0);
 }
 
+// Products, invoices and supplier invoices with tax profiles, created the way Dolibarr's own code does.
+if ($stage === 'invoicing') {
+	require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/fourn/class/fournisseur.facture.class.php';
+	foreach (array('modProduct', 'modService', 'modFacture', 'modFournisseur') as $module) {
+		$result = activateModule($module);
+		if (!empty($result['errors'])) {
+			rt_fail('activating '.$module.' failed: '.implode(' | ', (array) $result['errors']));
+		}
+	}
+	$conf->setValues($db);
+	$admin->getrights();
+	$countryId = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+	$profile = array();
+	foreach (array('MITGLIEDSBEITRAG', 'BETRIEB_20', 'VEREINSFEST') as $code) {
+		$profile[$code] = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."vereine_taxprofile WHERE code = '".$code."'");
+	}
+
+	$products = array();
+	foreach (array('fee' => array('RT-BEITRAG', 'Mitgliedsbeitrag 2027', 1, 50, 20, 'MITGLIEDSBEITRAG'), 'drink' => array('RT-GETRAENK', 'Getränk Kantine', 0, 3, 10, 'BETRIEB_20')) as $key => $data) {
+		$product = new Product($db);
+		$product->ref = $data[0];
+		$product->label = $data[1];
+		$product->type = $data[2];
+		$product->price = $data[3];
+		$product->price_base_type = 'HT';
+		$product->tva_tx = $data[4];
+		$product->status = 1;
+		$product->status_buy = 1;
+		$product->array_options = array('options_vereine_taxprofile' => $profile[$data[5]]);
+		if ($product->create($admin) <= 0) {
+			rt_fail('product '.$data[0].': '.$product->error.' '.implode(' | ', (array) $product->errors));
+		}
+		$products[$key] = (int) $product->id;
+	}
+
+	$partner = new Societe($db);
+	$partner->name = 'Rechnung Kunde';
+	$partner->client = 1;
+	$partner->fournisseur = 1;
+	$partner->code_client = -1;
+	$partner->code_fournisseur = -1;
+	$partner->country_id = $countryId;
+	if ($partner->create($admin) <= 0) {
+		rt_fail('invoice partner: '.$partner->error);
+	}
+
+	$invoice = new Facture($db);
+	$invoice->socid = (int) $partner->id;
+	$invoice->type = Facture::TYPE_STANDARD;
+	$invoice->date = dol_now();
+	if ($invoice->create($admin) <= 0) {
+		rt_fail('invoice: '.$invoice->error);
+	}
+	// Fee at 0 % as its profile says, drink at 10 % although its profile says 20 %, a free line with its own profile.
+	$lines = array(
+		array('Mitgliedsbeitrag 2027', 50, 0, $products['fee'], array()),
+		array('Getränk Kantine', 3, 10, $products['drink'], array()),
+		array('Buffet Sommerfest', 5, 0, 0, array('options_vereine_taxprofile' => $profile['VEREINSFEST'])),
+	);
+	$invoiceLines = array();
+	foreach ($lines as $index => $line) {
+		$result = $invoice->addline($line[0], $line[1], 1, $line[2], 0, 0, $line[3], 0, '', '', 0, 0, 0, 'HT', 0, $index === 0 ? 1 : 0, $index + 1, 0, '', 0, 0, null, 0, '', $line[4]);
+		if ($result <= 0) {
+			rt_fail('invoice line '.$line[0].': '.$invoice->error);
+		}
+		$invoiceLines[] = (int) $result;
+	}
+
+	$supplierInvoice = new FactureFournisseur($db);
+	$supplierInvoice->socid = (int) $partner->id;
+	$supplierInvoice->ref_supplier = 'RT-EINKAUF-1';
+	$supplierInvoice->date = dol_now();
+	$supplierInvoice->type = FactureFournisseur::TYPE_STANDARD;
+	if ($supplierInvoice->create($admin) <= 0) {
+		rt_fail('supplier invoice: '.$supplierInvoice->error);
+	}
+	$result = $supplierInvoice->addline('Getränke Einkauf', 2, 20, 0, 0, 10, $products['drink']);
+	if ($result <= 0) {
+		rt_fail('supplier invoice line: '.$supplierInvoice->error);
+	}
+
+	print json_encode(array(
+		'products' => $products,
+		'profiles' => $profile,
+		'invoice' => (int) $invoice->id,
+		'invoice_lines' => $invoiceLines,
+		'supplier_invoice' => (int) $supplierInvoice->id,
+		'supplier_line' => (int) $result,
+	))."\n";
+	exit(0);
+}
+
 if ($stage === 'resiliate') {
 	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
 	$member = new Adherent($db);
@@ -281,6 +377,11 @@ if ($stage === 'reset') {
 	if (!$db->query("DELETE FROM ".MAIN_DB_PREFIX."const WHERE name LIKE 'VEREINE\\_%'")) {
 		rt_fail('delete constants: '.$db->lasterror());
 	}
+	require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
+	foreach (array('product', 'facturedet', 'facture_fourn_det') as $elementtype) {
+		$extrafields = new ExtraFields($db);
+		$extrafields->delete('vereine_taxprofile', $elementtype);
+	}
 	foreach (array('vereine_log', 'vereine_taxprofile') as $table) {
 		if (!$db->query("DROP TABLE IF EXISTS ".MAIN_DB_PREFIX.$table)) {
 			rt_fail('drop table '.$table.': '.$db->lasterror());
@@ -290,4 +391,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, resiliate, guardian or reset');

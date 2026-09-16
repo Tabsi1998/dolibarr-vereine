@@ -7,6 +7,31 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.2.5-beta] - 2026-09-16
+
+Tax profiles on products and invoices, part 2 of 5 (issue #3).
+
+### Added
+
+- Extra field *Tax profile* on products and services, customer invoice lines and
+  supplier invoice lines. The list offers active profiles only. Dolibarr's REST
+  API shows it as `options_vereine_taxprofile`; `GET /vereine/taxprofiles` now
+  returns the matching `id`.
+- A product's VAT rate follows its tax profile when the product is created or
+  saved. The rate changes through Dolibarr's price update, so the gross price is
+  calculated again. With several price levels the module only says which rate to
+  set.
+- A new invoice line with a product takes the product's tax profile; a line
+  without product can choose one.
+- Customer and supplier invoices list the lines whose VAT rate differs from
+  their tax profile, in plain words. The module never changes an invoice.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that adds the extra field and the invoice hooks. Existing products and invoices
+keep their rates; choose a tax profile on a product to let its rate follow.
+
 ## [0.2.4-beta] - 2026-09-16
 
 Tax profiles in plain words.
@@ -176,7 +201,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.4-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.5-beta...HEAD
+[0.2.5-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.5-beta
 [0.2.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.4-beta
 [0.2.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.3-beta
 [0.2.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.2-beta

@@ -308,6 +308,13 @@ same(13.0, VereineTaxRules::rateOf('reduced13'), 'rate of 13 %');
 same(20.0, VereineTaxRules::rateOf('standard20'), 'rate of 20 %');
 same(0.0, VereineTaxRules::rateOf('sport'), 'an exemption has rate 0');
 same(null, VereineTaxRules::rateOf('other'), 'an unknown treatment has no rate');
+expect(!VereineTaxRules::rateDeviates('20.0000', 20), 'a line rate as the database stores it matches its profile');
+expect(VereineTaxRules::rateDeviates(10, '20.000'), '10 % on a 20 % profile deviates');
+expect(!VereineTaxRules::rateDeviates(0, '0'), 'no VAT on a no-VAT profile matches');
+expect(VereineTaxRules::rateDeviates(13, 10), '13 % on a 10 % profile deviates');
+same('10', VereineTaxRules::formatRate('10.000'), 'rates are written without decimals');
+same('0', VereineTaxRules::formatRate(0), 'no VAT is written as 0');
+same('5,5', VereineTaxRules::formatRate(5.5), 'decimal rates keep their decimals with a comma');
 foreach (VereineTaxRules::treatments() as $code => $treatment) {
 	expect(strpos($treatment['source'], 'https://') === 0 && $treatment['basis'] !== '', 'treatment '.$code.' names its legal basis and source');
 }
@@ -347,6 +354,9 @@ foreach ($languages as $file) {
 		expect(isset($entries[$key]), $language.': key '.$key.' of en_US is not translated');
 	}
 	foreach ($entries as $key => $value) {
+		// Translate::trans() passes at most four parameters to sprintf(); a fifth placeholder stops the page.
+		preg_match_all('/%(?:\d+\$)?[sd]/', str_replace('%%', '', $value), $placeholders);
+		expect(count($placeholders[0]) <= 4, $language.': '.$key.' has more than four placeholders, Translate::trans() passes only four');
 		// Dolibarr passes every translation through sprintf(): a lone % stops the page with a ValueError.
 		expect(preg_match('/%(?!%|(?:\d+\$)?[sd])/', str_replace('%%', '', $value)) === 0, $language.': '.$key.' has a lone %, write %% for a percent sign');
 		if (isset($english[$key]) && strpos($key, '!') !== 0) {

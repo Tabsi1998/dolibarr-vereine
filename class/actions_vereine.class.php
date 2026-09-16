@@ -119,6 +119,43 @@ class ActionsVereine
 	}
 
 	/**
+	 * On a customer or supplier invoice: report lines whose VAT rate differs from their tax profile.
+	 *
+	 * Printed where Dolibarr shows confirmations, so it is seen before the lines. Nothing changes.
+	 *
+	 * @param array<string,mixed> $parameters  Hook parameters
+	 * @param CommonObject        $object      Invoice
+	 * @param string              $action      Current action
+	 * @param HookManager         $hookmanager Hook manager
+	 * @return int 0, Dolibarr's confirmations always print
+	 */
+	public function formConfirm($parameters, &$object, &$action, $hookmanager)
+	{
+		global $langs;
+
+		$contexts = explode(':', isset($parameters['context']) ? (string) $parameters['context'] : '');
+		$element = in_array('invoicecard', $contexts, true) ? 'facturedet' : (in_array('invoicesuppliercard', $contexts, true) ? 'facture_fourn_det' : '');
+		if ($element === '' || !is_object($object) || (int) $object->id <= 0) {
+			return 0;
+		}
+		dol_include_once('/vereine/class/vereinetaxassign.class.php');
+		$assign = new VereineTaxAssign($this->db);
+		$lines = $assign->deviations($element, (int) $object->id);
+		if (!$lines) {
+			return 0;
+		}
+		$langs->load('vereine@vereine');
+		$html = '<div class="warning" data-taxprofile-warning="'.count($lines).'"><strong>'.$langs->trans('VereineTaxLinesDeviateTitle').'</strong><ul>';
+		foreach ($lines as $line) {
+			// Translate::trans() takes at most four parameters: position and description travel together.
+			$where = $line['position'].($line['description'] !== '' ? ' ('.$line['description'].')' : '');
+			$html .= '<li>'.$langs->trans('VereineTaxLineDeviation', $where, VereineTaxRules::formatRate($line['rate']), $line['profile'], VereineTaxRules::formatRate($line['profile_rate'])).'</li>';
+		}
+		$this->resprints = $html.'</ul>'.$langs->trans('VereineTaxLinesDeviateHint').'</div>';
+		return 0;
+	}
+
+	/**
 	 * Whether a hook runs on the card of an existing member.
 	 *
 	 * @param array<string,mixed> $parameters Hook parameters

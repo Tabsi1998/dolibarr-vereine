@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '0.2.4-beta';
+		$this->version = '0.2.5-beta';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -68,8 +68,9 @@ class modVereine extends DolibarrModules
 			'theme' => 0,
 			'css' => array(),
 			'js' => array(),
-			// Dolibarr's member card links third parties without a trigger (class/actions_vereine.class.php).
-			'hooks' => array('data' => array('membercard'), 'entity' => '0'),
+			// class/actions_vereine.class.php: the member card links third parties without a trigger;
+			// invoice cards report lines whose VAT rate differs from their tax profile.
+			'hooks' => array('data' => array('membercard', 'invoicecard', 'invoicesuppliercard'), 'entity' => '0'),
 			'moduleforexternal' => 0,
 		);
 
@@ -212,6 +213,13 @@ class modVereine extends DolibarrModules
 		if ($taxProfiles->ensureStandard($langs, $user) < 0) {
 			$this->error = $taxProfiles->error;
 			dol_syslog('modVereine::init '.$taxProfiles->error, LOG_ERR);
+		}
+		// The extra field "tax profile" on products and invoice lines; kept when the module is disabled.
+		dol_include_once('/vereine/class/vereinetaxassign.class.php');
+		$assign = new VereineTaxAssign($this->db);
+		if ($assign->ensureFields() < 0) {
+			$this->error = $assign->error;
+			dol_syslog('modVereine::init '.$assign->error, LOG_ERR);
 		}
 
 		// A first activation picks the profile of the company's country. A later

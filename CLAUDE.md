@@ -132,3 +132,15 @@ raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
   checks it.
 - Pages must not use `$form` for their own data: Dolibarr's page header sets the
   global `$form` to a `Form` object.
+- `Translate::trans()` passes at most four parameters to `sprintf()` (the fifth is
+  `$maxsize`): a translation with five placeholders is a fatal error in the middle
+  of the page. `tests/run.php` checks it.
+- A fatal error in Dolibarr's own code called from the module still answers HTTP
+  200: `page_ok` requires `</html>`, and the php-messages step counts uncaught
+  errors whose stack trace passes through `custom/vereine`.
+- `Product::create` stores extra fields before `PRODUCT_CREATE`; a product's VAT
+  changes through `updatePrice()` so the gross price follows. Dolibarr does not
+  copy product extra fields to invoice lines; `LINEBILL_INSERT` and
+  `LINEBILL_SUPPLIER_CREATE` run after the line's extra fields are stored.
+- Never edit repository files with PowerShell `Get-Content`/`Set-Content`: they
+  read UTF-8 as ANSI and write mangled umlauts. Use Python or the edit tools.

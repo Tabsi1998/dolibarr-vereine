@@ -79,6 +79,7 @@ activity remains the association's decision.
 ```json
 [
   {
+    "id": 1,
     "code": "MITGLIEDSBEITRAG",
     "label": "Mitgliedsbeitrag (echt)",
     "sphere": "ideal",
@@ -95,6 +96,7 @@ activity remains the association's decision.
 
 | Field | Content |
 | --- | --- |
+| `id` | Value of the extra field `vereine_taxprofile` on products and invoice lines (`array_options.options_vereine_taxprofile` in Dolibarr's own API) |
 | `code` | Stable identifier, capital letters, digits and `_` |
 | `sphere` | `ideal`, `assets`, `essential` (§ 45 (2) BAO), `auxiliary` (§ 45 (1) BAO), `festival` (§ 45 (1a) BAO), `harmful` (§ 45 (3) BAO) |
 | `treatment` | `nonbusiness`, `hobby` (Liebhaberei), `small_business` (§ 6 (1) no. 27 UStG), `sport` (§ 6 (1) no. 14 UStG), `reduced10`, `reduced13`, `standard20` |

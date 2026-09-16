@@ -36,7 +36,9 @@ class Page:
         return self.body.decode("utf-8", errors="replace")
 
     def errors(self) -> list[str]:
-        text = self.text
+        # PHP prints its messages into the page, never into scripts: Dolibarr's own JavaScript
+        # has comments such as "/* Warning: Lines must be processed in order */".
+        text = re.sub(r"<script[^>]*>.*?</script>", "", self.text, flags=re.S | re.I)
         return [marker.strip() for marker in ERROR_MARKERS if marker in text]
 
     def denied(self) -> bool:
