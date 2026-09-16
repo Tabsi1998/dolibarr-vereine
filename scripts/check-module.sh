@@ -37,7 +37,7 @@ php tests/run.php
 # is off and checks a right or administrator status before it does anything.
 pages=(vereineindex.php admin/setup.php admin/about.php)
 for page in "${pages[@]}"; do
-  grep -q 'include of main fails' <(tr 'A-Z' 'a-z' < "$page") || fail "$page does not load main.inc.php"
+  grep -qi 'include of main fails' "$page" || fail "$page does not load main.inc.php"
   grep -q "isModEnabled('vereine')" "$page" || fail "$page does not refuse when the module is disabled"
   grep -qE "hasRight\('vereine'|empty\(\\\$user->admin\)" "$page" || fail "$page checks neither a right nor administrator status"
   grep -q 'accessforbidden(' "$page" || fail "$page never calls accessforbidden()"
@@ -68,6 +68,7 @@ module_code() {
     -not -path './.git/*' -not -path './.local-testing/*' -not -path './dist/*' -not -path './tests/*' \
     -print0
 }
+# shellcheck disable=SC2016 # the dollar sign belongs to the PHP code searched for
 if module_code | xargs -0 grep -nE '\$_(GET|POST|REQUEST|COOKIE)\b'; then
   fail "read request data through GETPOST(), never from the superglobals"
 fi
@@ -84,6 +85,7 @@ fi
 # The API answers only to users with the right, and only while the module is on.
 grep -q "private function checkAccess()" class/api_vereine.class.php || fail "the API lost its access check"
 public_methods=$(grep -cE '^[[:space:]]*public function (get|post|put|delete)[A-Za-z]*\(' class/api_vereine.class.php || true)
+# shellcheck disable=SC2016 # the dollar sign belongs to the PHP code searched for
 checked=$(grep -c '\$this->checkAccess();' class/api_vereine.class.php || true)
 [ "$public_methods" -eq "$checked" ] || fail "class/api_vereine.class.php has $public_methods endpoints but $checked access checks"
 grep -q "^class Vereine extends DolibarrApi" class/api_vereine.class.php \
