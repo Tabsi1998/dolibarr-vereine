@@ -1,0 +1,19 @@
+# Build output
+/dist/
+/build/
+
+# Local checks: results, logs, snapshots, the VS Code panel bridge
+/.local-testing/
+/.ci-panel/
+__pycache__/
+.pytest_cache/
+
+# Editors and local environments
+/.vscode/
+/.idea/
+/*.code-workspace
+/.venv/
+*.log
+*.tmp
+.DS_Store
+Thumbs.db

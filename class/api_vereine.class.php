@@ -1,0 +1,119 @@
+<?php
+/* Copyright (C) 2026 IT-Tabelander <https://it.tabelander.co.at>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/**
+ * \file    class/api_vereine.class.php
+ * \ingroup vereine
+ * \brief   REST API of the Vereine module, under /api/index.php/vereine/.
+ */
+
+use Luracast\Restler\RestException;
+
+require_once __DIR__.'/vereineprofile.class.php';
+require_once __DIR__.'/vereineorganization.class.php';
+
+/**
+ * The association's data for websites and integrations.
+ *
+ * The class is named Vereine, not VereineApi: Dolibarr 22 and 23 only dispatch
+ * /vereine/... to a class named after the endpoint.
+ *
+ * @access protected
+ * @class  DolibarrApiAccess {@requires user,external}
+ */
+class Vereine extends DolibarrApi
+{
+	/** Version of this API's answers; raised when a field changes meaning or disappears. */
+	const API_VERSION = 1;
+
+	/**
+	 * Constructor.
+	 */
+	public function __construct()
+	{
+		global $db;
+		$this->db = $db;
+	}
+
+	/**
+	 * Module status
+	 *
+	 * Module version, API version and country profile. Useful to test a connection.
+	 *
+	 * @return array Fields module_version, api_version, country_profile, country_profile_complete
+	 *
+	 * @url GET status
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getStatus()
+	{
+		$this->checkAccess();
+		dol_include_once('/vereine/core/modules/modVereine.class.php');
+		$module = new modVereine($this->db);
+		$profile = getDolGlobalString('VEREINE_COUNTRY_PROFILE');
+
+		return array(
+			'module_version' => (string) $module->version,
+			'api_version' => self::API_VERSION,
+			'country_profile' => $profile,
+			'country_profile_complete' => VereineProfile::isComplete($profile),
+		);
+	}
+
+	/**
+	 * The association
+	 *
+	 * Name, register number (ZVR-Zahl in Austria, VR number and court in Germany),
+	 * responsible authority, address, contact, founding date, non-profit status,
+	 * purpose and the month the fiscal year starts. Suitable for a website imprint.
+	 *
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET organization
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getOrganization()
+	{
+		// master.inc.php, which the API entry point loads, sets up $mysoc.
+		global $mysoc;
+
+		$this->checkAccess();
+
+		return VereineOrganization::load($mysoc);
+	}
+
+	/**
+	 * Refuse the call unless the module is on and the user may read the association.
+	 *
+	 * @return void
+	 *
+	 * @throws RestException
+	 */
+	private function checkAccess()
+	{
+		if (!isModEnabled('vereine')) {
+			throw new RestException(501, 'The Vereine module is not enabled');
+		}
+		if (!DolibarrApiAccess::$user->hasRight('vereine', 'association', 'read')) {
+			throw new RestException(403, 'Not allowed: the user needs the right to read the association');
+		}
+	}
+}

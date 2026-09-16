@@ -1,0 +1,83 @@
+# Second confirmation. The first is scripts/local_check.py on the developer's
+# machine, which also runs the runtime tests in real Dolibarr installations.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  php:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.1', '8.2', '8.3', '8.4']
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+      - run: bash scripts/check-module.sh
+
+  codestyle:
+    name: Dolibarr coding standard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: none
+      - run: bash scripts/check-codestyle.sh
+
+  dolibarr:
+    name: Dolibarr ${{ matrix.dolibarr }} API contract
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dolibarr: ['22.0', '23.0', '24.0']
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+      - run: python scripts/check_dolibarr_api.py ${{ matrix.dolibarr }}
+
+  package:
+    name: Package and release metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Release metadata agrees
+        run: python scripts/release.py --metadata
+      - name: Build twice, byte for byte identical
+        run: |
+          python scripts/build_release.py --out dist-a
+          python scripts/build_release.py --out dist-b
+          cmp dist-a/module_vereine-*.zip dist-b/module_vereine-*.zip
+          mkdir -p dist && cp dist-a/* dist/
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: module_vereine-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14

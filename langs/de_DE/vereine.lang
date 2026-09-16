@@ -1,0 +1,82 @@
+# Vereine - Dolibarr-Modul für Vereine nach österreichischem und deutschem Recht
+# Copyright (C) 2026 IT-Tabelander - GPL-3.0-or-later
+# Jeder Schlüssel dieser Datei muss auch in langs/en_US/vereine.lang stehen.
+
+#
+# Modul
+#
+ModuleVereineName=Vereine (AT/DE)
+ModuleVereineDesc=Vereine nach österreichischem und deutschem Recht: Länderprofil, Registerdaten und eine API für die Vereinswebsite
+ModuleVereineDescLong=Vereine erweitert das Mitgliedermodul von Dolibarr um das, was Vereine in Österreich und Deutschland brauchen: Länderprofil, Registerdaten und eine REST-API für die Vereinswebsite. Steuerprofile, Beitragsläufe, Spendenmeldung, Ehrenamtspauschalen, Funktionäre und Rechnungslegung folgen in den nächsten Versionen.
+Permission49210001=Vereinsübersicht und Vereinsdaten lesen (auch über die API)
+VereineMenuAssociation=Verein
+
+#
+# Einrichtung
+#
+VereineSetupTitle=Einrichtung Vereine
+VereineSetupTabAssociation=Verein
+VereineSetupIntro=Was Dolibarr über einen Verein noch nicht weiß. Name, Anschrift und Kontakt stehen in den Unternehmensdaten von Dolibarr.
+VereineSetupCompanyHint=Name, Anschrift, E-Mail, Telefon, Website und der erste Monat des Rechnungsjahres kommen aus den Unternehmensdaten.
+VereineSetupCompanyLink=Unternehmensdaten öffnen
+VereineCountryProfile=Länderprofil
+VereineCountryProfileHelp=Bestimmt, nach welchem Recht das Modul arbeitet: Register, Behörden, Steuerregeln und Formulare.
+VereineProfileAT=Österreich
+VereineProfileDE=Deutschland
+VereineProfilePreview=Vorschau, Steuer- und Rechtsregeln folgen mit Version 1.1
+VereineRegisterNumberZVR=ZVR-Zahl
+VereineRegisterNumberVR=Registernummer (VR)
+VereineRegisterNumberHelpZVR=Die Vereinsregisterzahl, ein bis zehn Ziffern. Sie muss auf Briefen, Rechnungen und der Website stehen (§ 18 VerG).
+VereineRegisterNumberHelpVR=Die Nummer im Vereinsregister, zum Beispiel VR 12345 oder VR 12345 B.
+VereineRegisterCourt=Registergericht
+VereineAuthority=Vereinsbehörde
+VereineAuthorityHelp=Die Behörde, bei der der Verein eingetragen ist, zum Beispiel Landespolizeidirektion Tirol oder Bezirkshauptmannschaft Innsbruck.
+VereineFounded=Gegründet am
+VereineNonprofit=Gemeinnützig
+VereineNonprofitHelp=Der Verein verfolgt gemeinnützige, mildtätige oder kirchliche Zwecke und ist vom Finanzamt als solcher anerkannt.
+VereinePurpose=Vereinszweck
+VereinePurposeHelp=Eine kurze Zusammenfassung des Zwecks laut Statuten, zum Beispiel für die Website.
+VereineErrorProfile=Als Länderprofil Österreich oder Deutschland wählen.
+VereineErrorZvrFormat=Die ZVR-Zahl besteht aus einer bis zehn Ziffern.
+VereineErrorVrFormat=Die Registernummer lautet VR, gefolgt von bis zu sieben Ziffern und einem optionalen Buchstabenzusatz, zum Beispiel VR 12345 B.
+VereineErrorPurposeTooLong=Der Vereinszweck darf höchstens %s Zeichen lang sein.
+VereineErrorFoundingDate=Das Gründungsdatum ist kein gültiges Datum.
+VereineErrorFoundingDateFuture=Das Gründungsdatum liegt in der Zukunft.
+VereineWarningRegisterNumberCleared=Das Länderprofil hat sich geändert, deshalb wurde die bisherige Registernummer entfernt. Bitte die Registernummer für das neue Land eintragen.
+
+#
+# Über
+#
+VereineLicence=Lizenz
+VereineLicenceOrLater=oder später
+VereineSourceCode=Quellcode
+VereineReportProblem=Problem melden
+VereineChangelog=Änderungen je Version
+VereineNoTaxAdvice=Vereine rechnet und warnt, ist aber keine Steuer- oder Rechtsberatung. Wie eine Tätigkeit eingeordnet wird, entscheidet der Verein.
+
+#
+# Übersicht
+#
+VereineOverviewTitle=Verein
+VereineEditAssociation=Vereinsdaten bearbeiten
+VereineAssociationData=Vereinsdaten
+VereineNotSet=nicht eingetragen
+VereineFiscalYearStart=Rechnungsjahr beginnt im
+VereineChecks=Prüfungen
+VereineCheckStatusOk=Passt
+VereineCheckStatusWarning=Offen
+VereineCheckCompanyOk=Name und Ort des Vereins sind eingetragen.
+VereineCheckCompanyMissing=Name oder Ort des Vereins fehlen in den Unternehmensdaten.
+VereineCheckCountryOk=Das Länderprofil passt zum Land des Unternehmens.
+VereineCheckCountryMismatch=Das Länderprofil passt nicht zum Land des Unternehmens.
+VereineCheckZvrOk=Die ZVR-Zahl ist eingetragen.
+VereineCheckZvrMissing=Die ZVR-Zahl fehlt. Sie muss auf Briefen, Rechnungen und der Website stehen (§ 18 VerG).
+VereineCheckVrOk=Registernummer und Registergericht sind eingetragen.
+VereineCheckVrMissing=Registernummer oder Registergericht fehlen.
+VereineCheckProfileComplete=Das Länderprofil enthält seine Steuer- und Rechtsregeln.
+VereineCheckProfilePreview=Das Länderprofil ist eine Vorschau: Steuer- und Rechtsregeln folgen mit Version 1.1.
+VereineCheckApiOk=Das REST-API-Modul ist aktiv, eine Website kann die Vereinsdaten lesen.
+VereineCheckApiOff=Das REST-API-Modul ist aus. Eine Website kann die Vereinsdaten erst lesen, wenn es aktiviert ist.
+VereineFixInSetup=Einrichtung öffnen
+VereineFixInCompany=Unternehmensdaten öffnen
+VereineFixInModules=Module öffnen
