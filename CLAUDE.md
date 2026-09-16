@@ -144,3 +144,8 @@ raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
   `LINEBILL_SUPPLIER_CREATE` run after the line's extra fields are stored.
 - Never edit repository files with PowerShell `Get-Content`/`Set-Content`: they
   read UTF-8 as ANSI and write mangled umlauts. Use Python or the edit tools.
+- The invoice template `sponge` calls `beforePDFCreation` with the invoice and
+  its output language, then prints `note_public`; `afterPDFCreation` gets the
+  template as object and the invoice in `$parameters['object']`. The runtime
+  test reads the PDF by inflating its streams with `zlib`: text with the core
+  font appears as `(...)` strings.

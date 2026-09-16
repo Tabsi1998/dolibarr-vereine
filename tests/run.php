@@ -315,6 +315,17 @@ expect(VereineTaxRules::rateDeviates(13, 10), '13 % on a 10 % profile deviates')
 same('10', VereineTaxRules::formatRate('10.000'), 'rates are written without decimals');
 same('0', VereineTaxRules::formatRate(0), 'no VAT is written as 0');
 same('5,5', VereineTaxRules::formatRate(5.5), 'decimal rates keep their decimals with a comma');
+same(
+	array(array('positions' => array(1, 3), 'note' => 'Nicht umsatzsteuerbar (Liebhaberei).'), array('positions' => array(2), 'note' => 'Spende.')),
+	VereineTaxRules::groupNotes(array(
+		array('position' => 1, 'note' => 'Nicht umsatzsteuerbar (Liebhaberei).'),
+		array('position' => 2, 'note' => ' Spende. '),
+		array('position' => 3, 'note' => 'Nicht umsatzsteuerbar (Liebhaberei).'),
+		array('position' => 4, 'note' => ''),
+	)),
+	'invoice notes are grouped by text in line order, lines without note left out'
+);
+same(array(), VereineTaxRules::groupNotes(array()), 'an invoice without lines has no notes');
 foreach (VereineTaxRules::treatments() as $code => $treatment) {
 	expect(strpos($treatment['source'], 'https://') === 0 && $treatment['basis'] !== '', 'treatment '.$code.' names its legal basis and source');
 }
@@ -399,6 +410,7 @@ $prefixes = array(
 	'VereineSphere_' => array_keys(VereineTaxRules::spheres()),
 	'VereineTreatment_' => array_keys(VereineTaxRules::treatments()),
 	'VereineSphereHelp_' => array_keys(VereineTaxRules::spheres()),
+	'VereinePdfRegister_' => array('ZVR', 'VR'),
 	'VereineTreatmentHelp_' => array_keys(VereineTaxRules::treatments()),
 );
 foreach (array_keys($used) as $key) {

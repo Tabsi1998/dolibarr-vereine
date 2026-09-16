@@ -89,6 +89,7 @@ if ($action == 'update') {
 	$authority = trim(GETPOST('VEREINE_AUTHORITY', 'alphanohtml'));
 	$purpose = trim(GETPOST('VEREINE_PURPOSE', 'alphanohtml'));
 	$nonprofit = GETPOSTINT('VEREINE_NONPROFIT') ? '1' : '0';
+	$pdfRegister = GETPOSTINT('VEREINE_PDF_REGISTER') ? '1' : '0';
 	$foundedYear = GETPOSTINT('foundedyear');
 	$foundedMonth = GETPOSTINT('foundedmonth');
 	$foundedDay = GETPOSTINT('foundedday');
@@ -130,6 +131,7 @@ if ($action == 'update') {
 			'VEREINE_FOUNDED' => $founded,
 			'VEREINE_NONPROFIT' => $nonprofit,
 			'VEREINE_PURPOSE' => $purpose,
+			'VEREINE_PDF_REGISTER' => $pdfRegister,
 		);
 		$db->begin();
 		$failed = 0;
@@ -169,6 +171,7 @@ if ($action == 'edit') {
 		'VEREINE_AUTHORITY' => GETPOST('VEREINE_AUTHORITY', 'alphanohtml'),
 		'VEREINE_NONPROFIT' => GETPOSTINT('VEREINE_NONPROFIT') ? '1' : '0',
 		'VEREINE_PURPOSE' => GETPOST('VEREINE_PURPOSE', 'alphanohtml'),
+		'VEREINE_PDF_REGISTER' => GETPOSTINT('VEREINE_PDF_REGISTER') ? '1' : '0',
 	);
 	$foundedTimestamp = GETPOSTINT('foundedyear') ? dol_mktime(12, 0, 0, GETPOSTINT('foundedmonth'), GETPOSTINT('foundedday'), GETPOSTINT('foundedyear')) : '';
 } else {
@@ -176,6 +179,8 @@ if ($action == 'edit') {
 	foreach (VereineOrganization::SETTINGS as $name) {
 		$current[$name] = getDolGlobalString($name);
 	}
+	// Not part of the association data the API returns: only how invoices look.
+	$current['VEREINE_PDF_REGISTER'] = getDolGlobalString('VEREINE_PDF_REGISTER', '1');
 	$foundedTimestamp = '';
 	if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $current['VEREINE_FOUNDED'], $parts)) {
 		$foundedTimestamp = dol_mktime(12, 0, 0, (int) $parts[2], (int) $parts[3], (int) $parts[1]);
@@ -219,6 +224,8 @@ print '</td></tr>';
 print '<tr class="oddeven"><td><label for="VEREINE_REGISTER_NUMBER">'.$langs->trans('VereineRegisterNumber'.VereineProfile::registerKind($profile)).'</label></td><td>';
 print '<input type="text" class="minwidth200" id="VEREINE_REGISTER_NUMBER" name="VEREINE_REGISTER_NUMBER" value="'.dol_escape_htmltag($current['VEREINE_REGISTER_NUMBER']).'" maxlength="32">';
 print '<div class="opacitymedium small">'.$langs->trans('VereineRegisterNumberHelp'.VereineProfile::registerKind($profile)).'</div>';
+print '<input type="checkbox" id="VEREINE_PDF_REGISTER" name="VEREINE_PDF_REGISTER" value="1"'.($current['VEREINE_PDF_REGISTER'] === '1' ? ' checked' : '').'>';
+print ' <label for="VEREINE_PDF_REGISTER">'.$langs->trans('VereinePdfRegisterSetting').'</label>';
 print '</td></tr>';
 
 if ($profile === VereineProfile::GERMANY) {

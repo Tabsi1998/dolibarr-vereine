@@ -205,6 +205,35 @@ class VereineTaxAssign
 	}
 
 	/**
+	 * Invoice notes of the tax profiles on an invoice's lines, grouped by text.
+	 *
+	 * @param string $element   'facturedet' or 'facture_fourn_det'
+	 * @param int    $invoiceId Invoice id
+	 * @return array<int,array{positions:int[],note:string}>
+	 */
+	public function invoiceNotes($element, $invoiceId)
+	{
+		if (!isset(self::ELEMENTS[$element]) || self::ELEMENTS[$element][0] === '') {
+			return array();
+		}
+		list($table, $column) = self::ELEMENTS[$element];
+		$sql = "SELECT d.rowid, d.rang, p.note";
+		$sql .= " FROM ".MAIN_DB_PREFIX.$table." as d";
+		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX.$table."_extrafields as e ON e.fk_object = d.rowid";
+		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."vereine_taxprofile as p ON p.rowid = e.".self::FIELD;
+		$sql .= " WHERE d.".$column." = ".((int) $invoiceId);
+		$sql .= " ORDER BY d.rang, d.rowid";
+		$lines = array();
+		$position = 0;
+		$resql = $this->db->query($sql);
+		while ($resql && ($obj = $this->db->fetch_object($resql))) {
+			$position++;
+			$lines[] = array('position' => (int) $obj->rang > 0 ? (int) $obj->rang : $position, 'note' => (string) $obj->note);
+		}
+		return VereineTaxRules::groupNotes($lines);
+	}
+
+	/**
 	 * The tax profile an object points to.
 	 *
 	 * @param CommonObject $object Object with array_options

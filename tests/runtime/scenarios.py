@@ -795,6 +795,58 @@ def taxassign(stack: Stack) -> str:
             "product's profile; one differing line reported on the invoice; product card offers active profiles only")
 
 
+def pdf_text(stack: Stack, directory: str) -> str:
+    """Text of the newest PDF below a documents directory: every stream inflated, as Latin-1."""
+    import base64
+    import zlib
+    listing = stack.shell(f"ls -t $(find /var/www/documents/{directory} -name '*.pdf') | head -1")
+    path = listing.stdout.strip()
+    expect(listing.returncode == 0 and path.endswith(".pdf"), f"no PDF was built below documents/{directory}")
+    data = base64.b64decode(stack.shell(f"base64 '{path}'").stdout)
+    parts = []
+    for stream in re.findall(rb"stream\r?\n(.*?)\r?\nendstream", data, re.S):
+        try:
+            parts.append(zlib.decompress(stream))
+        except zlib.error:
+            parts.append(stream)
+    # Text shows as (...) strings with escaped brackets; drop the escapes so words read as written.
+    return b"".join(parts).decode("latin-1").replace("\\(", "(").replace("\\)", ")")
+
+
+def invoicepdf(stack: Stack) -> str:
+    """The invoice PDF shows the tax profile notes per line and the ZVR number; the stored invoice stays as it was."""
+    invoice = stack.value("SELECT MAX(rowid) FROM llx_facture")
+    expect(invoice not in (None, "NULL"), "no invoice to build a PDF from; the taxassign scenario did not run")
+    browser = stack.browser()
+
+    def build() -> str:
+        card = page_ok(browser.get(f"/compta/facture/card.php?id={int(invoice)}"), "invoice card")
+        forms = [form for form in card.forms() if form.value("action") == "builddoc"]
+        expect(len(forms) == 1, "the invoice card offers no form to build the PDF")
+        page_ok(browser.submit(forms[0], {"model": "sponge", "lang_id": "de_DE"}), "build the invoice PDF")
+        return pdf_text(stack, "facture")
+
+    text = build()
+    for part in ("Zeile 1: Echter Mitgliedsbeitrag ohne Gegenleistung, nicht umsatzsteuerbar.", "Zeile 3: Nicht umsatzsteuerbar (Liebhaberei).",
+                 "ZVR-Zahl: 123456789"):
+        words = part.split()
+        expect(all(word.encode("latin-1", "replace").decode("latin-1") in text for word in words if word.isascii()),
+               f"the invoice PDF lacks: {part}")
+    expect("Zeile 2:" not in text, "the canteen drink line without note got a note on the PDF")
+    note = stack.value(f"SELECT note_public FROM llx_facture WHERE rowid = {int(invoice)}")
+    expect(note in (None, "NULL", ""), f"building the PDF stored the notes in the invoice: {note!r}")
+
+    # Switched off, neither appears.
+    form = page_ok(browser.get("/custom/vereine/admin/taxprofiles.php"), "tax profile setup").form(name="vereinetaxpdf")
+    page_ok(browser.submit(form, drop=("VEREINE_PDF_TAX_NOTES",)), "switch off the invoice notes")
+    form = browser.get("/custom/vereine/admin/setup.php").form(name="vereinesetup")
+    page_ok(browser.submit(form, drop=("VEREINE_PDF_REGISTER",)), "switch off the register number on invoices")
+    expect(stack.const("VEREINE_PDF_TAX_NOTES") == "0" and stack.const("VEREINE_PDF_REGISTER") == "0", "the PDF switches did not store 0")
+    text = build()
+    expect("Liebhaberei" not in text and "123456789" not in text, "switched off, the invoice PDF still shows notes or the ZVR number")
+    return "notes per line and ZVR number on the invoice PDF, stored invoice unchanged, both switchable"
+
+
 def action_link_for(page: Page, action: str, row_id: str | None) -> str:
     """The link a setup list offers for an action on one row."""
     for href in re.findall(r'href="([^"]*[?&](?:amp;)?action=' + re.escape(action) + r'(?:&[^"]*)?)"', page.text):
@@ -851,6 +903,7 @@ SCENARIOS = (
     ("membercard", "Dolibarr's own member card creates and links third parties the module follows", membercard, ("partners",)),
     ("taxprofiles", "Tax profiles: suggestions, legal checks, own profiles and the API", taxprofiles, ("api",)),
     ("taxassign", "Tax profiles on products and invoice lines, and a warning for differing VAT", taxassign, ("taxprofiles",)),
+    ("invoicepdf", "The invoice PDF shows tax profile notes and the ZVR number", invoicepdf, ("taxassign",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

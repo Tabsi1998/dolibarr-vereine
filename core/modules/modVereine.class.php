@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '0.2.5-beta';
+		$this->version = '0.2.6-beta';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -69,8 +69,9 @@ class modVereine extends DolibarrModules
 			'css' => array(),
 			'js' => array(),
 			// class/actions_vereine.class.php: the member card links third parties without a trigger;
-			// invoice cards report lines whose VAT rate differs from their tax profile.
-			'hooks' => array('data' => array('membercard', 'invoicecard', 'invoicesuppliercard'), 'entity' => '0'),
+			// invoice cards report lines whose VAT rate differs from their tax profile; invoice PDFs
+			// get the tax profile notes and the register number.
+			'hooks' => array('data' => array('membercard', 'invoicecard', 'invoicesuppliercard', 'pdfgeneration'), 'entity' => '0'),
 			'moduleforexternal' => 0,
 		);
 
@@ -97,6 +98,8 @@ class modVereine extends DolibarrModules
 			array('VEREINE_PARTNER_CATEGORY_PER_TYPE', 'chaine', '0', 'Add a sub-category per member type', 0, 'current', 0),
 			array('VEREINE_PARTNER_TYPENT_NATURAL', 'chaine', 'TE_PRIVATE', 'Customer type for natural persons, set only when empty', 0, 'current', 0),
 			array('VEREINE_PARTNER_TYPENT_LEGAL', 'chaine', '', 'Customer type for legal entities, set only when empty', 0, 'current', 0),
+			array('VEREINE_PDF_TAX_NOTES', 'chaine', '1', 'Print the invoice notes of the tax profiles on invoice PDFs', 0, 'current', 0),
+			array('VEREINE_PDF_REGISTER', 'chaine', '1', 'Print the register number (ZVR) on invoice PDFs', 0, 'current', 0),
 		);
 
 		$this->tabs = array();
