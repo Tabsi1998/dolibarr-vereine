@@ -1,0 +1,82 @@
+# Vereine - Dolibarr module for associations under Austrian and German law
+# Copyright (C) 2026 IT-Tabelander - GPL-3.0-or-later
+# English is the reference language: every key of every other language must exist here.
+
+#
+# Module
+#
+ModuleVereineName=Vereine (associations AT/DE)
+ModuleVereineDesc=Associations under Austrian and German law: country profile, register data and an API for the association's website
+ModuleVereineDescLong=Vereine extends Dolibarr's Members module with what associations in Austria and Germany need: country profile, register data and a REST API for the association's website. Tax profiles, membership fee runs, donation reporting, volunteer allowances, officers and the annual accounts follow in the next versions.
+Permission49210001=Read the association overview and its data (also through the API)
+VereineMenuAssociation=Association
+
+#
+# Setup
+#
+VereineSetupTitle=Vereine setup
+VereineSetupTabAssociation=Association
+VereineSetupIntro=What Dolibarr does not know about an association yet. Name, address and contact details are the company settings of Dolibarr.
+VereineSetupCompanyHint=Name, address, e-mail, phone, website and the first month of the fiscal year come from the company settings.
+VereineSetupCompanyLink=Open company settings
+VereineCountryProfile=Country profile
+VereineCountryProfileHelp=Decides which law the module follows: register, authorities, tax rules and forms.
+VereineProfileAT=Austria
+VereineProfileDE=Germany
+VereineProfilePreview=preview, tax and legal rules follow in version 1.1
+VereineRegisterNumberZVR=ZVR number
+VereineRegisterNumberVR=Register number (VR)
+VereineRegisterNumberHelpZVR=The association register number (ZVR-Zahl), one to ten digits. It must appear on letters, invoices and the website (§ 18 VerG).
+VereineRegisterNumberHelpVR=The number in the register of associations, for example VR 12345 or VR 12345 B.
+VereineRegisterCourt=Register court
+VereineAuthority=Association authority
+VereineAuthorityHelp=The authority that keeps the association's register entry, for example Landespolizeidirektion Tirol or Bezirkshauptmannschaft Innsbruck.
+VereineFounded=Founded on
+VereineNonprofit=Non-profit
+VereineNonprofitHelp=The association pursues charitable, benevolent or church purposes and is recognised as such by the tax office.
+VereinePurpose=Purpose
+VereinePurposeHelp=A short summary of the purpose in the statutes, for example for the website.
+VereineErrorProfile=Choose Austria or Germany as the country profile.
+VereineErrorZvrFormat=The ZVR number consists of one to ten digits.
+VereineErrorVrFormat=The register number reads VR followed by up to seven digits and an optional letter suffix, for example VR 12345 B.
+VereineErrorPurposeTooLong=The purpose can have at most %s characters.
+VereineErrorFoundingDate=The founding date is not a valid date.
+VereineErrorFoundingDateFuture=The founding date lies in the future.
+VereineWarningRegisterNumberCleared=The country profile changed, so the previous register number was removed. Enter the register number for the new country.
+
+#
+# About
+#
+VereineLicence=Licence
+VereineLicenceOrLater=or later
+VereineSourceCode=Source code
+VereineReportProblem=Report a problem
+VereineChangelog=Changes per version
+VereineNoTaxAdvice=Vereine calculates and warns; it gives no tax or legal advice. How an activity is classified remains the association's decision.
+
+#
+# Overview
+#
+VereineOverviewTitle=Association
+VereineEditAssociation=Edit association data
+VereineAssociationData=Association data
+VereineNotSet=not set
+VereineFiscalYearStart=Fiscal year starts in
+VereineChecks=Checks
+VereineCheckStatusOk=OK
+VereineCheckStatusWarning=To do
+VereineCheckCompanyOk=Name and town of the association are set.
+VereineCheckCompanyMissing=Name or town of the association are missing in the company settings.
+VereineCheckCountryOk=The country profile matches the company's country.
+VereineCheckCountryMismatch=The country profile does not match the company's country.
+VereineCheckZvrOk=The ZVR number is set.
+VereineCheckZvrMissing=The ZVR number is missing. It must appear on letters, invoices and the website (§ 18 VerG).
+VereineCheckVrOk=Register number and register court are set.
+VereineCheckVrMissing=Register number or register court are missing.
+VereineCheckProfileComplete=The country profile carries its tax and legal rules.
+VereineCheckProfilePreview=The country profile is a preview: its tax and legal rules follow in version 1.1.
+VereineCheckApiOk=The REST API module is enabled, so a website can read the association's data.
+VereineCheckApiOff=The REST API module is disabled. A website can only read the association's data once it is enabled.
+VereineFixInSetup=Open setup
+VereineFixInCompany=Open company settings
+VereineFixInModules=Open modules
