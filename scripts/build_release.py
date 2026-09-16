@@ -25,6 +25,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import re
+import shutil
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -92,9 +94,35 @@ def included(relative: Path) -> bool:
     return not relative.name.endswith(EXCLUDED_SUFFIXES)
 
 
-def package_files(source: Path) -> list[str]:
-    files = sorted(path.relative_to(source).as_posix() for path in source.rglob("*")
-                   if path.is_file() and included(path.relative_to(source)))
+def tracked_files(source: Path) -> list[Path] | None:
+    """Files Git tracks in a working copy, or None when source is not one.
+
+    In a working copy only tracked files may reach the package: an earlier
+    build's output, a log or a scratch file would otherwise ship. A snapshot or
+    a git archive has no .git and consists of committed files already.
+    """
+    if not (source / ".git").exists() or not shutil.which("git"):
+        return None
+    completed = subprocess.run(["git", "ls-files", "-z", "--cached"], cwd=str(source), capture_output=True)
+    if completed.returncode != 0:
+        raise BuildError("git ls-files failed: " + completed.stderr.decode("utf-8", "replace").strip())
+    return [source / name for name in completed.stdout.decode("utf-8").split("\0") if name]
+
+
+def package_files(source: Path, output: Path | None = None) -> list[str]:
+    """The module's files below source. The output folder never counts, wherever it lies."""
+    source = source.resolve()
+    output = output.resolve() if output is not None else None
+
+    def wanted(path: Path) -> bool:
+        if output is not None and (path == output or output in path.parents):
+            return False
+        return path.is_file() and included(path.relative_to(source))
+
+    candidates = tracked_files(source)
+    if candidates is None:
+        candidates = list(source.rglob("*"))
+    files = sorted(path.relative_to(source).as_posix() for path in candidates if wanted(path))
     missing = [name for name in REQUIRED if name not in files]
     if missing:
         raise BuildError(f"the source lacks {', '.join(missing)}")
@@ -103,7 +131,7 @@ def package_files(source: Path) -> list[str]:
 
 def build(source: Path, out: Path) -> tuple[Path, str]:
     version = module_version(source)
-    files = package_files(source)
+    files = package_files(source, out)
     out.mkdir(parents=True, exist_ok=True)
     archive = out / package_name(version)
     directories = sorted({f"{MODULE}/" + "/".join(Path(name).parts[:depth]) + "/"
@@ -158,7 +186,7 @@ def verify(archive: Path, source: Path | None = None) -> list[str]:
     elif checksum.read_text(encoding="ascii").split()[0] != hashlib.sha256(archive.read_bytes()).hexdigest():
         problems.append(f"{checksum.name} does not match the ZIP")
     if source is not None:
-        expected = set(package_files(source))
+        expected = set(package_files(source, archive.parent))
         absent = sorted(expected - set(contents))
         foreign = sorted(set(contents) - expected)
         if absent:

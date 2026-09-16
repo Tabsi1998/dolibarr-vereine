@@ -982,12 +982,17 @@ def dolibarr_steps() -> list:
 # ------------------------------------------------------------------- package
 
 def package(context: Context) -> str:
-    """The installable ZIP, built twice from the snapshot, identical and complete."""
+    """The installable ZIP, built twice from the snapshot, identical and complete.
+
+    The first build writes into a folder inside the source, as ci.yml does; the
+    second outside it. Both must hold exactly the module.
+    """
     builder = scripts_module("build_release")
-    if PACKAGE_OUT.exists():
-        shutil.rmtree(PACKAGE_OUT)
+    for folder in (PACKAGE_OUT, SNAPSHOT / "dist-a"):
+        if folder.exists():
+            shutil.rmtree(folder)
     try:
-        first, digest = builder.build(SNAPSHOT, PACKAGE_OUT / "first")
+        first, digest = builder.build(SNAPSHOT, SNAPSHOT / "dist-a")
         second, again = builder.build(SNAPSHOT, PACKAGE_OUT / "second")
     except builder.BuildError as error:
         raise StepFailed(str(error)) from error
