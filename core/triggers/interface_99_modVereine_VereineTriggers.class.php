@@ -18,7 +18,7 @@
 /**
  * \file    core/triggers/interface_99_modVereine_VereineTriggers.class.php
  * \ingroup vereine
- * \brief   Reacts to member events: keeps the linked third party in line, creates one when configured.
+ * \brief   Reacts to member, product and invoice line events of Dolibarr.
  */
 
 require_once DOL_DOCUMENT_ROOT.'/core/triggers/dolibarrtriggers.class.php';
@@ -31,6 +31,12 @@ class InterfaceVereineTriggers extends DolibarrTriggers
 	/** Member events the module handles. */
 	const MEMBER_EVENTS = array('MEMBER_VALIDATE', 'MEMBER_RESILIATE', 'MEMBER_EXCLUDE', 'MEMBER_MODIFY', 'MEMBER_DELETE');
 
+	/** Product events after which the VAT rate follows the tax profile. */
+	const PRODUCT_EVENTS = array('PRODUCT_CREATE', 'PRODUCT_MODIFY');
+
+	/** New invoice lines that take the tax profile of their product. */
+	const LINE_EVENTS = array('LINEBILL_INSERT', 'LINEBILL_SUPPLIER_CREATE');
+
 	/**
 	 * Constructor.
 	 *
@@ -40,7 +46,7 @@ class InterfaceVereineTriggers extends DolibarrTriggers
 	{
 		parent::__construct($db);
 		$this->family = 'hr';
-		$this->description = 'Vereine: keeps members and their third parties consistent.';
+		$this->description = 'Vereine: keeps members and their third parties consistent and applies tax profiles.';
 		$this->version = self::VERSIONS['prod'];
 		$this->picto = 'fa-landmark';
 	}
@@ -49,7 +55,8 @@ class InterfaceVereineTriggers extends DolibarrTriggers
 	 * Called by Dolibarr for every business event.
 	 *
 	 * A problem with the third party never makes the member's own action fail;
-	 * it is written to the module's log instead.
+	 * it is written to the module's log instead. Tax profiles never block a
+	 * product or an invoice line either; problems go to the system log.
 	 *
 	 * @param string       $action Event code
 	 * @param CommonObject $object Object of the event
@@ -60,14 +67,24 @@ class InterfaceVereineTriggers extends DolibarrTriggers
 	 */
 	public function runTrigger($action, $object, User $user, Translate $langs, Conf $conf)
 	{
-		if (!isModEnabled('vereine') || !in_array($action, self::MEMBER_EVENTS, true)) {
+		if (!isModEnabled('vereine')) {
 			return 0;
 		}
-		if (!($object instanceof Adherent)) {
-			return 0;
+		if (in_array($action, self::MEMBER_EVENTS, true) && $object instanceof Adherent) {
+			dol_include_once('/vereine/class/vereinepartnerservice.class.php');
+			$service = new VereinePartnerService($this->db);
+			return $service->onMemberEvent($action, $object, $user);
 		}
-		dol_include_once('/vereine/class/vereinepartnerservice.class.php');
-		$service = new VereinePartnerService($this->db);
-		return $service->onMemberEvent($action, $object, $user);
+		if (in_array($action, self::PRODUCT_EVENTS, true) || in_array($action, self::LINE_EVENTS, true)) {
+			dol_include_once('/vereine/class/vereinetaxassign.class.php');
+			$assign = new VereineTaxAssign($this->db);
+			$result = in_array($action, self::PRODUCT_EVENTS, true) ? $assign->onProductSaved($object, $user) : $assign->onLineCreated($object);
+			if ($result < 0) {
+				dol_syslog('Vereine: tax profile on '.$action.': '.$assign->error, LOG_WARNING);
+				return 0;
+			}
+			return $result;
+		}
+		return 0;
 	}
 }

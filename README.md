@@ -39,7 +39,9 @@ with a REST API for the association's website.
   *Guardian*.
 - **Tax profiles** (0.2.3, Austria): sphere, VAT treatment, rate and invoice
   note with their legal basis, suggested profiles and checks for combinations
-  the law excludes. Assigning them to products and invoice lines follows.
+  the law excludes. Products and invoice lines carry a tax profile (0.2.5): the
+  product's VAT rate follows it, new invoice lines take it over, and an invoice
+  lists lines whose rate does not match.
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 
@@ -65,6 +67,7 @@ are listed in [docs/LEGAL-SOURCES.md](https://github.com/Tabsi1998/dolibarr-vere
 | *Members > Association > Members and third parties* | Reconciliation of members and their third parties |
 | Third party card | Tab *Membership*; categories *Member* and *Former member* |
 | Member card | Tab *Association*; *Create third party* and *Linked third party* are followed by the module |
+| Product and service card, invoice and supplier invoice lines | Extra field *Tax profile*; invoices warn about lines whose VAT differs from their profile |
 | Contacts of a member's third party | Category *Guardian* for guardians of minors |
 | *Home > Setup > Modules > Vereine > Members and third parties*, also *Members > Association > Third party settings* | Automatic creation, categories, customer types (administrators) |
 | *Users & Groups > Permissions* | *Read the association overview and its data* (overview, API); *Link members and third parties and bring them in line* (reconciliation changes) |

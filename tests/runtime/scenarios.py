@@ -26,6 +26,9 @@ from dolibarr_http import Browser, Page, token_of
 MODULE_DIR = "/var/www/html/custom/vereine"
 PHP_PROBLEM = re.compile(r"PHP (Fatal error|Parse error|Warning|Notice|Deprecated|Recoverable fatal error):"
                          r"\s*(.+?) in (/var/www/html/custom/vereine/\S+) on line \d+")
+# An uncaught error thrown in Dolibarr's own code while module code called it: the module is in the stack trace.
+PHP_THROWN = re.compile(r"PHP (Fatal error|Recoverable fatal error):\s*(Uncaught [^\\]+?) in (/var/www/html/\S+?):\d+\\nStack trace:(.*)")
+MODULE_FRAME = re.compile(r"/var/www/html/custom/vereine/([^\s(]+)\(\d+\)")
 
 
 class CheckFailed(Exception):
@@ -127,9 +130,15 @@ class Stack:
 
 def page_ok(page: Page, what: str) -> Page:
     expect(page.status == 200, f"{what}: HTTP {page.status}")
+    # A fatal error after the header still answers 200, but the page stops before its end.
+    expect("<html" not in page.text[:2000] or "</html>" in page.text[-2000:], f"{what}: the page stops before its end")
     expect(not page.denied(), f"{what}: access denied")
     problems = page.errors()
-    expect(not problems, f"{what}: the page shows {', '.join(problems)}")
+    if problems:
+        # Show where the first marker stands, so a failure explains itself.
+        at = page.text.find(problems[0].split()[0])
+        context = re.sub(r"\s+", " ", page.text[max(0, at - 160):at + 160])
+        raise CheckFailed(f"{what}: the page shows {', '.join(problems)} - near: {context}")
     return page
 
 
@@ -195,7 +204,7 @@ def section_counts(page: Page) -> dict:
 
 def action_link(page: Page, action: str) -> str:
     """The link the page offers for an action, as a browser follows it (Dolibarr 24 adds a token)."""
-    for href in re.findall(r'href="([^"]*[?&](?:amp;)?action=' + re.escape(action) + r'[^"]*)"', page.text):
+    for href in re.findall(r'href="([^"]*[?&](?:amp;)?action=' + re.escape(action) + r'(?:&[^"]*)?)"', page.text):
         return html.unescape(href)
     raise CheckFailed(f"{page.url} offers no link for action={action}")
 
@@ -732,9 +741,63 @@ def taxprofiles(stack: Stack) -> str:
             "renamed and switched-off suggestions survive enabling again, API with and without right")
 
 
+def taxassign(stack: Stack) -> str:
+    """Products and invoice lines carry a tax profile; the product's VAT follows it; a line that differs is reported."""
+    fields = sorted(row[0] for row in stack.sql("SELECT elementtype FROM llx_extrafields WHERE name = 'vereine_taxprofile'"))
+    expect(fields == ["facture_fourn_det", "facturedet", "product"], f"extra field tax profile on {fields}")
+    data = stack.php_fixture("invoicing")
+    products, profiles = data["products"], data["profiles"]
+
+    fee = stack.sql(f"SELECT tva_tx, price, price_ttc FROM llx_product WHERE rowid = {int(products['fee'])}")[0]
+    expect(float(fee[0]) == 0 and float(fee[1]) == 50 and float(fee[2]) == 50,
+           f"the membership fee created at 20 % did not follow its 0 % profile with a matching gross price: {fee}")
+    drink = stack.sql(f"SELECT tva_tx, price, price_ttc FROM llx_product WHERE rowid = {int(products['drink'])}")[0]
+    expect(float(drink[0]) == 20 and abs(float(drink[2]) - 3.6) < 0.001,
+           f"the canteen drink created at 10 % did not follow its 20 % profile: {drink}")
+
+    def line_profiles(table: str, column: str, invoice) -> list:
+        return stack.sql(f"SELECT d.description, e.vereine_taxprofile FROM llx_{table} as d LEFT JOIN llx_{table}_extrafields as e "
+                         f"ON e.fk_object = d.rowid WHERE d.{column} = {int(invoice)} ORDER BY d.rang, d.rowid")
+
+    lines = line_profiles("facturedet", "fk_facture", data["invoice"])
+    expected = [["Mitgliedsbeitrag 2027", str(profiles["MITGLIEDSBEITRAG"])], ["Getränk Kantine", str(profiles["BETRIEB_20"])],
+                ["Buffet Sommerfest", str(profiles["VEREINSFEST"])]]
+    expect(lines == expected, f"invoice lines and their tax profiles: {lines}")
+    supplier = line_profiles("facture_fourn_det", "fk_facture_fourn", data["supplier_invoice"])
+    expect(supplier == [["Getränke Einkauf", str(profiles["BETRIEB_20"])]], f"supplier invoice line and its tax profile: {supplier}")
+
+    browser = stack.browser()
+    card = page_ok(browser.get(f"/compta/facture/card.php?id={int(data['invoice'])}"), "customer invoice")
+    expect('data-taxprofile-warning="1"' in card.text, "the invoice does not report the one line whose VAT differs from its profile")
+    text = html.unescape(card.text)
+    expect("Getränk Kantine" in text and "Umsatzsteuer passt nicht zum Steuerprofil" in text,
+           "the warning does not name the canteen drink in German")
+    supplier_card = page_ok(browser.get(f"/fourn/facture/card.php?facid={int(data['supplier_invoice'])}"), "supplier invoice")
+    expect("data-taxprofile-warning" not in supplier_card.text, "a supplier invoice whose VAT matches its profile shows a warning")
+
+    # The product card offers active profiles only; choosing one there changes the VAT rate.
+    product_card = page_ok(browser.get(f"/product/card.php?id={int(products['drink'])}"), "product card")
+    edit = page_ok(browser.get(action_link(product_card, "edit")), "edit the canteen drink")
+    forms = [form for form in edit.forms() if form.has("options_vereine_taxprofile")]
+    expect(len(forms) == 1, "the product edit form has no tax profile")
+    options = set(re.findall(r'<option value="(\d+)"', edit.text.split('name="options_vereine_taxprofile"', 1)[1].split("</select>", 1)[0]))
+    inactive = {stack.value("SELECT rowid FROM llx_vereine_taxprofile WHERE code = 'SPORT'"), stack.value("SELECT rowid FROM llx_vereine_taxprofile WHERE code = 'SPENDE'")}
+    small_business = stack.value("SELECT rowid FROM llx_vereine_taxprofile WHERE code = 'KLEINUNTERNEHMER'")
+    expect(small_business in options and not (inactive & options), f"the tax profile list offers {sorted(options)}; inactive {sorted(inactive)} must be missing")
+    page_ok(browser.submit(forms[0], {"options_vereine_taxprofile": small_business}), "switch the drink to the small business profile")
+    expect(float(stack.value(f"SELECT tva_tx FROM llx_product WHERE rowid = {int(products['drink'])}")) == 0,
+           "choosing the small business profile on the product card did not set 0 % VAT")
+
+    status, body = stack.api("vereine/taxprofiles", stack.reader_key)
+    ids = {profile.get("code"): profile.get("id") for profile in body} if status == 200 else {}
+    expect(ids.get("BETRIEB_20") == profiles["BETRIEB_20"], f"GET vereine/taxprofiles does not give the id of BETRIEB_20: {ids}")
+    return ("extra field on products and invoice lines; product VAT and gross price follow the profile; new lines take the "
+            "product's profile; one differing line reported on the invoice; product card offers active profiles only")
+
+
 def action_link_for(page: Page, action: str, row_id: str | None) -> str:
     """The link a setup list offers for an action on one row."""
-    for href in re.findall(r'href="([^"]*[?&](?:amp;)?action=' + re.escape(action) + r'[^"]*)"', page.text):
+    for href in re.findall(r'href="([^"]*[?&](?:amp;)?action=' + re.escape(action) + r'(?:&[^"]*)?)"', page.text):
         target = html.unescape(href)
         if re.search(r"[?&]id=" + re.escape(str(row_id)) + r"(&|#|$)", target):
             return target
@@ -765,8 +828,14 @@ def disable(stack: Stack) -> str:
 def php_messages(stack: Stack) -> set:
     """PHP errors, warnings, notices and deprecations raised in module code."""
     found = set()
-    for match in PHP_PROBLEM.finditer(stack.log()):
+    log = stack.log()
+    for match in PHP_PROBLEM.finditer(log):
         found.add(f"{match.group(3).replace(MODULE_DIR + '/', '')}: {match.group(1)}: {match.group(2)}")
+    for line in log.splitlines():
+        match = PHP_THROWN.search(line)
+        frame = MODULE_FRAME.search(match.group(4)) if match and not match.group(3).startswith(MODULE_DIR) else None
+        if frame:
+            found.add(f"{frame.group(1)}: {match.group(1)}: {match.group(2)} (thrown in {match.group(3)})")
     return found
 
 
@@ -781,6 +850,7 @@ SCENARIOS = (
     ("partners", "Members and third parties are linked and reconciled", partners, ("access", "api")),
     ("membercard", "Dolibarr's own member card creates and links third parties the module follows", membercard, ("partners",)),
     ("taxprofiles", "Tax profiles: suggestions, legal checks, own profiles and the API", taxprofiles, ("api",)),
+    ("taxassign", "Tax profiles on products and invoice lines, and a warning for differing VAT", taxassign, ("taxprofiles",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

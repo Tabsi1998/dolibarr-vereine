@@ -104,7 +104,8 @@ class Vereine extends DolibarrApi
 	 * Tax profiles
 	 *
 	 * The association's tax profiles: sphere and VAT treatment with their legal basis,
-	 * rate in percent, invoice note and whether the profile is active. Profiles are
+	 * rate in percent, invoice note and whether the profile is active. The id is the
+	 * value of the extra field vereine_taxprofile on products and invoice lines. Profiles are
 	 * suggestions of the module or the association's own; the classification of an
 	 * activity remains the association's decision.
 	 *
@@ -126,6 +127,7 @@ class Vereine extends DolibarrApi
 		$result = array();
 		foreach ($profiles->fetchAll() as $profile) {
 			$result[] = array(
+				'id' => $profile['id'],
 				'code' => $profile['code'],
 				'label' => $profile['label'],
 				'sphere' => $profile['sphere'],

@@ -193,6 +193,29 @@ class VereineTaxRules
 	}
 
 	/**
+	 * A VAT rate as people write it: 10, 13, 20, 0 - decimals only when there are any.
+	 *
+	 * @param float|int|string $rate Rate in percent
+	 * @return string
+	 */
+	public static function formatRate($rate)
+	{
+		return rtrim(rtrim(number_format((float) $rate, 3, ',', ''), '0'), ',');
+	}
+
+	/**
+	 * Whether a VAT rate on a product or invoice line differs from its profile's rate.
+	 *
+	 * @param float|int|string $rate        Rate of the line in percent
+	 * @param float|int|string $profileRate Rate of the profile in percent
+	 * @return bool
+	 */
+	public static function rateDeviates($rate, $profileRate)
+	{
+		return abs((float) $rate - (float) $profileRate) > 0.0001;
+	}
+
+	/**
 	 * Profiles the module suggests on activation. Labels and notes are language keys.
 	 *
 	 * Only suggestions: the sport exemption applies only to associations whose statutory

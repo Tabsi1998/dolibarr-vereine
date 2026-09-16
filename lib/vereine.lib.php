@@ -76,18 +76,6 @@ function vereineMonthName($month)
 }
 
 /**
- * A VAT rate as people write it: 10, 13, 20, 0 - decimals only when there are any.
- *
- * @param float $rate Rate in percent
- * @return string
- */
-function vereineRate($rate)
-{
-	$text = number_format((float) $rate, 3, ',', '');
-	return rtrim(rtrim($text, '0'), ',');
-}
-
-/**
  * A status badge for a check result.
  *
  * @param string $status VereineOrganization::CHECK_OK or CHECK_WARNING

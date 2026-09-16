@@ -42,8 +42,10 @@ Vereinswebsite mit.
   der Kategorie *Erziehungsberechtigt*.
 - **Steuerprofile** (0.2.3, Österreich): Sphäre, Umsatzsteuer-Behandlung, Satz
   und Rechnungshinweis mit Rechtsgrundlage, vorgeschlagene Profile und Prüfung
-  von Kombinationen, die das Gesetz ausschließt. Die Zuordnung zu Produkten und
-  Rechnungszeilen folgt.
+  von Kombinationen, die das Gesetz ausschließt. Produkte und Rechnungszeilen
+  tragen ein Steuerprofil (0.2.5): Der USt-Satz des Produkts folgt ihm, neue
+  Rechnungszeilen übernehmen es, und eine Rechnung zeigt Zeilen, deren Satz nicht
+  passt.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.
@@ -81,6 +83,7 @@ Bereich fällt, hängt vom Einzelfall ab. Quellen und Stand stehen in
 | *Mitglieder > Verein > Mitglieder und Partner* | Abgleich von Mitgliedern und ihren Geschäftspartnern |
 | Karte eines Geschäftspartners | Reiter *Mitgliedschaft*; Kategorien *Mitglied* und *Ehemaliges Mitglied* |
 | Mitgliedskarte | Reiter *Verein*; *Geschäftspartner anlegen* und *Verknüpfung mit Geschäftspartner* zieht das Modul nach |
+| Produkt- und Leistungskarte, Zeilen von Rechnungen und Lieferantenrechnungen | Zusatzfeld *Steuerprofil*; Rechnungen warnen bei Zeilen, deren Umsatzsteuer nicht zum Profil passt |
 | Kontakte des Partners eines Mitglieds | Kategorie *Erziehungsberechtigt* für Minderjährige |
 | *Start > Einstellungen > Module > Vereine > Mitglieder und Partner*, auch *Mitglieder > Verein > Partner-Einstellungen* | Automatisch anlegen, Kategorien, Kundentypen (Administratoren) |
 | *Benutzer & Gruppen > Berechtigungen* | *Vereinsübersicht und Vereinsdaten lesen* (Übersicht, API); *Mitglieder und Geschäftspartner verknüpfen und abgleichen* (Änderungen im Abgleich) |

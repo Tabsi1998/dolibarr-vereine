@@ -148,6 +148,24 @@ CONTRACTS = (
     ("htdocs/core/lib/functions.lib.php", "function dol_trunc(", "short invoice note in the tax profile list"),
     ("htdocs/install/mysql/data/llx_c_tva.sql", "values (41,  '10','0','VAT rate - reduced', 1,__ENTITY__);", "Dolibarr's Austrian VAT rates: 10 %"),
     ("htdocs/install/mysql/data/llx_c_tva.sql", "values (41,  '20','0','VAT rate - standard',1,__ENTITY__);", "Dolibarr's Austrian VAT rates: 20 %"),
+    # Tax profiles on products and invoice lines (issue #37)
+    ("htdocs/core/class/extrafields.class.php", "public function addExtraField($attrname, $label, $type, $pos, $size, $elementtype, $unique = 0, $required = 0, $default_value = '', $param = '', $alwayseditable = 0, $perms = '', $list = '-1', $help = '', $computed = '', $entity = '', $langfile = '', $enabled = '1'", "extra field tax profile"),
+    ("htdocs/core/class/extrafields.class.php", "$err1 == 'DB_ERROR_COLUMN_ALREADY_EXISTS'", "enabling again keeps the extra field and its values"),
+    ("htdocs/core/class/extrafields.class.php", "forgeSQLFromUniversalSearchCriteria($InfoFieldList[4]", "only active tax profiles in the list"),
+    ("htdocs/core/class/extrafields.class.php", "'$ENTITY$'", "tax profiles of the current entity in the list"),
+    ("htdocs/core/class/commonobject.class.php", "public function insertExtraFields(", "a new invoice line stores the product's tax profile"),
+    ("htdocs/product/class/product.class.php", "public function updatePrice($newprice, $newpricebase, $user, $newvat = null, $newminprice = 0, $level = 0, $newnpr = 0", "the product's VAT rate follows its tax profile with the gross price"),
+    ("htdocs/product/class/product.class.php", "call_trigger('PRODUCT_CREATE'", "tax profile on a new product"),
+    ("htdocs/product/class/product.class.php", "call_trigger('PRODUCT_MODIFY'", "tax profile on a changed product"),
+    ("htdocs/compta/facture/class/factureligne.class.php", "public $table_element = 'facturedet';", "customer invoice line extra fields"),
+    ("htdocs/compta/facture/class/factureligne.class.php", "call_trigger('LINEBILL_INSERT'", "a new customer invoice line"),
+    ("htdocs/fourn/class/fournisseur.facture.ligne.class.php", "public $table_element = 'facture_fourn_det';", "supplier invoice line extra fields"),
+    ("htdocs/fourn/class/fournisseur.facture.ligne.class.php", "call_trigger('LINEBILL_SUPPLIER_CREATE'", "a new supplier invoice line"),
+    ("htdocs/compta/facture/card.php", "$hookmanager->initHooks(array('invoicecard', 'globalcard'));", "hook context of the customer invoice"),
+    ("htdocs/compta/facture/card.php", "executeHooks('formConfirm', $parameters, $object, $action)", "warning on the customer invoice"),
+    ("htdocs/fourn/facture/card.php", "$hookmanager->initHooks(array('invoicesuppliercard', 'globalcard'));", "hook context of the supplier invoice"),
+    ("htdocs/fourn/facture/card.php", "executeHooks('formConfirm', $parameters, $object, $action)", "warning on the supplier invoice"),
+    ("htdocs/core/lib/functions.lib.php", "function dol_string_nohtmltag(", "line description in the warning"),
 )
 
 LANG_KEYS = {

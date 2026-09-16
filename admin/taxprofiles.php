@@ -186,7 +186,7 @@ foreach ($profiles->fetchAll() as $profile) {
 	print '<td>'.dol_escape_htmltag($profile['label']).'</td>';
 	print '<td>'.$langs->trans('VereineSphere_'.$profile['sphere']).'<br>'.vereineLegalBasis($sphere).'</td>';
 	print '<td>'.$langs->trans('VereineTreatment_'.$profile['treatment']).'<br>'.vereineLegalBasis($treatment).'</td>';
-	print '<td class="right nowraponall">'.vereineRate($profile['rate']).' %</td>';
+	print '<td class="right nowraponall">'.VereineTaxRules::formatRate($profile['rate']).' %</td>';
 	print '<td class="small">'.dol_escape_htmltag(dol_trunc($profile['note'], 80)).'</td>';
 	print '<td class="center">'.dolGetBadge($langs->trans($profile['active'] ? 'Enabled' : 'Disabled'), '', $profile['active'] ? 'success' : 'secondary').'</td>';
 	print '<td class="right nowraponall">';
