@@ -488,7 +488,7 @@ def partners(stack: Stack) -> str:
 
     tab = page_ok(browser.get(f"/custom/vereine/partner_membership.php?socid={int(lisa)}"), "membership tab")
     expect(f'data-membership="{members["lisa"]}"' in tab.text, "the membership tab does not show Lisa's membership")
-    expect("Geschäftspartner angelegt" in tab.text, "the membership tab does not show the module's log")
+    expect("Geschäftspartner angelegt" in html.unescape(tab.text), "the membership tab does not show the module's log")
     card = page_ok(browser.get(f"/societe/card.php?socid={int(lisa)}"), "third party card")
     expect(f"partner_membership.php?socid={int(lisa)}" in card.text, "the third party card has no membership tab")
     overview = page_ok(browser.get("/custom/vereine/vereineindex.php"), "overview")

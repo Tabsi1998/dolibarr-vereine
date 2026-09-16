@@ -464,13 +464,14 @@ class VereinePartnerService
 	 */
 	private function createOrSuggest(Adherent $member, $user)
 	{
-		$candidates = VereinePartnerRules::candidates($this->memberData($member), $this->partners());
+		$partners = $this->partners();
+		$candidates = VereinePartnerRules::candidates($this->memberData($member), $partners);
 		if ($candidates) {
-			$ids = array();
+			$names = array();
 			foreach ($candidates as $candidate) {
-				$ids[] = $candidate['id'].':'.$candidate['match'];
+				$names[] = $partners[$candidate['id']]['name'].' ('.$candidate['match'].')';
 			}
-			VereineLog::add($this->db, $user, VereineLog::PARTNER_SUGGESTED, (int) $member->id, (int) $candidates[0]['id'], implode(', ', $ids));
+			VereineLog::add($this->db, $user, VereineLog::PARTNER_SUGGESTED, (int) $member->id, (int) $candidates[0]['id'], implode(', ', $names));
 			return 0;
 		}
 		return $this->createPartner($member, $user);
