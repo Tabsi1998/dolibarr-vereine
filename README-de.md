@@ -48,6 +48,28 @@ Vereinswebsite mit.
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.
 
+## Steuerprofile einfach erklärt
+
+Ein Steuerprofil sagt, wie eine Art von Einnahme steuerlich behandelt wird. Drei
+Fragen führen hin:
+
+1. **Was für eine Einnahme ist es?** Das bestimmt den Bereich des Vereins.
+2. **Fällt Umsatzsteuer an?** Das bestimmt Behandlung und Satz.
+3. **Was steht auf der Rechnung?** Ohne Umsatzsteuer erklärt der Hinweis warum.
+
+| Bereich | Was dazugehört (Beispiele des Finanzministeriums) | Umsatzsteuer meist |
+| --- | --- | --- |
+| Ideeller Bereich | echte Mitgliedsbeiträge, Spenden, Förderungen, kostenlose Vorträge | keine, es wird nichts verkauft |
+| Vermögensverwaltung | Zinsen, Vermietung von Räumen | Zinsen keine; Vermietung nach den normalen Regeln |
+| Unentbehrlicher Hilfsbetrieb | Einnahmen direkt aus dem Vereinszweck: Theatervorstellung des Theatervereins, Sportunterricht beim Sportverein | keine (Liebhaberei); Sportvereine befreit |
+| Entbehrlicher Hilfsbetrieb | passt zum Verein, ist aber nicht nötig: Faschingsball, Sommerfest, Flohmarkt | keine (Liebhaberei) |
+| Kleines Vereinsfest | von Mitgliedern getragen, Helfer gratis, höchstens 72 Stunden im Jahr | keine (Liebhaberei), keine Registrierkasse |
+| Begünstigungsschädlicher Betrieb | läuft wie ein Geschäft: selbst betriebene Kantine, großes Vereinsfest | ja, bis 55.000 € brutto als Kleinunternehmer befreit |
+
+Das Modul rechnet und warnt, es berät nicht: Ob eine Einnahme wirklich in einen
+Bereich fällt, hängt vom Einzelfall ab. Quellen und Stand stehen in
+[docs/LEGAL-SOURCES.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/LEGAL-SOURCES.md).
+
 ## Wo das Modul in Dolibarr sitzt
 
 | Stelle in Dolibarr | Was das Modul ergänzt oder nutzt |

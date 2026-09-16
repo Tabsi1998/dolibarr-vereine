@@ -669,12 +669,24 @@ def taxprofiles(stack: Stack) -> str:
     page = page_ok(browser.get("/custom/vereine/admin/taxprofiles.php"), "tax profile setup")
     rows = re.findall(r'data-taxprofile="([A-Z0-9_]+)" data-active="([01])"', page.text)
     expect(sorted(rows) == sorted((row[0], row[4]) for row in STANDARD_TAX_PROFILES), f"the setup lists {rows}")
+    # Plain words first: the three steps and an explanation with examples for every area and VAT treatment.
+    expect('data-howto="1"' in page.text, "the tax profile setup lacks its how-to")
+    explained = set(re.findall(r'data-sphere-help="([a-z]+)"', page.text))
+    expect(explained == {"ideal", "assets", "essential", "auxiliary", "festival", "harmful"}, f"areas explained: {sorted(explained)}")
+    explained = set(re.findall(r'data-treatment-help="([a-z0-9_]+)"', page.text))
+    expect(explained == {"nonbusiness", "hobby", "small_business", "sport", "reduced10", "reduced13", "standard20"},
+           f"VAT treatments explained: {sorted(explained)}")
+    text = html.unescape(page.text)
+    expect("Theatervorstellung eines Theatervereins" in text and "Faschingsball" in text,
+           "the explanations lack the ministry's examples in German")
 
     # 10 % in the business harmful to tax privileges: § 10 (2) no. 4 UStG excludes it.
     form = page.form(name="vereinetaxprofile")
     refused = page_ok(browser.submit(form, {"code": "KANTINE", "label": "Kantine beim Turnier", "sphere": "harmful", "treatment": "reduced10"}),
                       "tax profile with 10 % in the harmful business")
-    expect("§ 10 Abs. 2 Z 4 UStG" in html.unescape(refused.text), "the refusal does not name § 10 Abs. 2 Z 4 UStG")
+    refusal = html.unescape(refused.text)
+    expect("wie ein normales Geschäft" in refusal and "§ 10 Abs. 2 Z 4 UStG" in refusal,
+           "the refusal does not explain in plain words and name § 10 Abs. 2 Z 4 UStG at the end")
     expect(refused.form(name="vereinetaxprofile").value("label") == "Kantine beim Turnier", "the refused form lost what was entered")
     expect(stack.value("SELECT COUNT(*) FROM llx_vereine_taxprofile WHERE code = 'KANTINE'") == "0", "a refused tax profile was stored")
 
