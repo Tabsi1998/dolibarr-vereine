@@ -260,8 +260,9 @@ def setup(stack: Stack) -> str:
     overview = page_ok(browser.get("/custom/vereine/vereineindex.php"), "overview after saving")
     expect(data_status(overview, "register") == "ok", "the overview still reports the ZVR number as missing")
     expect("123456789" in overview.text, "the overview does not show the stored ZVR number")
-    expect('& "gemeinsam"' not in overview.text and "&amp;" in overview.text,
-           "the overview prints the purpose without escaping")
+    # Dolibarr's input filter drops the quotes; the ampersand must reach the page escaped.
+    expect(re.search(r"im Verein &amp; (&quot;)?gemeinsam", overview.text) is not None
+           and "im Verein & " not in overview.text, "the overview prints the purpose without escaping")
 
     form = browser.get("/custom/vereine/admin/setup.php").form(name="vereinesetup")
     page_ok(browser.submit(form, {"VEREINE_COUNTRY_PROFILE": "DE"}), "switch to Germany")
