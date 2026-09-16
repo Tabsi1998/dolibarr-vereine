@@ -454,6 +454,65 @@ class VereinePartnerService
 	}
 
 	/**
+	 * Dolibarr's own member card linked, created or removed the third party of a member.
+	 *
+	 * Those actions write llx_adherent.fk_soc with plain SQL and no trigger; the
+	 * module's hook calls this afterwards in the same request. A third party left
+	 * without member loses the member categories, as on the reconciliation page.
+	 * Never fails the page: problems are logged.
+	 *
+	 * @param Adherent $member   Member as loaded after Dolibarr's action
+	 * @param int      $previous Third party linked before the action, 0 for none
+	 * @param string   $how      'create' or 'link'
+	 * @param User     $user     User
+	 * @return int 1 when something was done, 0 otherwise
+	 */
+	public function onMemberCardLink(Adherent $member, $previous, $how, $user)
+	{
+		$id = (int) $member->id;
+		$current = (int) $member->fk_soc;
+		$previous = (int) $previous;
+		if ($id <= 0 || $current === $previous || !empty(self::$busy[$id])) {
+			return 0;
+		}
+		self::$busy[$id] = true;
+		try {
+			$ok = true;
+			if ($previous > 0) {
+				VereineLog::add($this->db, $user, VereineLog::PARTNER_UNLINKED, $id, $previous, $this->partnerName($previous));
+				$ok = $this->memberOfPartner($previous) > 0 || $this->releaseOrphan($previous, $user) >= 0;
+			}
+			if ($ok && $current > 0) {
+				VereineLog::add($this->db, $user, $how === 'create' ? VereineLog::PARTNER_CREATED : VereineLog::PARTNER_LINKED, $id, $current, $this->partnerName($current));
+				$ok = is_array($this->applyAttributes($member, $user));
+			}
+			if (!$ok) {
+				dol_syslog('Vereine: member card link for member '.$member->ref.': '.$this->error, LOG_WARNING);
+				VereineLog::add($this->db, $user, VereineLog::PARTNER_ERROR, $id, $current, dol_trunc($this->error, 250));
+				return 0;
+			}
+			return 1;
+		} finally {
+			unset(self::$busy[$id]);
+		}
+	}
+
+	/**
+	 * Name of a third party for the log.
+	 *
+	 * @param int $socid Third party id
+	 * @return string
+	 */
+	private function partnerName($socid)
+	{
+		$resql = $this->db->query("SELECT nom FROM ".MAIN_DB_PREFIX."societe WHERE rowid = ".((int) $socid));
+		if ($resql && ($obj = $this->db->fetch_object($resql))) {
+			return (string) $obj->nom;
+		}
+		return '';
+	}
+
+	/**
 	 * Create a third party for a newly validated member - unless one may already exist.
 	 *
 	 * @param Adherent $member Member without third party

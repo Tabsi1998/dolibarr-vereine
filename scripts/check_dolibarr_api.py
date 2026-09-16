@@ -127,6 +127,22 @@ CONTRACTS = (
     ("htdocs/theme/eldy/global.inc.php", ".marginbottomonly {", "spacing of the steps in a dialog"),
     ("htdocs/theme/md/style.css.php", ".cursorpointer {", "rows with a dialog look clickable"),
     ("htdocs/theme/md/style.css.php", ".marginbottomonly {", "spacing of the steps in a dialog"),
+    # Dolibarr's member card links third parties without a trigger; tab Association (issues #33, #34)
+    ("htdocs/societe/class/societe.class.php", "$sql .= \" SET fk_soc = \".((int) $this->id);", "create_from_member links the member with plain SQL"),
+    ("htdocs/adherents/card.php", "$hookmanager->initHooks(array('membercard', 'globalcard'));", "hook context of the member card"),
+    ("htdocs/adherents/card.php", "executeHooks('doActions', $parameters, $object, $action);", "the link is noted before Dolibarr's action"),
+    ("htdocs/adherents/card.php", "if ($action == 'setsocid' && $caneditfieldmember) {", "Linked third party on the member card"),
+    ("htdocs/adherents/card.php", "if ($action == 'confirm_create_thirdparty' && $confirm == 'yes' && $user->hasRight('societe', 'creer')) {", "Create third party on the member card"),
+    ("htdocs/adherents/card.php", "$res = $object->fetch($id);", "the card loads the member again before its buttons"),
+    ("htdocs/adherents/card.php", "executeHooks('addMoreActionsButtons', $parameters, $object, $action);", "the new link is brought in line after Dolibarr's action"),
+    ("htdocs/adherents/card.php", "$result = restrictedArea($user, 'adherent', $object->id, '', '', 'socid', 'rowid', 0);", "access check the member tab repeats"),
+    ("htdocs/adherents/class/adherent.class.php", "$this->fk_soc = $obj->", "linked third party after fetch (22 reads fk_soc, 23 and 24 socid)"),
+    ("htdocs/core/class/hookmanager.class.php", "$actionfile = 'actions_'.$module.'.class.php';", "hook file class/actions_vereine.class.php"),
+    ("htdocs/core/class/hookmanager.class.php", "$controlclassname = 'Actions'.ucfirst($module);", "hook class ActionsVereine"),
+    ("htdocs/core/class/hookmanager.class.php", "$parameters['context'] = implode(':', $this->contextarray);", "hook context in the parameters"),
+    ("htdocs/core/modules/DolibarrModules.class.php", "if (isset($value['data']) && is_array($value['data'])) {", "hooks declared with data and entity"),
+    ("htdocs/core/lib/member.lib.php", "function member_prepare_head(Adherent $object)", "tabs of the member card"),
+    ("htdocs/core/lib/member.lib.php", "complete_head_from_modules($conf, $langs, $object, $head, $h, 'member', 'add', 'external');", "tab Association from the descriptor"),
 )
 
 LANG_KEYS = {

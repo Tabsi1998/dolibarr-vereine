@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '0.2.1-beta';
+		$this->version = '0.2.2-beta';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -68,7 +68,8 @@ class modVereine extends DolibarrModules
 			'theme' => 0,
 			'css' => array(),
 			'js' => array(),
-			'hooks' => array(),
+			// Dolibarr's member card links third parties without a trigger (class/actions_vereine.class.php).
+			'hooks' => array('data' => array('membercard'), 'entity' => '0'),
 			'moduleforexternal' => 0,
 		);
 
@@ -99,6 +100,7 @@ class modVereine extends DolibarrModules
 
 		$this->tabs = array();
 		$this->tabs[] = array('data' => 'thirdparty:+vereinemembership:VereineTabMembership:vereine@vereine:$user->hasRight("vereine", "association", "read") && $user->hasRight("adherent", "lire"):/vereine/partner_membership.php?socid=__ID__');
+		$this->tabs[] = array('data' => 'member:+vereineassociation:VereineTabAssociation:vereine@vereine:$user->hasRight("vereine", "association", "read") && $user->hasRight("adherent", "lire") && $user->hasRight("societe", "lire"):/vereine/member_association.php?id=__ID__');
 		$this->dictionaries = array();
 		$this->boxes = array();
 		$this->cronjobs = array();

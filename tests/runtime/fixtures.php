@@ -23,6 +23,7 @@
  * php fixtures.php base    company, Members and API modules, two users with API keys
  * php fixtures.php rights  after the module is enabled: the reader gets the read right
  * php fixtures.php readmembers  the reader may also read, not change, members and third parties
+ * php fixtures.php cardmember  a validated member without third party, for the member card
  *
  * Prints one JSON object. Passwords and API keys come from the environment only.
  */
@@ -216,6 +217,27 @@ if ($stage === 'members') {
 	exit(0);
 }
 
+// A validated member without third party, for Dolibarr's own member card.
+if ($stage === 'cardmember') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	$member = new Adherent($db);
+	$member->typeid = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."adherent_type WHERE libelle = 'Ordentliches Mitglied'");
+	$member->morphy = 'phy';
+	$member->firstname = 'Karl';
+	$member->lastname = 'Karte';
+	$member->email = 'karl.karte@runtime-verein.test';
+	$member->address = 'Kartenweg 3';
+	$member->zip = '6020';
+	$member->town = 'Innsbruck';
+	$member->country_id = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+	$member->public = 0;
+	if ($member->create($admin) <= 0 || $member->validate($admin) <= 0) {
+		rt_fail('member Karl Karte: '.$member->error.' '.implode(' | ', (array) $member->errors));
+	}
+	print json_encode(array('member' => (int) $member->id))."\n";
+	exit(0);
+}
+
 if ($stage === 'resiliate') {
 	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
 	$member = new Adherent($db);
@@ -266,4 +288,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, resiliate, guardian or reset');

@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from dolibarr_http import Browser, Page
+from dolibarr_http import Browser, Page, token_of
 
 MODULE_DIR = "/var/www/html/custom/vereine"
 PHP_PROBLEM = re.compile(r"PHP (Fatal error|Parse error|Warning|Notice|Deprecated|Recoverable fatal error):"
@@ -139,7 +139,7 @@ def denied(page: Page) -> bool:
         return True
     # accessforbidden() prints its reason in <div class="error"> and nothing of the page it refused.
     refused_page_parts = ('name="vereinesetup"', "data-check=", "page-admin-about", "data-section=",
-                          "data-membership=", 'name="vereinepartnersetup"')
+                          "data-membership=", "data-association=", 'name="vereinepartnersetup"')
     return '<div class="error">' in page.text and not any(part in page.text for part in refused_page_parts)
 
 
@@ -191,6 +191,13 @@ def switch_module(stack: Stack, action: str) -> None:
 
 def section_counts(page: Page) -> dict:
     return dict(re.findall(r'data-section="([a-z_]+)" data-count="(\d+)"', page.text))
+
+
+def action_link(page: Page, action: str) -> str:
+    """The link the page offers for an action, as a browser follows it (Dolibarr 24 adds a token)."""
+    for href in re.findall(r'href="([^"]*[?&](?:amp;)?action=' + re.escape(action) + r'[^"]*)"', page.text):
+        return html.unescape(href)
+    raise CheckFailed(f"{page.url} offers no link for action={action}")
 
 
 def data_status(page: Page, check: str) -> str | None:
@@ -567,6 +574,76 @@ def partners(stack: Stack) -> str:
             "resignation -> former member, guardian clears the minor, sub-category per member type")
 
 
+def membercard(stack: Stack) -> str:
+    """Dolibarr's own member card creates, removes and links a third party; the module follows and shows it."""
+    browser = stack.browser()
+    form = page_ok(browser.get("/custom/vereine/admin/partners.php"), "partner setup").form(name="vereinepartnersetup")
+    page_ok(browser.submit(form, drop=("VEREINE_PARTNER_AUTOCREATE",)), "switch off automatic third parties")
+    expect(stack.const("VEREINE_PARTNER_AUTOCREATE") == "0", "automatic third parties were not switched off")
+    karl = int(stack.php_fixture("cardmember")["member"])
+    member_category = stack.const("VEREINE_CATEGORY_MEMBER")
+
+    def partner_of() -> str | None:
+        value = stack.value(f"SELECT fk_soc FROM llx_adherent WHERE rowid = {karl}")
+        return None if value in (None, "NULL", "0") else value
+
+    def categories_of(socid) -> set:
+        return {row[0] for row in stack.sql(f"SELECT fk_categorie FROM llx_categorie_societe WHERE fk_soc = {int(socid)}")}
+
+    def logged(action: str) -> list:
+        return [row[0] for row in stack.sql(f"SELECT fk_soc FROM llx_vereine_log WHERE fk_adherent = {karl} AND action = '{action}' ORDER BY rowid")]
+
+    expect(partner_of() is None, "Karl got a third party although automatic creation is off")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={karl}"), "tab Association without third party")
+    expect('data-association="none"' in tab.text, "the tab Association does not say that no third party is linked")
+
+    # Viewing the member card changes nothing.
+    entries = stack.value("SELECT COUNT(*) FROM llx_vereine_log")
+    card = page_ok(browser.get(f"/adherents/card.php?id={karl}"), "member card")
+    expect(f"member_association.php?id={karl}" in card.text, "the member card has no tab Association")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_log") == entries, "viewing the member card wrote to the module's log")
+
+    # "Create third party" on the member card, sent as its confirmation dialog sends it.
+    created = browser.post("/adherents/card.php", [("token", token_of(card)), ("id", str(karl)), ("action", "confirm_create_thirdparty"),
+                                                   ("confirm", "yes"), ("companyname", "Karl Karte"), ("companyalias", "")])
+    page_ok(created, "Create third party on the member card")
+    first = partner_of()
+    expect(first is not None, "Dolibarr's Create third party did not link a third party")
+    expect(member_category in categories_of(first), "the third party created on the member card is not in the member category")
+    expect(logged("partner_created") == [first], f"the log does not record the third party created on the member card: {logged('partner_created')}")
+
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={karl}"), "tab Association")
+    shown = re.search(r'data-partner-categories="1">([^<]*)<', tab.text)
+    expect(f'data-association="{first}"' in tab.text and shown is not None and "Mitglied" in html.unescape(shown.group(1)),
+           "the tab Association does not show the third party and its member category")
+    expect('data-problems="0"' in tab.text and 'name="vereineapply"' in tab.text,
+           "the tab Association reports open points or offers no way to bring the third party in line")
+
+    # "Linked third party" on the member card: remove the link, then link again, with Dolibarr's own form.
+    card = page_ok(browser.get(f"/adherents/card.php?id={karl}"), "member card with third party")
+    edit = page_ok(browser.get(action_link(card, "editthirdparty")), "edit the linked third party")
+    page_ok(browser.submit(edit.form(name="formsocid"), {"socid": "-1"}), "remove the linked third party")
+    expect(partner_of() is None, "removing the link on the member card did not unlink the third party")
+    expect(member_category not in categories_of(first), "the third party left without member kept the member category")
+    expect(logged("partner_unlinked") == [first], f"the log does not record the removed link: {logged('partner_unlinked')}")
+
+    card = page_ok(browser.get(f"/adherents/card.php?id={karl}"), "member card without third party")
+    edit = page_ok(browser.get(action_link(card, "editthirdparty")), "edit the linked third party again")
+    page_ok(browser.submit(edit.form(name="formsocid"), {"socid": first}), "link the third party again")
+    expect(partner_of() == first, "linking on the member card did not set the third party")
+    expect(member_category in categories_of(first), "the third party linked on the member card is not in the member category")
+    expect(logged("partner_linked") == [first], f"the log does not record the link: {logged('partner_linked')}")
+
+    reader = stack.browser("rtreader")
+    reader_tab = page_ok(reader.get(f"/custom/vereine/member_association.php?id={karl}"), "tab Association for a reader")
+    expect(f'data-association="{first}"' in reader_tab.text and 'name="vereineapply"' not in reader_tab.text,
+           "a reader does not see the third party, or is offered to change it")
+    expect(denied(stack.browser("rtnobody").get(f"/custom/vereine/member_association.php?id={karl}")),
+           "a user without the rights opens the tab Association")
+    return ("Create third party and Linked third party on Dolibarr's member card: member category and log follow, "
+            "a removed link takes the category away; tab Association on the member card; viewing changes nothing")
+
+
 def disable(stack: Stack) -> str:
     """Disabling hides pages and API but keeps data and granted rights for the next activation."""
     browser = stack.browser()
@@ -605,6 +682,7 @@ SCENARIOS = (
     ("access", "Rights decide who sees overview and setup", access, ("setup",)),
     ("api", "REST API answers with the right and refuses without", api, ("setup",)),
     ("partners", "Members and third parties are linked and reconciled", partners, ("access", "api")),
+    ("membercard", "Dolibarr's own member card creates and links third parties the module follows", membercard, ("partners",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

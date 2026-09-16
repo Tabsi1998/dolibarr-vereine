@@ -37,8 +37,12 @@ Vereinswebsite mit.
   *Alle auswählen* je Abschnitt; ein Klick in eine Zeile öffnet ein Fenster mit
   den Schritten für diese Zeile (abgleichen, verknüpfen, Mitglied oder
   Geschäftspartner bearbeiten).
-- **Reiter *Mitgliedschaft*** am Geschäftspartner und Erziehungsberechtigte von
-  Minderjährigen als Kontakte in der Kategorie *Erziehungsberechtigt*.
+- **Reiter *Mitgliedschaft*** am Geschäftspartner und **Reiter *Verein*** an der
+  Mitgliedskarte, dazu Erziehungsberechtigte von Minderjährigen als Kontakte in
+  der Kategorie *Erziehungsberechtigt*.
+- Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
+  *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
+  Geschäftspartner sofort in Ordnung.
 
 ## Wo das Modul in Dolibarr sitzt
 
@@ -50,6 +54,7 @@ Vereinswebsite mit.
 | *Mitglieder > Verein* | Übersicht mit Vereinsdaten und Prüfungen |
 | *Mitglieder > Verein > Mitglieder und Partner* | Abgleich von Mitgliedern und ihren Geschäftspartnern |
 | Karte eines Geschäftspartners | Reiter *Mitgliedschaft*; Kategorien *Mitglied* und *Ehemaliges Mitglied* |
+| Mitgliedskarte | Reiter *Verein*; *Geschäftspartner anlegen* und *Verknüpfung mit Geschäftspartner* zieht das Modul nach |
 | Kontakte des Partners eines Mitglieds | Kategorie *Erziehungsberechtigt* für Minderjährige |
 | *Start > Einstellungen > Module > Vereine > Mitglieder und Partner*, auch *Mitglieder > Verein > Partner-Einstellungen* | Automatisch anlegen, Kategorien, Kundentypen (Administratoren) |
 | *Benutzer & Gruppen > Berechtigungen* | *Vereinsübersicht und Vereinsdaten lesen* (Übersicht, API); *Mitglieder und Geschäftspartner verknüpfen und abgleichen* (Änderungen im Abgleich) |

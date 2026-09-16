@@ -35,6 +35,7 @@ class VereineLog
 	const PARTNER_ATTRIBUTES = 'partner_attributes';
 	const PARTNER_UPDATED = 'partner_updated';
 	const PARTNER_ERROR = 'partner_error';
+	const PARTNER_UNLINKED = 'partner_unlinked';
 
 	/**
 	 * Append one entry.

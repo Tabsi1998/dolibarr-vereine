@@ -64,8 +64,6 @@ if (!$res) {
  */
 
 require_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
-require_once DOL_DOCUMENT_ROOT.'/contact/class/contact.class.php';
 require_once __DIR__.'/class/vereinepartnerservice.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
@@ -162,69 +160,11 @@ if (!$member) {
 		print '</form>';
 	}
 
-	// Open invoices of this third party. Membership fee invoices get their own marker in 0.3 (issue #14).
-	if (isModEnabled('invoice') && $user->hasRight('facture', 'lire')) {
-		print load_fiche_titre($langs->trans('VereineOpenInvoices'), '', '');
-		$sql = "SELECT f.rowid, f.ref, f.total_ttc, f.date_lim_reglement FROM ".MAIN_DB_PREFIX."facture as f";
-		$sql .= " WHERE f.fk_soc = ".((int) $object->id)." AND f.fk_statut = ".Facture::STATUS_VALIDATED." AND f.paye = 0";
-		$sql .= " AND f.entity IN (".getEntity('invoice').") ORDER BY f.date_lim_reglement ASC";
-		$resql = $db->query($sql);
-		print '<table class="noborder centpercent" data-open-invoices="1">';
-		print '<tr class="liste_titre"><td>'.$langs->trans('Ref').'</td><td class="center">'.$langs->trans('DateDue').'</td><td class="right">'.$langs->trans('AmountTTC').'</td></tr>';
-		$count = 0;
-		while ($resql && ($row = $db->fetch_object($resql))) {
-			$invoice = new Facture($db);
-			$invoice->id = (int) $row->rowid;
-			$invoice->ref = (string) $row->ref;
-			print '<tr class="oddeven"><td>'.$invoice->getNomUrl(1).'</td><td class="center">'.dol_print_date($db->jdate($row->date_lim_reglement), 'day').'</td>';
-			print '<td class="right">'.price((float) $row->total_ttc, 0, $langs, 1, -1, -1, $conf->currency).'</td></tr>';
-			$count++;
-		}
-		if ($count === 0) {
-			print '<tr class="oddeven"><td colspan="3"><span class="opacitymedium">'.$langs->trans('None').'</span></td></tr>';
-		}
-		print '</table>';
-		print '<div class="opacitymedium small">'.$langs->trans('VereineOpenInvoicesNote').'</div>';
-	}
-
-	// Guardians of a minor member: contacts of this third party in the guardian category.
-	$guardianCategory = getDolGlobalInt(VereinePartnerService::CONST_GUARDIAN);
-	print load_fiche_titre($langs->trans('VereineGuardians'), '', '');
-	print '<table class="noborder centpercent" data-guardians="1">';
-	$found = 0;
-	if ($guardianCategory > 0) {
-		$sql = "SELECT sp.rowid FROM ".MAIN_DB_PREFIX."socpeople as sp";
-		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."categorie_contact as cc ON cc.fk_socpeople = sp.rowid";
-		$sql .= " WHERE sp.fk_soc = ".((int) $object->id)." AND cc.fk_categorie = ".$guardianCategory;
-		$resql = $db->query($sql);
-		while ($resql && ($row = $db->fetch_object($resql))) {
-			$contact = new Contact($db);
-			if ($contact->fetch((int) $row->rowid) > 0) {
-				print '<tr class="oddeven"><td>'.$contact->getNomUrl(1).'</td><td>'.dol_print_email($contact->email, $contact->id, $object->id, 1).'</td></tr>';
-				$found++;
-			}
-		}
-	}
-	if ($found === 0) {
-		print '<tr class="oddeven"><td colspan="2"><span class="opacitymedium">'.$langs->trans('VereineGuardiansNone').'</span></td></tr>';
-	}
-	print '</table>';
+	vereinePrintOpenInvoices($db, (int) $object->id);
+	vereinePrintGuardians($db, (int) $object->id);
 }
 
-// What the module did with this third party.
-print load_fiche_titre($langs->trans('VereineLogTitle'), '', '');
-print '<table class="noborder centpercent" data-log="1">';
-print '<tr class="liste_titre"><td>'.$langs->trans('Date').'</td><td>'.$langs->trans('Action').'</td><td>'.$langs->trans('Description').'</td></tr>';
-$entries = VereineLog::recent($db, $member ? (int) $member->id : 0, (int) $object->id, 20);
-foreach ($entries as $entry) {
-	print '<tr class="oddeven"><td class="nowraponall">'.dol_print_date($entry['date'], 'dayhour').'</td>';
-	print '<td>'.dol_escape_htmltag($langs->trans('VereineLog_'.$entry['action'])).'</td>';
-	print '<td>'.dol_escape_htmltag($entry['message']).'</td></tr>';
-}
-if (!$entries) {
-	print '<tr class="oddeven"><td colspan="3"><span class="opacitymedium">'.$langs->trans('None').'</span></td></tr>';
-}
-print '</table>';
+vereinePrintLog($db, $member ? (int) $member->id : 0, (int) $object->id);
 
 print '</div>';
 print dol_get_fiche_end();
