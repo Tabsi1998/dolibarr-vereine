@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '0.2.0-beta';
+		$this->version = '0.2.1-beta';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -144,6 +144,21 @@ class modVereine extends DolibarrModules
 			'position' => 1100 + $r,
 			'enabled' => 'isModEnabled("vereine")',
 			'perms' => '$user->hasRight("vereine", "association", "read") && $user->hasRight("adherent", "lire") && $user->hasRight("societe", "lire")',
+			'target' => '',
+			'user' => 0,
+		);
+		// The same setup page as in the module list, for administrators who work in Members.
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
+			'titre' => 'VereineMenuPartnerSetup',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_partnersetup',
+			'url' => '/vereine/admin/partners.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->admin',
 			'target' => '',
 			'user' => 0,
 		);

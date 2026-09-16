@@ -34,6 +34,9 @@ Vereinswebsite mit.
   Privatperson, wenn sie noch keinen haben.
 - **Abgleichsseite** *Mitglieder > Verein > Mitglieder und Partner*: was nicht
   verknüpft ist oder nicht zusammenpasst – mit Vorschau vor jeder Änderung.
+  *Alle auswählen* je Abschnitt; ein Klick in eine Zeile öffnet ein Fenster mit
+  den Schritten für diese Zeile (abgleichen, verknüpfen, Mitglied oder
+  Geschäftspartner bearbeiten).
 - **Reiter *Mitgliedschaft*** am Geschäftspartner und Erziehungsberechtigte von
   Minderjährigen als Kontakte in der Kategorie *Erziehungsberechtigt*.
 
@@ -43,12 +46,12 @@ Vereinswebsite mit.
 | --- | --- |
 | *Start > Einstellungen > Unternehmen/Organisation* | Name, Anschrift, E-Mail, Telefon, Website und erster Monat des Rechnungsjahres – das Modul liest sie, es führt keine eigene Kopie |
 | *Start > Einstellungen > Module > Vereine* | Einrichtung: Länderprofil und Registerdaten; Über-Seite mit Version und Lizenz |
-| *Mitglieder*, *Geschäftspartner*, *Kategorien* (Dolibarr-eigene Module) | Pflicht und werden mit Vereine aktiviert; das Mitglieder-Menü bekommt *Verein* und *Mitglieder und Partner* |
+| *Mitglieder*, *Geschäftspartner*, *Kategorien* (Dolibarr-eigene Module) | Pflicht und werden mit Vereine aktiviert; das Mitglieder-Menü bekommt *Verein*, *Mitglieder und Partner* und für Administratoren *Partner-Einstellungen* |
 | *Mitglieder > Verein* | Übersicht mit Vereinsdaten und Prüfungen |
 | *Mitglieder > Verein > Mitglieder und Partner* | Abgleich von Mitgliedern und ihren Geschäftspartnern |
 | Karte eines Geschäftspartners | Reiter *Mitgliedschaft*; Kategorien *Mitglied* und *Ehemaliges Mitglied* |
 | Kontakte des Partners eines Mitglieds | Kategorie *Erziehungsberechtigt* für Minderjährige |
-| *Start > Einstellungen > Module > Vereine > Mitglieder und Partner* | Automatisch anlegen, Kategorien, Kundentypen |
+| *Start > Einstellungen > Module > Vereine > Mitglieder und Partner*, auch *Mitglieder > Verein > Partner-Einstellungen* | Automatisch anlegen, Kategorien, Kundentypen (Administratoren) |
 | *Benutzer & Gruppen > Berechtigungen* | *Vereinsübersicht und Vereinsdaten lesen* (Übersicht, API); *Mitglieder und Geschäftspartner verknüpfen und abgleichen* (Änderungen im Abgleich) |
 | Modul *API REST* | Nötig für `/api/index.php/vereine/...`; die Übersicht warnt, solange es aus ist |
 

@@ -260,7 +260,8 @@ def enable(stack: Stack) -> str:
     rights = stack.sql("SELECT id, perms, subperms FROM llx_rights_def WHERE module = 'vereine' AND entity = 1 ORDER BY id")
     expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"]], f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
-    expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_partners", "/vereine/partners.php"]],
+    expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_partners", "/vereine/partners.php"],
+                    ["members", "vereine_partnersetup", "/vereine/admin/partners.php"]],
            f"menu entries after enabling: {menu}")
     expect(stack.sql("SHOW TABLES LIKE 'llx_vereine_log'") == [["llx_vereine_log"]], "the log table was not created")
     categories = {name: stack.const(name) or "0" for name in CATEGORY_CONSTANTS}
@@ -274,7 +275,7 @@ def enable(stack: Stack) -> str:
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
     return (f"module {stack.module_version} on with Members, third parties and categories; profile AT; "
-            "2 rights, 2 menu entries, log table, 3 categories")
+            "2 rights, 3 menu entries, log table, 3 categories")
 
 
 def pages(stack: Stack) -> str:
@@ -294,6 +295,14 @@ def pages(stack: Stack) -> str:
     expect(stack.module_version in about.text and "IT-Tabelander" in about.text, "the about page lacks version or publisher")
     members = page_ok(browser.get("/adherents/index.php?mainmenu=members&leftmenu="), "Members home")
     expect("/custom/vereine/vereineindex.php" in members.text, "the Members menu has no entry for the association")
+    entries = sorted(set(re.findall(r'href="([^"]*/custom/vereine/[^"]*)"', members.text)))
+    expect(any("/custom/vereine/partners.php" in entry for entry in entries),
+           f"the Members menu has no entry Members and third parties; module links: {entries}")
+    expect(any("/custom/vereine/admin/partners.php" in entry for entry in entries),
+           f"the Members menu has no entry Third party settings for the administrator; module links: {entries}")
+    from_menu = page_ok(browser.get("/custom/vereine/admin/partners.php?mainmenu=members&leftmenu="), "third party settings from Members")
+    expect('name="vereinepartnersetup"' in from_menu.text and "/adherents/list.php" in from_menu.text,
+           "the third party settings opened from Members do not keep the Members menu")
     expect(data_status(overview, "partners") == "ok", "an empty Dolibarr reports open points between members and third parties")
     reconciliation = page_ok(browser.get("/custom/vereine/partners.php"), "members and third parties")
     sections = re.findall(r'data-section="([a-z_]+)"', reconciliation.text)
@@ -303,7 +312,9 @@ def pages(stack: Stack) -> str:
     form = partner_setup.form(name="vereinepartnersetup")
     expect(form.value("VEREINE_PARTNER_TYPENT_NATURAL") == "TE_PRIVATE" and form.value("VEREINE_PARTNER_AUTOCREATE") is None,
            "the partner setup does not show its defaults")
-    return "overview with checks, setup, partner setup, about, reconciliation and the Members menu entry render in German"
+    script = browser.get("/custom/vereine/js/partners.js")
+    expect(script.status == 200 and "vereine-select-all" in script.text, f"js/partners.js answered HTTP {script.status}")
+    return "overview with checks, setup, partner setup, about, reconciliation and the Members menu entries render in German"
 
 
 def setup(stack: Stack) -> str:
@@ -440,6 +451,9 @@ def partners(stack: Stack) -> str:
     expect(sponsor_row and sponsor_row[0][0] == "Sponsor GmbH" and sponsor_row[0][1] in ("0", "NULL"),
            f"the sponsor's third party is {sponsor_row}, expected 'Sponsor GmbH' without customer type")
     expect(partner_of("draft") is None, "a draft member got a third party")
+    reader = stack.browser("rtreader")
+    expect(denied(reader.get(f"/custom/vereine/partner_membership.php?socid={int(lisa)}")),
+           "a user without member rights opens the membership tab")
 
     page = page_ok(browser.get("/custom/vereine/partners.php"), "reconciliation")
     counts = section_counts(page)
@@ -447,6 +461,28 @@ def partners(stack: Stack) -> str:
            f"reconciliation counts {counts}; expected 2 without third party, 1 orphan, 1 minor")
     link_value = f"{members['anna']}_{existing['anna']}"
     expect(f'value="{link_value}"' in page.text, "Anna's existing third party is not offered for linking")
+
+    # Every row opens a dialog with its steps; each section with a bulk step has "select all".
+    row_tags = re.findall(r'<tr class="oddeven[^"]*" data-row="\d+"([^>]*)>', page.text)
+    dialogs = re.findall(r'data-dialog="(vereinerow-[a-z_]+-\d+)"', " ".join(row_tags))
+    expect(row_tags and len(dialogs) == len(row_tags), f"{len(row_tags)} rows, but {len(dialogs)} open a dialog")
+    missing = [dialog for dialog in dialogs if f'id="{dialog}" class="vereine-row-dialog"' not in page.text]
+    expect(not missing, f"rows point to dialogs that are not on the page: {missing}")
+    expect('data-select="sel_create[]"' in page.text and 'data-select="sel_orphans[]"' in page.text,
+           "the sections have no 'select all'")
+    expect("/custom/vereine/js/partners.js" in page.text, "the reconciliation does not load js/partners.js")
+    page.form(name=f"vereineaction-link-{link_value}")
+
+    # A reader of members and third parties sees the same, but is offered nothing to change or edit.
+    stack.php_fixture("readmembers")
+    reader_page = page_ok(reader.get("/custom/vereine/partners.php"), "reconciliation for a reader")
+    expect(section_counts(reader_page) == counts, f"the reader sees {section_counts(reader_page)}, the administrator {counts}")
+    offered = [part for part in ('name="vereinerowaction"', "vereine-select-all", "data-dialog=", 'name="op"')
+               if part in reader_page.text]
+    expect(not offered, f"a reader without write rights is offered {offered}")
+    reader_members = page_ok(reader.get("/adherents/index.php?mainmenu=members&leftmenu="), "Members home for a reader")
+    expect("/custom/vereine/partners.php" in reader_members.text and "/custom/vereine/admin/partners.php" not in reader_members.text,
+           "the reader's Members menu must offer Members and third parties but not Third party settings")
     page_ok(browser.submit(page.form(name="vereinepartners"), button=("link", link_value)), "link Anna")
     expect(partner_of("anna") == str(existing["anna"]), "linking did not set Anna's third party")
     expect(member_category in categories_of(existing["anna"]), "Anna's linked third party is not in the member category")
@@ -477,6 +513,27 @@ def partners(stack: Stack) -> str:
     page_ok(browser.submit(preview.form(name="vereinepreview")), "confirm orphans")
     expect(member_category not in categories_of(existing["old"]), "the third party without member kept the member category")
 
+    # The step in a row's dialog previews exactly that row and changes nothing before the confirmation.
+    stack.sql(f"DELETE FROM llx_categorie_societe WHERE fk_soc = {int(lisa)} AND fk_categorie = {int(member_category)}")
+    page = page_ok(browser.get("/custom/vereine/partners.php"), "reconciliation with Lisa out of line")
+    expect(f'data-dialog="vereinerow-attributes-{members["lisa"]}"' in page.text, "Lisa's row has no dialog")
+    preview = page_ok(browser.submit(page.form(name=f"vereineaction-attributes-{members['lisa']}")), "preview from Lisa's dialog")
+    previewed = re.findall(r'data-preview-row="(\d+)"', preview.text)
+    expect('data-preview="attributes"' in preview.text and previewed == [str(members["lisa"])],
+           f"the dialog's step previews rows {previewed}, expected only Lisa")
+    expect(member_category not in categories_of(lisa), "the dialog's step changed the third party before the confirmation")
+    page_ok(browser.submit(preview.form(name="vereinepreview")), "confirm the step from Lisa's dialog")
+    expect(member_category in categories_of(lisa), "confirming the dialog's step did not bring Lisa's third party in line")
+
+    # Edit member from the dialog: Dolibarr's own form, and saving returns to the reconciliation.
+    edit_link = re.search(rf'href="([^"]*/adherents/card\.php\?id={members["lisa"]}&amp;action=edit&amp;backtopage=[^"]+)"', page.text)
+    expect(edit_link is not None, "Lisa's dialog does not offer to edit the member")
+    edit = page_ok(browser.get(html.unescape(edit_link.group(1))), "edit Lisa from the dialog")
+    saved = browser.submit(edit.form(name="formsoc"), follow=False)
+    location = next((value for name, value in saved.headers.items() if name.lower() == "location"), "")
+    expect(saved.status in (301, 302, 303) and location.endswith("/custom/vereine/partners.php"),
+           f"saving the member answered HTTP {saved.status} to {location!r}, expected a return to the reconciliation")
+
     stack.php_fixture("resiliate", RT_MEMBER_ID=str(members["lisa"]))
     lisa_categories = categories_of(lisa)
     expect(former_category in lisa_categories and member_category not in lisa_categories,
@@ -493,9 +550,6 @@ def partners(stack: Stack) -> str:
     expect(f"partner_membership.php?socid={int(lisa)}" in card.text, "the third party card has no membership tab")
     overview = page_ok(browser.get("/custom/vereine/vereineindex.php"), "overview")
     expect(data_status(overview, "partners") == "ok", "the overview still reports open partner points")
-    reader = stack.browser("rtreader")
-    expect(denied(reader.get(f"/custom/vereine/partner_membership.php?socid={int(lisa)}")),
-           "a user without member rights opens the membership tab")
     actions = {row[0] for row in stack.sql("SELECT DISTINCT action FROM llx_vereine_log")}
     wanted = {"partner_created", "partner_suggested", "partner_linked", "partner_attributes", "partner_updated"}
     expect(wanted <= actions, f"log actions {sorted(actions)} lack {sorted(wanted - actions)}")
@@ -509,8 +563,8 @@ def partners(stack: Stack) -> str:
     expect(child is not None and child in categories_of(sponsor),
            "the sub-category for the member type was not created below the member category or not assigned")
     return ("created on validation, existing third party suggested and linked, draft created after preview, "
-            "e-mail copied, orphan corrected, resignation -> former member, guardian clears the minor, "
-            "sub-category per member type")
+            "e-mail copied, orphan corrected, row dialog: preview of one row and edit returns, reader offered nothing, "
+            "resignation -> former member, guardian clears the minor, sub-category per member type")
 
 
 def disable(stack: Stack) -> str:

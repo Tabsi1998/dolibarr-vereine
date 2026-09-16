@@ -7,6 +7,32 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.2.1-beta] - 2026-09-16
+
+The reconciliation page is quicker to work through.
+
+### Added
+
+- *Select all* in the header of every section with a bulk step. Rows whose member
+  has a suggested third party stay unticked.
+- A click on a row, or on its *Actions* button, opens a dialog with the steps for
+  that row: create, link or bring in line (always through the preview), edit the
+  member, edit the third party, add a guardian. Nothing happens until a step is
+  chosen, and only steps the user has the rights for are offered. Editing a
+  member returns to the reconciliation after saving; Dolibarr's third party form
+  ends on the third party card.
+- Menu entry *Members > Association > Third party settings* for administrators:
+  the same setup page as in the module list.
+
+### Changed
+
+- The reconciliation names the column *Third party* as the rest of the page does.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that adds the new menu entry. Data and settings stay.
+
 ## [0.2.0-beta] - 2026-09-16
 
 Members and third parties work together.
@@ -76,6 +102,7 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.0-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.1-beta...HEAD
+[0.2.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.1-beta
 [0.2.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.0-beta
 [0.1.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.1.0-beta

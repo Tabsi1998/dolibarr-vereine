@@ -22,6 +22,7 @@
  *
  * php fixtures.php base    company, Members and API modules, two users with API keys
  * php fixtures.php rights  after the module is enabled: the reader gets the read right
+ * php fixtures.php readmembers  the reader may also read, not change, members and third parties
  *
  * Prints one JSON object. Passwords and API keys come from the environment only.
  */
@@ -93,6 +94,24 @@ if ($stage === 'rights') {
 		rt_fail('granting the read right: '.$reader->error);
 	}
 	print json_encode(array('right' => $rightId))."\n";
+	exit(0);
+}
+
+// The reader may read members and third parties, but change neither.
+if ($stage === 'readmembers') {
+	$reader = new User($db);
+	if ($reader->fetch(0, 'rtreader') <= 0) {
+		rt_fail('the user rtreader does not exist');
+	}
+	$granted = array();
+	foreach (array('adherent', 'societe') as $module) {
+		$rightId = (int) rt_value($db, "SELECT id FROM ".MAIN_DB_PREFIX."rights_def WHERE module = '".$module."' AND perms = 'lire' AND (subperms IS NULL OR subperms = '') AND entity = 1");
+		if ($rightId <= 0 || $reader->addrights($rightId) < 0) {
+			rt_fail('granting '.$module.'/lire: '.$reader->error);
+		}
+		$granted[] = $rightId;
+	}
+	print json_encode(array('rights' => $granted))."\n";
 	exit(0);
 }
 
@@ -247,4 +266,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, members, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, resiliate, guardian or reset');

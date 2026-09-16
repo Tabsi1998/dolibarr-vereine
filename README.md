@@ -32,6 +32,8 @@ with a REST API for the association's website.
   are marked as customers and get the private customer type when they have none.
 - **Reconciliation page** *Members > Association > Members and third parties*:
   what is not linked or not consistent - with a preview before every change.
+  *Select all* per section; a click on a row opens a dialog with the steps for
+  that row (bring in line, link, edit member or third party).
 - **Tab *Membership*** on the third party card, and guardians of minor members as
   contacts in the category *Guardian*.
 
@@ -41,12 +43,12 @@ with a REST API for the association's website.
 | --- | --- |
 | *Home > Setup > Company/Organisation* | Name, address, e-mail, phone, website and first month of the fiscal year - the module reads them, it does not keep a copy |
 | *Home > Setup > Modules > Vereine* | Setup: country profile and register data; about page with version and licence |
-| *Members*, *Third parties*, *Categories* (Dolibarr's own modules) | Required and enabled with Vereine; the Members menu gets *Association* and *Members and third parties* |
+| *Members*, *Third parties*, *Categories* (Dolibarr's own modules) | Required and enabled with Vereine; the Members menu gets *Association*, *Members and third parties* and, for administrators, *Third party settings* |
 | *Members > Association* | Overview with the association's data and the checks |
 | *Members > Association > Members and third parties* | Reconciliation of members and their third parties |
 | Third party card | Tab *Membership*; categories *Member* and *Former member* |
 | Contacts of a member's third party | Category *Guardian* for guardians of minors |
-| *Home > Setup > Modules > Vereine > Members and third parties* | Automatic creation, categories, customer types |
+| *Home > Setup > Modules > Vereine > Members and third parties*, also *Members > Association > Third party settings* | Automatic creation, categories, customer types (administrators) |
 | *Users & Groups > Permissions* | *Read the association overview and its data* (overview, API); *Link members and third parties and bring them in line* (reconciliation changes) |
 | *API REST* module | Needed for `/api/index.php/vereine/...`; the overview warns while it is off |
 

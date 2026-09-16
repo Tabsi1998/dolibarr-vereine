@@ -112,6 +112,21 @@ CONTRACTS = (
     ("htdocs/install/mysql/tables/llx_categorie_societe.sql", "fk_soc", "customer category links"),
     ("htdocs/install/mysql/tables/llx_categorie_contact.sql", "fk_socpeople", "contact category links"),
     ("htdocs/install/mysql/data/llx_c_typent.sql", "'TE_PRIVATE'", "private customer type"),
+    # Menu entry and row dialogs of the reconciliation (issues #30, #31)
+    ("htdocs/core/menus/standard/eldy.lib.php", "'mainmenu='.$menu_array[$i]['mainmenu'].'&leftmenu='", "module menu entries keep the Members menu open"),
+    ("htdocs/main.inc.php", "foreach ($arrayofjs as $jsfile)", "llxHeader loads js/partners.js"),
+    ("htdocs/main.inc.php", "print '<script nonce=\"'.getNonce().'\" src=\"'.dol_buildpath($jsfile, 1)", "js/partners.js with the CSP nonce"),
+    ("htdocs/main.inc.php", "jquery-ui.min.js", "jQuery UI dialog for the steps of a row"),
+    ("htdocs/adherents/card.php", "$backtopage = GETPOST('backtopage', 'alpha');", "editing a member returns to the reconciliation"),
+    ("htdocs/adherents/card.php", "name=\"backtopage\" value=\"'.($backtopage != '1' ? $backtopage : $_SERVER[\"HTTP_REFERER\"]).'\"", "the member edit form keeps backtopage"),
+    ("htdocs/adherents/card.php", "hasRight('adherent', 'creer') && $action == 'edit'", "right checked for Edit member"),
+    ("htdocs/contact/card.php", "print '<input type=\"hidden\" name=\"backtopage\" value=\"'.$backtopage.'\">';", "a new guardian contact returns to the reconciliation"),
+    ("htdocs/contact/card.php", "hasRight('societe', 'contact', 'creer')", "right checked for adding a guardian"),
+    ("htdocs/societe/card.php", "hasRight('societe', 'creer')", "right checked for Edit third party"),
+    ("htdocs/theme/eldy/global.inc.php", ".cursorpointer {", "rows with a dialog look clickable"),
+    ("htdocs/theme/eldy/global.inc.php", ".marginbottomonly {", "spacing of the steps in a dialog"),
+    ("htdocs/theme/md/style.css.php", ".cursorpointer {", "rows with a dialog look clickable"),
+    ("htdocs/theme/md/style.css.php", ".marginbottomonly {", "spacing of the steps in a dialog"),
 )
 
 LANG_KEYS = {
