@@ -499,8 +499,18 @@ def partners(stack: Stack) -> str:
     actions = {row[0] for row in stack.sql("SELECT DISTINCT action FROM llx_vereine_log")}
     wanted = {"partner_created", "partner_suggested", "partner_linked", "partner_attributes", "partner_updated"}
     expect(wanted <= actions, f"log actions {sorted(actions)} lack {sorted(wanted - actions)}")
+
+    form = page_ok(browser.get("/custom/vereine/admin/partners.php"), "partner setup").form(name="vereinepartnersetup")
+    page_ok(browser.submit(form, {"VEREINE_PARTNER_CATEGORY_PER_TYPE": "1"}), "switch on sub-categories per member type")
+    tab = page_ok(browser.get(f"/custom/vereine/partner_membership.php?socid={int(sponsor)}"), "sponsor membership tab")
+    page_ok(browser.submit(tab.form(name="vereineapply")), "bring the sponsor in line")
+    child = stack.value(f"SELECT rowid FROM llx_categorie WHERE fk_parent = {int(member_category)} "
+                        "AND label = 'Ordentliches Mitglied' AND type = 2")
+    expect(child is not None and child in categories_of(sponsor),
+           "the sub-category for the member type was not created below the member category or not assigned")
     return ("created on validation, existing third party suggested and linked, draft created after preview, "
-            "e-mail copied, orphan corrected, resignation -> former member, guardian clears the minor")
+            "e-mail copied, orphan corrected, resignation -> former member, guardian clears the minor, "
+            "sub-category per member type")
 
 
 def disable(stack: Stack) -> str:

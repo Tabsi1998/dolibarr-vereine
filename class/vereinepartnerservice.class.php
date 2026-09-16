@@ -289,8 +289,6 @@ class VereinePartnerService
 	 */
 	public function createPartner(Adherent $member, $user)
 	{
-		global $langs;
-
 		if ((int) $member->fk_soc > 0) {
 			$this->error = 'Member '.$member->ref.' already has a third party';
 			return -1;
