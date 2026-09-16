@@ -96,11 +96,12 @@ class VereineOrganization
 	/**
 	 * What the overview reports as fine or to be fixed.
 	 *
-	 * @param array<string,mixed> $organization Result of build()
-	 * @param bool                $apiEnabled   Whether Dolibarr's REST API module is enabled
-	 * @return array<int,array{code:string,status:string,label:string,fix:string}> Label keys are language keys; fix names the page that fixes it
+	 * @param array<string,mixed> $organization  Result of build()
+	 * @param bool                $apiEnabled    Whether Dolibarr's REST API module is enabled
+	 * @param int|null            $partnerIssues Open points between members and third parties, null when not checked
+	 * @return array<int,array{code:string,status:string,label:string,fix:string,value:int}> Label keys are language keys, value their parameter; fix names the page that fixes it
 	 */
-	public static function checks(array $organization, $apiEnabled)
+	public static function checks(array $organization, $apiEnabled, $partnerIssues = null)
 	{
 		$checks = array();
 		$profile = $organization['country_profile'];
@@ -148,6 +149,21 @@ class VereineOrganization
 			'fix' => $apiEnabled ? '' : 'modules',
 		);
 
+		if ($partnerIssues !== null) {
+			$checks[] = array(
+				'code' => 'partners',
+				'status' => (int) $partnerIssues === 0 ? self::CHECK_OK : self::CHECK_WARNING,
+				'label' => (int) $partnerIssues === 0 ? 'VereineCheckPartnersOk' : 'VereineCheckPartnersOpen',
+				'fix' => (int) $partnerIssues === 0 ? '' : 'partners',
+				'value' => (int) $partnerIssues,
+			);
+		}
+
+		foreach ($checks as $index => $check) {
+			if (!isset($check['value'])) {
+				$checks[$index]['value'] = 0;
+			}
+		}
 		return $checks;
 	}
 

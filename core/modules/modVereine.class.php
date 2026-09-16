@@ -39,8 +39,9 @@ class modVereine extends DolibarrModules
 
 		$this->db = $db;
 
-		// Reserved for IT-Tabelander on https://wiki.dolibarr.org/index.php?title=List_of_modules_id
-		// (range 492100 - 492109). Permission ids derive from it, so it must never change.
+		// Taken from the editors' range of https://wiki.dolibarr.org/index.php?title=List_of_modules_id
+		// (492100 - 492109, free when chosen; the reservation is issue #2). Permission ids
+		// derive from it, so it must never change.
 		$this->numero = 492100;
 		$this->rights_class = 'vereine';
 		// Next to the Members module, which this module extends.
@@ -51,12 +52,12 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '0.1.0-beta';
+		$this->version = '0.2.0-beta';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
 		$this->module_parts = array(
-			'triggers' => 0,
+			'triggers' => 1,
 			'login' => 0,
 			'substitutions' => 0,
 			'menus' => 0,
@@ -74,7 +75,8 @@ class modVereine extends DolibarrModules
 		$this->dirs = array('/vereine/temp');
 		$this->config_page_url = array('setup.php@vereine');
 		$this->hidden = false;
-		$this->depends = array('modAdherent');
+		// Members, third parties and categories are Dolibarr's; the module links them.
+		$this->depends = array('modAdherent', 'modSociete', 'modCategorie');
 		$this->requiredby = array();
 		$this->conflictwith = array();
 		$this->langfiles = array('vereine@vereine');
@@ -86,9 +88,17 @@ class modVereine extends DolibarrModules
 
 		// The association data lives in constants written by the setup page. The
 		// country profile gets its default in init(), from the company's country.
-		$this->const = array();
+		// Defaults below are written once and never overwrite a saved choice.
+		$this->const = array(
+			array('VEREINE_PARTNER_AUTOCREATE', 'chaine', '0', 'Create a third party when a member is validated', 0, 'current', 0),
+			array('VEREINE_PARTNER_CATEGORIES', 'chaine', '1', 'Keep the member categories of third parties in line with the member status', 0, 'current', 0),
+			array('VEREINE_PARTNER_CATEGORY_PER_TYPE', 'chaine', '0', 'Add a sub-category per member type', 0, 'current', 0),
+			array('VEREINE_PARTNER_TYPENT_NATURAL', 'chaine', 'TE_PRIVATE', 'Customer type for natural persons, set only when empty', 0, 'current', 0),
+			array('VEREINE_PARTNER_TYPENT_LEGAL', 'chaine', '', 'Customer type for legal entities, set only when empty', 0, 'current', 0),
+		);
 
 		$this->tabs = array();
+		$this->tabs[] = array('data' => 'thirdparty:+vereinemembership:VereineTabMembership:vereine@vereine:$user->hasRight("vereine", "association", "read") && $user->hasRight("adherent", "lire"):/vereine/partner_membership.php?socid=__ID__');
 		$this->dictionaries = array();
 		$this->boxes = array();
 		$this->cronjobs = array();
@@ -99,6 +109,11 @@ class modVereine extends DolibarrModules
 		$this->rights[$r][1] = 'Read the association overview and its data (also through the API)';
 		$this->rights[$r][4] = 'association';
 		$this->rights[$r][5] = 'read';
+		$r++;
+		$this->rights[$r][0] = $this->numero.'02';
+		$this->rights[$r][1] = 'Link members and third parties and bring them in line';
+		$this->rights[$r][4] = 'partner';
+		$this->rights[$r][5] = 'write';
 		$r++;
 
 		$this->menu = array();
@@ -118,6 +133,20 @@ class modVereine extends DolibarrModules
 			'target' => '',
 			'user' => 0,
 		);
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
+			'titre' => 'VereineMenuPartners',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_partners',
+			'url' => '/vereine/partners.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->hasRight("vereine", "association", "read") && $user->hasRight("adherent", "lire") && $user->hasRight("societe", "lire")',
+			'target' => '',
+			'user' => 0,
+		);
 	}
 
 	/**
@@ -128,10 +157,17 @@ class modVereine extends DolibarrModules
 	 */
 	public function init($options = '')
 	{
-		global $conf, $mysoc;
+		global $conf, $mysoc, $user, $langs;
 
 		require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 		dol_include_once('/vereine/class/vereineprofile.class.php');
+
+		// Tables are created once and kept when the module is disabled, so an
+		// update or a re-activation never loses the log.
+		$result = $this->_load_tables('/vereine/sql/');
+		if ($result < 0) {
+			return -1;
+		}
 
 		$this->remove($options);
 
@@ -139,6 +175,15 @@ class modVereine extends DolibarrModules
 		$result = $this->_init($sql, $options);
 		if ($result <= 0) {
 			return $result;
+		}
+
+		if (isModEnabled('societe') && isModEnabled('category')) {
+			dol_include_once('/vereine/class/vereinepartnerservice.class.php');
+			$service = new VereinePartnerService($this->db);
+			if ($service->ensureCategories($user, $langs) < 0) {
+				$this->error = $service->error;
+				dol_syslog('modVereine::init '.$service->error, LOG_ERR);
+			}
 		}
 
 		// A first activation picks the profile of the company's country. A later
