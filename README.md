@@ -34,8 +34,11 @@ with a REST API for the association's website.
   what is not linked or not consistent - with a preview before every change.
   *Select all* per section; a click on a row opens a dialog with the steps for
   that row (bring in line, link, edit member or third party).
-- **Tab *Membership*** on the third party card, and guardians of minor members as
-  contacts in the category *Guardian*.
+- **Tab *Membership*** on the third party card and **tab *Association*** on the
+  member card, and guardians of minor members as contacts in the category
+  *Guardian*.
+- Dolibarr's own buttons on the member card (*Create third party*, *Linked third
+  party*) work too: the module brings the third party in line right away.
 
 ## Where it sits in Dolibarr
 
@@ -47,6 +50,7 @@ with a REST API for the association's website.
 | *Members > Association* | Overview with the association's data and the checks |
 | *Members > Association > Members and third parties* | Reconciliation of members and their third parties |
 | Third party card | Tab *Membership*; categories *Member* and *Former member* |
+| Member card | Tab *Association*; *Create third party* and *Linked third party* are followed by the module |
 | Contacts of a member's third party | Category *Guardian* for guardians of minors |
 | *Home > Setup > Modules > Vereine > Members and third parties*, also *Members > Association > Third party settings* | Automatic creation, categories, customer types (administrators) |
 | *Users & Groups > Permissions* | *Read the association overview and its data* (overview, API); *Link members and third parties and bring them in line* (reconciliation changes) |

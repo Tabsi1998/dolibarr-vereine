@@ -31,7 +31,8 @@ legal source, not in code, so a changed threshold is a data update.
 | `class/vereinepartnerservice.class.php` | Links, creates and reconciles members and third parties in Dolibarr |
 | `class/vereinelog.class.php` | The append-only log `llx_vereine_log` |
 | `core/triggers/interface_99_modVereine_VereineTriggers.class.php` | Member events keep the third party in line |
-| `partners.php`, `partner_membership.php`, `admin/partners.php` | Reconciliation, membership tab, partner setup |
+| `partners.php`, `partner_membership.php`, `member_association.php`, `admin/partners.php` | Reconciliation, tab on the third party, tab on the member, partner setup |
+| `class/actions_vereine.class.php` | Hooks on Dolibarr's member card |
 | `js/partners.js` | Select all and the row dialog of the reconciliation page |
 | `sql/` | Tables, created on activation and kept on deactivation |
 | `lib/vereine.lib.php` | Shared page helpers |
@@ -73,6 +74,12 @@ the module updates or deletes a row.
   `MAIN_SUPPORT_SHARED_CONTACT_BETWEEN_THIRDPARTIES`, which it calls unstable.
 - A trigger never makes a member's own action fail. Problems go to the log as
   `partner_error`.
+- Dolibarr's member card links a third party without a trigger
+  (`Societe::create_from_member` and `Adherent::setThirdPartyId` write `fk_soc`
+  with plain SQL). The hook `doActions` notes the link before Dolibarr's action;
+  `addMoreActionsButtons` runs later in the same request with the member loaded
+  again and calls `VereinePartnerService::onMemberCardLink`. Dolibarr's actions
+  are not replaced, and viewing the card changes nothing.
 - The reconciliation page prints the steps of each row as real forms and links
   (with CSRF token) after its main form, because forms cannot nest;
   `js/partners.js` only shows them in a jQuery UI dialog and ticks *select all*.

@@ -120,3 +120,10 @@ raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
   party edit form does not and always ends on the third party card.
 - Page JavaScript goes through `llxHeader(..., array('/vereine/js/...'))`, which
   adds Dolibarr's CSP nonce; an inline `<script>` would not get it.
+- *Create third party* and *Linked third party* on the member card change
+  `fk_soc` without any trigger; the hook in `class/actions_vereine.class.php`
+  follows them (doActions notes, addMoreActionsButtons applies).
+- Dolibarr 24 refuses GET actions without token (HTTP 403): runtime tests follow
+  the links a page offers (`action_link`) instead of building URLs.
+- `Adherent::fetch` reads `fk_soc` in 22 and `fk_soc as socid` in 23 and 24;
+  both fill `$member->fk_soc`.

@@ -7,6 +7,31 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.2.2-beta] - 2026-09-16
+
+The member card and the module work together.
+
+### Fixed
+
+- A third party created with *Create third party* on Dolibarr's member card, or
+  chosen in *Linked third party* there, now gets the member category, customer
+  flag and customer type at once, and the module's log records it. Dolibarr
+  writes that link without a trigger, so until now only the reconciliation page
+  brought such a third party in line. Removing the link takes the member
+  categories away from the third party left without member.
+
+### Added
+
+- Tab *Association* on the member card: the linked third party with its
+  categories, customer flag and customer type, what does not fit the member,
+  open invoices, guardians and the module's log, with *Bring in line with the
+  member*. Without a third party it points to the reconciliation page.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that registers the new tab and the member card hook. Data and settings stay.
+
 ## [0.2.1-beta] - 2026-09-16
 
 The reconciliation page is quicker to work through.
@@ -102,7 +127,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.1-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.2-beta...HEAD
+[0.2.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.2-beta
 [0.2.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.1-beta
 [0.2.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.0-beta
 [0.1.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.1.0-beta
