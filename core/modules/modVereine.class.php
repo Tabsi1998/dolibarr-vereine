@@ -177,13 +177,14 @@ class modVereine extends DolibarrModules
 			return $result;
 		}
 
-		if (isModEnabled('societe') && isModEnabled('category')) {
-			dol_include_once('/vereine/class/vereinepartnerservice.class.php');
-			$service = new VereinePartnerService($this->db);
-			if ($service->ensureCategories($user, $langs) < 0) {
-				$this->error = $service->error;
-				dol_syslog('modVereine::init '.$service->error, LOG_ERR);
-			}
+		// Not gated on isModEnabled(): the Third parties and Categories modules this
+		// module depends on are enabled in the same request, and $conf does not show
+		// them yet. Their tables belong to every Dolibarr installation.
+		dol_include_once('/vereine/class/vereinepartnerservice.class.php');
+		$service = new VereinePartnerService($this->db);
+		if ($service->ensureCategories($user, $langs) < 0) {
+			$this->error = $service->error;
+			dol_syslog('modVereine::init '.$service->error, LOG_ERR);
 		}
 
 		// A first activation picks the profile of the company's country. A later
