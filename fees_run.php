@@ -77,7 +77,7 @@ if (!empty($user->socid) && $user->socid > 0) {
 if (!$user->hasRight('vereine', 'association', 'read') || !$user->hasRight('adherent', 'lire')) {
 	accessforbidden();
 }
-$mayRun = isModEnabled('invoice') || isModEnabled('facture') ? VereineFeeRun::mayRun($user) : false;
+$mayRun = isModEnabled('invoice') && VereineFeeRun::mayRun($user);
 $mayCreatePartners = $user->hasRight('societe', 'creer');
 
 $action = GETPOST('action', 'aZ09');
@@ -150,6 +150,7 @@ print '<span class="opacitymedium">'.$langs->trans('VereineFeeRunIntro').'</span
 
 $dateForm = new Form($db);
 print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'" name="vereinefeerunfilter">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
 print '<label for="dueuntil">'.$langs->trans('VereineFeeRunDueUntil').'</label> ';
 print $dateForm->selectDate(dol_mktime(12, 0, 0, (int) substr($dueUntil, 5, 2), (int) substr($dueUntil, 8, 2), (int) substr($dueUntil, 0, 4)), 'dueuntil', 0, 0, 0, 'vereinefeerunfilter', 1, 0);
 print ' '.Form::selectarray('typeid', $typeOptions, $typeId, 0, 0, 0, '', 0, 0, 0, '', 'minwidth200');
