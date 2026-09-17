@@ -85,6 +85,39 @@ if (!VereineFunctionRules::isDate($day)) {
 }
 
 $store = new VereineFunctions($db);
+$canWrite = $user->hasRight('adherent', 'creer');
+$action = GETPOST('action', 'aZ09');
+
+
+/*
+ * Actions
+ */
+
+if ($action === 'reportpdf' && $canWrite) {
+	$file = $store->buildReportPdf($day, $langs);
+	if ($file === '') {
+		setEventMessages($store->error, null, 'errors');
+	} else {
+		VereineLog::add($db, $user, VereineLog::FUNCTION_REPORT_PDF, 0, 0, basename($file));
+		header('Content-Type: application/pdf');
+		header('Content-Disposition: attachment; filename="'.basename($file).'"');
+		header('Content-Length: '.filesize($file));
+		readfile($file);
+		exit;
+	}
+} elseif ($action === 'markreported' && $canWrite) {
+	$result = $store->markReported(GETPOST('reported_on', 'alpha'), $user);
+	if ($result < 0) {
+		setEventMessages($store->error, null, 'errors');
+	} elseif ($result === 0 && $store->errors) {
+		setEventMessages(null, array_map(array($langs, 'trans'), $store->errors), 'errors');
+	} else {
+		setEventMessages($langs->trans('VereineReportMarked', $result), null, 'mesgs');
+	}
+	header('Location: '.$_SERVER['PHP_SELF'].'?day='.urlencode($day).'#vereinereport');
+	exit;
+}
+
 $functions = $store->fetchAll(true);
 $terms = $store->terms();
 $check = VereineFunctionRules::check($functions, $terms, $day);
@@ -155,7 +188,55 @@ foreach ($functions as $function) {
 	print $links ? implode(', ', $links) : '<span class="opacitymedium">'.$langs->trans('VereineFunctionsVacant').'</span>';
 	print '</td></tr>';
 }
+print '</table></div><br>';
+
+// Report to the association authority: new representatives within four weeks, with what the report needs.
+print load_fiche_titre($langs->trans('VereineReportTitle'), '', '', 0, 'vereinereport');
+print '<div class="info" data-report-howto="1">'.$langs->trans('VereineReportHowTo').'</div>';
+$open = $store->reports(true);
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+print '<tr class="liste_titre"><td>'.$langs->trans('VereineFunctionLabel').'</td><td>'.$langs->trans('Member').'</td><td>'.$langs->trans('DateStart').'</td>';
+print '<td>'.$langs->trans('VereineReportDeadline').'</td></tr>';
+if (!$open) {
+	print '<tr class="oddeven"><td colspan="4"><span class="opacitymedium">'.$langs->trans('VereineReportNoneOpen').'</span></td></tr>';
+}
+foreach ($open as $report) {
+	$overdue = $report['deadline'] < $today;
+	print '<tr class="oddeven" data-report="'.((int) $report['term_id']).'" data-deadline="'.dol_escape_htmltag($report['deadline']).'" data-overdue="'.($overdue ? 1 : 0).'">';
+	print '<td>'.dol_escape_htmltag($report['function']).'</td><td>'.dol_escape_htmltag($report['member_name']).'</td>';
+	print '<td class="nowraponall">'.vereineFormatDay($report['start']).'</td><td class="nowraponall">'.vereineFormatDay($report['deadline']);
+	if ($overdue) {
+		print ' '.dolGetBadge($langs->trans('VereineReportOverdue'), '', 'danger');
+	}
+	print '</td></tr>';
+}
 print '</table></div>';
+foreach ($store->representatives($day) as $person) {
+	if ($person['missing']) {
+		$missing = array();
+		foreach ($person['missing'] as $key) {
+			$missing[] = $langs->trans('VereineReportMissing_'.$key);
+		}
+		print '<div class="warning" data-missing="'.((int) $person['member_id']).'">';
+		print $langs->trans('VereineReportMissingData', '<a href="'.DOL_URL_ROOT.'/adherents/card.php?rowid='.((int) $person['member_id']).'">'.dol_escape_htmltag($person['name']).'</a>', implode(', ', $missing));
+		print '</div>';
+	}
+}
+if ($canWrite) {
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?day='.urlencode($day).'" name="vereinereportpdf" class="inline-block">';
+	print '<input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="action" value="reportpdf">';
+	print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineReportPdf')).'">';
+	print '</form> ';
+	if ($open) {
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?day='.urlencode($day).'" name="vereinemarkreported" class="inline-block">';
+		print '<input type="hidden" name="token" value="'.newToken().'">';
+		print '<input type="hidden" name="action" value="markreported">';
+		print '<label for="reported_on">'.$langs->trans('VereineReportReportedOn').'</label> <input type="date" id="reported_on" name="reported_on" value="'.$today.'"> ';
+		print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineReportMark')).'">';
+		print '</form>';
+	}
+}
 
 llxFooter();
 $db->close();

@@ -29,6 +29,9 @@ require_once __DIR__.'/vereinelog.class.php';
  */
 class VereineFunctions
 {
+	/** Member field: place of birth, needed to report a representative. */
+	const FIELD_BIRTH_PLACE = 'vereine_birth_place';
+
 	/**
 	 * @var DoliDB Database handler
 	 */
@@ -238,7 +241,299 @@ class VereineFunctions
 		}
 		$id = (int) $this->db->last_insert_id(MAIN_DB_PREFIX.'vereine_function_term');
 		VereineLog::add($this->db, $user, VereineLog::FUNCTION_START, (int) $member->id, 0, $function['code'].' / '.$start.($end !== '' ? ' - '.$end : ''));
+		if ($function['represents'] && $this->createReport($id, $member, $function, $start, $user) < 0) {
+			return -1;
+		}
 		return $id;
+	}
+
+	/**
+	 * Register the member field for the place of birth, which a report to the association authority needs.
+	 *
+	 * @return int 1 if OK, <0 on error
+	 */
+	public function ensureFields()
+	{
+		require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
+		$extrafields = new ExtraFields($this->db);
+		$result = $extrafields->addExtraField(self::FIELD_BIRTH_PLACE, 'VereineReportBirthPlace', 'varchar', 1230, '64', 'adherent', 0, 0, '', '', 1, '', '1',
+			'VereineReportBirthPlaceHelp', '', '', 'vereine@vereine', 'isModEnabled("vereine")');
+		if ($result <= 0) {
+			$this->error = 'Extra field '.self::FIELD_BIRTH_PLACE.': '.$extrafields->error;
+			return -1;
+		}
+		return 1;
+	}
+
+	/**
+	 * Reports to the association authority, the deadline first.
+	 *
+	 * @param bool $openOnly Only those not reported yet
+	 * @return array<int,array{id:int,term_id:int,function:string,member_id:int,member_name:string,start:string,deadline:string,reported_on:string,actioncomm_id:int}>
+	 */
+	public function reports($openOnly = true)
+	{
+		global $conf;
+
+		$sql = "SELECT r.rowid, r.fk_term, r.deadline, r.reported_on, r.fk_actioncomm, t.fk_adherent, t.date_start, f.label, d.firstname, d.lastname, d.societe, d.morphy";
+		$sql .= " FROM ".MAIN_DB_PREFIX."vereine_function_report as r";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."vereine_function_term as t ON t.rowid = r.fk_term";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."vereine_function as f ON f.rowid = t.fk_function";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."adherent as d ON d.rowid = t.fk_adherent";
+		$sql .= " WHERE r.entity = ".((int) $conf->entity).($openOnly ? " AND r.reported_on IS NULL" : "")." ORDER BY r.deadline, r.rowid";
+		// The table exists only after the module was enabled with 0.4.1.
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return array();
+		}
+		$reports = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$reports[] = array('id' => (int) $obj->rowid, 'term_id' => (int) $obj->fk_term, 'function' => (string) $obj->label, 'member_id' => (int) $obj->fk_adherent,
+				'member_name' => $obj->morphy === 'mor' && (string) $obj->societe !== '' ? (string) $obj->societe : trim($obj->firstname.' '.$obj->lastname),
+				'start' => substr((string) $obj->date_start, 0, 10), 'deadline' => substr((string) $obj->deadline, 0, 10),
+				'reported_on' => $obj->reported_on ? substr((string) $obj->reported_on, 0, 10) : '', 'actioncomm_id' => (int) $obj->fk_actioncomm);
+		}
+		$this->db->free($resql);
+		return $reports;
+	}
+
+	/**
+	 * The representatives of the association on a day, with what a report needs.
+	 *
+	 * @param string $day Day
+	 * @return array<int,array<string,mixed>> Keys function, start, member_id, name, birth, birth_place, address, zip, town, country, reported, missing
+	 */
+	public function representatives($day)
+	{
+		$represents = array();
+		foreach ($this->fetchAll(true) as $function) {
+			if ($function['represents']) {
+				$represents[$function['id']] = $function;
+			}
+		}
+		$reported = array();
+		foreach ($this->reports(false) as $report) {
+			$reported[$report['term_id']] = $report['reported_on'] !== '';
+		}
+		$terms = array();
+		foreach (array_reverse($this->terms()) as $term) {
+			if (isset($represents[$term['function_id']]) && VereineFunctionRules::isActive($term, $day)) {
+				$terms[] = $term;
+			}
+		}
+		$people = $this->people(array_column($terms, 'member_id'));
+		$result = array();
+		foreach ($terms as $term) {
+			$person = isset($people[$term['member_id']]) ? $people[$term['member_id']] : array();
+			$result[] = array(
+				'function' => $represents[$term['function_id']]['label'],
+				'position' => $represents[$term['function_id']]['position'],
+				'start' => $term['start'],
+				'member_id' => $term['member_id'],
+				'name' => $term['member_name'],
+				'reported' => isset($reported[$term['id']]) ? $reported[$term['id']] : true,
+				'missing' => VereineFunctionRules::missingForReport($person),
+			) + $person + array('birth' => '', 'birth_place' => '', 'address' => '', 'zip' => '', 'town' => '', 'country' => '');
+		}
+		usort($result, function ($left, $right) {
+			return ($left['position'] - $right['position']) ?: strcmp($left['start'], $right['start']);
+		});
+		return $result;
+	}
+
+	/**
+	 * Note the open reports as reported on a day and close their agenda events.
+	 *
+	 * @param string $day  Day of the report
+	 * @param User   $user User
+	 * @return int Number of reports noted, <0 on error
+	 */
+	public function markReported($day, $user)
+	{
+		global $conf;
+
+		if (!VereineFunctionRules::isDate($day)) {
+			$this->errors = array('VereineReportErrorDay');
+			return 0;
+		}
+		$open = $this->reports(true);
+		foreach ($open as $report) {
+			$sql = "UPDATE ".MAIN_DB_PREFIX."vereine_function_report SET reported_on = '".$this->db->escape($day)."', fk_user_modif = ".((int) $user->id);
+			$sql .= " WHERE rowid = ".((int) $report['id'])." AND entity = ".((int) $conf->entity);
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
+				return -1;
+			}
+			if ($report['actioncomm_id'] > 0 && isModEnabled('agenda')) {
+				require_once DOL_DOCUMENT_ROOT.'/comm/action/class/actioncomm.class.php';
+				$event = new ActionComm($this->db);
+				if ($event->fetch($report['actioncomm_id']) > 0) {
+					$event->percentage = 100;
+					$event->update($user);
+				}
+			}
+			VereineLog::add($this->db, $user, VereineLog::FUNCTION_REPORTED, $report['member_id'], 0, $report['function'].' / '.$day);
+		}
+		return count($open);
+	}
+
+	/**
+	 * Write the report of the representatives to the association authority as PDF.
+	 *
+	 * @param string    $day          Day the representatives are listed for
+	 * @param Translate $outputlangs  Language of the letter
+	 * @return string Path of the PDF, empty on error
+	 */
+	public function buildReportPdf($day, $outputlangs)
+	{
+		global $conf, $mysoc;
+
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/pdf.lib.php';
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+
+		$dir = DOL_DATA_ROOT.($conf->entity > 1 ? '/'.((int) $conf->entity) : '').'/vereine/authority';
+		if (dol_mkdir($dir) < 0) {
+			$this->error = 'cannot create '.$dir;
+			return '';
+		}
+		$moment = dol_mktime(12, 0, 0, (int) substr($day, 5, 2), (int) substr($day, 8, 2), (int) substr($day, 0, 4));
+		$pdf = pdf_getInstance();
+		$font = pdf_getPDFFont($outputlangs);
+		$pdf->setPrintHeader(false);
+		$pdf->setPrintFooter(false);
+		$pdf->SetMargins(20, 20, 20);
+		$pdf->SetAutoPageBreak(true, 20);
+		$pdf->AddPage();
+		$line = function ($text, $style = '', $size = 10) use ($pdf, $font) {
+			$pdf->SetFont($font, $style, $size);
+			$pdf->MultiCell(0, 5, $text, 0, 'L');
+		};
+
+		$line(trim($mysoc->name), 'B', 11);
+		$line(trim($mysoc->address."\n".$mysoc->zip.' '.$mysoc->town));
+		if (getDolGlobalString('VEREINE_REGISTER_NUMBER') !== '') {
+			$line($outputlangs->transnoentities('VereineReportRegister', getDolGlobalString('VEREINE_REGISTER_NUMBER')));
+		}
+		$pdf->Ln(8);
+		$line($outputlangs->transnoentities('VereineReportTo'));
+		$line(getDolGlobalString('VEREINE_AUTHORITY') !== '' ? getDolGlobalString('VEREINE_AUTHORITY') : $outputlangs->transnoentities('VereineReportAuthority'));
+		$pdf->Ln(8);
+		$line(trim($mysoc->town.', '.dol_print_date(dol_now(), 'day', 'tzserver', $outputlangs), ', '));
+		$pdf->Ln(4);
+		$line($outputlangs->transnoentities('VereineReportSubject'), 'B', 11);
+		$pdf->Ln(2);
+		$line($outputlangs->transnoentities('VereineReportIntro', dol_print_date($moment, 'day', 'tzserver', $outputlangs)));
+		$pdf->Ln(2);
+
+		$blank = '______________________';
+		foreach ($this->representatives($day) as $person) {
+			$address = trim($person['address']) !== '' ? trim(str_replace("\n", ', ', $person['address']).', '.$person['zip'].' '.$person['town'].($person['country'] !== '' ? ', '.$person['country'] : '')) : $blank;
+			$line($person['function'].($person['reported'] ? '' : ' - '.$outputlangs->transnoentities('VereineReportNew')), 'B');
+			$line($outputlangs->transnoentities('VereineReportName').': '.$person['name']);
+			$line($outputlangs->transnoentities('VereineReportBirth').': '.(VereineFunctionRules::isDate($person['birth'])
+				? dol_print_date(dol_mktime(12, 0, 0, (int) substr($person['birth'], 5, 2), (int) substr($person['birth'], 8, 2), (int) substr($person['birth'], 0, 4)), 'day', 'tzserver', $outputlangs) : $blank));
+			$line($outputlangs->transnoentities('VereineReportBirthPlace').': '.($person['birth_place'] !== '' ? $person['birth_place'] : $blank));
+			$line($outputlangs->transnoentities('VereineReportAddress').': '.$address);
+			$line($outputlangs->transnoentities('VereineReportStart').': '.dol_print_date(dol_mktime(12, 0, 0, (int) substr($person['start'], 5, 2), (int) substr($person['start'], 8, 2), (int) substr($person['start'], 0, 4)), 'day', 'tzserver', $outputlangs));
+			$pdf->Ln(3);
+		}
+		$pdf->Ln(10);
+		$line($outputlangs->transnoentities('VereineReportSignature'));
+		$pdf->Ln(12);
+		$line('______________________________          ______________________________');
+
+		$file = $dir.'/meldung-vertreter-'.dol_print_date(dol_now(), '%Y%m%d-%H%M%S', 'tzserver').'.pdf';
+		$pdf->Output($file, 'F');
+		if (!is_file($file)) {
+			$this->error = 'the PDF was not written';
+			return '';
+		}
+		dolChmod($file);
+		return $file;
+	}
+
+	/**
+	 * A report and, with Dolibarr's agenda, an event on its deadline for a new representative.
+	 *
+	 * @param int                 $termId   Term
+	 * @param Adherent            $member   Member
+	 * @param array<string,mixed> $function Function
+	 * @param string              $start    First day of the term
+	 * @param User                $user     User
+	 * @return int 1 if OK, <0 on error
+	 */
+	private function createReport($termId, $member, array $function, $start, $user)
+	{
+		global $conf, $langs;
+
+		$deadline = VereineFunctionRules::reportDeadline($start);
+		$eventId = 0;
+		if (isModEnabled('agenda')) {
+			require_once DOL_DOCUMENT_ROOT.'/comm/action/class/actioncomm.class.php';
+			$event = new ActionComm($this->db);
+			$event->type_code = 'AC_OTH';
+			$event->label = $langs->transnoentities('VereineReportAgendaLabel', $function['label'], $member->getFullName($langs));
+			$event->note_private = $langs->transnoentities('VereineReportAgendaNote');
+			$event->datep = dol_mktime(0, 0, 0, (int) substr($deadline, 5, 2), (int) substr($deadline, 8, 2), (int) substr($deadline, 0, 4));
+			$event->datef = $event->datep;
+			$event->fulldayevent = 1;
+			$event->percentage = 0;
+			$event->userownerid = (int) $user->id;
+			$event->elementtype = 'member';
+			$event->fk_element = (int) $member->id;
+			$eventId = (int) $event->create($user);
+			if ($eventId <= 0) {
+				dol_syslog(__METHOD__.' agenda event: '.$event->error, LOG_WARNING);
+				$eventId = 0;
+			}
+		}
+		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_function_report (entity, fk_term, deadline, fk_actioncomm, datec, fk_user_modif)";
+		$sql .= " VALUES (".((int) $conf->entity).", ".((int) $termId).", '".$this->db->escape($deadline)."', ".($eventId > 0 ? $eventId : "NULL").",";
+		$sql .= " '".$this->db->idate(dol_now())."', ".((int) $user->id).")";
+		if (!$this->db->query($sql)) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		return 1;
+	}
+
+	/**
+	 * What reports need about members: birth date, place of birth, address.
+	 *
+	 * @param int[] $memberIds Members
+	 * @return array<int,array{birth:string,birth_place:string,address:string,zip:string,town:string,country:string}>
+	 */
+	private function people(array $memberIds)
+	{
+		$ids = array_values(array_unique(array_filter(array_map('intval', $memberIds))));
+		if (!$ids) {
+			return array();
+		}
+		// e.* instead of the field name: the column exists only after the module was enabled with 0.4.1.
+		$sql = "SELECT d.rowid as member_id, d.birth, d.address, d.zip, d.town, c.label as country_label, e.*";
+		$sql .= " FROM ".MAIN_DB_PREFIX."adherent as d";
+		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."c_country as c ON c.rowid = d.country";
+		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."adherent_extrafields as e ON e.fk_object = d.rowid";
+		$sql .= " WHERE d.rowid IN (".implode(', ', $ids).")";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return array();
+		}
+		$people = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$people[(int) $obj->member_id] = array(
+				'birth' => $obj->birth ? substr((string) $obj->birth, 0, 10) : '',
+				'birth_place' => isset($obj->{self::FIELD_BIRTH_PLACE}) ? trim((string) $obj->{self::FIELD_BIRTH_PLACE}) : '',
+				'address' => (string) $obj->address,
+				'zip' => (string) $obj->zip,
+				'town' => (string) $obj->town,
+				'country' => (string) $obj->country_label,
+			);
+		}
+		$this->db->free($resql);
+		return $people;
 	}
 
 	/**

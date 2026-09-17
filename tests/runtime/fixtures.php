@@ -887,6 +887,38 @@ if ($stage === 'sepamembers') {
 	exit(0);
 }
 
+// Dolibarr's agenda, so a new representative gets an event on the report deadline.
+if ($stage === 'agenda') {
+	$result = activateModule('modAgenda');
+	if (!empty($result['errors'])) {
+		rt_fail('activating modAgenda failed: '.implode(' | ', (array) $result['errors']));
+	}
+	print json_encode(array('agenda' => 1))."\n";
+	exit(0);
+}
+
+// Birth date, place of birth and address of representatives (RT_MEMBERS, comma separated), as a report needs them.
+if ($stage === 'reportpeople') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	foreach (array_filter(array_map('intval', explode(',', rt_env('RT_MEMBERS')))) as $index => $memberId) {
+		$member = new Adherent($db);
+		if ($member->fetch($memberId) <= 0) {
+			rt_fail('member '.$memberId.': '.$member->error);
+		}
+		$member->birth = dol_mktime(12, 0, 0, 5, 5 + $index, 1980);
+		$member->address = 'Musterweg '.($index + 1);
+		$member->zip = '6020';
+		$member->town = 'Innsbruck';
+		$member->country_id = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+		$member->array_options['options_vereine_birth_place'] = 'Hall in Tirol';
+		if ($member->update($admin) < 0) {
+			rt_fail('update member '.$memberId.': '.$member->error.' '.implode(' | ', (array) $member->errors));
+		}
+	}
+	print json_encode(array('done' => 1))."\n";
+	exit(0);
+}
+
 // A user for the website's membership form: may read the association and send applications, nothing else.
 if ($stage === 'applicationuser') {
 	$form = new User($db);
@@ -1031,11 +1063,11 @@ if ($stage === 'reset') {
 		$extrafields = new ExtraFields($db);
 		$extrafields->delete($name, 'adherent_type');
 	}
-	foreach (array('vereine_fee_exempt', 'vereine_fee_exempt_reason', 'vereine_fee_proof', 'vereine_fee_proof_until', 'vereine_fee_payer') as $name) {
+	foreach (array('vereine_fee_exempt', 'vereine_fee_exempt_reason', 'vereine_fee_proof', 'vereine_fee_proof_until', 'vereine_fee_payer', 'vereine_birth_place') as $name) {
 		$extrafields = new ExtraFields($db);
 		$extrafields->delete($name, 'adherent');
 	}
-	foreach (array('vereine_log', 'vereine_taxprofile', 'vereine_fee_discount', 'vereine_member_exit', 'vereine_consent_text', 'vereine_consent', 'vereine_application', 'vereine_function', 'vereine_function_term') as $table) {
+	foreach (array('vereine_log', 'vereine_taxprofile', 'vereine_fee_discount', 'vereine_member_exit', 'vereine_consent_text', 'vereine_consent', 'vereine_application', 'vereine_function', 'vereine_function_term', 'vereine_function_report') as $table) {
 		if (!$db->query("DROP TABLE IF EXISTS ".MAIN_DB_PREFIX.$table)) {
 			rt_fail('drop table '.$table.': '.$db->lasterror());
 		}
@@ -1044,4 +1076,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, resiliate, guardian or reset');

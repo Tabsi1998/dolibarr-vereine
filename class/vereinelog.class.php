@@ -50,6 +50,8 @@ class VereineLog
 	const APPLICATION_RECEIVED = 'application_received';
 	const FUNCTION_START = 'function_start';
 	const FUNCTION_END = 'function_end';
+	const FUNCTION_REPORTED = 'function_reported';
+	const FUNCTION_REPORT_PDF = 'function_report_pdf';
 
 	/**
 	 * Append one entry.

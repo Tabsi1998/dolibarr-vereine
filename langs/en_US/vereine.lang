@@ -696,3 +696,38 @@ VereineFunctionNoteHelp=Note, for example elected at the assembly of ...
 VereineFunctionTermSaved=Term saved.
 VereineLog_function_start=Function taken over
 VereineLog_function_end=Function ended
+VereineLog_function_reported=Function reported to the association authority
+VereineLog_function_report_pdf=Report letter to the association authority built
+
+#
+# Report to the association authority
+#
+VereineReportTitle=Report to the association authority
+VereineReportHowTo=Whoever takes over a function that represents the association must be reported to the association authority within four weeks: function, name, birth date, place of birth, address for service and start (§ 14 (2) VerG). The report letter lists all representatives on the day, new ones marked. After sending it, "note as reported". With Dolibarr's agenda the deadline shows there too.
+VereineReportDeadline=Deadline
+VereineReportOverdue=overdue
+VereineReportNoneOpen=No open report.
+VereineReportMissingData=%s: the report lacks %s. Complete it on the member.
+VereineReportMissing_birth=birth date
+VereineReportMissing_birth_place=place of birth
+VereineReportMissing_address=address for service
+VereineReportPdf=Report letter (PDF)
+VereineReportReportedOn=Reported on
+VereineReportMark=Note as reported
+VereineReportMarked=%s reports noted as reported.
+VereineReportErrorDay=Please enter the day of the report.
+VereineReportBirthPlace=Place of birth
+VereineReportBirthPlaceHelp=For the report to the association authority when the member represents the association.
+VereineReportAgendaLabel=Report to the association authority: %s %s
+VereineReportAgendaNote=Report the new representative to the association authority within four weeks (§ 14 (2) VerG). The report letter is under Members > Board and functions.
+VereineReportRegister=ZVR number: %s
+VereineReportTo=To the
+VereineReportAuthority=association authority
+VereineReportSubject=Notification of the representatives according to § 14 (2) VerG
+VereineReportIntro=The association notifies its representatives as of %s:
+VereineReportNew=newly appointed
+VereineReportName=Name
+VereineReportBirth=Birth date
+VereineReportAddress=Address for service
+VereineReportStart=Start of the power of representation
+VereineReportSignature=For the association

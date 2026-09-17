@@ -7,6 +7,28 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.4.1-beta] - 2026-09-17
+
+Officers, part 2 (issue #77): report to the association authority within four
+weeks.
+
+### Added
+
+- A new term of a function that represents the association gets a report
+  deadline of four weeks (§ 14 (2) VerG) and, with Dolibarr's agenda, an event on
+  that day linked to the member.
+- *Members > Board and functions*, section *Report to the association
+  authority*: open reports with deadline and overdue mark, missing birth date,
+  place of birth or address per representative, the report letter as PDF with
+  every representative on the day (new ones marked) and *Note as reported*,
+  which also completes the agenda events.
+- Member field *Place of birth*, which the report needs.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that creates the report table and the member field.
+
 ## [0.4.0-beta] - 2026-09-17
 
 Officers, part 1 (issue #76): function catalogue and terms of office.
@@ -612,7 +634,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.4.0-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.4.1-beta...HEAD
+[0.4.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.1-beta
 [0.4.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.0-beta
 [0.3.11-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.11-beta
 [0.3.10-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.10-beta
