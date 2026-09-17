@@ -1035,7 +1035,7 @@ if ($stage === 'reset') {
 		$extrafields = new ExtraFields($db);
 		$extrafields->delete($name, 'adherent');
 	}
-	foreach (array('vereine_log', 'vereine_taxprofile', 'vereine_fee_discount', 'vereine_member_exit', 'vereine_consent_text', 'vereine_consent', 'vereine_application') as $table) {
+	foreach (array('vereine_log', 'vereine_taxprofile', 'vereine_fee_discount', 'vereine_member_exit', 'vereine_consent_text', 'vereine_consent', 'vereine_application', 'vereine_function', 'vereine_function_term') as $table) {
 		if (!$db->query("DROP TABLE IF EXISTS ".MAIN_DB_PREFIX.$table)) {
 			rt_fail('drop table '.$table.': '.$db->lasterror());
 		}

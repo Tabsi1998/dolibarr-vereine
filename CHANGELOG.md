@@ -7,6 +7,27 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.4.0-beta] - 2026-09-17
+
+Officers, part 1 (issue #76): function catalogue and terms of office.
+
+### Added
+
+- Setup tab *Functions*: the usual functions of Austrian associations are
+  suggested - chair, treasurer, secretary with their deputies, auditors - each
+  with board, represents the association, auditor and how many are needed. The
+  association changes them, switches them off and adds its own.
+- The member's tab *Association*, section *Functions*: take over a function from
+  a day, end it; ended terms stay.
+- *Members > Board and functions*: who holds which function on a day, and what
+  does not fit - a function not held or held too often, a board of fewer than
+  two persons, an auditor on the board (§ 5 VerG).
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that creates the function tables, the suggested functions and the menu entry.
+
 ## [0.3.11-beta] - 2026-09-17
 
 Membership fees, part 6 (issue #65): consents with text version and membership
@@ -591,7 +612,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.11-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.4.0-beta...HEAD
+[0.4.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.0-beta
 [0.3.11-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.11-beta
 [0.3.10-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.10-beta
 [0.3.9-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.9-beta

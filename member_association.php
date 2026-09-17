@@ -68,6 +68,7 @@ require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
 require_once __DIR__.'/class/vereinepartnerservice.class.php';
 require_once __DIR__.'/class/vereineexits.class.php';
 require_once __DIR__.'/class/vereineconsents.class.php';
+require_once __DIR__.'/class/vereinefunctions.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('companies', 'members', 'bills', 'categories', 'vereine@vereine'));
@@ -133,6 +134,28 @@ if ($action === 'planexit' && $canExit) {
 		setEventMessages(null, array_map(array($langs, 'trans'), $exits->errors), 'errors');
 	}
 	header('Location: '.$exitBack);
+	exit;
+}
+$functionStore = new VereineFunctions($db);
+if (($action === 'addfunction' || $action === 'endfunction') && $canExit) {
+	if ($action === 'addfunction') {
+		$result = $functionStore->addTerm($object, GETPOSTINT('function_id'), GETPOST('function_start', 'alpha'), GETPOST('function_end', 'alpha'), GETPOST('function_note', 'alphanohtml'), $user);
+	} else {
+		$result = 0;
+		foreach ($functionStore->terms((int) $object->id) as $term) {
+			if ($term['id'] === GETPOSTINT('term_id')) {
+				$result = $functionStore->endTerm($term['id'], GETPOST('function_end', 'alpha'), $user);
+			}
+		}
+	}
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineFunctionTermSaved'), null, 'mesgs');
+	} elseif ($result < 0) {
+		setEventMessages($functionStore->error, null, 'errors');
+	} else {
+		setEventMessages(null, array_map(array($langs, 'trans'), $functionStore->errors ?: array('VereineFunctionErrorTerm')), 'errors');
+	}
+	header('Location: '.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereinefunctions');
 	exit;
 }
 $consents = new VereineConsents($db);
@@ -293,6 +316,57 @@ foreach ($exits->fetchAll(array((int) $object->id)) as $past) {
 	if ($past['status'] !== VereineExits::STATUS_PLANNED) {
 		print '<div class="opacitymedium small" data-exit="'.dol_escape_htmltag($past['status']).'">'.$langs->trans('VereineExitPast_'.$past['status'], $langs->trans('VereineExitReason_'.$past['reason']), vereineFormatDay($past['last_day'])).'</div>';
 	}
+}
+print '<br>';
+
+// Functions: terms of office of the member, running and ended.
+print load_fiche_titre($langs->trans('VereineFunctionsMemberTitle'), '', '', 0, 'vereinefunctions');
+$catalogue = array();
+foreach ($functionStore->fetchAll() as $function) {
+	$catalogue[$function['id']] = $function;
+}
+$memberTerms = $functionStore->terms((int) $object->id);
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+print '<tr class="liste_titre"><td>'.$langs->trans('VereineFunctionLabel').'</td><td>'.$langs->trans('DateStart').'</td><td>'.$langs->trans('DateEnd').'</td>';
+print '<td>'.$langs->trans('VereineExitNote').'</td><td></td></tr>';
+if (!$memberTerms) {
+	print '<tr class="oddeven"><td colspan="5"><span class="opacitymedium">'.$langs->trans('VereineFunctionsMemberNone').'</span></td></tr>';
+}
+foreach ($memberTerms as $term) {
+	$function = isset($catalogue[$term['function_id']]) ? $catalogue[$term['function_id']] : array('code' => '', 'label' => '#'.$term['function_id']);
+	$running = VereineFunctionRules::isActive($term, $today);
+	print '<tr class="oddeven" data-term="'.dol_escape_htmltag($function['code']).'" data-running="'.($running ? 1 : 0).'" data-end="'.dol_escape_htmltag($term['end']).'">';
+	print '<td>'.dol_escape_htmltag($function['label']).'</td><td class="nowraponall">'.vereineFormatDay($term['start']).'</td>';
+	print '<td class="nowraponall">'.($term['end'] !== '' ? vereineFormatDay($term['end']) : '<span class="opacitymedium">'.$langs->trans('VereineFunctionOpen').'</span>').'</td>';
+	print '<td class="small">'.dol_escape_htmltag($term['note']).'</td><td class="right nowraponall">';
+	if ($canExit && $term['end'] === '') {
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'" name="vereineendfunction" class="inline-block">';
+		print '<input type="hidden" name="token" value="'.newToken().'">';
+		print '<input type="hidden" name="action" value="endfunction">';
+		print '<input type="hidden" name="term_id" value="'.((int) $term['id']).'">';
+		print '<input type="date" name="function_end" value="'.dol_escape_htmltag(max($today, $term['start'])).'"> ';
+		print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineFunctionEnd')).'">';
+		print '</form>';
+	}
+	print '</td></tr>';
+}
+print '</table></div>';
+if ($canExit && (int) $object->statut === 1) {
+	$options = array();
+	foreach ($catalogue as $function) {
+		if ($function['active']) {
+			$options[$function['id']] = $function['label'];
+		}
+	}
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'" name="vereineaddfunction">';
+	print '<input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="action" value="addfunction">';
+	print Form::selectarray('function_id', $options, 0, 1, 0, 0, '', 0, 0, 0, '', 'minwidth200');
+	print ' <label for="function_start">'.$langs->trans('DateStart').'</label> <input type="date" id="function_start" name="function_start" value="'.$today.'">';
+	print ' <label for="function_end">'.$langs->trans('DateEnd').'</label> <input type="date" id="function_end" name="function_end" value="">';
+	print ' <input type="text" name="function_note" class="minwidth200" maxlength="255" placeholder="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineFunctionNoteHelp')).'">';
+	print ' <input type="submit" class="button small" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineFunctionAdd')).'">';
+	print '</form>';
 }
 print '<br>';
 

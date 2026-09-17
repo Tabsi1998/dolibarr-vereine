@@ -325,6 +325,7 @@ def enable(stack: Stack) -> str:
                       ["49210004", "application", "write"]], f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_feerun", "/vereine/fees_run.php"],
+                    ["members", "vereine_functions", "/vereine/functions.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"]],
            f"menu entries after enabling: {menu}")
     expect(stack.sql("SHOW TABLES LIKE 'llx_vereine_log'") == [["llx_vereine_log"]], "the log table was not created")
@@ -339,7 +340,7 @@ def enable(stack: Stack) -> str:
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
     return (f"module {stack.module_version} on with Members, third parties and categories; profile AT; "
-            "4 rights, 4 menu entries, log table, 3 categories")
+            "4 rights, 5 menu entries, log table, 3 categories")
 
 
 def pages(stack: Stack) -> str:
@@ -1814,6 +1815,78 @@ def applications(stack: Stack) -> str:
             "outdated version, bad e-mail and missing name refused with 400; withdrawal recorded and shown")
 
 
+def functions(stack: Stack) -> str:
+    """Functions of the association: catalogue, terms of office on the member, and what does not fit on a day."""
+    site = stack.notes["website"]
+    today = site["dates"]["today"]
+    tomorrow = (datetime.date.fromisoformat(today) + datetime.timedelta(days=1)).isoformat()
+    browser = stack.browser()
+
+    setup = page_ok(browser.get("/custom/vereine/admin/functions.php"), "function setup")
+    codes = re.findall(r'data-function="([a-z_]+)" data-active="1"', setup.text)
+    expect(codes == ["obmann", "obmann_stv", "kassier", "kassier_stv", "schriftfuehrung", "schriftfuehrung_stv", "rechnungspruefung"],
+           f"suggested functions after enabling: {codes}")
+    fields = {"code": "jugendleitung", "label": "Jugendleitung", "min": "0", "max": "1", "position": "80", "active": "1"}
+    for change, message in (({"code": "obmann"}, "Diese Kennung gibt es schon"), ({"min": "3", "max": "2"}, "nicht größer als")):
+        refused = page_ok(browser.submit(page_ok(browser.get("/custom/vereine/admin/functions.php"), "function setup").form(name="vereinefunction"), {**fields, **change}),
+                          f"function with {change}")
+        expect(message in html.unescape(refused.text), f"a function with {change} was not refused with an explanation")
+    page_ok(browser.submit(page_ok(browser.get("/custom/vereine/admin/functions.php"), "function setup").form(name="vereinefunction"), fields), "store Jugendleitung")
+    ids = dict(stack.sql("SELECT code, rowid FROM llx_vereine_function WHERE entity = 1"))
+    expect(len(ids) == 8 and "jugendleitung" in ids, f"functions stored: {sorted(ids)}")
+
+    def overview(day: str) -> tuple[dict, list]:
+        page = page_ok(browser.get(f"/custom/vereine/functions.php?day={day}"), f"board and functions on {day}")
+        holders = {code: int(count) for code, count in re.findall(r'data-function-row="([a-z_]+)" data-holders="(\d+)"', page.text)}
+        problems = re.findall(r'data-problem="([a-z_]+)" data-function="([a-z_]*)"', page.text)
+        return holders, sorted(problems)
+
+    holders, problems = overview(today)
+    expect(("missing", "obmann") in problems and ("missing", "kassier") in problems and ("missing", "rechnungspruefung") in problems,
+           f"problems without terms: {problems}")
+
+    members = {**site["members"], **{name: int(stack.value(f"SELECT rowid FROM llx_adherent WHERE firstname = '{first}' AND lastname = '{last}'"))
+                                     for name, first, last in (("karl", "Karl", "Austritt"), ("petra", "Petra", "Familie"))}}
+
+    def add(person: str, code: str) -> None:
+        tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={members[person]}"), f"association tab of {person}")
+        page_ok(browser.submit(tab.form(name="vereineaddfunction"), {"function_id": ids[code], "function_start": today, "function_end": "", "function_note": "Runtime"}),
+                f"{person} takes over {code}")
+
+    for person, code in (("paid", "obmann"), ("expired", "kassier"), ("paid", "rechnungspruefung"), ("unpaid", "rechnungspruefung"),
+                         ("karl", "jugendleitung"), ("petra", "jugendleitung")):
+        add(person, code)
+    otto = page_ok(browser.get(f"/custom/vereine/member_association.php?id={members['free']}"), "association tab of a resiliated member")
+    expect('name="vereineaddfunction"' not in otto.text, "a resiliated member is offered a function")
+    browser.post(f"/custom/vereine/member_association.php?id={members['free']}",
+                 [("token", token_of(otto)), ("action", "addfunction"), ("function_id", ids["kassier"]), ("function_start", today)])
+    terms = stack.sql("SELECT f.code, t.fk_adherent FROM llx_vereine_function_term as t INNER JOIN llx_vereine_function as f ON f.rowid = t.fk_function ORDER BY t.rowid")
+    expect(len(terms) == 6 and str(members["free"]) not in [row[1] for row in terms], f"terms of office: {terms}")
+
+    holders, problems = overview(today)
+    expect(holders["obmann"] == 1 and holders["kassier"] == 1 and holders["rechnungspruefung"] == 2 and holders["jugendleitung"] == 2,
+           f"holders today: {holders}")
+    expect(problems == [("auditor_on_board", ""), ("too_many", "jugendleitung")], f"problems today: {problems}")
+
+    term = stack.value(f"SELECT t.rowid FROM llx_vereine_function_term as t INNER JOIN llx_vereine_function as f ON f.rowid = t.fk_function "
+                       f"WHERE f.code = 'rechnungspruefung' AND t.fk_adherent = {int(members['paid'])}")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={members['paid']}"), "association tab of the chair")
+    page_ok(browser.post(f"/custom/vereine/member_association.php?id={members['paid']}",
+                         [("token", token_of(tab)), ("action", "endfunction"), ("term_id", term), ("function_end", today)]), "end the chair's audit term today")
+    expect(stack.value(f"SELECT date_end FROM llx_vereine_function_term WHERE rowid = {int(term)}") == today, "the audit term was not ended today")
+    _, problems_today = overview(today)
+    holders_tomorrow, problems_tomorrow = overview(tomorrow)
+    expect(("auditor_on_board", "") in problems_today and holders_tomorrow["rechnungspruefung"] == 1
+           and problems_tomorrow == [("missing", "rechnungspruefung"), ("too_many", "jugendleitung")],
+           f"after ending the term: today {problems_today}, tomorrow {holders_tomorrow} {problems_tomorrow}")
+    logged = dict(stack.sql("SELECT action, COUNT(*) FROM llx_vereine_log WHERE action LIKE 'function%' GROUP BY action"))
+    expect(logged == {"function_start": "6", "function_end": "1"}, f"function log: {logged}")
+    expect(denied(stack.browser("rtreader").get("/custom/vereine/admin/functions.php")), "a non-administrator opens the function setup")
+    return ("7 functions suggested; taken code and minimum above maximum refused, own function stored; nothing held: chair, treasurer, auditors missing; "
+            "terms on the member, none for a resiliated member; today: chair on the board and auditor, too many youth leaders; "
+            "audit term ended today still counts today, tomorrow one auditor is missing; log")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -1894,7 +1967,8 @@ SCENARIOS = (
     ("exits", "Exits with notice period: planned, carried out on the last day, fee run and API follow", exits, ("families",)),
     ("sepa", "SEPA direct debit from the fee run: mandate check, one request, pre-notification", sepa, ("exits",)),
     ("applications", "Consent texts with versions and membership applications through the API", applications, ("sepa",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("applications",)),
+    ("functions", "Function catalogue, terms of office and what does not fit on a day", functions, ("applications",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("functions",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

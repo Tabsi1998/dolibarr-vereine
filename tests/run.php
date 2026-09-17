@@ -47,6 +47,7 @@ require_once $root.'/class/vereinefeefamilies.class.php';
 require_once $root.'/class/vereineexitrules.class.php';
 require_once $root.'/class/vereinesepa.class.php';
 require_once $root.'/class/vereineconsentrules.class.php';
+require_once $root.'/class/vereinefunctionrules.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -720,6 +721,48 @@ same(array('none', 'none'), array(VereineSepa::mandateStatus('', '2026-01-01', '
 same(array(14, 5, 14, 14), array(VereineSepa::noticeDays(''), VereineSepa::noticeDays('5'), VereineSepa::noticeDays('0'), VereineSepa::noticeDays('61')), 'days of pre-notification from 1 to 60, 14 otherwise');
 same('2026-10-01', VereineSepa::collectionDay('2026-09-17', 14), 'collection 14 days after the invoice');
 
+// --------------------------------------------------------------- functions
+
+$suggested = VereineFunctionRules::suggestedAt();
+same(array('obmann', 'obmann_stv', 'kassier', 'kassier_stv', 'schriftfuehrung', 'schriftfuehrung_stv', 'rechnungspruefung'), array_column($suggested, 'code'), 'functions suggested for Austria');
+same(array(2, true, false), array($suggested[6]['min'], $suggested[6]['auditor'], $suggested[6]['board']), 'at least two auditors, not on the board');
+same(array(), VereineFunctionRules::validate(array('code' => 'jugendleitung', 'label' => 'Jugendleitung', 'min' => '0', 'max' => '1')), 'a valid function');
+same(array('VereineFunctionErrorCode', 'VereineFunctionErrorLabel', 'VereineFunctionErrorCount'), VereineFunctionRules::validate(array('code' => 'X', 'label' => '', 'min' => '3', 'max' => '2')),
+	'code, label and a minimum above the maximum are refused');
+same(array(), VereineFunctionRules::validate(array('code' => 'beirat', 'label' => 'Beirat', 'min' => '3', 'max' => '0')), 'a maximum of 0 means no limit');
+same(array(array(), array('VereineFunctionErrorStart'), array('VereineFunctionErrorEnd')),
+	array(VereineFunctionRules::validateTerm('2026-01-01', ''), VereineFunctionRules::validateTerm('', ''), VereineFunctionRules::validateTerm('2026-02-01', '2026-01-31')),
+	'a term needs a first day and a last day not before it');
+same(array(true, true, false, false), array(
+	VereineFunctionRules::isActive(array('start' => '2026-01-01', 'end' => ''), '2026-09-17'),
+	VereineFunctionRules::isActive(array('start' => '2026-01-01', 'end' => '2026-09-17'), '2026-09-17'),
+	VereineFunctionRules::isActive(array('start' => '2026-01-01', 'end' => '2026-09-16'), '2026-09-17'),
+	VereineFunctionRules::isActive(array('start' => '2026-09-18', 'end' => ''), '2026-09-17'),
+), 'a term runs from its first to its last day');
+
+$catalogue = array(
+	array('id' => 1, 'code' => 'obmann', 'board' => true, 'auditor' => false, 'min' => 1, 'max' => 1),
+	array('id' => 2, 'code' => 'kassier', 'board' => true, 'auditor' => false, 'min' => 1, 'max' => 1),
+	array('id' => 3, 'code' => 'rechnungspruefung', 'board' => false, 'auditor' => true, 'min' => 2, 'max' => 0),
+);
+$check = VereineFunctionRules::check($catalogue, array(), '2026-09-17');
+same(array('missing', 'missing', 'missing'), array_column($check['problems'], 'kind'), 'without terms every required function is missing');
+$terms = array(
+	array('function_id' => 1, 'member_id' => 10, 'start' => '2025-01-01', 'end' => ''),
+	array('function_id' => 3, 'member_id' => 10, 'start' => '2025-01-01', 'end' => '2026-09-17'),
+	array('function_id' => 3, 'member_id' => 11, 'start' => '2025-01-01', 'end' => ''),
+	array('function_id' => 2, 'member_id' => 12, 'start' => '2026-10-01', 'end' => ''),
+);
+$check = VereineFunctionRules::check($catalogue, $terms, '2026-09-17');
+same(array(1 => array(10), 2 => array(), 3 => array(10, 11)), $check['holders'], 'holders on the day: a future term does not count yet, a term ending today still does');
+same(array(array('missing', 2), array('board_too_small', 0), array('auditor_on_board', 0)), array_map(function ($problem) {
+	return array($problem['kind'], $problem['function_id']);
+}, $check['problems']), 'missing treasurer, a board of one person and an auditor on the board');
+$check = VereineFunctionRules::check($catalogue, $terms, '2026-10-01');
+same(array(array('missing', 3)), array_map(function ($problem) {
+	return array($problem['kind'], $problem['function_id']);
+}, $check['problems']), 'on 1 October: treasurer on board, the ended auditor term leaves one auditor');
+
 // ---------------------------------------------------------------- consents
 
 same(array(true, false, false), array(VereineConsentRules::isCode('fotos_web'), VereineConsentRules::isCode('Fotos'), VereineConsentRules::isCode('1newsletter')), 'codes are lower case and start with a letter');
@@ -832,7 +875,8 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end'),
+	'VereineFunctionProblem_' => array('missing', 'too_many', 'board_too_small', 'auditor_on_board'),
 	'VereineConsentSource_' => VereineConsentRules::SOURCES,
 	'VereineConsentState_' => array('none', 'given', 'withdrawn'),
 	'VereineSetting_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT_NATURAL', 'VEREINE_PARTNER_TYPENT_LEGAL', 'VEREINE_CATEGORY_MEMBER', 'VEREINE_CATEGORY_FORMER', 'VEREINE_CATEGORY_GUARDIAN'),

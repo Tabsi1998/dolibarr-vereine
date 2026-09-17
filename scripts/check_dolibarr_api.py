@@ -326,7 +326,7 @@ LANG_KEYS = {
                                      "Type", "Categories", "BackToList", "DateDue", "AmountTTC", "Ref",
                                      "None", "Date", "Action", "Description", "Confirm", "Cancel", "Email",
                                      "Enabled", "Disabled", "Modify", "ReadPermissionNotAllowed",
-                                     "Year", "Month", "Week", "Day", "Duration"),
+                                     "Year", "Month", "Week", "Day", "Duration", "Position", "Refresh", "DateStart", "DateEnd"),
     # Loaded by partners.php and partner_membership.php.
     "htdocs/langs/en_US/members.lang": ("MemberRef", "Member", "MemberType"),
     # Loaded by admin/setup.php and admin/about.php.
