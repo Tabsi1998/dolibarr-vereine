@@ -37,7 +37,7 @@ legal source, not in code, so a changed threshold is a data update.
 | `class/vereinetaxprofiles.class.php`, `admin/taxprofiles.php` | Tax profiles in `llx_vereine_taxprofile` and their setup tab |
 | `class/vereinefeerules.class.php` | Next fee period and amount of a member: fee year, proration, admission fee, plain PHP |
 | `class/vereinefeerun.class.php`, `fees_run.php` | Fee run: preview of the fees due, subscription period and linked invoice per fee, recent fee invoices |
-| `class/vereinefeemodel.class.php`, `admin/fees.php` | Fee model as extra fields of Dolibarr's member type (`vereine_fee_start_month`, `vereine_fee_prorated`, `vereine_admission_fee`, `vereine_fee_product`) and its setup tab |
+| `class/vereinefeemodel.class.php`, `admin/fees.php` | Fee model as extra fields of Dolibarr's member type (`vereine_fee_start_month`, `vereine_fee_proration`, `vereine_admission_fee`, `vereine_fee_product`; the checkbox `vereine_fee_prorated` of 0.3.4 and 0.3.5 becomes `month` on activation) and its setup tab |
 | `class/vereinetaxassign.class.php` | Extra field `vereine_taxprofile` on products and invoice lines, product VAT, line profiles, deviations |
 | `class/vereinethresholds.class.php` | Dated threshold table and traffic light, plain PHP |
 | `class/vereinecashregister.class.php` | Cash register duty per sphere and sharing cash out over spheres, plain PHP |

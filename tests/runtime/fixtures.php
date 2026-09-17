@@ -790,7 +790,7 @@ if ($stage === 'reset') {
 		$extrafields = new ExtraFields($db);
 		$extrafields->delete('vereine_taxprofile', $elementtype);
 	}
-	foreach (array('vereine_fee_start_month', 'vereine_fee_prorated', 'vereine_admission_fee', 'vereine_fee_product') as $name) {
+	foreach (array('vereine_fee_start_month', 'vereine_fee_proration', 'vereine_fee_prorated', 'vereine_admission_fee', 'vereine_fee_product') as $name) {
 		$extrafields = new ExtraFields($db);
 		$extrafields->delete($name, 'adherent_type');
 	}

@@ -900,7 +900,7 @@
       "MembershipFee": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "label", "description", "for", "subscription_required", "amount", "amount_editable", "duration", "year_starts_month", "prorated", "admission_fee", "currency"],
+        "required": ["id", "label", "description", "for", "subscription_required", "amount", "amount_editable", "duration", "year_starts_month", "prorated", "proration", "admission_fee", "currency"],
         "properties": {
           "id": {
             "type": "integer"
@@ -951,7 +951,12 @@
           },
           "prorated": {
             "type": "boolean",
-            "description": "Joining during the fee year pays the remaining months only"
+            "description": "Joining during the fee year pays less than the full amount; see proration"
+          },
+          "proration": {
+            "type": "string",
+            "enum": ["none", "month", "quarter", "half_year"],
+            "description": "How joining during the fee year pays: the full amount, or the remaining months, quarters or half-years, the one of joining counted in full"
           },
           "admission_fee": {
             "type": "number",

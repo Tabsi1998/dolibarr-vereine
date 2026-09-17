@@ -30,8 +30,14 @@ class VereineFeeModel
 {
 	/** Month the fee year starts, empty when it starts with joining. */
 	const FIELD_START_MONTH = 'vereine_fee_start_month';
-	/** Whether a first fee during a fee year is prorated by month. */
-	const FIELD_PRORATED = 'vereine_fee_prorated';
+	/** How a first fee during a fee year is prorated: none, month, quarter or half_year. */
+	const FIELD_PRORATION = 'vereine_fee_proration';
+	/** Checkbox of versions before 0.3.6, replaced by FIELD_PRORATION when the module is enabled. */
+	const FIELD_PRORATED_OLD = 'vereine_fee_prorated';
+
+	/** Kinds of proration with their language keys, for the list on the member type card. */
+	const PRORATIONS = array('none' => 'VereineFeeProration_none', 'month' => 'VereineFeeProration_month',
+		'quarter' => 'VereineFeeProration_quarter', 'half_year' => 'VereineFeeProration_half_year');
 	/** One-off admission fee with the first fee. */
 	const FIELD_ADMISSION = 'vereine_admission_fee';
 	/** Product of the invoice line; Dolibarr's subscription product when empty. */
@@ -72,7 +78,7 @@ class VereineFeeModel
 		$extrafields = new ExtraFields($this->db);
 		$fields = array(
 			array(self::FIELD_START_MONTH, 'VereineFeeStartMonth', 'select', array('options' => self::MONTHS), 'VereineFeeStartMonthHelp'),
-			array(self::FIELD_PRORATED, 'VereineFeeProrated', 'boolean', '', 'VereineFeeProratedHelp'),
+			array(self::FIELD_PRORATION, 'VereineFeeProration', 'select', array('options' => self::PRORATIONS), 'VereineFeeProrationHelp'),
 			array(self::FIELD_ADMISSION, 'VereineFeeAdmission', 'price', '', 'VereineFeeAdmissionHelp'),
 			array(self::FIELD_PRODUCT, 'VereineFeeProduct', 'link', array('options' => array('Product:product/class/product.class.php' => null)), 'VereineFeeProductHelp'),
 		);
@@ -101,6 +107,31 @@ class VereineFeeModel
 				$this->error = 'Extra field '.$field[0].': '.$extrafields->error;
 				return -1;
 			}
+		}
+		return $this->replaceOldProratedField($extrafields);
+	}
+
+	/**
+	 * A ticked checkbox of versions before 0.3.6 becomes "month", then the checkbox goes.
+	 *
+	 * @param ExtraFields $extrafields Extra fields
+	 * @return int 1 if OK, <0 on error
+	 */
+	private function replaceOldProratedField($extrafields)
+	{
+		$extrafields->fetch_name_optionals_label('adherent_type');
+		if (empty($extrafields->attributes['adherent_type']['label'][self::FIELD_PRORATED_OLD])) {
+			return 1;
+		}
+		$sql = "UPDATE ".MAIN_DB_PREFIX."adherent_type_extrafields SET ".self::FIELD_PRORATION." = '".VereineFeeRules::PRORATION_MONTH."'";
+		$sql .= " WHERE ".self::FIELD_PRORATED_OLD." = 1 AND (".self::FIELD_PRORATION." IS NULL OR ".self::FIELD_PRORATION." = '')";
+		if (!$this->db->query($sql)) {
+			$this->error = 'Moving '.self::FIELD_PRORATED_OLD.': '.$this->db->lasterror();
+			return -1;
+		}
+		if ($extrafields->delete(self::FIELD_PRORATED_OLD, 'adherent_type') <= 0) {
+			$this->error = 'Removing '.self::FIELD_PRORATED_OLD.': '.$extrafields->error;
+			return -1;
 		}
 		return 1;
 	}
@@ -151,7 +182,8 @@ class VereineFeeModel
 					'duration_value' => (int) substr($duration, 0, -1),
 					'duration_unit' => substr($duration, -1),
 					'start_month' => $this->extraValue($obj, self::FIELD_START_MONTH),
-					'prorated' => $this->extraValue($obj, self::FIELD_PRORATED),
+					'proration' => $this->extraValue($obj, self::FIELD_PRORATION),
+					'prorated' => $this->extraValue($obj, self::FIELD_PRORATED_OLD),
 					'admission_fee' => $this->extraValue($obj, self::FIELD_ADMISSION),
 				)),
 			);

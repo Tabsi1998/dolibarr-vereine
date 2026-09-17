@@ -183,6 +183,10 @@ raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
   `llx_c_action_trigger`. It posts while the transaction of the change is still
   open, and only to external URLs unless `$dolibarr_allow_localurl_for_webhooks`
   is set (the runtime fixture sets it as a global).
+- Dolibarr treats a subscription period as paid as soon as it is recorded,
+  also when its invoice is open (`Adherent::subscription()` moves `datefin`).
+  The member summary therefore counts a period as paid only without fee
+  invoice or with a paid one (`VereineMemberSummary::periodEnds`).
 - Every answer of `vereine/...` in the runtime checks goes through
   `docs/openapi.json`; the last API scenario fails when a documented endpoint
   never answered 200. Dolibarr's answer for a disabled module is not covered

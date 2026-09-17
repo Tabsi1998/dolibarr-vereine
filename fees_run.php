@@ -217,10 +217,9 @@ foreach ($rows as $row) {
 		$notes[] = '<span class="warning">'.$langs->trans('VereineFeeRunStatus_'.$row['status']).'</span>';
 	}
 	if ($fee !== null) {
-		if ($fee['reason'] === VereineFeeRules::REASON_PRORATED) {
-			$notes[] = $langs->trans('VereineFeeReasonProrated', $fee['months'], $fee['period_months']);
-		} elseif ($fee['reason'] === VereineFeeRules::REASON_REST_FULL) {
-			$notes[] = $langs->trans('VereineFeeReasonRestFull', $fee['months']);
+		$reason = vereineFeeReason($fee);
+		if ($reason !== '') {
+			$notes[] = $reason;
 		}
 		if ($fee['admission_fee'] > 0) {
 			$notes[] = $langs->trans('VereineFeeRunFirstFee');

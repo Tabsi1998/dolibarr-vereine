@@ -36,6 +36,28 @@ function vereineFormatDay($date)
 }
 
 /**
+ * Why a fee has its amount, in plain words, or empty for a whole period.
+ *
+ * @param array<string,mixed> $fee Fee of VereineFeeRules::nextFee()
+ * @return string
+ */
+function vereineFeeReason(array $fee)
+{
+	global $langs;
+
+	if ($fee['reason'] === VereineFeeRules::REASON_PRORATED) {
+		return $langs->trans('VereineFeeReasonProrated_'.$fee['proration'], $fee['parts'], $fee['period_parts']);
+	}
+	if ($fee['reason'] === VereineFeeRules::REASON_FIRST_PART_FULL) {
+		return $langs->trans('VereineFeeReasonFirstPartFull_'.$fee['proration']);
+	}
+	if ($fee['reason'] === VereineFeeRules::REASON_REST_FULL) {
+		return $langs->trans('VereineFeeReasonRestFull', $fee['months']);
+	}
+	return '';
+}
+
+/**
  * Tabs of the module's setup pages.
  *
  * @return array<int,array<int,string>>

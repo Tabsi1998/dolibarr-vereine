@@ -219,6 +219,7 @@ Needs the website right.
     "duration": { "value": 1, "unit": "y" },
     "year_starts_month": 1,
     "prorated": true,
+    "proration": "month",
     "admission_fee": 20,
     "currency": "EUR"
   }
@@ -233,7 +234,8 @@ Needs the website right.
 | `amount_editable` | The member may pay a different amount |
 | `duration` | Length of a period: `unit` `y` years, `m` months, `w` weeks, `d` days |
 | `year_starts_month` | Month the fee year starts, `0` when every member pays from joining |
-| `prorated` | Joining during the fee year pays the remaining months only; the month of joining counts in full |
+| `proration` | How joining during the fee year pays: `none` the full amount; `month`, `quarter` or `half_year` the remaining months, quarters or half-years of the fee year, the one of joining counted in full. `half_year`: joining in the first half pays in full, in the second half the half |
+| `prorated` | `true` unless `proration` is `none`; kept from version 0.3.4 |
 | `admission_fee` | Once, with the first fee; `0` when there is none |
 
 Example: `amount` 60, a year from January, prorated, joining on 15 March - the

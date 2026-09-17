@@ -32,28 +32,48 @@ class VereineFeeRules
 {
 	/** The whole period at the full amount. */
 	const REASON_FULL = 'full';
-	/** Joined during a fee year that starts in a fixed month: the rest of it, prorated by month. */
+	/** Joined during a fee year that starts in a fixed month: the rest of it, prorated by month, quarter or half-year. */
 	const REASON_PRORATED = 'prorated';
 	/** Joined during a fee year that starts in a fixed month: the rest of it at the full amount. */
 	const REASON_REST_FULL = 'rest_full';
+	/** Joined during the first month, quarter or half-year of the fee year: the full amount. */
+	const REASON_FIRST_PART_FULL = 'first_part_full';
+
+	/** Joining during the fee year pays the full amount. */
+	const PRORATION_NONE = 'none';
+	/** Joining during the fee year pays the remaining months; the month of joining counts in full. */
+	const PRORATION_MONTH = 'month';
+	/** Joining during the fee year pays the remaining quarters; the quarter of joining counts in full. */
+	const PRORATION_QUARTER = 'quarter';
+	/** Joining in the first half of the fee year pays in full, in the second half the half. */
+	const PRORATION_HALF_YEAR = 'half_year';
+
+	/** Months in one part of each kind of proration. */
+	const PRORATION_MONTHS = array('month' => 1, 'quarter' => 3, 'half_year' => 6);
 
 	/**
 	 * A fee model with every key set.
 	 *
 	 * @param array<string,mixed> $model Keys amount (float|null), duration_value (int), duration_unit ('y', 'm', 'w', 'd'),
-	 *                                   start_month (0 = with joining, 1 to 12), prorated (bool), admission_fee (float)
-	 * @return array{amount:float|null,duration_value:int,duration_unit:string,start_month:int,prorated:bool,admission_fee:float}
+	 *                                   start_month (0 = with joining, 1 to 12), proration ('none', 'month', 'quarter',
+	 *                                   'half_year'; prorated true of versions before 0.3.6 means 'month'), admission_fee (float)
+	 * @return array{amount:float|null,duration_value:int,duration_unit:string,start_month:int,proration:string,prorated:bool,admission_fee:float}
 	 */
 	public static function normalize(array $model)
 	{
 		$unit = isset($model['duration_unit']) && in_array($model['duration_unit'], array('y', 'm', 'w', 'd'), true) ? $model['duration_unit'] : 'y';
 		$month = isset($model['start_month']) ? (int) $model['start_month'] : 0;
+		$proration = isset($model['proration']) ? (string) $model['proration'] : '';
+		if (!isset(self::PRORATION_MONTHS[$proration]) && $proration !== self::PRORATION_NONE) {
+			$proration = !empty($model['prorated']) ? self::PRORATION_MONTH : self::PRORATION_NONE;
+		}
 		return array(
 			'amount' => (!isset($model['amount']) || $model['amount'] === '' || $model['amount'] === null) ? null : round((float) $model['amount'], 2),
 			'duration_value' => max(1, isset($model['duration_value']) ? (int) $model['duration_value'] : 1),
 			'duration_unit' => $unit,
 			'start_month' => ($month >= 1 && $month <= 12) ? $month : 0,
-			'prorated' => !empty($model['prorated']),
+			'proration' => $proration,
+			'prorated' => $proration !== self::PRORATION_NONE,
 			'admission_fee' => isset($model['admission_fee']) ? max(0.0, round((float) $model['admission_fee'], 2)) : 0.0,
 		);
 	}
@@ -77,13 +97,15 @@ class VereineFeeRules
 	 *
 	 * The period starts the day after the last one, or on the day the member joined. With a
 	 * fixed start month and a period in months or years, it ends where the fee year ends;
-	 * joining during a fee year then pays its rest, prorated by started month or in full.
+	 * joining during a fee year then pays its rest in full or prorated by the parts of the
+	 * fee year that are left: months, quarters or half-years, the part of joining counted in
+	 * full. A period that does not divide into quarters or half-years is prorated by month.
 	 *
 	 * @param array<string,mixed> $model     Fee model, see normalize()
 	 * @param string              $joinedOn  Day the member joined, for a first fee
 	 * @param string              $paidUntil End of the last subscription period, empty for a first fee
-	 * @return array{start:string,end:string,amount:float|null,admission_fee:float,total:float|null,reason:string,months:int,period_months:int}|null
-	 *         Null without a date to start from
+	 * @return array{start:string,end:string,amount:float|null,admission_fee:float,total:float|null,reason:string,months:int,period_months:int,proration:string,parts:int,period_parts:int}|null
+	 *         Null without a date to start from; proration is the kind actually used
 	 */
 	public static function nextFee(array $model, $joinedOn, $paidUntil)
 	{
@@ -97,6 +119,9 @@ class VereineFeeRules
 		$reason = self::REASON_FULL;
 		$months = 0;
 		$amount = $model['amount'];
+		$proration = $model['proration'];
+		$parts = 0;
+		$periodParts = 0;
 
 		if ($model['start_month'] > 0 && $periodMonths !== null) {
 			$startIndex = self::monthIndex($start);
@@ -105,11 +130,21 @@ class VereineFeeRules
 			$end = self::addDays(self::dateOfMonthIndex($anchorIndex + $periodMonths), -1);
 			if ($start !== self::dateOfMonthIndex($anchorIndex)) {
 				$months = $anchorIndex + $periodMonths - $startIndex;
-				if ($model['prorated']) {
-					$reason = self::REASON_PRORATED;
-					$amount = $amount === null ? null : round($amount * $months / $periodMonths, 2);
-				} else {
+				if ($proration === self::PRORATION_NONE) {
 					$reason = self::REASON_REST_FULL;
+				} else {
+					if ($periodMonths % self::PRORATION_MONTHS[$proration] !== 0) {
+						$proration = self::PRORATION_MONTH;
+					}
+					$partMonths = self::PRORATION_MONTHS[$proration];
+					$periodParts = intdiv($periodMonths, $partMonths);
+					$parts = $periodParts - intdiv($startIndex - $anchorIndex, $partMonths);
+					if ($parts >= $periodParts) {
+						$reason = self::REASON_FIRST_PART_FULL;
+					} else {
+						$reason = self::REASON_PRORATED;
+						$amount = $amount === null ? null : round($amount * $parts / $periodParts, 2);
+					}
 				}
 			}
 		} else {
@@ -126,6 +161,9 @@ class VereineFeeRules
 			'reason' => $reason,
 			'months' => $months,
 			'period_months' => (int) $periodMonths,
+			'proration' => $proration,
+			'parts' => $parts,
+			'period_parts' => $periodParts,
 		);
 	}
 
