@@ -2804,8 +2804,11 @@ def resolutions(stack: Stack) -> str:
     expect(len(items) == 2 and items[0] == "Begrüßung" and items[1].startswith("Trikots bestellen (offen aus Beschluss"),
            f"the agenda of the new meeting: {items}")
 
-    # The register as CSV, and the resolution at the member it concerns.
-    export = browser.get(f"{base}?action=export&search=trikots", follow=False)
+    # The register as CSV, through the link of the page: from Dolibarr 24 on an action in the address needs its token.
+    listing = page_ok(browser.get(f"{base}?search=trikots"), "the register filtered for the wording")
+    link = re.search(r'href="([^"]*action=export[^"]*)"', listing.text)
+    expect(link is not None, "the register offers no export")
+    export = browser.get(html.unescape(link.group(1)), follow=False)
     expect(export.status == 200 and "text/csv" in export.headers.get("Content-Type", "") and "beschlussbuch.csv" in export.headers.get("Content-Disposition", ""),
            f"the export answered HTTP {export.status} as {export.headers.get('Content-Type')}")
     csv = export.body.decode("utf-8")

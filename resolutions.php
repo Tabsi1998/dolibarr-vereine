@@ -234,7 +234,7 @@ if ($row === null) {
 	print '</div></form>';
 
 	$rows = $register->fetchAll($filters);
-	$query = array('action=export');
+	$query = array('action=export', 'token='.newToken());
 	foreach (array('search', 'year', 'organ', 'category', 'result') as $key) {
 		if ($filters[$key] !== '') {
 			$query[] = $key.'='.urlencode($filters[$key]);
