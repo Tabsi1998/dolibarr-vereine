@@ -90,6 +90,10 @@ with a REST API for the association's website.
   address, register extract, dissolution, founding and longer deadline in one
   layout, with the responsible authority, deadline in the agenda and a note once
   filed.
+- **Statutes as text** (0.5.2): the whole statutes built from the model of the
+  Ministry of the Interior or, for tax-privileged associations, of the Ministry
+  of Finance, filled in from the module; checked, previewed and kept as versions
+  with PDF, existing statutes uploaded.
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 

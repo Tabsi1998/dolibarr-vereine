@@ -99,6 +99,10 @@ Vereinswebsite mit.
   Zustellanschrift, Registerauszug, Auflösung, Errichtung und Fristverlängerung in
   einem Layout, mit zuständiger Behörde, Frist in der Agenda und Vermerk
   „eingebracht am“.
+- **Statuten als Text** (0.5.2): die ganzen Statuten nach dem Muster des
+  Innenministeriums oder, für steuerbegünstigte Vereine, des Finanzministeriums,
+  ausgefüllt aus dem Modul; geprüft, als Vorschau und als Fassungen mit PDF,
+  bestehende Statuten hochladen.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

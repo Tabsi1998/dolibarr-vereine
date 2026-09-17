@@ -338,6 +338,10 @@ CONTRACTS = (
     ("htdocs/core/modules/mailings/modules_mailings.php", "public function addTargetsToDatabase($mailing_id, $cibles)", "recipients are stored the way Dolibarr's own selectors store them"),
     ("htdocs/core/modules/mailings/modules_mailings.php", "$sql .= \" SET statut = 3\";", "unsubscribed addresses stay excluded"),
     ("htdocs/install/mysql/tables/llx_categorie_contact.sql", "fk_socpeople", "guardians are contacts in the guardian category"),
+    # Statutes as text and versions (issue #88)
+    ("htdocs/core/lib/files.lib.php", "function dol_move_uploaded_file($src_file, $dest_file, $allowoverwrite, $disablevirusscan = 0, $uploaderrorcode = 0, $nohook = 0",
+     "existing statutes are uploaded through Dolibarr's checks"),
+    ("htdocs/core/lib/files.lib.php", "function dol_delete_file($file, $disableglob = 0, $nophperrors = 0, $nohook = 0", "the draft PDF is removed after download"),
 )
 
 LANG_KEYS = {
