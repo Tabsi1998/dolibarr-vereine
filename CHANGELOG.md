@@ -7,6 +7,11 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.5.8-beta] - 2026-09-17
+
+Vereine ist jetzt ein Modul nur für österreichische Vereine, ganz auf Deutsch,
+mit einer neuen Arbeitsweise für Releases (#128).
+
 ### Geändert
 
 - Neue Arbeitsweise: Mehrere Pull Requests werden gesammelt und gemeinsam
@@ -31,6 +36,13 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 - API: `country_profile` (immer `AT`), `country_profile_complete` (immer
   `true`) und `register.court` (immer leer) bleiben bis 1.0 für bestehende
   Websites und entfallen dann (#129).
+
+### Update
+
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das
+löscht die Einstellungen des alten Länderprofils und gibt dem Webhook-Ereignis
+seinen deutschen Namen. Vereinsdaten, ZVR-Zahl und alle anderen Einstellungen
+bleiben. Das Modul heißt in der Modulliste jetzt „Vereine (Österreich)“.
 
 ## [0.5.7-beta] - 2026-09-17
 
@@ -1024,7 +1036,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.7-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.8-beta...HEAD
+[0.5.8-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.8-beta
 [0.5.7-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.7-beta
 [0.5.6-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.6-beta
 [0.5.5-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.5-beta
