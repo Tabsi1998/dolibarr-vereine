@@ -7,6 +7,34 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.3.9-beta] - 2026-09-17
+
+Membership fees, part 5 (issue #64): exit with reason and the notice period of
+the statutes.
+
+### Added
+
+- Setup tab *Fees*, section *Exit according to the statutes*: notice period in
+  months and when notice takes effect - on any day, at the end of a month, a
+  quarter or the association year, which may start in any month.
+- The member's tab *Association*, section *Exit*: resignation, exclusion, death
+  or struck off, with the day of notice or decision and an internal note. For a
+  resignation the module works out the last day of the membership; the member
+  stays active until then and the exit can be taken back.
+- On the last day the member is set to resiliated, or excluded for an
+  exclusion: at once when that day has come, otherwise by the scheduled job
+  *Vereine: exits due* (Dolibarr's module *Scheduled jobs*) or the button *Take
+  effect now*.
+- The fee run creates no period that starts after the last day and names the
+  planned exit.
+- The member summary of the website API has `membership_ends`, and a recorded,
+  carried out or taken back exit counts as a change for `changed_since`.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that creates the exit table and the scheduled job.
+
 ## [0.3.8-beta] - 2026-09-17
 
 Membership fees, part 3b (issue #62): families with one payer.
@@ -516,7 +544,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.8-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.9-beta...HEAD
+[0.3.9-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.9-beta
 [0.3.8-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.8-beta
 [0.3.7-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.7-beta
 [0.3.6-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.6-beta

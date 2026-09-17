@@ -12,6 +12,7 @@ Research date: 16 September 2026; cash register rules read again on 17 September
 
 | Topic | Rule | Source | Kind |
 | --- | --- | --- | --- |
+| Statutes: membership | The statutes must regulate how membership is acquired and how it ends - notice period, exclusion, striking off; the module applies the notice period entered from them and records exclusions decided by the competent body | [§ 3 (2) no. 5 VerG](https://www.jusline.at/gesetz/verg/paragraf/3) (read 17 September 2026) | primary |
 | Officers | Report new officers and a new address for service to the association authority within four weeks | [§ 14 VerG](https://www.jusline.at/gesetz/verg/paragraf/14) | primary |
 | ZVR number | Must be used in dealings with others: letters, invoices, website | [§ 18 VerG](https://www.jusline.at/gesetz/verg/paragraf/18) | secondary |
 | Accounts | Income and expenditure statement and statement of assets within five months; auditors check within four months | [§ 21 VerG](https://www.jusline.at/gesetz/verg/paragraf/21) | primary |

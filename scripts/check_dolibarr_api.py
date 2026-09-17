@@ -297,6 +297,12 @@ CONTRACTS = (
     ("htdocs/install/mysql/tables/llx_adherent_extrafields.sql", "tms              timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP", "a changed payer, exemption or proof counts for the website sync"),
     ("htdocs/install/mysql/tables/llx_subscription.sql", "subscription", "what a family was already charged in a fee year"),
     ("htdocs/core/lib/functions.lib.php", "function getEntity($element, $shared = 1, $currentobject = null)", "third parties of the payer are read per entity"),
+    # Exit with notice period (issue #64)
+    ("htdocs/adherents/class/adherent.class.php", "public function resiliate($user)", "a resignation, death or striking off takes effect"),
+    ("htdocs/adherents/class/adherent.class.php", "public function exclude($user)", "an exclusion takes effect"),
+    ("htdocs/core/modules/DolibarrModules.class.php", "$methodename = isset($value['method']) ? $value['method'] : '';", "the scheduled job for exits is registered from the descriptor"),
+    ("htdocs/core/modules/DolibarrModules.class.php", "$unitfrequency = isset($value['unitfrequency']) ? $value['unitfrequency'] : '';", "the job runs once a day"),
+    ("htdocs/install/mysql/tables/llx_cronjob.sql", "methodename", "the runtime test finds the scheduled job"),
 )
 
 LANG_KEYS = {

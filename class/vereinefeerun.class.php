@@ -30,6 +30,7 @@
 require_once __DIR__.'/vereinefeemodel.class.php';
 require_once __DIR__.'/vereinefeediscountstore.class.php';
 require_once __DIR__.'/vereinefeefamilystore.class.php';
+require_once __DIR__.'/vereineexits.class.php';
 require_once __DIR__.'/vereinemembersummary.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 
@@ -120,6 +121,9 @@ class VereineFeeRun
 			}
 		}
 		$payerNames = $familyStore->thirdPartyNames(array_keys($families));
+		// A member who leaves pays for periods starting up to the last day of the membership, not after.
+		$exitStore = new VereineExits($this->db);
+		$exits = $exitStore->planned();
 
 		// Discount rules exist only after the module was enabled with 0.3.7; without them nobody gets one.
 		$discountStore = new VereineFeeDiscountStore($this->db);
@@ -149,6 +153,7 @@ class VereineFeeRun
 				'type_id' => $type['id'],
 				'type_label' => $type['label'],
 				'product_id' => $type['product_id'],
+				'exit_last_day' => isset($exits[$memberId]) ? $exits[$memberId]['last_day'] : '',
 			);
 			$paidUntil = VereineMemberSummary::dayOf($obj->datefin);
 			$joinedOn = VereineMemberSummary::datePart($obj->datevalid);
@@ -160,7 +165,8 @@ class VereineFeeRun
 			}
 			$periods = array();
 			$previousEnd = $paidUntil;
-			while ($fee !== null && $fee['start'] <= $dueUntil && count($periods) < self::MAX_PERIODS) {
+			while ($fee !== null && $fee['start'] <= $dueUntil && count($periods) < self::MAX_PERIODS
+				&& ($base['exit_last_day'] === '' || $fee['start'] <= $base['exit_last_day'])) {
 				$discount = VereineFeeDiscounts::choose($rules, $memberDiscount, $fee['start']);
 				$familyRule = self::NO_FAMILY;
 				$model = $type['model'];

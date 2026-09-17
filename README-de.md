@@ -71,6 +71,9 @@ Vereinswebsite mit.
 - **Familien** (0.3.8): Mitglieder mit demselben Zahler, etwa einem Elternteil,
   bekommen eine gemeinsame Rechnung an den Zahler, mit Rabatt je weiterem
   Mitglied oder Höchstbetrag je Beitragsjahr.
+- **Austritt** (0.3.9): Kündigung mit der Frist laut Statuten, Ausschluss, Tod
+  oder Streichung; am letzten Tag wird das Mitglied auf ausgetreten gesetzt,
+  der Beitragslauf endet dort.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

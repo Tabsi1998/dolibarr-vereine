@@ -1612,6 +1612,81 @@ def families(stack: Stack) -> str:
             "no payment link, invoice only for the payer, payment lists all three and marks them paid; cap 150: a child joining later pays 18")
 
 
+def exits(stack: Stack) -> str:
+    """Exits follow the notice period of the statutes, take effect on their last day and end the fee run there."""
+    site = stack.notes["website"]
+    key, today = site["key"], site["dates"]["today"]
+    day = datetime.date.fromisoformat(today)
+    browser = stack.browser()
+
+    setup = page_ok(browser.get("/custom/vereine/admin/fees.php"), "fee setup with the exit rule")
+    refused = page_ok(browser.submit(setup.form(name="vereineexitrule"), {"exit_months": "30", "exit_at": "year_end", "exit_start_month": "1"}),
+                      "a notice period of 30 months")
+    expect(stack.const("VEREINE_EXIT_NOTICE_MONTHS") is None and "von 0 bis 24" in html.unescape(refused.text),
+           "a notice period of 30 months was stored or not explained")
+    page = page_ok(browser.get("/custom/vereine/admin/fees.php"), "fee setup")
+    page_ok(browser.submit(page.form(name="vereineexitrule"), {"exit_months": "3", "exit_at": "year_end", "exit_start_month": "1"}), "store 3 months to the end of the year")
+    rule = tuple(stack.const(name) for name in ("VEREINE_EXIT_NOTICE_MONTHS", "VEREINE_EXIT_AT", "VEREINE_EXIT_START_MONTH"))
+    expect(rule == ("3", "year_end", "1"), f"stored notice rule: {rule}")
+    jobs = stack.value("SELECT COUNT(*) FROM llx_cronjob WHERE label = 'VereineCronExits' AND methodename = 'runDue'")
+    expect(jobs == "1", f"{jobs} scheduled jobs for exits, expected 1")
+
+    # Notice today with 3 months to the end of the year: the membership ends on 31 December of the year three months from now.
+    month = day.month + 3
+    last = f"{day.year + (1 if month > 12 else 0)}-12-31"
+    members = stack.php_fixture("exitmembers")["members"]
+
+    def tab(person: str) -> Page:
+        return page_ok(browser.get(f"/custom/vereine/member_association.php?id={members[person]}"), f"association tab of {person}")
+
+    def plan(person: str, fields: dict) -> None:
+        page_ok(browser.submit(tab(person).form(name="vereineplanexit"), fields), f"record the exit of {person}")
+
+    def stored(person: str) -> list[list[str]]:
+        return stack.sql(f"SELECT reason, notice_day, last_day, status FROM llx_vereine_member_exit WHERE fk_adherent = {int(members[person])} ORDER BY rowid")
+
+    def status(person: str) -> str | None:
+        return stack.value(f"SELECT statut FROM llx_adherent WHERE rowid = {int(members[person])}")
+
+    expect('data-exit-rule="1"' in tab("karl").text, "the association tab does not explain the notice rule")
+    plan("karl", {"exit_reason": "resignation", "exit_notice_day": today, "exit_last_day": today, "exit_note": "Brief vom Mitglied"})
+    expect(stored("karl") == [["resignation", today, last, "planned"]] and status("karl") == "1",
+           f"Karl's notice: {stored('karl')}, member status {status('karl')}; expected planned until {last}, still active")
+    expect(f'data-exit="planned" data-last-day="{last}"' in tab("karl").text, "Karl's tab does not show the planned exit")
+
+    after = (datetime.date.fromisoformat(last) + datetime.timedelta(days=1)).isoformat()
+    preview = page_ok(browser.get(f"/custom/vereine/fees_run.php?dueuntil={after}"), "fee run beyond Karl's last day")
+    starts = [row.split(":", 1)[1] for row in re.findall(r'data-fee-row="([^"]+)"', preview.text) if row.split(":", 1)[0] == str(members["karl"])]
+    expect(starts and max(starts) <= last and after not in starts and f'data-exit-last-day="{last}"' in preview.text,
+           f"Karl's fees until {after}: periods starting {starts}, expected none after {last}")
+    status_code, karl = stack.api(f"vereine/members/{members['karl']}/summary", key)
+    expect(status_code == 200 and karl["status"] == "active" and karl["membership_ends"] == last, f"Karl through the website API: {karl}")
+
+    plan("xaver", {"exit_reason": "exclusion", "exit_notice_day": today, "exit_last_day": today, "exit_note": "Beschluss des Vorstands"})
+    expect(stored("xaver") == [["exclusion", today, today, "done"]] and status("xaver") == "-2",
+           f"Xaver's exclusion today: {stored('xaver')}, member status {status('xaver')}; expected done and excluded at once")
+    status_code, xaver = stack.api(f"vereine/members/{members['xaver']}/summary", key)
+    expect(status_code == 200 and xaver["status"] == "excluded" and xaver["membership_ends"] == today, f"Xaver through the website API: {xaver}")
+
+    # Lena's last day has come: the scheduled job sets her to resiliated, Karl's exit still waits.
+    plan("lena", {"exit_reason": "resignation", "exit_notice_day": today, "exit_last_day": today, "exit_note": ""})
+    yesterday = (day - datetime.timedelta(days=1)).isoformat()
+    stack.sql(f"UPDATE llx_vereine_member_exit SET notice_day = '{yesterday}', last_day = '{yesterday}' WHERE fk_adherent = {int(members['lena'])}")
+    expect('name="vereinecarryoutexit"' in tab("lena").text, "a due exit offers no button to take effect now")
+    job = stack.php_fixture("runexits")
+    expect(job.get("result") == 0 and status("lena") == "0" and stored("lena")[0][3] == "done" and status("karl") == "1" and stored("karl")[0][3] == "planned",
+           f"scheduled job: {job}; Lena {status('lena')} {stored('lena')}, Karl {status('karl')} {stored('karl')}")
+    logged = stack.value(f"SELECT COUNT(*) FROM llx_vereine_log WHERE action = 'exit_done' AND fk_adherent IN ({int(members['xaver'])}, {int(members['lena'])})")
+    expect(logged == "2", f"{logged} exits logged as done, expected 2")
+
+    page_ok(browser.submit(tab("karl").form(name="vereinecancelexit")), "take back Karl's exit")
+    status_code, karl = stack.api(f"vereine/members/{members['karl']}/summary", key)
+    expect(stored("karl")[0][3] == "cancelled" and status("karl") == "1" and status_code == 200 and karl["membership_ends"] == "",
+           f"Karl after taking back: {stored('karl')}, status {status('karl')}, membership ends {karl.get('membership_ends')!r}")
+    return (f"30 months refused, 3 months to the year end stored, scheduled job registered; notice today ends on {last}, fee run stops there, "
+            "API shows membership_ends; exclusion today takes effect at once; a due exit is carried out by the scheduled job; taking back clears it")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -1689,7 +1764,8 @@ SCENARIOS = (
     ("feerun", "Fee run: preview, subscription period and linked invoice once, nothing on a second run", feerun, ("fees",)),
     ("discounts", "Discounts by age, with proof and exemptions in the fee run and the website summary", discounts, ("feerun",)),
     ("families", "Families with one payer: shared invoice, discount per further member and cap per fee year", families, ("discounts",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("families",)),
+    ("exits", "Exits with notice period: planned, carried out on the last day, fee run and API follow", exits, ("families",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("exits",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

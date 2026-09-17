@@ -40,6 +40,8 @@ legal source, not in code, so a changed threshold is a data update.
 | `class/vereinefeediscountstore.class.php` | Discount rules in `llx_vereine_fee_discount` and the member fields for exemption and proof |
 | `class/vereinefeefamilies.class.php` | Payer, family rule (discount per further member, cap per fee year) and sharing a cap, plain PHP |
 | `class/vereinefeefamilystore.class.php` | Member field `vereine_fee_payer`, the family rule constants, families and what they were charged |
+| `class/vereineexitrules.class.php` | Exit reasons and the last day after notice by the statutes' rule, plain PHP |
+| `class/vereineexits.class.php` | Exits in `llx_vereine_member_exit`, the notice rule constants, the scheduled job `runDue` |
 | `class/vereinefeerun.class.php`, `fees_run.php` | Fee run: preview of the fees due, subscription periods and linked invoices, one per payer and start day, recent fee invoices |
 | `class/vereinefeemodel.class.php`, `admin/fees.php` | Fee model as extra fields of Dolibarr's member type (`vereine_fee_start_month`, `vereine_fee_proration`, `vereine_admission_fee`, `vereine_fee_product`; the checkbox `vereine_fee_prorated` of 0.3.4 and 0.3.5 becomes `month` on activation) and its setup tab |
 | `class/vereinetaxassign.class.php` | Extra field `vereine_taxprofile` on products and invoice lines, product VAT, line profiles, deviations |
@@ -148,6 +150,16 @@ the module updates or deletes a row.
   holding all of them (Dolibarr 22 to 24 accept a list there) and one line per
   member, named when the invoice is for several members or a payer. Periods run
   oldest first, so a failed invoice stops the later periods of its members.
+
+- Exits: `llx_vereine_member_exit` keeps reason, day of notice or decision, last
+  day and status (`planned`, `done`, `cancelled`). A resignation's last day
+  follows the notice rule (`VEREINE_EXIT_NOTICE_MONTHS`, `VEREINE_EXIT_AT`,
+  `VEREINE_EXIT_START_MONTH`); the other reasons take the day entered. On the
+  last day `Adherent::exclude()` (exclusion) or `Adherent::resiliate()` (all
+  others) runs - at once when the day has come, otherwise through the scheduled
+  job `VereineCronExits` (Dolibarr's module *Scheduled jobs*) or the button on
+  the member's tab. The fee run creates no period that starts after the last
+  day.
 
 ### Recognising fee invoices
 

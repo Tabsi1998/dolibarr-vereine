@@ -64,6 +64,9 @@ with a REST API for the association's website.
   exemptions (for example honorary members), applied by the fee run.
 - **Families** (0.3.8): members with the same payer, such as a parent, get one
   invoice to the payer, with a discount per further member or a cap per fee year.
+- **Exit** (0.3.9): resignation with the notice period of the statutes,
+  exclusion, death or struck off; the member is set to resiliated on the last
+  day, and the fee run stops there.
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 

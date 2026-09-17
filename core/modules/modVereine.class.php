@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '0.3.8-beta';
+		$this->version = '0.3.9-beta';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -110,7 +110,23 @@ class modVereine extends DolibarrModules
 		$this->boxes = array(
 			0 => array('file' => 'box_vereine_thresholds.php@vereine', 'note' => '', 'enabledbydefaulton' => 'Home'),
 		);
-		$this->cronjobs = array();
+		// Planned exits take effect on their last day; needs Dolibarr's module Scheduled jobs.
+		$this->cronjobs = array(
+			0 => array(
+				'label' => 'VereineCronExits',
+				'jobtype' => 'method',
+				'class' => '/vereine/class/vereineexits.class.php',
+				'objectname' => 'VereineExits',
+				'method' => 'runDue',
+				'parameters' => '',
+				'comment' => 'VereineCronExitsHelp',
+				'frequency' => 1,
+				'unitfrequency' => 86400,
+				'status' => 1,
+				'test' => 'isModEnabled("vereine")',
+				'priority' => 50,
+			),
+		);
 
 		$this->rights = array();
 		$r = 0;
