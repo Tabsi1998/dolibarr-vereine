@@ -25,6 +25,10 @@ with a REST API for the association's website.
   invoices and the website (§ 18 VerG).
 - **REST API** for websites: `GET /api/index.php/vereine/organization` and
   `GET /api/index.php/vereine/status`. See [docs/API.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/API.md).
+- **Member summaries for the website** (0.3): membership, fee status with payment
+  link and open invoices of a member, found by member number or e-mail address,
+  for a website user that cannot read anything else of Dolibarr. Described in
+  [docs/openapi.json](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/openapi.json).
 - **Members and third parties** (0.2): a validated member can get its third
   party automatically; an existing third party with the same e-mail (or name
   and postcode) is suggested instead of duplicated. Third parties of members
@@ -77,7 +81,7 @@ are listed in [docs/LEGAL-SOURCES.md](https://github.com/Tabsi1998/dolibarr-vere
 | Invoice PDF (Dolibarr's templates, unchanged) | Tax profile notes per line and the ZVR number in the note area |
 | Contacts of a member's third party | Category *Guardian* for guardians of minors |
 | *Home > Setup > Modules > Vereine > Members and third parties*, also *Members > Association > Third party settings* | Automatic creation, categories, customer types (administrators) |
-| *Users & Groups > Permissions* | *Read the association overview and its data* (overview, API); *Link members and third parties and bring them in line* (reconciliation changes) |
+| *Users & Groups > Permissions* | *Read the association overview and its data* (overview, API); *Link members and third parties and bring them in line* (reconciliation changes); *Read member summaries for a website* (member endpoints of the API) |
 | *API REST* module | Needed for `/api/index.php/vereine/...`; the overview warns while it is off |
 
 How the parts connect: the setup stores the association data as Dolibarr
@@ -124,7 +128,8 @@ created. The association data stays.
 
 Create a Dolibarr user for the website with only the rights it needs, generate
 an API key for it, and call the API from the website's server - never from
-the browser, where the key would be visible:
+the browser, where the key would be visible. [docs/API.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/API.md#a-user-for-the-website)
+lists the steps and the two rights:
 
 ```bash
 curl -H "DOLAPIKEY: <key>" https://erp.example.org/api/index.php/vereine/organization

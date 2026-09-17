@@ -39,6 +39,7 @@ require_once $root.'/class/vereinepartnerrules.class.php';
 require_once $root.'/class/vereinetaxrules.class.php';
 require_once $root.'/class/vereinethresholds.class.php';
 require_once $root.'/class/vereinecashregister.class.php';
+require_once $root.'/class/vereinemembersummary.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -434,6 +435,65 @@ same(array('harmful' => 14888.34, 'ideal' => 4962.78, '' => 148.88),
 same(array(), VereineCashRegister::allocate(array(), 100), 'an invoice without lines shares out nothing');
 expect(in_array('LIQ', VereineCashRegister::CASH_PAYMENT_CODES, true) && in_array('CB', VereineCashRegister::CASH_PAYMENT_CODES, true), 'cash and card count as cash turnover');
 expect(!in_array('VIR', VereineCashRegister::CASH_PAYMENT_CODES, true), 'a bank transfer is no cash turnover');
+
+// ---------------------------------------------------------- member summary
+
+same('draft', VereineMemberSummary::status(-1), 'a member not yet validated is a draft');
+same('active', VereineMemberSummary::status('1'), 'a validated member is active');
+same('terminated', VereineMemberSummary::status(0), 'a resiliated member has terminated the membership');
+same('excluded', VereineMemberSummary::status(-2), 'an excluded member');
+
+same('2019-03-01', VereineMemberSummary::memberSince('active', '2019-03-01', '2026-09-17'), 'an imported history reaches back before the validation');
+same('2026-01-10', VereineMemberSummary::memberSince('active', '', '2026-01-10'), 'without subscription the validation date counts');
+same('', VereineMemberSummary::memberSince('draft', '2026-01-01', ''), 'a draft is no member yet');
+
+$today = '2026-09-17';
+same(array('status' => 'paid', 'next_due' => '2027-01-01'), VereineMemberSummary::fee('active', true, '2026-12-31', '2026-01-10', $today), 'a period covering today is paid, the next fee is due the day after');
+same(array('status' => 'paid', 'next_due' => '2026-09-18'), VereineMemberSummary::fee('active', true, '2026-09-17', '2026-01-10', $today), 'the last day of a period is still paid');
+same(array('status' => 'due', 'next_due' => '2026-09-17'), VereineMemberSummary::fee('active', true, '2026-09-16', '2026-01-10', $today), 'the day after a period the fee is due');
+same(array('status' => 'due', 'next_due' => '2026-01-10'), VereineMemberSummary::fee('active', true, '', '2026-01-10', $today), 'a member who never paid owes the fee since the validation');
+same(array('status' => 'not_required', 'next_due' => ''), VereineMemberSummary::fee('active', false, '', '2026-01-10', $today), 'a member type without subscription');
+same(array('status' => 'inactive', 'next_due' => ''), VereineMemberSummary::fee('terminated', true, '2026-12-31', '2026-01-10', $today), 'a former member owes no further fee');
+same(array('status' => 'inactive', 'next_due' => ''), VereineMemberSummary::fee('draft', true, '', '', $today), 'a draft owes no fee yet');
+
+expect(VereineMemberSummary::overdue('2026-09-16', $today), 'an invoice due yesterday is overdue');
+expect(!VereineMemberSummary::overdue('2026-09-17', $today), 'an invoice due today is not overdue');
+expect(!VereineMemberSummary::overdue('', $today), 'an invoice without due date is not overdue');
+
+same('2025-01-01', VereineMemberSummary::dayAfter('2024-12-31'), 'the day after New Year\'s Eve');
+same('2024-02-29', VereineMemberSummary::dayAfter('2024-02-28'), 'the day after 28 February in a leap year');
+same('', VereineMemberSummary::dayAfter('31.12.2024'), 'no day after an invalid date');
+
+same('2026-12-31', VereineMemberSummary::dayOf('2026-12-31 00:00:00'), 'a day stored at midnight');
+same('2026-12-31', VereineMemberSummary::dayOf('2026-12-30 23:00:00'), '31 December entered in Vienna on a server in UTC');
+same('2026-12-31', VereineMemberSummary::dayOf('2026-12-31 05:00:00'), '31 December entered in New York on a server in UTC');
+same('2026-10-17', VereineMemberSummary::dayOf('2026-10-17'), 'a date column without time');
+same('', VereineMemberSummary::dayOf(null), 'no day for an empty value');
+same('', VereineMemberSummary::dayOf('0000-00-00 00:00:00'), 'no day for a zero date');
+same('2026-09-17', VereineMemberSummary::datePart('2026-09-17 21:30:00'), 'a validation in the evening keeps its day');
+same('', VereineMemberSummary::datePart(''), 'no validation date');
+
+// ------------------------------------------------------------------- openapi
+
+// Every endpoint of the API class is in docs/openapi.json, and the description lists no other.
+$openapi = json_decode((string) file_get_contents($root.'/docs/openapi.json'), true);
+expect(is_array($openapi) && isset($openapi['paths']), 'docs/openapi.json is valid JSON with paths');
+$described = array();
+foreach (is_array($openapi) ? $openapi['paths'] : array() as $path => $item) {
+	foreach ($item as $method => $operation) {
+		$described[] = strtoupper($method).' '.$path;
+		expect(isset($operation['responses']['200'], $operation['responses']['401'], $operation['responses']['403'], $operation['responses']['501']),
+			'docs/openapi.json lists 200, 401, 403 and 501 for '.strtoupper($method).' '.$path);
+	}
+}
+preg_match_all('/@url\s+(GET|POST|PUT|DELETE)\s+(\S+)/', (string) file_get_contents($root.'/class/api_vereine.class.php'), $matches, PREG_SET_ORDER);
+$implemented = array();
+foreach ($matches as $match) {
+	$implemented[] = $match[1].' /vereine/'.$match[2];
+}
+sort($described);
+sort($implemented);
+same($implemented, $described, 'the endpoints in class/api_vereine.class.php and docs/openapi.json');
 
 // ------------------------------------------------------------ language files
 

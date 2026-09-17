@@ -26,6 +26,11 @@ Vereinswebsite mit.
   Website stehen muss (§ 18 VerG).
 - **REST-API** für Websites: `GET /api/index.php/vereine/organization` und
   `GET /api/index.php/vereine/status`. Details in [docs/API.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/API.md).
+- **Mitglieds-Zusammenfassung für die Website** (0.3): Mitgliedschaft,
+  Beitragsstand mit Zahlungslink und offene Rechnungen eines Mitglieds, gefunden
+  über Mitgliedsnummer oder E-Mail – für einen Website-Benutzer, der sonst nichts
+  aus Dolibarr lesen kann. Beschrieben in
+  [docs/openapi.json](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/openapi.json).
 - **Mitglieder und Geschäftspartner** (0.2): Ein aktiviertes Mitglied kann
   automatisch seinen Geschäftspartner bekommen; gibt es schon einen mit derselben
   E-Mail (oder Name und PLZ), wird er vorgeschlagen statt doppelt angelegt.
@@ -93,7 +98,7 @@ Bereich fällt, hängt vom Einzelfall ab. Quellen und Stand stehen in
 | Rechnungs-PDF (Dolibarr-Vorlagen, unverändert) | Hinweise der Steuerprofile je Zeile und ZVR-Zahl im Hinweisbereich |
 | Kontakte des Partners eines Mitglieds | Kategorie *Erziehungsberechtigt* für Minderjährige |
 | *Start > Einstellungen > Module > Vereine > Mitglieder und Partner*, auch *Mitglieder > Verein > Partner-Einstellungen* | Automatisch anlegen, Kategorien, Kundentypen (Administratoren) |
-| *Benutzer & Gruppen > Berechtigungen* | *Vereinsübersicht und Vereinsdaten lesen* (Übersicht, API); *Mitglieder und Geschäftspartner verknüpfen und abgleichen* (Änderungen im Abgleich) |
+| *Benutzer & Gruppen > Berechtigungen* | *Vereinsübersicht und Vereinsdaten lesen* (Übersicht, API); *Mitglieder und Geschäftspartner verknüpfen und abgleichen* (Änderungen im Abgleich); *Mitglieder-Zusammenfassung für die Website über die API lesen* (Mitglieder-Aufrufe der API) |
 | Modul *API REST* | Nötig für `/api/index.php/vereine/...`; die Übersicht warnt, solange es aus ist |
 
 So hängt es zusammen: Die Einrichtung speichert die Vereinsdaten als
@@ -143,11 +148,27 @@ Rechte und Kategorien entstehen. Die Vereinsdaten bleiben erhalten.
 
 Für die Website einen eigenen Dolibarr-Benutzer mit nur den nötigen Rechten
 anlegen, für ihn einen API-Schlüssel erzeugen und die API vom Server der
-Website aus aufrufen – nie aus dem Browser, dort wäre der Schlüssel sichtbar:
+Website aus aufrufen – nie aus dem Browser, dort wäre der Schlüssel sichtbar.
+
+1. *Start > Benutzer & Gruppen > Neuer Benutzer*: Login zum Beispiel `website`,
+   kein Administrator. Der Benutzer meldet sich nie an, ein starkes Passwort
+   genügt.
+2. Reiter *Berechtigungen*, Modul *Vereine (AT/DE)*: genau **Vereinsübersicht und
+   Vereinsdaten lesen** und **Mitglieder-Zusammenfassung für die Website über die
+   API lesen** anhaken. Sonst nichts – vor allem nicht Mitglieder, Rechnungen
+   oder Geschäftspartner lesen.
+3. *Ändern* auf der Benutzerkarte: **API-Schlüssel** erzeugen, speichern und nur
+   auf dem Server der Website ablegen, etwa als `DOLIBARR_API_KEY` in der `.env`.
+4. Vom Server der Website aus testen:
 
 ```bash
-curl -H "DOLAPIKEY: <schlüssel>" https://erp.example.org/api/index.php/vereine/organization
+curl -H "DOLAPIKEY: <schlüssel>" "https://erp.example.org/api/index.php/vereine/members/lookup?ref=1"
 ```
+
+Mit diesem Schlüssel lässt sich die Zusammenfassung jedes Mitglieds lesen und
+ein Mitglied über seine E-Mail finden. Er gehört behandelt wie ein Passwort: nie
+in den Browser, nie in ein Repository. Dolibarrs eigene Aufrufe wie `/members`
+oder `/invoices` beantworten diesem Benutzer mit 403.
 
 ## Keine Steuer- oder Rechtsberatung
 

@@ -85,6 +85,7 @@ VereineFixInModules=Open modules
 # Members and third parties
 #
 Permission49210002=Link members and third parties and bring them in line
+Permission49210003=Read member summaries for a website through the API: membership, fee and open invoices
 VereineMenuPartners=Members and third parties
 VereineMenuPartnerSetup=Third party settings
 VereineTabMembership=Membership

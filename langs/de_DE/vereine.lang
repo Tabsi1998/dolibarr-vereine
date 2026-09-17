@@ -85,6 +85,7 @@ VereineFixInModules=Module öffnen
 # Mitglieder und Geschäftspartner
 #
 Permission49210002=Mitglieder und Geschäftspartner verknüpfen und abgleichen
+Permission49210003=Mitglieder-Zusammenfassung für die Website über die API lesen: Mitgliedschaft, Beitrag und offene Rechnungen
 VereineMenuPartners=Mitglieder und Partner
 VereineMenuPartnerSetup=Partner-Einstellungen
 VereineTabMembership=Mitgliedschaft

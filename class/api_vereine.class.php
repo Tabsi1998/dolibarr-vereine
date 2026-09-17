@@ -176,6 +176,75 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Summary of a member
+	 *
+	 * What a website shows a member about the membership: member number, name, member type,
+	 * status, member since, paid until, the fee with a payment link and the open invoices of
+	 * the member's third party. Needs the right to read member summaries for a website, not
+	 * the right to read members or invoices. Birth date, address, phone, notes and bank data
+	 * are never part of it.
+	 *
+	 * @param int $id Member id
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET members/{id}/summary
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such member
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMemberSummary($id)
+	{
+		$this->checkAccess();
+		$this->checkWebsiteRight();
+		$summary = $this->memberReport()->summary((int) $id);
+		if ($summary === null) {
+			throw new RestException(404, 'No member with this id');
+		}
+		return $summary;
+	}
+
+	/**
+	 * Find a member
+	 *
+	 * The summary of the member with a member number or an e-mail address, to link a
+	 * website account to Dolibarr. Give either ref or email. E-mail addresses match
+	 * ignoring upper and lower case.
+	 *
+	 * @param string $ref   Member number
+	 * @param string $email E-mail address
+	 * @return array Fields as for members/{id}/summary
+	 *
+	 * @url GET members/lookup
+	 *
+	 * @throws RestException 400 Neither or both of ref and email given
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No member matches
+	 * @throws RestException 409 Several members share the e-mail address
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMemberLookup($ref = '', $email = '')
+	{
+		$this->checkAccess();
+		$this->checkWebsiteRight();
+		$ref = trim((string) $ref);
+		$email = trim((string) $email);
+		if (($ref === '') === ($email === '')) {
+			throw new RestException(400, 'Give either ref or email');
+		}
+		$report = $this->memberReport();
+		$ids = $ref !== '' ? $report->idsByRef($ref) : $report->idsByEmail($email);
+		if (count($ids) > 1) {
+			throw new RestException(409, 'Several members match, link the account by member number');
+		}
+		$summary = $ids ? $report->summary($ids[0]) : null;
+		if ($summary === null) {
+			throw new RestException(404, 'No member matches');
+		}
+		return $summary;
+	}
+
+	/**
 	 * Refuse the call unless the module is on and the user may read the association.
 	 *
 	 * @return void
@@ -190,5 +259,30 @@ class Vereine extends DolibarrApi
 		if (!DolibarrApiAccess::$user->hasRight('vereine', 'association', 'read')) {
 			throw new RestException(403, 'Not allowed: the user needs the right to read the association');
 		}
+	}
+
+	/**
+	 * Refuse the call unless the user may read member summaries for a website.
+	 *
+	 * @return void
+	 *
+	 * @throws RestException
+	 */
+	private function checkWebsiteRight()
+	{
+		if (!DolibarrApiAccess::$user->hasRight('vereine', 'website', 'read')) {
+			throw new RestException(403, 'Not allowed: the user needs the right to read member summaries for a website');
+		}
+	}
+
+	/**
+	 * The reader of member summaries.
+	 *
+	 * @return VereineMemberReport
+	 */
+	private function memberReport()
+	{
+		dol_include_once('/vereine/class/vereinememberreport.class.php');
+		return new VereineMemberReport($this->db);
 	}
 }

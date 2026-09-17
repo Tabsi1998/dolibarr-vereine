@@ -195,6 +195,26 @@ CONTRACTS = (
     ("htdocs/install/mysql/tables/llx_paiement_facture.sql", "fk_facture", "payment shared out to invoices"),
     ("htdocs/install/mysql/tables/llx_c_tva.key.sql", "uk_c_tva_id (entity, fk_pays, code, taux, recuperableonly)", "adding 13 % twice is impossible"),
     ("htdocs/compta/paiement/class/paiement.class.php", "public function create($user, $closepaidinvoices = 0, $thirdparty = null)", "runtime fixture pays an invoice in cash"),
+    # Member summary for a website (issue #49)
+    ("htdocs/install/mysql/tables/llx_adherent.sql", "datefin", "paid until: end of the last subscription period"),
+    ("htdocs/install/mysql/tables/llx_adherent.sql", "datevalid", "validation date of a member"),
+    ("htdocs/install/mysql/tables/llx_adherent.sql", "fk_adherent_type", "member type of a member"),
+    ("htdocs/install/mysql/tables/llx_adherent.sql", "ref              varchar(30) NOT NULL", "member number"),
+    ("htdocs/install/mysql/tables/llx_adherent_type.sql", "subscription     varchar(3) NOT NULL DEFAULT '1'", "whether a member type needs a subscription"),
+    ("htdocs/install/mysql/tables/llx_adherent_type.sql", "amount           double(24,8) DEFAULT NULL", "fee amount of a member type, null when not set"),
+    ("htdocs/install/mysql/tables/llx_subscription.sql", "dateadh", "start of a subscription period, member since"),
+    ("htdocs/install/mysql/tables/llx_facture.sql", "date_lim_reglement", "due date of an open invoice"),
+    ("htdocs/install/mysql/tables/llx_facture.sql", "paye", "paid flag of an invoice"),
+    ("htdocs/compta/facture/class/facture.class.php", "const TYPE_DEPOSIT = 3;", "open deposit invoices are listed"),
+    ("htdocs/core/class/commoninvoice.class.php", "public function getRemainToPay($multicurrency = 0)", "remaining amount of an open invoice"),
+    ("htdocs/core/lib/payments.lib.php", "function getValidOnlinePaymentMethods($paymentmethod = '', $mode = 0)", "payment links only with an online payment service"),
+    ("htdocs/core/lib/payments.lib.php", "function getOnlinePaymentUrl($mode, $type, $ref = '', $amount = 0, $freetag = 'your_tag', $localorexternal = 1)", "payment links for fee and invoices"),
+    ("htdocs/core/lib/payments.lib.php", "} elseif ($type == 'member' || $type == 'membersubscription') {", "payment link for a member's fee"),
+    ("htdocs/public/payment/newpayment.php", "$amount = $adht->amount;", "the payment page takes the member type's amount"),
+    ("htdocs/core/db/DoliDB.class.php", "public function plimit(", "at most 50 open invoices"),
+    ("htdocs/core/lib/admin.lib.php", "function unActivateModule(", "runtime fixtures"),
+    ("htdocs/adherents/class/adherent.class.php", "public function subscription($date, $amount, $accountid = 0, $operation = '', $label = '', $num_chq = '', $emetteur_nom = '', $emetteur_banque = '', $datesubend = 0, $fk_type = null", "runtime fixture records subscription periods"),
+    ("htdocs/adherents/class/api_members.class.php", "if (!DolibarrApiAccess::$user->hasRight('adherent', 'lire')) {", "the website user cannot read members through Dolibarr's own API"),
 )
 
 LANG_KEYS = {

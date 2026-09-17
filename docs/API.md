@@ -3,7 +3,12 @@
 The module adds endpoints below Dolibarr's REST API at
 `https://<dolibarr>/api/index.php/vereine/`. They need Dolibarr's *API REST*
 module and a user with the right **Read the association overview and its data**
-(`vereine > association > read`).
+(`vereine > association > read`). The member endpoints need the right **Read
+member summaries for a website** (`vereine > website > read`) as well.
+
+[`openapi.json`](openapi.json) describes every endpoint as OpenAPI 3.0. The
+runtime checks compare every answer of the module with it in Dolibarr 22, 23
+and 24; a field it does not list fails the check.
 
 Authenticate with the user's API key in the `DOLAPIKEY` header. Call the API
 from a server, never from a browser: whoever sees the key acts as that user.
@@ -12,8 +17,11 @@ Since Dolibarr 24 the login endpoints are off by default, so a key is the way in
 | Answer | Meaning |
 | --- | --- |
 | 200 | JSON as described below |
+| 400 | A parameter is missing or out of range |
 | 401 | No or unknown API key |
 | 403 | The user lacks the right |
+| 404 | No such member |
+| 409 | Several members match |
 | 501 | The Vereine module is disabled |
 
 `api_version` rises when a field changes meaning or disappears. New fields can
@@ -163,6 +171,109 @@ Turnover counts gross; cash counts payments of the year in cash, by card,
 cheque or online, shared out over the spheres of the paid invoice.
 
 Answers 400 for a year before 2000 or after 2100.
+
+## A user for the website
+
+The website gets its own Dolibarr user that can read exactly what the website
+shows. Dolibarr's own endpoints such as `/members` or `/invoices` answer it with
+403, because it lacks the rights to read members, third parties and invoices:
+the member summary below is all it sees of a member.
+
+1. *Home > Users & Groups > New user*: login for example `website`, not an
+   administrator. The user never logs in to Dolibarr, any strong password will do.
+2. Tab *Permissions*, module *Vereine (AT/DE)*: tick **Read the association
+   overview and its data** and **Read member summaries for a website**. Nothing
+   else.
+3. *Modify* on the user card: generate the **API key**, save, and store it on the
+   website's server only, for example as `DOLIBARR_API_KEY` in its `.env`.
+4. Test from the website's server:
+
+```bash
+curl --fail -H "DOLAPIKEY: $DOLIBARR_API_KEY" \
+  "https://erp.example.org/api/index.php/vereine/members/lookup?ref=1"
+```
+
+Whoever has the key can read the summary of every member and find members by
+e-mail address. Treat it like a password: never in the browser, never in a
+repository.
+
+## GET /vereine/members/{id}/summary
+
+What a website shows a member about the membership. `{id}` is the member's id
+in Dolibarr (the number in the address of the member card).
+
+```json
+{
+  "id": 12,
+  "ref": "12",
+  "firstname": "Paula",
+  "lastname": "Beispiel",
+  "company": "",
+  "type": { "id": 2, "label": "Ordentliches Mitglied" },
+  "status": "active",
+  "member_since": "2023-01-01",
+  "paid_until": "2026-12-31",
+  "currency": "EUR",
+  "fee": {
+    "required": true,
+    "status": "paid",
+    "next_due": "2027-01-01",
+    "amount": 50,
+    "payment_url": ""
+  },
+  "open_invoices": [
+    {
+      "ref": "FA2608-0003",
+      "date": "2026-08-01",
+      "due_date": "2026-08-15",
+      "total": 60,
+      "remaining": 50,
+      "overdue": true,
+      "payment_url": "https://erp.example.org/public/payment/newpayment.php?source=invoice&ref=FA2608-0003&securekey=..."
+    }
+  ]
+}
+```
+
+| Field | Content |
+| --- | --- |
+| `ref` | Member number (Dolibarr's reference of the member) |
+| `company` | Name of a legal entity; empty for natural persons |
+| `status` | `draft` (not yet validated), `active`, `terminated` (resiliated in Dolibarr), `excluded` |
+| `member_since` | Start of the first subscription period or the validation date, whichever is earlier; empty for drafts |
+| `paid_until` | End of the last subscription period, the whole day included; empty when the member never paid |
+| `fee.required` | Whether the member type needs a subscription |
+| `fee.status` | `paid` (a period covers today), `due` (never paid, or the last period has ended), `not_required` (member type without subscription), `inactive` (draft, terminated or excluded) |
+| `fee.next_due` | The day after `paid_until`; the validation date when the member never paid; empty for `not_required` and `inactive` |
+| `fee.amount` | Amount of the member type; `null` when the type sets none or needs no subscription |
+| `fee.payment_url` | Dolibarr's online payment page for the fee, only while the fee is `due` and an online payment service (Stripe, PayPal or one added by a module) is set up; otherwise empty |
+| `open_invoices` | Validated, unpaid invoices of the member's third party, oldest first, at most 50: standard, replacement and deposit invoices. Empty when the member has no third party |
+| `open_invoices[].remaining` | What is still to pay after payments, credit notes and deposits |
+| `open_invoices[].overdue` | The due date has passed |
+| `open_invoices[].payment_url` | Dolibarr's online payment page for the invoice, only with an online payment service; otherwise empty |
+
+Dates are `YYYY-MM-DD` or empty, amounts are numbers in `currency`. The summary
+never contains birth date, address, phone, e-mail, notes, bank data or dunning
+levels. Dolibarr's member status "subscription late" is `status: active` with
+`fee.status: due`.
+
+Answers 404 when there is no member with this id.
+
+## GET /vereine/members/lookup
+
+The same summary, found by member number or e-mail address - to link a website
+account with Dolibarr.
+
+| Call | Answer |
+| --- | --- |
+| `?ref=12` | the member with this member number |
+| `?email=paula@example.org` | the member with this e-mail address, ignoring upper and lower case and surrounding spaces |
+| neither or both | 400 |
+| nobody matches | 404 |
+| several members share the e-mail address | 409 - link the account by member number instead |
+
+Look members up once when an account is linked, store the `id`, and read the
+summary by id afterwards.
 
 ## Example
 

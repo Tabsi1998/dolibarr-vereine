@@ -1,0 +1,180 @@
+<?php
+/* Copyright (C) 2026 IT-Tabelander <https://it.tabelander.co.at>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/**
+ * \file    class/vereinemembersummary.class.php
+ * \ingroup vereine
+ * \brief   Membership and fee status of a member for a website, plain PHP.
+ *
+ * Dates are strings YYYY-MM-DD, an empty string when unknown. A day counts in full:
+ * paid until 31 December means paid on that whole day.
+ */
+
+/**
+ * Rules that turn Dolibarr's member data into the summary a website shows.
+ */
+class VereineMemberSummary
+{
+	/** Not yet validated. */
+	const STATUS_DRAFT = 'draft';
+	/** Validated member. */
+	const STATUS_ACTIVE = 'active';
+	/** Membership ended (resiliated in Dolibarr). */
+	const STATUS_TERMINATED = 'terminated';
+	/** Excluded. */
+	const STATUS_EXCLUDED = 'excluded';
+
+	/** The subscription period covers today. */
+	const FEE_PAID = 'paid';
+	/** No subscription period yet, or the last one has ended. */
+	const FEE_DUE = 'due';
+	/** The member type needs no subscription. */
+	const FEE_NOT_REQUIRED = 'not_required';
+	/** The membership is not active, so no fee is expected. */
+	const FEE_INACTIVE = 'inactive';
+
+	/**
+	 * Membership status from Dolibarr's member status.
+	 *
+	 * @param int|string $statut Dolibarr's status: -1 draft, 1 validated, 0 resiliated, -2 excluded
+	 * @return string One of the STATUS constants
+	 */
+	public static function status($statut)
+	{
+		$statut = (int) $statut;
+		if ($statut >= 1) {
+			return self::STATUS_ACTIVE;
+		}
+		if ($statut === 0) {
+			return self::STATUS_TERMINATED;
+		}
+		if ($statut === -2) {
+			return self::STATUS_EXCLUDED;
+		}
+		return self::STATUS_DRAFT;
+	}
+
+	/**
+	 * Since when someone is a member: the start of the first subscription period or the
+	 * validation date, whichever is earlier. Empty for drafts.
+	 *
+	 * @param string $status            One of the STATUS constants
+	 * @param string $firstPeriodStart  Start of the first subscription period
+	 * @param string $validatedOn       Validation date
+	 * @return string
+	 */
+	public static function memberSince($status, $firstPeriodStart, $validatedOn)
+	{
+		if ($status === self::STATUS_DRAFT) {
+			return '';
+		}
+		$dates = array_filter(array((string) $firstPeriodStart, (string) $validatedOn), 'strlen');
+		return $dates ? min($dates) : '';
+	}
+
+	/**
+	 * Fee status and the day the next fee is due.
+	 *
+	 * @param string $status      One of the STATUS constants
+	 * @param bool   $required    Whether the member type needs a subscription
+	 * @param string $paidUntil   End of the last subscription period
+	 * @param string $validatedOn Validation date, due date of a first fee
+	 * @param string $today       Today
+	 * @return array{status:string,next_due:string}
+	 */
+	public static function fee($status, $required, $paidUntil, $validatedOn, $today)
+	{
+		if ($status !== self::STATUS_ACTIVE) {
+			return array('status' => self::FEE_INACTIVE, 'next_due' => '');
+		}
+		if (!$required) {
+			return array('status' => self::FEE_NOT_REQUIRED, 'next_due' => '');
+		}
+		if ((string) $paidUntil === '') {
+			return array('status' => self::FEE_DUE, 'next_due' => (string) $validatedOn);
+		}
+		return array(
+			'status' => $paidUntil >= $today ? self::FEE_PAID : self::FEE_DUE,
+			'next_due' => self::dayAfter($paidUntil),
+		);
+	}
+
+	/**
+	 * Whether an open invoice is past its due date.
+	 *
+	 * @param string $dueDate Due date, empty when the invoice has none
+	 * @param string $today   Today
+	 * @return bool
+	 */
+	public static function overdue($dueDate, $today)
+	{
+		return (string) $dueDate !== '' && $dueDate < $today;
+	}
+
+	/**
+	 * The day after a date.
+	 *
+	 * @param string $date YYYY-MM-DD
+	 * @return string YYYY-MM-DD, empty for an invalid date
+	 */
+	public static function dayAfter($date)
+	{
+		if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', (string) $date, $parts)) {
+			return '';
+		}
+		return gmdate('Y-m-d', gmmktime(12, 0, 0, (int) $parts[2], (int) $parts[3] + 1, (int) $parts[1]));
+	}
+
+	/**
+	 * The date part of a database datetime that holds a moment, such as the validation.
+	 *
+	 * @param string|null $value Value as the database returns it, in the server's time zone
+	 * @return string YYYY-MM-DD or empty
+	 */
+	public static function datePart($value)
+	{
+		return preg_match('/^\d{4}-\d{2}-\d{2}/', (string) $value, $match) && $match[0] !== '0000-00-00' ? $match[0] : '';
+	}
+
+	/**
+	 * The day a database datetime stands for when it holds a day, such as the end of a
+	 * subscription period.
+	 *
+	 * Dolibarr stores such a day as midnight in the time zone of the user who entered it,
+	 * written in the server's time zone: 31 December entered in Vienna is
+	 * "2026-12-30 23:00:00" on a server running in UTC. Rounding to the nearest midnight
+	 * gives the day back for any user within twelve hours of the server.
+	 *
+	 * @param string|null $value Value as the database returns it
+	 * @return string YYYY-MM-DD or empty
+	 */
+	public static function dayOf($value)
+	{
+		if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/', (string) $value, $parts) || $parts[1] === '0000') {
+			return '';
+		}
+		$moment = gmmktime(
+			isset($parts[4]) ? (int) $parts[4] : 0,
+			isset($parts[5]) ? (int) $parts[5] : 0,
+			isset($parts[6]) ? (int) $parts[6] : 0,
+			(int) $parts[2],
+			(int) $parts[3],
+			(int) $parts[1]
+		);
+		return gmdate('Y-m-d', $moment + 43200);
+	}
+}
