@@ -208,11 +208,18 @@ class VereineMemberReport
 			dol_syslog(__METHOD__.' '.$this->db->lasterror(), LOG_ERR);
 			return array();
 		}
-		$changes = array();
+		$rows = array();
 		while ($obj = $this->db->fetch_object($resql)) {
+			$rows[] = $obj;
+		}
+		$this->db->free($resql);
+
+		$offset = $rows ? $this->databaseClockOffset($now) : 0;
+		$changes = array();
+		foreach ($rows as $obj) {
 			$moments = array();
 			foreach (array('tms', 'type_tms', 'subscription_tms', 'invoice_tms', 'payment_tms') as $field) {
-				$moments[] = $obj->$field ? (int) $this->db->jdate($obj->$field) : 0;
+				$moments[] = $obj->$field ? (int) $this->db->jdate($obj->$field) - $offset : 0;
 			}
 			$days = VereineMemberSummary::changeDays(VereineMemberSummary::status($obj->statut), (int) $obj->subscription === 1,
 				VereineMemberSummary::dayOf($obj->datefin), VereineMemberSummary::dayOf($obj->last_due), $today);
@@ -221,8 +228,25 @@ class VereineMemberReport
 			}
 			$changes[(int) $obj->rowid] = VereineMemberSummary::latestMoment($moments, $now);
 		}
-		$this->db->free($resql);
 		return $changes;
+	}
+
+	/**
+	 * Seconds the moments the database fills in itself read off, see VereineMemberSummary::clockOffset().
+	 *
+	 * @param int $now PHP's current time
+	 * @return int
+	 */
+	private function databaseClockOffset($now)
+	{
+		$resql = $this->db->query("SELECT CURRENT_TIMESTAMP as dbnow");
+		$obj = $resql ? $this->db->fetch_object($resql) : null;
+		if (!$obj) {
+			dol_syslog(__METHOD__.' '.$this->db->lasterror(), LOG_ERR);
+			return 0;
+		}
+		$this->db->free($resql);
+		return VereineMemberSummary::clockOffset((int) $this->db->jdate($obj->dbnow), $now);
 	}
 
 	/**

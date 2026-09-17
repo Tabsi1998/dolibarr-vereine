@@ -187,6 +187,23 @@ class VereineMemberSummary
 	}
 
 	/**
+	 * How far the database's clock is off when its time is read like PHP's.
+	 *
+	 * Columns the database fills itself (tms) are written in the database's time zone, but
+	 * Dolibarr reads every date in PHP's time zone. On a server where MariaDB runs in UTC and
+	 * PHP in Europe/Vienna, such a moment reads two hours early. Time zones differ in steps of
+	 * 15 minutes, so the difference of the two clocks is rounded to that.
+	 *
+	 * @param int $databaseNow The database's current time, read the way Dolibarr reads dates
+	 * @param int $now         PHP's current time
+	 * @return int Seconds to subtract from a moment the database filled in
+	 */
+	public static function clockOffset($databaseNow, $now)
+	{
+		return (int) (round(((int) $databaseNow - (int) $now) / 900) * 900);
+	}
+
+	/**
 	 * A moment as ISO 8601 in UTC, such as 2026-09-17T08:00:00Z.
 	 *
 	 * @param int $moment Unix timestamp

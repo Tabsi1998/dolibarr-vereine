@@ -475,6 +475,9 @@ same(1758096000, VereineMemberSummary::parseMoment('2025-09-17T03:00-05:00'), 'a
 same(null, VereineMemberSummary::parseMoment('2025-09-17T08:00:00'), 'a moment without time zone is refused');
 same(null, VereineMemberSummary::parseMoment('2025-02-30T08:00:00Z'), 'a day that does not exist is refused');
 same(null, VereineMemberSummary::parseMoment('gestern'), 'no moment in words');
+same(-7200, VereineMemberSummary::clockOffset(1000000000 - 7197, 1000000000), 'MariaDB in UTC read like PHP in Vienna summer time is two hours early');
+same(0, VereineMemberSummary::clockOffset(1000000003, 1000000000), 'the same time zone, a few seconds apart, is no offset');
+same(19800, VereineMemberSummary::clockOffset(1000019800, 1000000000), 'offsets of half hours, such as India');
 same('2025-09-17T08:00:00Z', VereineMemberSummary::isoMoment(1758096000), 'a moment written in UTC');
 same('', VereineMemberSummary::isoMoment(0), 'no moment');
 same(300, VereineMemberSummary::latestMoment(array(100, null, 300, 900), 500), 'the latest moment not in the future');
