@@ -31,6 +31,108 @@ class VereineFunctions
 {
 	/** Member field: place of birth, needed to report a representative. */
 	const FIELD_BIRTH_PLACE = 'vereine_birth_place';
+	/** Whose names the website may show, see VereineFunctionRules::NAMES_*. */
+	const CONST_BOARD_NAMES = 'VEREINE_BOARD_NAMES';
+	/** Code of the consent text "shown on the website". */
+	const CONST_BOARD_CONSENT = 'VEREINE_BOARD_CONSENT';
+
+	/**
+	 * How the website shows names of function holders.
+	 *
+	 * @return array{mode:string,consent:string}
+	 */
+	public function boardSetting()
+	{
+		$mode = getDolGlobalString(self::CONST_BOARD_NAMES) === VereineFunctionRules::NAMES_DISCLOSURE ? VereineFunctionRules::NAMES_DISCLOSURE : VereineFunctionRules::NAMES_CONSENT;
+		return array('mode' => $mode, 'consent' => getDolGlobalString(self::CONST_BOARD_CONSENT));
+	}
+
+	/**
+	 * Store how the website shows names of function holders.
+	 *
+	 * @param string $mode    One of VereineFunctionRules::NAMES_*
+	 * @param string $consent Code of a consent text, empty for none
+	 * @return int 1 if stored, 0 when refused (see $errors), <0 on error
+	 */
+	public function saveBoardSetting($mode, $consent)
+	{
+		global $conf;
+
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+
+		$this->errors = array();
+		if (!in_array($mode, array(VereineFunctionRules::NAMES_CONSENT, VereineFunctionRules::NAMES_DISCLOSURE), true)) {
+			$this->errors[] = 'VereineBoardErrorMode';
+		}
+		if ((string) $consent !== '' && !preg_match('/^[a-z][a-z0-9_]{1,31}$/', (string) $consent)) {
+			$this->errors[] = 'VereineBoardErrorConsent';
+		}
+		if ($this->errors) {
+			return 0;
+		}
+		if (dolibarr_set_const($this->db, self::CONST_BOARD_NAMES, $mode, 'chaine', 0, '', $conf->entity) < 0
+			|| dolibarr_set_const($this->db, self::CONST_BOARD_CONSENT, (string) $consent, 'chaine', 0, '', $conf->entity) < 0) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		return 1;
+	}
+
+	/**
+	 * The functions of the association with their holders on a day, names as the website may show them.
+	 *
+	 * @param string $day Day
+	 * @return array<int,array{code:string,label:string,board:bool,represents:bool,auditor:bool,holders:array<int,array{name:string|null,since:string}>}>
+	 */
+	public function board($day)
+	{
+		require_once __DIR__.'/vereineconsents.class.php';
+
+		$setting = $this->boardSetting();
+		$functions = $this->fetchAll(true);
+		$terms = array_reverse($this->terms());
+		$consented = array();
+		if ($setting['consent'] !== '') {
+			$consents = new VereineConsents($this->db);
+			$consented = $consents->givenBy(array_column($terms, 'member_id'), $setting['consent']);
+		}
+		$board = array();
+		foreach ($functions as $function) {
+			$holders = array();
+			foreach ($terms as $term) {
+				if ($term['function_id'] !== $function['id'] || $term['member_status'] !== 1 || !VereineFunctionRules::isActive($term, $day)) {
+					continue;
+				}
+				$show = VereineFunctionRules::showName($setting['mode'], $function['board'], !empty($consented[$term['member_id']]));
+				$holders[] = array('name' => $show ? $term['member_name'] : null, 'since' => $term['start']);
+			}
+			$board[] = array('code' => $function['code'], 'label' => $function['label'], 'board' => $function['board'], 'represents' => $function['represents'],
+				'auditor' => $function['auditor'], 'holders' => $holders);
+		}
+		return $board;
+	}
+
+	/**
+	 * The functions a member holds on a day.
+	 *
+	 * @param int    $memberId Member
+	 * @param string $day      Day
+	 * @return array<int,array{code:string,label:string,since:string}>
+	 */
+	public function memberFunctions($memberId, $day)
+	{
+		$functions = array();
+		foreach ($this->fetchAll(true) as $function) {
+			$functions[$function['id']] = $function;
+		}
+		$result = array();
+		foreach (array_reverse($this->terms((int) $memberId)) as $term) {
+			if (isset($functions[$term['function_id']]) && VereineFunctionRules::isActive($term, $day)) {
+				$result[] = array('code' => $functions[$term['function_id']]['code'], 'label' => $functions[$term['function_id']]['label'], 'since' => $term['start']);
+			}
+		}
+		return $result;
+	}
 
 	/**
 	 * @var DoliDB Database handler

@@ -60,6 +60,37 @@
         }
       }
     },
+    "/vereine/board": {
+      "get": {
+        "operationId": "getBoard",
+        "summary": "Functions of the association with their holders today, names only where the website may show them",
+        "description": "Needs the right to read the association and the right to read member summaries for a website.",
+        "responses": {
+          "200": {
+            "description": "Functions in their order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BoardFunction"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/vereine/consents": {
       "get": {
         "operationId": "getConsents",
@@ -887,7 +918,7 @@
       "MemberSummary": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "ref", "firstname", "lastname", "company", "type", "status", "member_since", "paid_until", "membership_ends", "currency", "fee", "open_invoices", "updated_at"],
+        "required": ["id", "ref", "firstname", "lastname", "company", "type", "status", "member_since", "paid_until", "membership_ends", "functions", "currency", "fee", "open_invoices", "updated_at"],
         "properties": {
           "id": {
             "type": "integer"
@@ -928,6 +959,13 @@
           },
           "paid_until": {
             "$ref": "#/components/schemas/Date"
+          },
+          "functions": {
+            "type": "array",
+            "description": "Functions the member holds today",
+            "items": {
+              "$ref": "#/components/schemas/MemberFunction"
+            }
           },
           "membership_ends": {
             "type": "string",
@@ -994,6 +1032,66 @@
           },
           "updated_at": {
             "$ref": "#/components/schemas/Moment"
+          }
+        }
+      },
+      "BoardFunction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "label", "board", "represents", "auditor", "holders"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,31}$"
+          },
+          "label": {
+            "type": "string"
+          },
+          "board": {
+            "type": "boolean",
+            "description": "Part of the board (management body)"
+          },
+          "represents": {
+            "type": "boolean",
+            "description": "Represents the association externally"
+          },
+          "auditor": {
+            "type": "boolean"
+          },
+          "holders": {
+            "type": "array",
+            "description": "Holders today; empty when vacant",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "since"],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "Name, or null when the holder did not consent and the setting does not require the board's names"
+                },
+                "since": {
+                  "$ref": "#/components/schemas/Date"
+                }
+              }
+            }
+          }
+        }
+      },
+      "MemberFunction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "label", "since"],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "since": {
+            "$ref": "#/components/schemas/Date"
           }
         }
       },

@@ -63,6 +63,7 @@ if (!$res) {
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once __DIR__.'/../lib/vereine.lib.php';
 require_once __DIR__.'/../class/vereinefunctions.class.php';
+require_once __DIR__.'/../class/vereineconsents.class.php';
 
 $langs->loadLangs(array('admin', 'vereine@vereine'));
 
@@ -107,6 +108,14 @@ if ($action === 'savefunction') {
 		setEventMessages(null, array_map(array($langs, 'trans'), $functions->errors), 'errors');
 	}
 	$edit = array_merge($data, array('id' => $id));
+} elseif ($action === 'saveboard') {
+	$result = $functions->saveBoardSetting(GETPOST('board_names', 'aZ09'), GETPOST('board_consent', 'aZ09'));
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineBoardSaved'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereineboard');
+		exit;
+	}
+	setEventMessages($result < 0 ? $functions->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $functions->errors), 'errors');
 } elseif ($action === 'editfunction' && $id > 0) {
 	foreach ($functions->fetchAll() as $function) {
 		if ($function['id'] === $id) {
@@ -169,6 +178,34 @@ print '<input type="number" min="0" max="99" id="max" name="max" class="width50"
 print ' <span class="opacitymedium small">'.$langs->trans('VereineFunctionCountHelp').'</span></td></tr>';
 print '<tr><td><label for="position">'.$langs->trans('Position').'</label></td>';
 print '<td><input type="number" min="0" id="position" name="position" class="width50" value="'.((int) $edit['position']).'"></td></tr>';
+print '</table>';
+print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'"></div>';
+print '</form><br>';
+
+// Board on the website: whose names the API gives.
+print load_fiche_titre($langs->trans('VereineBoardTitle'), '', '', 0, 'vereineboard');
+print '<div class="info" data-board-howto="1"><ul>';
+foreach (array('VereineBoardHowToConsent', 'VereineBoardHowToDisclosure', 'VereineBoardHowToApi') as $line) {
+	print '<li>'.$langs->trans($line).'</li>';
+}
+print '</ul></div>';
+$boardSetting = $functions->boardSetting();
+$consentStore = new VereineConsents($db);
+$consentOptions = array('' => $langs->trans('VereineBoardNoConsent'));
+foreach ($consentStore->currentTexts() as $code => $text) {
+	$consentOptions[$code] = $text['label'];
+}
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereineboard">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="saveboard">';
+print '<table class="border centpercent">';
+print '<tr><td class="titlefieldcreate"><label for="board_names">'.$langs->trans('VereineBoardNames').'</label></td><td>';
+print Form::selectarray('board_names', array(VereineFunctionRules::NAMES_CONSENT => $langs->trans('VereineBoardNames_consent'),
+	VereineFunctionRules::NAMES_DISCLOSURE => $langs->trans('VereineBoardNames_disclosure')), $boardSetting['mode'], 0, 0, 0, '', 0, 0, 0, '', 'minwidth300');
+print '</td></tr>';
+print '<tr><td><label for="board_consent">'.$langs->trans('VereineBoardConsent').'</label></td><td>';
+print Form::selectarray('board_consent', $consentOptions, $boardSetting['consent'], 0, 0, 0, '', 0, 0, 0, '', 'minwidth300');
+print '</td></tr>';
 print '</table>';
 print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'"></div>';
 print '</form>';

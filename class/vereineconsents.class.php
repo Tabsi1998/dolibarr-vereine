@@ -229,6 +229,36 @@ class VereineConsents
 	}
 
 	/**
+	 * Which members have a consent given now: their latest event for the purpose is a consent.
+	 *
+	 * @param int[]  $memberIds Members
+	 * @param string $code      Purpose code
+	 * @return array<int,bool> By member id, true when given
+	 */
+	public function givenBy(array $memberIds, $code)
+	{
+		global $conf;
+
+		$ids = array_values(array_unique(array_filter(array_map('intval', $memberIds))));
+		if (!$ids || !VereineConsentRules::isCode($code)) {
+			return array();
+		}
+		$sql = "SELECT fk_adherent, given FROM ".MAIN_DB_PREFIX."vereine_consent WHERE entity = ".((int) $conf->entity);
+		$sql .= " AND code = '".$this->db->escape($code)."' AND fk_adherent IN (".implode(', ', $ids).") ORDER BY date_event, rowid";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return array();
+		}
+		$given = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$given[(int) $obj->fk_adherent] = (int) $obj->given === 1;
+		}
+		$this->db->free($resql);
+		return $given;
+	}
+
+	/**
 	 * Create a draft member from a website application, with its consents, once per external id.
 	 *
 	 * @param array<string,mixed> $application Normalised application, see VereineConsentRules::application()
