@@ -151,6 +151,84 @@ function vereineFeeReason(array $fee)
 }
 
 /**
+ * The signatures of one document: state, who is still missing, the sheet, and both ways to sign.
+ *
+ * The same block serves every page that has documents to sign.
+ *
+ * @param VereineSignatures $signatures Signature store
+ * @param string            $kind       Kind of document, see VereineSignatureRules::KINDS
+ * @param int               $objectId   The document's object
+ * @param string            $file       Absolute path of the document
+ * @param bool              $canWrite   Whether the user may sign or upload
+ * @param string            $anchor     Anchor the forms return to
+ * @return void
+ */
+function vereineSignatureBlock($signatures, $kind, $objectId, $file, $canWrite, $anchor)
+{
+	global $langs, $user;
+
+	$rules = $signatures->rules();
+	$run = $signatures->current($kind, $objectId, $file);
+	$back = $_SERVER['PHP_SELF'].'#'.$anchor;
+	if ($run === null) {
+		if (!VereineSignatureRules::wanted($rules, $kind)) {
+			print '<span class="opacitymedium" data-signature="none">'.$langs->trans('VereineSignatureOff').'</span>';
+			return;
+		}
+		if ($canWrite && $file !== '' && is_file($file)) {
+			print '<form method="POST" action="'.$back.'" name="vereinestartsign'.$kind.$objectId.'">';
+			print '<input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="startsign">';
+			print '<input type="hidden" name="object" value="'.((int) $objectId).'">';
+			print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineSignatureStart')).'">';
+			print '</form>';
+		}
+		return;
+	}
+	print '<span data-signature="'.$run['id'].'" data-status="'.$run['status'].'" data-signed="'.$run['signed'].'" data-needed="'.$run['needed'].'">';
+	print $langs->trans($run['status'] === VereineSignatures::STATUS_DONE ? 'VereineSignatureComplete' : 'VereineSignatureProgress', $run['signed'], $run['needed']);
+	print '</span>';
+	$open = array();
+	$mine = false;
+	foreach ($run['people'] as $person) {
+		if ($person['signed_at'] === 0) {
+			$open[] = $person['name'].' ('.$person['label'].')';
+			$mine = $mine || $person['member_id'] === (int) $user->fk_member;
+		}
+	}
+	if ($open && $run['status'] === VereineSignatures::STATUS_OPEN) {
+		print '<div class="opacitymedium small">'.$langs->trans('VereineSignatureOpenBy', implode(', ', $open)).'</div>';
+	}
+	if ($run['document_changed']) {
+		print '<div class="warning" data-signature-changed="1">'.$langs->trans('VereineSignatureChanged').'</div>';
+	}
+	if (is_file(VereineSignatures::sheetPath($run['id']))) {
+		print '<div><a href="'.$_SERVER['PHP_SELF'].'?action=sheet&amp;signature='.$run['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineSignatureSheet').'</a></div>';
+	}
+	if (VereineSignatures::scanPath($run) !== '') {
+		print '<div><a href="'.$_SERVER['PHP_SELF'].'?action=signed&amp;signature='.$run['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineSignatureScan').'</a></div>';
+	}
+	if ($run['status'] === VereineSignatures::STATUS_OPEN && $canWrite && $mine && !$run['document_changed']) {
+		print '<form method="POST" action="'.$back.'" name="vereinesign'.$run['id'].'" class="paddingtop">';
+		print '<input type="hidden" name="token" value="'.newToken().'">';
+		print '<input type="hidden" name="action" value="sign">';
+		print '<input type="hidden" name="signature" value="'.$run['id'].'">';
+		print '<input type="password" name="password" autocomplete="current-password" placeholder="'.dol_escape_htmltag($langs->trans('Password')).'"> ';
+		print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineSignatureSign')).'">';
+		print '</form>';
+	}
+	if ($run['status'] === VereineSignatures::STATUS_OPEN && $canWrite) {
+		print '<form method="POST" action="'.$back.'" name="vereinesignscan'.$run['id'].'" enctype="multipart/form-data" class="paddingtop">';
+		print '<input type="hidden" name="token" value="'.newToken().'">';
+		print '<input type="hidden" name="action" value="signscan">';
+		print '<input type="hidden" name="signature" value="'.$run['id'].'">';
+		print '<input type="file" name="scan_file" accept="application/pdf"> ';
+		print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineSignatureUpload')).'">';
+		print '</form>';
+	}
+}
+
+/**
  * Tabs of the module's setup pages.
  *
  * @return array<int,array<int,string>>

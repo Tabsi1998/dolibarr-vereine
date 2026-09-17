@@ -73,7 +73,7 @@ class VereineMeetings
 	{
 		global $conf;
 
-		$sql = "SELECT rowid, kind, title, meeting_day, meeting_time, place, format, access, agenda, status, invited_at, fk_actioncomm FROM ".MAIN_DB_PREFIX."vereine_meeting";
+		$sql = "SELECT rowid, kind, title, meeting_day, meeting_time, place, format, access, agenda, status, invited_at, fk_actioncomm, fk_chair, fk_keeper FROM ".MAIN_DB_PREFIX."vereine_meeting";
 		$sql .= " WHERE entity = ".((int) $conf->entity)." ORDER BY meeting_day DESC, meeting_time DESC, rowid DESC";
 		// The table exists only after the module was enabled with 0.5.4.
 		$resql = $this->db->query($sql);
@@ -87,7 +87,7 @@ class VereineMeetings
 			$meetings[] = array('id' => (int) $obj->rowid, 'kind' => (string) $obj->kind, 'title' => (string) $obj->title, 'day' => (string) $obj->meeting_day,
 				'time' => (string) $obj->meeting_time, 'place' => (string) $obj->place, 'format' => (string) $obj->format, 'access' => (string) $obj->access,
 				'agenda' => is_array($agenda) ? $agenda : array(), 'status' => (string) $obj->status, 'invited_at' => $obj->invited_at ? $this->db->jdate($obj->invited_at) : 0,
-				'actioncomm_id' => (int) $obj->fk_actioncomm);
+				'actioncomm_id' => (int) $obj->fk_actioncomm, 'chair_id' => (int) $obj->fk_chair, 'keeper_id' => (int) $obj->fk_keeper);
 		}
 		$this->db->free($resql);
 		return $meetings;

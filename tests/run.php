@@ -1081,6 +1081,20 @@ same(array(array(), array('the statutes admit members from 18 years of age'), ar
 	VereineConsentRules::application(array('birth' => '') + $valid, $types, $texts, 18, '2026-09-17')['errors'],
 ), 'the minimum age of the statutes: old enough on the birthday, younger and unknown birth dates refused');
 
+// ------------------------------------------------- who presided and kept minutes
+
+$roleHolders = array('obmann' => array(array('member_id' => 3, 'name' => 'Paula')), 'schriftfuehrung' => array(array('member_id' => 4, 'name' => 'Sam')));
+same(array('chair' => 3, 'keeper' => 4, 'suggested' => true), VereineMinutesRules::roles(array('chair' => 0, 'keeper' => 0), $roleHolders, array(3, 4, 5)),
+	'without an entry the chair and the secretary are suggested');
+same(array('chair' => 5, 'keeper' => 4, 'suggested' => false), VereineMinutesRules::roles(array('chair' => 5, 'keeper' => 4), $roleHolders, array(3, 4, 5)),
+	'what was entered wins, nothing is suggested then');
+same(array('chair' => 3, 'keeper' => 0, 'suggested' => true), VereineMinutesRules::roles(array('chair' => 0, 'keeper' => 9), $roleHolders, array(3, 5)),
+	'somebody who was not invited is dropped, and the secretary was not in the room either');
+same(array('chair' => 0, 'keeper' => 0, 'suggested' => false), VereineMinutesRules::roles(array(), array(), array()),
+	'without functions and without an entry nobody presides');
+same(array('chair' => 3, 'keeper' => 4, 'suggested' => true), VereineMinutesRules::roles(array(), $roleHolders, array()),
+	'without an attendance list the suggestion still works');
+
 // ----------------------------------------------------------- signature rules
 
 $codes = array('obmann', 'schriftfuehrung', 'kassier', 'rechnungspruefung');
@@ -1211,7 +1225,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
@@ -1239,6 +1253,8 @@ $prefixes = array(
 	'VereineSignatureKindHelp_' => VereineSignatureRules::KINDS,
 	'VereineSignatureMode_' => VereineSignatureRules::MODE_LIST,
 	'VereineSignatureWay_' => array('click', 'paper'),
+	'VereineMinutesAudience_' => array('board', 'members'),
+	'VereineMinutesSend_' => array('board', 'members'),
 	'VereineApiEndpoint_' => array_column(VereineApiRules::endpoints($openapi), 'operation'),
 	'VereineLetterKind_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
 	'VereineLetterTitle_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),

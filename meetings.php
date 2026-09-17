@@ -64,6 +64,7 @@ if (!$res) {
  */
 
 require_once __DIR__.'/class/vereinemeetings.class.php';
+require_once __DIR__.'/class/vereineminutes.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('members', 'vereine@vereine'));
@@ -80,6 +81,8 @@ if (!$user->hasRight('vereine', 'association', 'read') || !$user->hasRight('adhe
 
 $today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
 $meetings = new VereineMeetings($db);
+$minutes = new VereineMinutes($db);
+$signatures = new VereineSignatures($db);
 $statutes = new VereineStatutes($db);
 $rules = $statutes->rules();
 $canWrite = $user->hasRight('adherent', 'creer');
@@ -181,6 +184,95 @@ if ($action === 'savemeeting' && $canWrite) {
 		exit;
 	}
 	setEventMessages($result < 0 ? $meetings->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $meetings->errors), 'errors');
+} elseif ($action === 'saveroles' && $canWrite) {
+	$result = $minutes->saveRoles($id, GETPOSTINT('chair'), GETPOSTINT('keeper'), $user);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineMinutesRolesSaved'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id.'#vereinemeetingminutes');
+		exit;
+	}
+	setEventMessages($result < 0 ? $minutes->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $minutes->errors), 'errors');
+} elseif ($action === 'draft' && $canWrite) {
+	$meeting = $meetings->fetch($id);
+	$file = $meeting === null ? '' : $minutes->buildDraft($meeting, $langs);
+	if ($file === '') {
+		setEventMessages($minutes->error !== '' ? $minutes->error : $langs->trans('VereineMinutesErrorMeeting'), null, 'errors');
+	} else {
+		header('Content-Type: application/pdf');
+		header('Content-Disposition: attachment; filename="'.basename($file).'"');
+		header('Content-Length: '.filesize($file));
+		readfile($file);
+		exit;
+	}
+} elseif ($action === 'finalize' && $canWrite) {
+	$result = $minutes->finalize($id, GETPOST('approved_on', 'alphanohtml'), GETPOST('note', 'alphanohtml'), $user, $langs);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineMinutesFinalized'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id.'#vereinemeetingminutes');
+		exit;
+	}
+	setEventMessages($result < 0 ? $minutes->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $minutes->errors), 'errors');
+} elseif ($action === 'minutes') {
+	$version = $minutes->version(GETPOSTINT('version'));
+	$file = $version !== null ? VereineMinutes::path($version) : '';
+	if ($file === '') {
+		accessforbidden();
+	}
+	header('Content-Type: application/pdf');
+	header('Content-Disposition: attachment; filename="'.basename($file).'"');
+	header('Content-Length: '.filesize($file));
+	readfile($file);
+	exit;
+} elseif ($action === 'sendminutes' && $canWrite) {
+	$result = $minutes->send(GETPOSTINT('version'), GETPOST('audience', 'aZ09'), $user, $langs);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineMinutesSent', $result), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id.'#vereinemeetingminutes');
+		exit;
+	}
+	setEventMessages($result < 0 ? $minutes->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $minutes->errors ? $minutes->errors : array('VereineMinutesErrorNobody')), 'errors');
+} elseif ($action === 'sheet' || $action === 'signed') {
+	$run = $signatures->fetch(GETPOSTINT('signature'));
+	$file = '';
+	if ($run !== null && $run['kind'] === VereineSignatureRules::KIND_MINUTES) {
+		$file = $action === 'sheet' ? VereineSignatures::sheetPath($run['id']) : VereineSignatures::scanPath($run);
+	}
+	if ($file === '' || !is_file($file)) {
+		accessforbidden();
+	}
+	header('Content-Type: application/pdf');
+	header('Content-Disposition: attachment; filename="'.basename($file).'"');
+	header('Content-Length: '.filesize($file));
+	readfile($file);
+	exit;
+} elseif ($action === 'startsign' && $canWrite) {
+	$version = $minutes->version(GETPOSTINT('object'));
+	$meeting = $version !== null ? $meetings->fetch($version['meeting_id']) : null;
+	$result = $meeting === null ? 0 : $signatures->start(VereineSignatureRules::KIND_MINUTES, $version['id'], VereineMinutes::path($version), $meeting['day'], $user);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineSignatureStarted'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id.'#vereinemeetingminutes');
+		exit;
+	}
+	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $signatures->errors ? $signatures->errors : array('VereineSignatureErrorDocument')), 'errors');
+} elseif (($action === 'sign' || $action === 'signscan') && $canWrite) {
+	$run = $signatures->fetch(GETPOSTINT('signature'));
+	$version = $run !== null ? $minutes->version($run['object_id']) : null;
+	$file = $version !== null ? VereineMinutes::path($version) : '';
+	$message = 'VereineSignatureSigned';
+	if ($action === 'sign') {
+		$result = $file === '' ? 0 : $signatures->sign($run['id'], GETPOST('password', 'password'), $file, $user, $langs);
+	} else {
+		$upload = isset($_FILES['scan_file']) && is_array($_FILES['scan_file']) ? $_FILES['scan_file'] : array();
+		$result = $file === '' ? 0 : $signatures->uploadScan($run['id'], $upload, $user, $langs);
+		$message = 'VereineSignatureScanStored';
+	}
+	if ($result > 0) {
+		setEventMessages($langs->trans($message), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id.'#vereinemeetingminutes');
+		exit;
+	}
+	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $run === null ? array('VereineSignatureErrorNotOpen') : $signatures->errors), 'errors');
 } elseif ($action === 'letters') {
 	$file = VereineMeetings::lettersPath($id);
 	if ($meetings->fetch($id) === null || !is_file($file)) {
@@ -285,6 +377,106 @@ function vereineMeetingNotes($meetings, array $meeting, $canWrite)
 		print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('VereineMinutesSave')).'"></div>';
 		print '</form>';
 	}
+}
+
+/**
+ * The minutes of a meeting: who presided and kept them, the draft, the final versions with their signatures.
+ *
+ * @param VereineMinutes      $minutes    Minutes store
+ * @param VereineSignatures   $signatures Signature store
+ * @param array<string,mixed> $meeting    Meeting to show
+ * @param bool                $canWrite   Whether the user may change the minutes
+ * @return void
+ */
+function vereineMeetingMinutes($minutes, $signatures, array $meeting, $canWrite)
+{
+	global $langs;
+
+	$roles = $minutes->roles($meeting);
+	$versions = $minutes->versions($meeting['id']);
+	$day = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
+	print '<br>'.load_fiche_titre($langs->trans('VereineMinutesPdfSection'), '', '', 0, 'vereinemeetingminutes');
+	print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineMinutesPdfHowTo').'</div>';
+	if ($canWrite) {
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'#vereinemeetingminutes" name="vereinemeetingroles">';
+		print '<input type="hidden" name="token" value="'.newToken().'">';
+		print '<input type="hidden" name="action" value="saveroles">';
+	}
+	print '<table class="border centpercent" data-minutes="'.$meeting['id'].'" data-versions="'.count($versions).'" data-suggested="'.($roles['suggested'] ? 1 : 0).'">';
+	foreach (array('chair' => 'VereineMinutesChair', 'keeper' => 'VereineMinutesKeeper') as $role => $label) {
+		print '<tr><td class="titlefieldcreate">'.$langs->trans($label).'</td><td>';
+		if ($canWrite) {
+			print '<select name="'.$role.'" data-role="'.$role.'"><option value="0"></option>';
+			foreach ($roles['names'] as $memberId => $name) {
+				print '<option value="'.$memberId.'"'.($roles[$role] === $memberId ? ' selected' : '').'>'.dol_escape_htmltag($name).'</option>';
+			}
+			print '</select>';
+		} else {
+			print dol_escape_htmltag(isset($roles['names'][$roles[$role]]) ? $roles['names'][$roles[$role]] : $langs->trans('VereineMinutesNobody'));
+		}
+		print '</td></tr>';
+	}
+	if ($canWrite) {
+		print '<tr><td></td><td><input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineMinutesRolesSave')).'">';
+		if ($roles['suggested']) {
+			print ' <span class="opacitymedium small">'.$langs->trans('VereineMinutesRolesSuggested').'</span>';
+		}
+		print '</td></tr>';
+	}
+	print '</table>';
+	if ($canWrite) {
+		print '</form>';
+		print '<div class="paddingtop">';
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'" name="vereinemeetingdraft" class="inline-block paddingright">';
+		print '<input type="hidden" name="token" value="'.newToken().'">';
+		print '<input type="hidden" name="action" value="draft">';
+		print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineMinutesDraftButton')).'">';
+		print '</form>';
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'#vereinemeetingminutes" name="vereinemeetingfinalize" class="inline-block">';
+		print '<input type="hidden" name="token" value="'.newToken().'">';
+		print '<input type="hidden" name="action" value="finalize">';
+		print '<label>'.$langs->trans('VereineMinutesApprovedOn').' <input type="date" name="approved_on" value="'.$day.'"></label> ';
+		print '<input type="text" name="note" class="minwidth200" maxlength="255" placeholder="'.dol_escape_htmltag($langs->trans('VereineMinutesApprovedNote')).'"> ';
+		print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineMinutesFinalize')).'">';
+		print '</form></div>';
+	}
+	print '<div class="div-table-responsive-no-min paddingtop"><table class="noborder centpercent">';
+	print '<tr class="liste_titre"><td>'.$langs->trans('VereineMinutesVersion').'</td><td>'.$langs->trans('VereineMinutesApprovedOn').'</td>';
+	print '<td>'.$langs->trans('VereineSignatureTitle').'</td><td>'.$langs->trans('VereineMinutesSendTitle').'</td><td></td></tr>';
+	if (!$versions) {
+		print '<tr class="oddeven"><td colspan="5"><span class="opacitymedium">'.$langs->trans('VereineMinutesNoVersion').'</span></td></tr>';
+	}
+	foreach ($versions as $version) {
+		$file = VereineMinutes::path($version);
+		print '<tr class="oddeven tdtop" data-version="'.$version['id'].'" data-number="'.$version['version'].'">';
+		print '<td>'.$version['version'].'<div class="opacitymedium small">'.dol_escape_htmltag(substr($version['doc_sha'], 0, 16)).'</div></td>';
+		print '<td>'.($version['approved_on'] !== '' ? vereineFormatDay($version['approved_on']) : '<span class="opacitymedium">'.$langs->trans('VereineMinutesNotApproved').'</span>');
+		print ($version['note'] !== '' ? '<div class="opacitymedium small">'.dol_escape_htmltag($version['note']).'</div>' : '').'</td><td>';
+		vereineSignatureBlock($signatures, VereineSignatureRules::KIND_MINUTES, $version['id'], $file, $canWrite, 'vereinemeetingminutes');
+		print '</td><td>';
+		foreach (array(VereineMinutes::AUDIENCE_BOARD => 'sent_board', VereineMinutes::AUDIENCE_MEMBERS => 'sent_members') as $audience => $field) {
+			print '<div data-sent="'.$audience.'" data-when="'.($version[$field] > 0 ? 1 : 0).'">';
+			if ($version[$field] > 0) {
+				print $langs->trans('VereineMinutesSentOn', $langs->transnoentitiesnoconv('VereineMinutesAudience_'.$audience), dol_print_date($version[$field], 'dayhour', 'tzuserrel'));
+			} elseif ($canWrite && $file !== '') {
+				print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'#vereinemeetingminutes" name="vereinesend'.$audience.$version['id'].'">';
+				print '<input type="hidden" name="token" value="'.newToken().'">';
+				print '<input type="hidden" name="action" value="sendminutes">';
+				print '<input type="hidden" name="version" value="'.$version['id'].'">';
+				print '<input type="hidden" name="audience" value="'.$audience.'">';
+				print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineMinutesSend_'.$audience)).'">';
+				print '</form>';
+			}
+			print '</div>';
+		}
+		print '</td><td class="right">';
+		if ($file !== '') {
+			print '<a href="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'&amp;action=minutes&amp;version='.$version['id'].'&amp;token='.newToken().'">';
+			print img_picto('', 'pdf').' '.dol_escape_htmltag($version['filename']).'</a>';
+		}
+		print '</td></tr>';
+	}
+	print '</table></div>';
 }
 
 $meeting = $id > 0 ? $meetings->fetch($id) : null;
@@ -542,6 +734,7 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 
 	if ($meeting['status'] !== VereineMeetingRules::STATUS_CANCELLED) {
 		vereineMeetingNotes($meetings, $meeting, $canWrite);
+		vereineMeetingMinutes($minutes, $signatures, $meeting, $canWrite);
 	}
 
 	if ($canWrite && $meeting['status'] === VereineMeetingRules::STATUS_INVITED) {

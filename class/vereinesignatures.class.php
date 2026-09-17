@@ -155,18 +155,7 @@ class VereineSignatures
 	public function holders($day)
 	{
 		$functions = new VereineFunctions($this->db);
-		$byId = array();
-		foreach ($functions->fetchAll() as $function) {
-			$byId[$function['id']] = $function['code'];
-		}
-		$holders = array();
-		foreach ($functions->terms() as $term) {
-			if (!isset($byId[$term['function_id']]) || (int) $term['member_status'] !== 1 || !VereineFunctionRules::isActive($term, $day)) {
-				continue;
-			}
-			$holders[$byId[$term['function_id']]][] = array('member_id' => (int) $term['member_id'], 'name' => (string) $term['member_name']);
-		}
-		return $holders;
+		return $functions->holdersByCode($day);
 	}
 
 	/**
@@ -174,14 +163,15 @@ class VereineSignatures
 	 *
 	 * An open run of the same document is cancelled, so the newest document is the one that counts.
 	 *
-	 * @param string $kind     One of VereineSignatureRules::KINDS
-	 * @param int    $objectId The document's object, for example the letter
-	 * @param string $file     Absolute path of the PDF
-	 * @param string $day      Day the holders are taken from
-	 * @param User   $user     Who starts
+	 * @param string                         $kind     One of VereineSignatureRules::KINDS
+	 * @param int                            $objectId The document's object, for example the letter
+	 * @param string                         $file     Absolute path of the PDF
+	 * @param string                         $day      Day the holders are taken from
+	 * @param User                           $user     Who starts
+	 * @param array<int,array<string,mixed>> $people   People who sign instead of the holders of the functions, each with member_id, role, label and name
 	 * @return int Id of the run, 0 when refused (see errors), -1 on error
 	 */
-	public function start($kind, $objectId, $file, $day, $user)
+	public function start($kind, $objectId, $file, $day, $user, array $people = array())
 	{
 		global $conf;
 
@@ -195,7 +185,8 @@ class VereineSignatures
 			$this->errors[] = 'VereineSignatureErrorDocument';
 			return 0;
 		}
-		$signers = VereineSignatureRules::signers($rules, $kind, $this->holders($day), $this->functionLabels());
+		$signers = $people ? array('people' => $people, 'vacant' => array())
+			: VereineSignatureRules::signers($rules, $kind, $this->holders($day), $this->functionLabels());
 		if (!$signers['people']) {
 			$this->errors[] = 'VereineSignatureErrorNobody';
 			return 0;
