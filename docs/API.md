@@ -1,40 +1,42 @@
-# REST API
+# REST-API
 
-The module adds endpoints below Dolibarr's REST API at
-`https://<dolibarr>/api/index.php/vereine/`. They need Dolibarr's *API REST*
-module and a user with the right **Read the association overview and its data**
-(`vereine > association > read`). The member endpoints need the right **Read
-member summaries for a website** (`vereine > website > read`) as well.
+Das Modul ergänzt Schnittstellen unter Dolibarrs REST-API bei
+`https://<dolibarr>/api/index.php/vereine/`. Sie brauchen Dolibarrs Modul
+*API REST* und einen Benutzer mit dem Recht **Vereinsübersicht und Vereinsdaten
+lesen** (`vereine > association > read`). Die Mitglieder-Schnittstellen brauchen
+zusätzlich **Mitglieder-Zusammenfassung für die Website über die API lesen**
+(`vereine > website > read`).
 
-[`openapi.json`](openapi.json) describes every endpoint as OpenAPI 3.0. The
-runtime checks compare every answer of the module with it in Dolibarr 22, 23
-and 24; a field it does not list fails the check.
+[`openapi.json`](openapi.json) beschreibt jede Schnittstelle als OpenAPI 3.0.
+Die Laufzeit-Tests vergleichen jede Antwort des Moduls damit, in Dolibarr 22, 23
+und 24; ein Feld, das dort nicht steht, lässt die Prüfung scheitern.
 
-Authenticate with the user's API key in the `DOLAPIKEY` header. Call the API
-from a server, never from a browser: whoever sees the key acts as that user.
-Since Dolibarr 24 the login endpoints are off by default, so a key is the way in.
+Anmelden mit dem API-Schlüssel des Benutzers im Header `DOLAPIKEY`. Die API von
+einem Server aus aufrufen, nie aus dem Browser: Wer den Schlüssel sieht, handelt
+als dieser Benutzer. Seit Dolibarr 24 sind die Login-Schnittstellen
+standardmäßig aus, der Schlüssel ist also der Weg hinein.
 
-| Answer | Meaning |
+| Antwort | Bedeutung |
 | --- | --- |
-| 200 | JSON as described below |
-| 400 | A parameter is missing, out of range or malformed, such as an invalid e-mail address or a moment without time zone |
-| 401 | No or unknown API key |
-| 403 | The user lacks the right |
-| 404 | No such member |
-| 409 | Several members match |
-| 501 | The Vereine module is disabled |
+| 200 | JSON wie unten beschrieben |
+| 400 | Ein Parameter fehlt, liegt außerhalb des Bereichs oder ist falsch geformt, etwa eine ungültige E-Mail-Adresse oder ein Zeitpunkt ohne Zeitzone |
+| 401 | Kein oder unbekannter API-Schlüssel |
+| 403 | Dem Benutzer fehlt das Recht |
+| 404 | Kein solches Mitglied |
+| 409 | Mehrere Mitglieder passen |
+| 501 | Das Modul Vereine ist deaktiviert |
 
-`api_version` rises when a field changes meaning or disappears. New fields can
-appear in any version; clients should ignore fields they do not know.
+`api_version` steigt, wenn ein Feld seine Bedeutung ändert oder wegfällt. Neue
+Felder können in jeder Version dazukommen; Clients sollen Felder, die sie nicht
+kennen, übergehen.
 
 ## GET /vereine/status
 
-Module version, API version and country profile - a cheap way to test a
-connection.
+Modulversion und API-Version – ein günstiger Weg, die Verbindung zu testen.
 
 ```json
 {
-  "module_version": "0.1.0-beta",
+  "module_version": "0.5.8-beta",
   "api_version": 1,
   "country_profile": "AT",
   "country_profile_complete": true,
@@ -42,13 +44,16 @@ connection.
 }
 ```
 
-`server_time` is Dolibarr's clock in UTC - take it before a website sync and use
-it as `changed_since` of the next one (see below).
+`server_time` ist Dolibarrs Uhr in UTC – vor einem Website-Abgleich nehmen und
+beim nächsten als `changed_since` verwenden (siehe unten). `country_profile` und
+`country_profile_complete` sind veraltet: immer `AT` und `true`, sie entfallen
+mit 1.0.
 
 ## GET /vereine/organization
 
-The association, for example for a website imprint. Name, address and contact
-come from Dolibarr's company settings; the rest from the module's setup.
+Der Verein, zum Beispiel für das Impressum einer Website. Name, Anschrift und
+Kontakt kommen aus den Unternehmensdaten von Dolibarr, der Rest aus der
+Einrichtung des Moduls.
 
 ```json
 {
@@ -68,25 +73,25 @@ come from Dolibarr's company settings; the rest from the module's setup.
 }
 ```
 
-| Field | Content |
+| Feld | Inhalt |
 | --- | --- |
-| `country_profile` | Always `AT`; deprecated, removed with 1.0 |
-| `country_profile_complete` | Always `true`; deprecated, removed with 1.0 |
-| `register.kind` | Always `ZVR` |
-| `register.number` | ZVR number (digits); empty when not set |
-| `register.court` | Always empty; deprecated, removed with 1.0 |
-| `authority` | Association authority |
-| `founded` | `YYYY-MM-DD`, or empty |
-| `fiscal_year_start_month` | 1 to 12, from Dolibarr's company settings |
+| `country_profile` | Immer `AT`; veraltet, entfällt mit 1.0 |
+| `country_profile_complete` | Immer `true`; veraltet, entfällt mit 1.0 |
+| `register.kind` | Immer `ZVR` |
+| `register.number` | ZVR-Zahl (Ziffern); leer, wenn nicht eingetragen |
+| `register.court` | Immer leer; veraltet, entfällt mit 1.0 |
+| `authority` | Vereinsbehörde |
+| `founded` | `JJJJ-MM-TT` oder leer |
+| `fiscal_year_start_month` | 1 bis 12, aus den Unternehmensdaten von Dolibarr |
 
-Every text field is a string, empty when not set - never `null`.
+Jedes Textfeld ist ein String, leer, wenn nicht eingetragen – nie `null`.
 
 ## GET /vereine/taxprofiles
 
-The association's tax profiles (Austria): sphere and VAT treatment with their
-legal basis, rate and invoice note. Profiles marked `standard` were suggested by
-the module; the association may have changed them. The classification of an
-activity remains the association's decision.
+Die Steuerprofile des Vereins: Sphäre und USt-Behandlung mit Rechtsgrundlage,
+Satz und Rechnungshinweis. Profile mit `standard` hat das Modul vorgeschlagen;
+der Verein darf sie geändert haben. Wie eine Tätigkeit eingeordnet wird, bleibt
+Entscheidung des Vereins.
 
 ```json
 [
@@ -106,22 +111,23 @@ activity remains the association's decision.
 ]
 ```
 
-| Field | Content |
+| Feld | Inhalt |
 | --- | --- |
-| `id` | Value of the extra field `vereine_taxprofile` on products and invoice lines (`array_options.options_vereine_taxprofile` in Dolibarr's own API) |
-| `code` | Stable identifier, capital letters, digits and `_` |
-| `sphere` | `ideal`, `assets`, `essential` (§ 45 (2) BAO), `auxiliary` (§ 45 (1) BAO), `festival` (§ 45 (1a) BAO), `harmful` (§ 45 (3) BAO) |
-| `treatment` | `nonbusiness`, `hobby` (Liebhaberei), `small_business` (§ 6 (1) no. 27 UStG), `sport` (§ 6 (1) no. 14 UStG), `reduced10`, `reduced13`, `standard20` |
-| `rate` | VAT rate in percent, a number |
-| `note` | Invoice note, may be empty |
-| `active`, `standard` | Booleans |
+| `id` | Wert des Zusatzfelds `vereine_taxprofile` an Produkten und Rechnungszeilen (`array_options.options_vereine_taxprofile` in Dolibarrs eigener API) |
+| `code` | Feste Kennung aus Großbuchstaben, Ziffern und `_` |
+| `sphere` | `ideal`, `assets`, `essential` (§ 45 Abs. 2 BAO), `auxiliary` (§ 45 Abs. 1 BAO), `festival` (§ 45 Abs. 1a BAO), `harmful` (§ 45 Abs. 3 BAO) |
+| `treatment` | `nonbusiness`, `hobby` (Liebhaberei), `small_business` (§ 6 Abs. 1 Z 27 UStG), `sport` (§ 6 Abs. 1 Z 14 UStG), `reduced10`, `reduced13`, `standard20` |
+| `rate` | USt-Satz in Prozent, eine Zahl |
+| `note` | Rechnungshinweis, kann leer sein |
+| `active`, `standard` | Wahrheitswerte |
 
 ## GET /vereine/thresholds
 
-Thresholds of a calendar year (`?year=2026`, the current year when left out).
-Needs the right to read invoices as well. Income counts from validated and paid
-customer invoices, credit notes and replacements, each line through its tax
-profile; lines without profile are reported in `unassigned` and not counted.
+Grenzen eines Kalenderjahres (`?year=2026`, ohne Angabe das laufende Jahr).
+Braucht zusätzlich das Recht, Rechnungen zu lesen. Einnahmen zählen aus
+freigegebenen und bezahlten Kundenrechnungen, Gutschriften und
+Ersatzrechnungen, jede Zeile über ihr Steuerprofil; Zeilen ohne Profil stehen in
+`unassigned` und zählen nicht.
 
 ```json
 {
@@ -146,14 +152,14 @@ profile; lines without profile are reported in `unassigned` and not counted.
 }
 ```
 
-| Field | Content |
+| Feld | Inhalt |
 | --- | --- |
-| `code` | `small_business` (§ 6 (1) no. 27 UStG) or `harmful_business` (§ 45a BAO) |
-| `gross` | Whether gross amounts are compared; for `harmful_business` the module compares gross amounts to warn early |
-| `status` | `ok` below 80 %, `near` up to the limit, `tolerance` above within the tolerance, `exceeded` |
-| `previous_exceeded` | `small_business` only: the year before was above the limit, so the exemption does not apply |
+| `code` | `small_business` (§ 6 Abs. 1 Z 27 UStG) oder `harmful_business` (§ 45a BAO) |
+| `gross` | Ob Bruttobeträge verglichen werden; bei `harmful_business` vergleicht das Modul brutto, um früh zu warnen |
+| `status` | `ok` unter 80 %, `near` bis zur Grenze, `tolerance` darüber innerhalb der Toleranz, `exceeded` |
+| `previous_exceeded` | Nur `small_business`: Das Vorjahr lag über der Grenze, die Befreiung gilt also nicht |
 
-`cash_register` tells per sphere whether a cash register is needed:
+`cash_register` sagt je Sphäre, ob eine Registrierkasse nötig ist:
 
 ```json
 "cash_register": {
@@ -168,43 +174,45 @@ profile; lines without profile are reported in `unassigned` and not counted.
 }
 ```
 
-`status` is `not_relevant` (idealistic sphere, asset management), `exempt`
-(indispensable auxiliary business), `exempt_festival` (small association
-festival within 72 hours a year), `ok`, `near` (both from 80 %) or `required`.
-Turnover counts gross; cash counts payments of the year in cash, by card,
-cheque or online, shared out over the spheres of the paid invoice.
+`status` ist `not_relevant` (ideeller Bereich, Vermögensverwaltung), `exempt`
+(unentbehrlicher Hilfsbetrieb), `exempt_festival` (kleines Vereinsfest innerhalb
+von 72 Stunden im Jahr), `ok`, `near` (beide ab 80 %) oder `required`. Umsatz
+zählt brutto; Barumsätze sind Zahlungen des Jahres in bar, mit Karte, Scheck oder
+online, aufgeteilt auf die Sphären der bezahlten Rechnung.
 
-Answers 400 for a year before 2000 or after 2100.
+Antwortet 400 für ein Jahr vor 2000 oder nach 2100.
 
-## A user for the website
+## Ein Benutzer für die Website
 
-The website gets its own Dolibarr user that can read exactly what the website
-shows. Dolibarr's own endpoints such as `/members` or `/invoices` answer it with
-403, because it lacks the rights to read members, third parties and invoices:
-the member summary below is all it sees of a member.
+Die Website bekommt einen eigenen Dolibarr-Benutzer, der genau das lesen kann,
+was die Website zeigt. Dolibarrs eigene Schnittstellen wie `/members` oder
+`/invoices` beantworten ihm mit 403, weil ihm die Rechte für Mitglieder,
+Geschäftspartner und Rechnungen fehlen: Die Mitglieds-Zusammenfassung unten ist
+alles, was er von einem Mitglied sieht.
 
-1. *Home > Users & Groups > New user*: login for example `website`, not an
-   administrator. The user never logs in to Dolibarr, any strong password will do.
-2. Tab *Permissions*, module *Vereine (AT/DE)*: tick **Read the association
-   overview and its data** and **Read member summaries for a website**. Nothing
-   else.
-3. *Modify* on the user card: generate the **API key**, save, and store it on the
-   website's server only, for example as `DOLIBARR_API_KEY` in its `.env`.
-4. Test from the website's server:
+1. *Start > Benutzer & Gruppen > Neuer Benutzer*: Login zum Beispiel `website`,
+   kein Administrator. Der Benutzer meldet sich nie an, ein starkes Passwort
+   genügt.
+2. Reiter *Berechtigungen*, Modul *Vereine (Österreich)*: **Vereinsübersicht und
+   Vereinsdaten lesen** und **Mitglieder-Zusammenfassung für die Website über die
+   API lesen** anhaken. Sonst nichts.
+3. *Ändern* auf der Benutzerkarte: **API-Schlüssel** erzeugen, speichern und nur
+   auf dem Server der Website ablegen, etwa als `DOLIBARR_API_KEY` in der `.env`.
+4. Vom Server der Website aus testen:
 
 ```bash
 curl --fail -H "DOLAPIKEY: $DOLIBARR_API_KEY" \
   "https://erp.example.org/api/index.php/vereine/members/lookup?ref=1"
 ```
 
-Whoever has the key can read the summary of every member and find members by
-e-mail address. Treat it like a password: never in the browser, never in a
-repository.
+Wer den Schlüssel hat, kann die Zusammenfassung jedes Mitglieds lesen und
+Mitglieder über ihre E-Mail-Adresse finden. Behandeln wie ein Passwort: nie in
+den Browser, nie in ein Repository.
 
 ## GET /vereine/membershipfees
 
-The member types in use with their fee, for "become a member" on a website.
-Needs the website right.
+Die verwendeten Mitgliedsarten mit ihrem Beitrag, für „Mitglied werden“ auf
+einer Website. Braucht das Website-Recht.
 
 ```json
 [
@@ -226,26 +234,26 @@ Needs the website right.
 ]
 ```
 
-| Field | Content |
+| Feld | Inhalt |
 | --- | --- |
-| `description` | Public description of the member type, as plain text |
-| `for` | `natural` (persons), `legal` (companies and associations) or `both` |
-| `amount` | Fee per period; `null` when the type sets none or needs no subscription |
-| `amount_editable` | The member may pay a different amount |
-| `duration` | Length of a period: `unit` `y` years, `m` months, `w` weeks, `d` days |
-| `year_starts_month` | Month the fee year starts, `0` when every member pays from joining |
-| `proration` | How joining during the fee year pays: `none` the full amount; `month`, `quarter` or `half_year` the remaining months, quarters or half-years of the fee year, the one of joining counted in full. `half_year`: joining in the first half pays in full, in the second half the half |
-| `prorated` | `true` unless `proration` is `none`; kept from version 0.3.4 |
-| `admission_fee` | Once, with the first fee; `0` when there is none |
+| `description` | Öffentliche Beschreibung der Mitgliedsart, als reiner Text |
+| `for` | `natural` (Personen), `legal` (Firmen und Vereine) oder `both` |
+| `amount` | Beitrag je Periode; `null`, wenn die Art keinen festlegt oder kein Abonnement braucht |
+| `amount_editable` | Das Mitglied darf einen anderen Betrag zahlen |
+| `duration` | Länge einer Periode: `unit` `y` Jahre, `m` Monate, `w` Wochen, `d` Tage |
+| `year_starts_month` | Monat, in dem das Beitragsjahr beginnt, `0`, wenn jedes Mitglied ab dem Eintritt zahlt |
+| `proration` | Wie ein Eintritt während des Beitragsjahres zahlt: `none` den vollen Betrag; `month`, `quarter` oder `half_year` die restlichen Monate, Quartale oder Halbjahre des Beitragsjahres, das des Eintritts voll gezählt. `half_year`: Eintritt im ersten Halbjahr zahlt voll, im zweiten die Hälfte |
+| `prorated` | `true`, außer `proration` ist `none`; aus Version 0.3.4 behalten |
+| `admission_fee` | Einmal, mit dem ersten Beitrag; `0`, wenn es keine gibt |
 
-Example: `amount` 60, a year from January, prorated, joining on 15 March - the
-first fee covers March to December, 10 of 12 months, 50 plus the admission fee.
+Beispiel: `amount` 60, Jahr ab Jänner, anteilig, Eintritt am 15. März – der erste
+Beitrag deckt März bis Dezember, 10 von 12 Monaten, also 50 plus Aufnahmegebühr.
 
 ## GET /vereine/board
 
-The functions of the association with their holders today, in the order of the
-function catalogue - for a board page. Needs the right to read member summaries
-for a website.
+Die Funktionen des Vereins mit ihren heutigen Inhabern, in der Reihenfolge des
+Funktionskatalogs – für eine Vorstandsseite. Braucht das Recht, die
+Mitglieds-Zusammenfassung für die Website zu lesen.
 
 ```json
 [
@@ -260,24 +268,26 @@ for a website.
 ]
 ```
 
-A `name` is `null` unless the website may show it, as set under *Setup > Vereine
-> Functions*:
+Ein `name` ist `null`, außer die Website darf ihn zeigen, eingestellt unter
+*Einrichtung > Vereine > Funktionen*:
 
-- **only with consent** (default): the holder's latest consent for the chosen
-  consent text is given;
-- **board always with names**: for functions of the board also without consent,
-  for a website that must disclose the board (§ 25 (2) MedienG, websites going
-  beyond presenting the association); other functions still need consent.
+- **nur mit Einwilligung** (Standard): Die letzte Einwilligung des Inhabers zum
+  gewählten Einwilligungstext ist erteilt;
+- **Vorstand immer mit Namen**: für Funktionen des Vorstands auch ohne
+  Einwilligung, für eine Website, die den Vorstand offenlegen muss (§ 25 Abs. 2
+  MedienG, Websites, die über die Darstellung des Vereins hinausgehen); andere
+  Funktionen brauchen weiter die Einwilligung.
 
-An empty `holders` list means the function is vacant. Show the function without
-name where `name` is `null`.
+Eine leere Liste `holders` heißt, die Funktion ist unbesetzt. Wo `name` `null`
+ist, die Funktion ohne Namen zeigen.
 
 ## GET /vereine/consents
 
-The consent texts a person can agree to now - one per purpose, in its newest
-version. The association writes them under *Setup > Vereine > Consents*; a
-changed text becomes a new version. Needs the right to read member summaries for
-a website or to send membership applications.
+Die Einwilligungstexte, denen eine Person jetzt zustimmen kann – einer je Zweck,
+in der neuesten Version. Der Verein schreibt sie unter *Einrichtung > Vereine >
+Einwilligungen*; ein geänderter Text wird eine neue Version. Braucht das Recht,
+die Mitglieds-Zusammenfassung für die Website zu lesen oder Beitrittsanträge
+anzulegen.
 
 ```json
 [
@@ -286,16 +296,17 @@ a website or to send membership applications.
 ]
 ```
 
-Show `text` next to the checkbox and send `code` and `version` back with the
-application. An application with an older version answers 400: read the texts
-again right before showing the form.
+`text` neben dem Ankreuzfeld zeigen und `code` und `version` mit dem Antrag
+zurückschicken. Ein Antrag mit einer älteren Version bekommt 400: die Texte
+direkt vor dem Anzeigen des Formulars neu lesen.
 
 ## POST /vereine/applications
 
-A membership application from the website. It creates a member **in draft** with
-the consents given; the association checks and validates the member in Dolibarr,
-the website never can. Give the form's user its own API user with only the rights
-*Read the association* and *Send membership applications*.
+Ein Beitrittsantrag von der Website. Er legt ein Mitglied **im Entwurf** mit den
+erteilten Einwilligungen an; der Verein prüft und gibt das Mitglied in Dolibarr
+frei, die Website kann das nie. Dem Formular einen eigenen API-Benutzer mit nur
+den Rechten *Vereinsübersicht und Vereinsdaten lesen* und *Beitrittsanträge über
+die API anlegen* geben.
 
 ```json
 {
@@ -314,73 +325,79 @@ the website never can. Give the form's user its own API user with only the right
 }
 ```
 
-Answer:
+Antwort:
 
 ```json
 { "id": 57, "ref": "57", "status": "draft", "duplicate": false }
 ```
 
-| Field | Content |
+| Feld | Inhalt |
 | --- | --- |
-| `external_id` | The website's own id of the application, up to 64 letters, digits and `. _ : -`. Sent again with the same id - after a network error, say - the answer is the member created the first time with `duplicate: true`; nothing new is created |
-| `morphy`, `company` | `phy` (default) or `mor` with the name of the legal entity |
-| `firstname`, `lastname`, `email` | Required |
-| `type_id` | Required, an active member type of [`GET /vereine/membershipfees`](#get-vereinemembershipfees) open to this kind of person |
-| `birth` | `YYYY-MM-DD`, optional; discounts by age need it. Required while the statutes set a minimum age (setup tab *Statutes*): younger applicants are refused with 400 |
-| `note` | Message of the applicant, kept as private note of the member |
-| `consents` | The consents given, each with the version shown; purposes not ticked are left out |
+| `external_id` | Die eigene Kennung des Antrags auf der Website, bis 64 Buchstaben, Ziffern und `. _ : -`. Nochmals mit derselben Kennung geschickt – etwa nach einem Netzwerkfehler – kommt das beim ersten Mal angelegte Mitglied mit `duplicate: true` zurück; nichts Neues entsteht |
+| `morphy`, `company` | `phy` (Standard) oder `mor` mit dem Namen der juristischen Person |
+| `firstname`, `lastname`, `email` | Pflicht |
+| `type_id` | Pflicht, eine aktive Mitgliedsart aus [`GET /vereine/membershipfees`](#get-vereinemembershipfees), offen für diese Art von Person |
+| `birth` | `JJJJ-MM-TT`, freiwillig; Ermäßigungen nach Alter brauchen es. Pflicht, solange die Statuten ein Mindestalter festlegen (Einrichtungsreiter *Statuten*): Jüngere werden mit 400 abgelehnt |
+| `note` | Nachricht der antragstellenden Person, gespeichert als private Notiz am Mitglied |
+| `consents` | Die erteilten Einwilligungen, jede mit der gezeigten Version; nicht angekreuzte Zwecke fehlen |
 
-Answers 400 with every problem in the message, 403 without the right. Consents
-of children: for an online form offered directly to children, a child in Austria
-can consent itself from 14 years of age (§ 4 (4) DSG); for younger ones ask the
-parents.
+Antwortet 400 mit jedem Problem in der Meldung, 403 ohne das Recht.
+Einwilligungen von Kindern: Bei einem Online-Formular, das sich direkt an Kinder
+richtet, kann ein Kind in Österreich ab 14 Jahren selbst einwilligen (§ 4 Abs. 4
+DSG); bei Jüngeren die Eltern fragen.
 
 ## GET /vereine/members
 
-Summaries of all members, by id, for a website that keeps its own copy.
-`?limit=` (1 to 100, default 100) and `?page=` (from 0) page through them.
+Zusammenfassungen aller Mitglieder nach ID, für eine Website, die eine eigene
+Kopie führt. `?limit=` (1 bis 100, Standard 100) und `?page=` (ab 0) blättern.
 
-With `?changed_since=2026-09-17T08:00:00Z` only the members whose summary
-changed at or after that moment come back. The moment needs a time zone (`Z`
-or an offset such as `+02:00`); anything else answers 400.
+Mit `?changed_since=2026-09-17T08:00:00Z` kommen nur die Mitglieder zurück,
+deren Zusammenfassung sich zu oder nach diesem Zeitpunkt geändert hat. Der
+Zeitpunkt braucht eine Zeitzone (`Z` oder eine Verschiebung wie `+02:00`); alles
+andere ergibt 400.
 
-A summary counts as changed - and its `updated_at` moves - when
+Eine Zusammenfassung zählt als geändert – und ihr `updated_at` rückt vor –, wenn
 
-- the member changes: status, member type, third party, name, number, paid until;
-- its member type changes, for example the fee amount;
-- a subscription period of the member is added or changed;
-- an invoice of its third party, or a fee invoice linked to one of its
-  subscription periods (a payer's family invoice), is validated, changed, paid
-  or abandoned;
-- a payment on such an invoice is added or changed;
-- the member's fee fields change: exemption, proof, payer (*Fees paid by*);
-- an exit is recorded, carried out or taken back;
-- a function of the member starts or ends;
-- a fee becomes due or an invoice overdue by the date alone: the summary changes
-  at midnight (server time) of the day after the period or the due date.
+- sich das Mitglied ändert: Status, Mitgliedsart, Geschäftspartner, Name, Nummer,
+  bezahlt bis;
+- sich seine Mitgliedsart ändert, zum Beispiel der Beitrag;
+- eine Beitragsperiode des Mitglieds dazukommt oder sich ändert;
+- eine Rechnung seines Geschäftspartners oder eine Beitragsrechnung, die mit
+  einer seiner Beitragsperioden verknüpft ist (Familienrechnung eines Zahlers),
+  freigegeben, geändert, bezahlt oder aufgegeben wird;
+- eine Zahlung auf eine solche Rechnung dazukommt oder sich ändert;
+- sich die Beitragsfelder des Mitglieds ändern: Befreiung, Nachweis, Zahler
+  (*Beiträge zahlt*);
+- ein Austritt eingetragen, vollzogen oder zurückgenommen wird;
+- eine Funktion des Mitglieds beginnt oder endet;
+- ein Beitrag allein durch das Datum fällig oder eine Rechnung überfällig wird:
+  Die Zusammenfassung ändert sich um Mitternacht (Serverzeit) des Tages nach der
+  Periode oder dem Fälligkeitsdatum.
 
-Not noticed, so a full sync now and then is still worth it, for example once a
-night:
+Nicht bemerkt, deshalb lohnt sich ab und zu ein vollständiger Abgleich, etwa
+einmal pro Nacht:
 
-- deleted members, subscription periods, invoices or payments;
-- a credit note or deposit used on an invoice that stays unpaid;
-- discount rules and the family rule in the fee setup, which change the amount
-  for many members at once;
-- switching an online payment service on or off (the payment links).
+- gelöschte Mitglieder, Beitragsperioden, Rechnungen oder Zahlungen;
+- eine Gutschrift oder Anzahlung, die auf eine weiter offene Rechnung angerechnet
+  wird;
+- Ermäßigungsregeln und die Familienregel in der Beitragseinrichtung, die den
+  Betrag für viele Mitglieder auf einmal ändern;
+- Ein- oder Ausschalten eines Online-Zahlungsdienstes (die Zahlungslinks).
 
-A sync that loses nothing:
+Ein Abgleich, der nichts verliert:
 
-1. Take `server_time` from `GET /vereine/status` and keep it.
-2. Read `GET /vereine/members?changed_since=<the time kept last time>`, page by
-   page until a page is empty.
-3. After the last page, keep the new time from step 1 for the next sync.
+1. `server_time` aus `GET /vereine/status` nehmen und merken.
+2. `GET /vereine/members?changed_since=<die beim letzten Mal gemerkte Zeit>`
+   lesen, Seite für Seite, bis eine Seite leer ist.
+3. Nach der letzten Seite die neue Zeit aus Schritt 1 für den nächsten Abgleich
+   merken.
 
-The first sync leaves `changed_since` out and reads every member.
+Der erste Abgleich lässt `changed_since` weg und liest jedes Mitglied.
 
 ## GET /vereine/members/{id}/summary
 
-What a website shows a member about the membership. `{id}` is the member's id
-in Dolibarr (the number in the address of the member card).
+Was eine Website einem Mitglied über die Mitgliedschaft zeigt. `{id}` ist die ID
+des Mitglieds in Dolibarr (die Zahl in der Adresse der Mitgliedskarte).
 
 ```json
 {
@@ -424,54 +441,54 @@ in Dolibarr (the number in the address of the member card).
 }
 ```
 
-| Field | Content |
+| Feld | Inhalt |
 | --- | --- |
-| `ref` | Member number (Dolibarr's reference of the member) |
-| `company` | Name of a legal entity; empty for natural persons |
-| `status` | `draft` (not yet validated), `active`, `terminated` (resiliated in Dolibarr), `excluded` |
-| `member_since` | Start of the first subscription period or the validation date, whichever is earlier; empty for drafts |
-| `paid_until` | End of the last paid subscription period, the whole day included: a period without fee invoice (recorded as paid on the member card) or with its fee invoice paid. Empty when the member never paid |
-| `functions` | Functions the member holds today, each with `code`, `label` and `since`; the member's own data, so no consent is needed |
-| `membership_ends` | Last day of the membership after a recorded exit: a resignation with the notice period of the statutes, an exclusion, death or being struck off. `status` stays `active` until that day. Empty without exit or after an exit was taken back |
-| `fee.required` | Whether the member type needs a subscription |
-| `fee.status` | `paid` (a paid period covers today), `invoiced` (the period covering today has a fee invoice that is not paid yet, see `open_invoices`), `due` (never paid, or the last period has ended), `not_required` (member type without subscription), `inactive` (draft, terminated or excluded) |
-| `fee.next_due` | The day after `paid_until`; the validation date when the member never paid; empty for `not_required` and `inactive` |
-| `fee.amount` | Amount of a whole period for this member: the member type's amount after the member's discount on `next_due`, before a family discount; `null` when the type sets none or needs no subscription |
-| `fee.discount` | `kind` `none`, `exempt` (label is the reason), `proof` or `age` (label is the name of the discount) |
-| `fee.payer` | `self` when the member's own third party gets the fee invoices; `other` when another third party is named as payer, such as a parent paying for a family. The payer's invoices are not listed for the member, and `fee.status` still follows them: `invoiced` until the payer has paid |
-| `fee.payment_url` | Dolibarr's online payment page for the fee, only while the fee is `due`, `fee.payer` is `self` and an online payment service (Stripe, PayPal or one added by a module) is set up; otherwise empty. An `invoiced` fee is paid through the payment link of its invoice |
-| `open_invoices` | Validated, unpaid invoices of the member's third party, oldest first, at most 50: standard, replacement and deposit invoices. Empty when the member has no third party. A family invoice appears for the member whose third party is the payer. Each invoice as in [`members/{id}/invoices`](#get-vereinemembersidinvoices) |
-| `updated_at` | When something in the summary last changed, in UTC; see [`GET /vereine/members`](#get-vereinemembers) for what counts |
+| `ref` | Mitgliedsnummer (Dolibarrs Referenz des Mitglieds) |
+| `company` | Name einer juristischen Person; leer bei natürlichen Personen |
+| `status` | `draft` (noch nicht freigegeben), `active`, `terminated` (in Dolibarr gekündigt), `excluded` |
+| `member_since` | Beginn der ersten Beitragsperiode oder Tag der Freigabe, je nachdem, was früher ist; leer bei Entwürfen |
+| `paid_until` | Ende der letzten bezahlten Beitragsperiode, der ganze Tag eingeschlossen: eine Periode ohne Beitragsrechnung (auf der Mitgliedskarte als bezahlt erfasst) oder mit bezahlter Beitragsrechnung. Leer, wenn das Mitglied nie bezahlt hat |
+| `functions` | Funktionen, die das Mitglied heute hat, jede mit `code`, `label` und `since`; die eigenen Daten des Mitglieds, also ohne Einwilligung |
+| `membership_ends` | Letzter Tag der Mitgliedschaft nach einem eingetragenen Austritt: Kündigung mit der Frist der Statuten, Ausschluss, Tod oder Streichung. `status` bleibt bis zu diesem Tag `active`. Leer ohne Austritt oder nach zurückgenommenem Austritt |
+| `fee.required` | Ob die Mitgliedsart ein Abonnement braucht |
+| `fee.status` | `paid` (eine bezahlte Periode deckt heute ab), `invoiced` (die Periode für heute hat eine noch nicht bezahlte Beitragsrechnung, siehe `open_invoices`), `due` (nie bezahlt oder die letzte Periode ist vorbei), `not_required` (Mitgliedsart ohne Abonnement), `inactive` (Entwurf, gekündigt oder ausgeschlossen) |
+| `fee.next_due` | Der Tag nach `paid_until`; der Tag der Freigabe, wenn das Mitglied nie bezahlt hat; leer bei `not_required` und `inactive` |
+| `fee.amount` | Betrag einer ganzen Periode für dieses Mitglied: der Betrag der Mitgliedsart nach der Ermäßigung des Mitglieds am `next_due`, vor einem Familienrabatt; `null`, wenn die Art keinen festlegt oder kein Abonnement braucht |
+| `fee.discount` | `kind` `none`, `exempt` (label ist der Grund), `proof` oder `age` (label ist der Name der Ermäßigung) |
+| `fee.payer` | `self`, wenn der eigene Geschäftspartner des Mitglieds die Beitragsrechnungen bekommt; `other`, wenn ein anderer Geschäftspartner als Zahler eingetragen ist, etwa ein Elternteil für die Familie. Die Rechnungen des Zahlers stehen nicht beim Mitglied, und `fee.status` folgt ihnen trotzdem: `invoiced`, bis der Zahler bezahlt hat |
+| `fee.payment_url` | Dolibarrs Online-Zahlungsseite für den Beitrag, nur solange der Beitrag `due` ist, `fee.payer` `self` ist und ein Online-Zahlungsdienst (Stripe, PayPal oder einer aus einem Modul) eingerichtet ist; sonst leer. Ein `invoiced` Beitrag wird über den Zahlungslink seiner Rechnung bezahlt |
+| `open_invoices` | Freigegebene, unbezahlte Rechnungen des Geschäftspartners des Mitglieds, älteste zuerst, höchstens 50: normale Rechnungen, Ersatz- und Anzahlungsrechnungen. Leer, wenn das Mitglied keinen Geschäftspartner hat. Eine Familienrechnung erscheint bei dem Mitglied, dessen Geschäftspartner der Zahler ist. Jede Rechnung wie in [`members/{id}/invoices`](#get-vereinemembersidinvoices) |
+| `updated_at` | Wann sich zuletzt etwas in der Zusammenfassung geändert hat, in UTC; was zählt, steht bei [`GET /vereine/members`](#get-vereinemembers) |
 
-Dates are `YYYY-MM-DD` or empty, amounts are numbers in `currency`. The summary
-never contains birth date, address, phone, e-mail, notes, bank data or dunning
-levels. Dolibarr's member status "subscription late" is `status: active` with
-`fee.status: due`.
+Datumsangaben sind `JJJJ-MM-TT` oder leer, Beträge Zahlen in `currency`. Die
+Zusammenfassung enthält nie Geburtsdatum, Anschrift, Telefon, E-Mail, Notizen,
+Bankdaten oder Mahnstufen. Dolibarrs Mitgliedsstatus „Abonnement überfällig“ ist
+`status: active` mit `fee.status: due`.
 
-Answers 404 when there is no member with this id.
+Antwortet 404, wenn es kein Mitglied mit dieser ID gibt.
 
 ## GET /vereine/members/lookup
 
-The same summary, found by member number or e-mail address - to link a website
-account with Dolibarr.
+Dieselbe Zusammenfassung, gefunden über Mitgliedsnummer oder E-Mail-Adresse –
+um ein Website-Konto mit Dolibarr zu verknüpfen.
 
-| Call | Answer |
+| Aufruf | Antwort |
 | --- | --- |
-| `?ref=12` | the member with this member number |
-| `?email=paula@example.org` | the member with this e-mail address, ignoring upper and lower case |
-| neither or both, or an invalid e-mail address | 400 - Dolibarr's API checks the format of `email` itself, so trim spaces first |
-| nobody matches | 404 |
-| several members share the e-mail address | 409 - link the account by member number instead |
+| `?ref=12` | das Mitglied mit dieser Mitgliedsnummer |
+| `?email=paula@example.org` | das Mitglied mit dieser E-Mail-Adresse, ohne Unterschied zwischen Groß- und Kleinschreibung |
+| keins oder beides, oder eine ungültige E-Mail-Adresse | 400 – Dolibarrs API prüft das Format von `email` selbst, also Leerzeichen vorher entfernen |
+| niemand passt | 404 |
+| mehrere Mitglieder teilen sich die E-Mail-Adresse | 409 – das Konto stattdessen über die Mitgliedsnummer verknüpfen |
 
-Look members up once when an account is linked, store the `id`, and read the
-summary by id afterwards.
+Mitglieder einmal beim Verknüpfen des Kontos suchen, die `id` speichern und die
+Zusammenfassung danach über die ID lesen.
 
 ## GET /vereine/members/{id}/invoices
 
-All validated invoices of the member's third party, newest first - for a list
-of invoices on the website. Drafts are left out; a member without third party
-has none. `?limit=` (1 to 100, default 100) and `?page=` (from 0) page through
-them; a page after the last one is an empty list.
+Alle freigegebenen Rechnungen des Geschäftspartners des Mitglieds, neueste
+zuerst – für eine Rechnungsliste auf der Website. Entwürfe fehlen; ein Mitglied
+ohne Geschäftspartner hat keine. `?limit=` (1 bis 100, Standard 100) und `?page=`
+(ab 0) blättern; eine Seite nach der letzten ist eine leere Liste.
 
 ```json
 [
@@ -491,24 +508,24 @@ them; a page after the last one is an empty list.
 ]
 ```
 
-| Field | Content |
+| Feld | Inhalt |
 | --- | --- |
-| `id` | Invoice id, for the PDF below |
-| `type` | `standard`, `replacement`, `credit_note` (negative amounts) or `deposit` |
-| `total` | Amount including VAT |
-| `remaining` | What is still to pay after payments, credit notes and deposits; 0 for paid and abandoned invoices |
-| `status` | `open`, `overdue` (due date passed), `paid`, `abandoned` |
-| `overdue` | `true` exactly when `status` is `overdue` |
-| `fee` | A membership fee invoice: linked to a subscription period, whether it came from a fee run or from the member card |
-| `payment_url` | Dolibarr's online payment page for an open or overdue invoice other than a credit note, only with an online payment service; otherwise empty |
+| `id` | Rechnungs-ID, für das PDF unten |
+| `type` | `standard`, `replacement`, `credit_note` (negative Beträge) oder `deposit` |
+| `total` | Betrag mit USt |
+| `remaining` | Was nach Zahlungen, Gutschriften und Anzahlungen noch offen ist; 0 bei bezahlten und aufgegebenen Rechnungen |
+| `status` | `open`, `overdue` (Fälligkeit vorbei), `paid`, `abandoned` |
+| `overdue` | `true` genau dann, wenn `status` `overdue` ist |
+| `fee` | Eine Beitragsrechnung: mit einer Beitragsperiode verknüpft, egal ob aus einem Beitragslauf oder von der Mitgliedskarte |
+| `payment_url` | Dolibarrs Online-Zahlungsseite für eine offene oder überfällige Rechnung außer einer Gutschrift, nur mit Online-Zahlungsdienst; sonst leer |
 
-Answers 400 for a limit or page out of range and 404 when there is no member
-with this id.
+Antwortet 400 für limit oder page außerhalb des Bereichs und 404, wenn es kein
+Mitglied mit dieser ID gibt.
 
 ## GET /vereine/members/{id}/invoices/{invoice}/pdf
 
-The PDF of one invoice of the member, base64 encoded, the same way Dolibarr's
-own document download answers:
+Das PDF einer Rechnung des Mitglieds, base64-kodiert, so wie Dolibarrs eigener
+Dokument-Download antwortet:
 
 ```json
 {
@@ -519,22 +536,25 @@ own document download answers:
 }
 ```
 
-- The invoice must belong to the member's third party and be validated.
-  Another member's invoice, a draft or an unknown invoice answers 404 - the
-  same answer, so nobody learns whether a foreign invoice exists.
-- A PDF that was never built is built with the invoice's template, in the third
-  party's language when Dolibarr uses several languages, and stored like a PDF
-  built on the invoice card. Answers 500 when that fails.
-- The website must hand the PDF only to the member it belongs to: it carries
-  the member's name and address. Pass it through, do not keep it.
+- Die Rechnung muss zum Geschäftspartner des Mitglieds gehören und freigegeben
+  sein. Die Rechnung eines anderen Mitglieds, ein Entwurf oder eine unbekannte
+  Rechnung ergibt 404 – dieselbe Antwort, damit niemand erfährt, ob eine fremde
+  Rechnung existiert.
+- Ein nie erzeugtes PDF wird mit der Vorlage der Rechnung erzeugt, in der
+  Sprache des Geschäftspartners, wenn Dolibarr mehrere Sprachen nutzt, und
+  gespeichert wie ein auf der Rechnungskarte erzeugtes PDF. Antwortet 500, wenn
+  das scheitert.
+- Die Website darf das PDF nur dem Mitglied geben, dem es gehört: Es trägt Name
+  und Anschrift des Mitglieds. Durchreichen, nicht speichern.
 
-## Notifications through webhooks
+## Benachrichtigung über Webhooks
 
-Instead of asking every few minutes, a website can be told when a member's
-summary may have changed. Dolibarr's own webhooks would send the whole member -
-birth date, address, notes - and Dolibarr 23 and 24 keep that in their webhook
-history. The module therefore raises its own event `VEREINE_MEMBER_CHANGED`
-that carries the member id and the cause, nothing else:
+Statt alle paar Minuten zu fragen, kann eine Website erfahren, wann sich die
+Zusammenfassung eines Mitglieds geändert haben kann. Dolibarrs eigene Webhooks
+würden das ganze Mitglied schicken – Geburtsdatum, Anschrift, Notizen –, und
+Dolibarr 23 und 24 behalten das im Webhook-Verlauf. Das Modul löst deshalb ein
+eigenes Ereignis `VEREINE_MEMBER_CHANGED` aus, das nur die Mitglieds-ID und die
+Ursache trägt:
 
 ```json
 {
@@ -550,47 +570,50 @@ that carries the member id and the cause, nothing else:
 }
 ```
 
-Set it up:
+Einrichten:
 
-1. Enable Dolibarr's module *Webhooks*.
-2. Create a webhook target: the website's URL, the event
-   *Vereine: member summary changed (for website webhooks)*
-   (`VEREINE_MEMBER_CHANGED`) and nothing else, status *automatic*.
-3. Type *Non blocking* (Dolibarr 22) or *No check of result* (23 and 24).
-   Dolibarr sends while the user waits; the module never lets a failing
-   webhook stop a change, but a slow website still slows Dolibarr down.
+1. Dolibarrs Modul *Webhooks* aktivieren.
+2. Ein Webhook-Ziel anlegen: die URL der Website, das Ereignis
+   *Vereine: Mitglieds-Zusammenfassung geändert (für Website-Webhooks)*
+   (`VEREINE_MEMBER_CHANGED`) und sonst keines, Status *automatisch*.
+3. Typ *Nicht blockierend* (Dolibarr 22) oder *Keine Prüfung des Ergebnisses*
+   (23 und 24). Dolibarr sendet, während der Benutzer wartet; das Modul lässt eine
+   Änderung nie an einem scheiternden Webhook scheitern, eine langsame Website
+   bremst Dolibarr aber trotzdem.
 
-On the website:
+Auf der Website:
 
-- Dolibarr signs nothing. Put a long random token into the target URL and
-  refuse requests without it. A forged event can do no more than make the
-  website read a summary again.
-- Read the summary with the API a few seconds after the event, not at once:
-  Dolibarr sends while its database transaction is still open, so an immediate
-  read can see the old state. A 404 means the member was deleted.
+- Dolibarr signiert nichts. Ein langes zufälliges Token in die Ziel-URL schreiben
+  und Aufrufe ohne dieses Token ablehnen. Ein gefälschtes Ereignis kann nicht mehr,
+  als die Website eine Zusammenfassung neu lesen zu lassen.
+- Die Zusammenfassung ein paar Sekunden nach dem Ereignis über die API lesen,
+  nicht sofort: Dolibarr sendet, solange seine Datenbank-Transaktion noch offen
+  ist, ein sofortiges Lesen kann also den alten Stand sehen. Ein 404 heißt, das
+  Mitglied wurde gelöscht.
 
-| `cause` | What happened |
+| `cause` | Was passiert ist |
 | --- | --- |
-| `MEMBER_CREATE`, `MEMBER_VALIDATE`, `MEMBER_MODIFY`, `MEMBER_RESILIATE`, `MEMBER_EXCLUDE`, `MEMBER_DELETE` | The member |
-| `MEMBER_SUBSCRIPTION_CREATE`, `MEMBER_SUBSCRIPTION_MODIFY`, `MEMBER_SUBSCRIPTION_DELETE` | A subscription period of the member |
-| `BILL_VALIDATE`, `BILL_UNVALIDATE`, `BILL_MODIFY`, `BILL_PAYED`, `BILL_UNPAYED`, `BILL_CANCEL`, `BILL_DELETE` | A customer invoice of the member's third party, or a fee invoice linked to the member's subscription period - so paying a family invoice announces every member on it (drafts only when they became one again) |
-| `PAYMENT_CUSTOMER_CREATE`, `PAYMENT_CUSTOMER_DELETE` | A payment on such an invoice |
+| `MEMBER_CREATE`, `MEMBER_VALIDATE`, `MEMBER_MODIFY`, `MEMBER_RESILIATE`, `MEMBER_EXCLUDE`, `MEMBER_DELETE` | Das Mitglied |
+| `MEMBER_SUBSCRIPTION_CREATE`, `MEMBER_SUBSCRIPTION_MODIFY`, `MEMBER_SUBSCRIPTION_DELETE` | Eine Beitragsperiode des Mitglieds |
+| `BILL_VALIDATE`, `BILL_UNVALIDATE`, `BILL_MODIFY`, `BILL_PAYED`, `BILL_UNPAYED`, `BILL_CANCEL`, `BILL_DELETE` | Eine Kundenrechnung des Geschäftspartners des Mitglieds oder eine Beitragsrechnung, die mit einer Beitragsperiode des Mitglieds verknüpft ist – das Bezahlen einer Familienrechnung meldet also jedes Mitglied darauf (Entwürfe nur, wenn sie wieder einer wurden) |
+| `PAYMENT_CUSTOMER_CREATE`, `PAYMENT_CUSTOMER_DELETE` | Eine Zahlung auf eine solche Rechnung |
 
-One action raises one event per member, even when Dolibarr reports several
-things at once (a payment that also closes the invoice). Not announced: a
-changed member type, a fee that becomes due or an invoice that becomes overdue
-by the date, and the online payment service - keep the nightly sync with
-[`GET /vereine/members`](#get-vereinemembers).
+Eine Aktion löst ein Ereignis je Mitglied aus, auch wenn Dolibarr mehrere Dinge
+auf einmal meldet (eine Zahlung, die zugleich die Rechnung schließt). Nicht
+gemeldet: eine geänderte Mitgliedsart, ein Beitrag, der durch das Datum fällig
+wird, eine Rechnung, die durch das Datum überfällig wird, und der
+Online-Zahlungsdienst – den nächtlichen Abgleich mit
+[`GET /vereine/members`](#get-vereinemembers) beibehalten.
 
-## Example
+## Beispiel
 
 ```bash
 curl --fail -H "DOLAPIKEY: $DOLIBARR_API_KEY" \
   https://erp.example.org/api/index.php/vereine/organization
 ```
 
-The endpoints are also listed in Dolibarr's API explorer at
-`/api/index.php/explorer` once the module is enabled, and in the module's setup
-tab *API* with the rights each one needs (`x-vereine-rights` in
-`docs/openapi.json`: every right of one inner list is enough, every list is
-needed) and the users with an API key.
+Die Schnittstellen stehen auch in Dolibarrs API-Explorer unter
+`/api/index.php/explorer`, sobald das Modul aktiv ist, und im Einrichtungsreiter
+*API* des Moduls mit den Rechten, die jede braucht (`x-vereine-rights` in
+`docs/openapi.json`: jedes Recht einer inneren Liste genügt, jede Liste ist
+nötig), und den Benutzern mit API-Schlüssel.

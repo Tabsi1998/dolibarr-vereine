@@ -34,7 +34,7 @@ CONTRACTS = (
     ("htdocs/core/modules/DolibarrModules.class.php", "function _init(", "module activation"),
     ("htdocs/core/modules/DolibarrModules.class.php", "function _remove(", "module deactivation"),
     ("htdocs/core/modules/DolibarrModules.class.php", "\"Module\".$this->name.\"Name\"", "module name from ModuleVereineName"),
-    ("htdocs/core/modules/DolibarrModules.class.php", "'/README-'.$langs->defaultlang.'.md'", "README-de.md as German module description"),
+    ("htdocs/core/modules/DolibarrModules.class.php", "'/README-'.$langs->defaultlang.'.md'", "module description: README-<lang>.md, else the German README.md"),
     ("htdocs/core/modules/modAdherent.class.php", "class modAdherent", "the Members module the descriptor depends on"),
     ("htdocs/core/lib/admin.lib.php", "function dolibarr_set_const(", "setup page stores association data"),
     ("htdocs/core/lib/admin.lib.php", "function activateModule(", "runtime fixtures"),

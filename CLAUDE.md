@@ -1,16 +1,19 @@
 # CLAUDE.md
 
 Notes for Claude Code sessions on dolibarr-vereine, the Dolibarr module for
-associations under Austrian and German law. Answer the owner (Tabsi1998,
-Fabian) in German. Code, comments, commits and repository documents are in
-English (DoliStore requires English); `README-de.md` and the GitHub issues are
-German.
+associations under Austrian law only (decision #128). Answer the owner
+(Tabsi1998, Fabian) in German. Everything people read is German: UI texts
+(`langs/de_DE`, with `langs/en_US` an exact copy via `scripts/sync_langs.py`),
+PDFs, README and `docs/`, `CHANGELOG.md` and release notes, issues, pull
+requests and commit messages. Code names and comments stay English (Dolibarr's
+coding standard, no umlauts in comments), and so does this file.
 
 ## How work runs
 
 - Every piece of work has an issue with type label (`bug`, `enhancement`,
-  `documentation`, `ci`, `release`, `security`), area label (`bereich: ...`),
-  country label where it applies (`land: AT`, `land: DE`) and a milestone.
+  `documentation`, `ci`, `release`, `security`), area label (`bereich: ...`)
+  and a milestone. The principles in `docs/ARCHITECTURE.md` (Grundsätze, #118)
+  apply to every issue.
 - One branch per issue (`feat/<n>-<topic>`, `fix/...`, `docs/...`, `ci/...`),
   never a direct push to `main`. The pull request closes its issues
   (`Closes #n`). Commits: `feat:`, `fix:`, `docs:`, `ci:`, `chore:`,
@@ -101,7 +104,7 @@ raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
 - *Deploy an external module* accepts only `...-x.y.z.zip`; betas are packaged
   without `-beta`.
 - Dolibarr shows `README-<lang>.md`, `README-<language>.md`, then `README.md`
-  as module description - hence `README-de.md` in lower case.
+  as module description; the module has only the German `README.md`.
 - Disabling a module deletes its rights definitions but not the rights granted
   to users; enabling it again restores them.
 - The official Dolibarr images ship `custom/` read-only; web deployment needs a

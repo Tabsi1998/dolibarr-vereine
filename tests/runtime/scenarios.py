@@ -315,7 +315,7 @@ def deploy(stack: Stack) -> str:
 
 
 def enable(stack: Stack) -> str:
-    """Enabling from the module list registers rights, menu and the country profile."""
+    """Enabling from the module list registers rights and menu and removes the country profile of earlier versions."""
     browser = stack.browser()
     page = module_list(browser)
     expect("Vereine (Österreich)" in page.text, "the module list does not show the translated module name")
@@ -345,7 +345,7 @@ def enable(stack: Stack) -> str:
            "the defaults for members and third parties were not written")
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
-    return (f"module {stack.module_version} on with Members, third parties and categories; profile AT; "
+    return (f"module {stack.module_version} on with Members, third parties and categories; no country profile; "
             "4 rights, 7 menu entries, log table, 3 categories")
 
 
@@ -2603,7 +2603,7 @@ def minutestexts(stack: Stack) -> str:
     expect(empty == "" and 'data-note-preview="3"' not in shown.text and stored == str(agenda_items), f"emptied text: {empty!r}, {stored} texts stored for {agenda_items} items")
 
     page_ok(browser.submit(page_ok(browser.get(setup), "meeting templates").form(name="vereinetemplatesreset")), "restore the templates")
-    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_meeting_template") == "0", "restoring the templates of the country profile kept stored templates")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_meeting_template") == "0", "restoring the suggested templates kept stored templates")
     return (f"general assembly template with 10 items, 3 required; own required board item stored; new meeting from the template with its texts; "
             f"text follows the reordered agenda, 2 missing required items warned; general assembly texts: {first!r}, result of the vote filled, emptied text stays empty; templates restored")
 
@@ -2670,7 +2670,7 @@ def disable(stack: Stack) -> str:
     page_ok(reader.get("/custom/vereine/vereineindex.php"), "overview for the reader after enabling again")
     status, _ = stack.api("vereine/status", stack.reader_key)
     expect(status == 200, f"the API answers HTTP {status} after enabling again")
-    return (f"off: pages refused, API HTTP {stack.notes['disabled_api_status']}; on again: data, profile and the reader's right kept; "
+    return (f"off: pages refused, API HTTP {stack.notes['disabled_api_status']}; on again: data and the reader's right kept, no country profile; "
             "line breaks stored as \\n repaired in authority address, statute text and consent text")
 
 
@@ -2691,7 +2691,7 @@ def php_messages(stack: Stack) -> set:
 SCENARIOS = (
     ("upgrade", "An installation of the previous release upgrades to this package", upgrade, ()),
     ("deploy", "The package deploys through Deploy an external module", deploy, ("upgrade",)),
-    ("enable", "Enabling registers rights, menu and the country profile", enable, ("deploy",)),
+    ("enable", "Enabling registers rights and menu and removes the old country profile", enable, ("deploy",)),
     ("pages", "Overview, setup, about and the menu entry render", pages, ("enable",)),
     ("setup", "Setup validates, normalises and stores the association", setup, ("pages",)),
     ("access", "Rights decide who sees overview and setup", access, ("setup",)),

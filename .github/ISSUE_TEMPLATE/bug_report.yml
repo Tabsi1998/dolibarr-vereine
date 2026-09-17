@@ -1,42 +1,36 @@
-name: Fehler melden / Bug report
-description: Etwas funktioniert nicht wie beschrieben. / Something does not work as documented.
-title: "[Bug] "
+name: Fehler melden
+description: Etwas funktioniert nicht wie beschrieben.
+title: "[Fehler] "
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        Bitte keine echten Mitglieds-, Spender- oder Bankdaten, Zugangsdaten, API-Schlüssel oder Datenbank-Dumps.
-        Please do not include real member, donor or bank data, credentials, API keys or database dumps.
-        Sicherheitsprobleme / security problems: https://github.com/Tabsi1998/dolibarr-vereine/security/advisories/new
+        Bitte keine echten Mitglieds-, Spender- oder Bankdaten, Zugangsdaten, API-Schlüssel oder Datenbankauszüge.
+        Sicherheitsprobleme privat melden: https://github.com/Tabsi1998/dolibarr-vereine/security/advisories/new
   - type: input
     id: module
     attributes:
-      label: Vereine-Version / Vereine version
-      placeholder: 0.1.0-beta
+      label: Vereine-Version
+      placeholder: 0.5.8-beta
     validations:
       required: true
   - type: dropdown
     id: dolibarr
     attributes:
-      label: Dolibarr-Version / Dolibarr version
-      options: ["24.x", "23.x", "22.x", "andere / other"]
+      label: Dolibarr-Version
+      options: ["24.x", "23.x", "22.x", "andere"]
     validations:
       required: true
   - type: input
     id: php
     attributes:
-      label: PHP-Version / PHP version
+      label: PHP-Version
       placeholder: "8.2"
-  - type: dropdown
-    id: profile
-    attributes:
-      label: Länderprofil / Country profile
-      options: ["Österreich / Austria", "Deutschland / Germany"]
   - type: textarea
     id: steps
     attributes:
-      label: Schritte zum Nachstellen / Steps to reproduce
+      label: Schritte zum Nachstellen
       placeholder: |
         1. Mitglieder > Verein öffnen
         2. ...
@@ -45,12 +39,12 @@ body:
   - type: textarea
     id: expected
     attributes:
-      label: Erwartet und tatsächlich / Expected and actual behaviour
+      label: Erwartet und tatsächlich
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
-      label: Fehlermeldungen / Error messages
-      description: Aus dem Browser oder dem Dolibarr-Log (dolibarr.log), ohne personenbezogene Daten. / From the browser or dolibarr.log, without personal data.
+      label: Fehlermeldungen
+      description: Aus dem Browser oder dem Dolibarr-Log (dolibarr.log), ohne personenbezogene Daten.
       render: text

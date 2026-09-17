@@ -1,196 +1,232 @@
-# Architecture
+# Aufbau
 
-## Principle: extend Dolibarr, do not rebuild it
+## Grundsätze
 
-Members, member types, subscriptions, donations, invoices, bank accounts, SEPA
-direct debits, events, the agenda, documents, email templates, cron jobs and
-the REST API already exist in Dolibarr. The module uses those objects and adds
-only what an association under Austrian or German law needs on top. It never
-changes Dolibarr's files and writes only below the documents folder.
+Diese Grundsätze gelten für jedes Issue und jeden Pull Request (#118):
 
-## Country profiles
+1. **Zwei Wege für jedes Dokument:** sauber als PDF erzeugen → auf Papier prüfen
+   oder unterschreiben → hochladen → fertig; **oder** komplett in Dolibarr mit
+   digitaler Unterschrift. Beide Wege enden im selben fertigen Dokument mit
+   Verlauf.
+2. **Die Rolle entscheidet, nicht die Person:** Was ein **Organ** tut – der
+   Vorstand als Vorstand (Beschlüsse, Umlaufbeschlüsse, Annahme von Anträgen,
+   Unterschriften für den Verein), die Rechnungsprüfer als Prüfer, die
+   Wahlleitung – passiert **nur in Dolibarr**. Was jemand **als Mitglied** tut –
+   in der Generalversammlung abstimmen und wählen, eigene Daten, Einwilligungen,
+   Antrag, Anmeldungen – geht auch über die Website-API oder das Webportal,
+   **auch für Vorstandsmitglieder**, denn sie sind ebenfalls Mitglieder.
+3. **Alles über Rechte einstellbar**, was die API anbietet; die Website
+   entscheidet nie selbst.
+4. **Dolibarr-Bordmittel zuerst:** Ereignisse, Dokumentvorlagen,
+   Online-Unterschrift, Benutzergruppen, Freigaben – erweitern statt nachbauen.
+   Das Modul ändert keine Dateien von Dolibarr und schreibt nur unter den
+   Dokumentenordner.
+5. **Für österreichische Vereine:** Das Modul ist öffentlich und passt für jeden
+   Verein in Österreich; nichts ist auf einen Verein zugeschnitten (etwa
+   Webportal und eigene Website, beides möglich, #25).
+6. **Ehrlich zur Rechtswirkung**, Quellen in [LEGAL-SOURCES.md](LEGAL-SOURCES.md),
+   Erklärungen in Alltagsdeutsch.
+7. **Was ein Organ beschließt oder prüft, wird unterschrieben** – wer, sagen die
+   Statuten (#119). Musterstatuten des Innenministeriums: schriftliche
+   Ausfertigungen Obmann/Obfrau und Schriftführung, Geldangelegenheiten
+   Obmann/Obfrau und Kassier; die Schriftführung führt die Protokolle. Wichtige
+   Dokumente mit ID Austria (#120).
 
-An association chooses one profile, `AT` or `DE`
-(`class/vereineprofile.class.php`). The profile decides the register (ZVR number
-or VR number with court), the authorities and - from version 0.2 on - spheres,
-tax profiles, thresholds, forms and texts. Austria is complete first; Germany
-is a preview until version 1.1.
+Sprache: Alles, was Menschen lesen – Oberfläche, PDFs, Doku, Changelog,
+Release-Texte, Issues – ist Deutsch. Code (Namen, Kommentare) bleibt Englisch,
+wie es Dolibarrs Code-Standard verlangt.
 
-Legal amounts and deadlines will live in data with a validity period and a
-legal source, not in code, so a changed threshold is a data update.
+## Dolibarr erweitern, nicht nachbauen
 
-## Layout
+Mitglieder, Mitgliedsarten, Beitragsperioden, Spenden, Rechnungen, Bankkonten,
+SEPA-Lastschriften, Veranstaltungen, die Agenda, Dokumente, E-Mail-Vorlagen,
+geplante Aufgaben und die REST-API gibt es in Dolibarr schon. Das Modul nutzt
+diese Objekte und ergänzt nur, was ein österreichischer Verein zusätzlich
+braucht.
 
-| Path | Content |
+Gesetzliche Beträge und Fristen gehören in Daten mit Gültigkeitszeitraum und
+Rechtsquelle, nicht in Code, damit eine geänderte Grenze ein Datenupdate ist.
+
+## Dateien
+
+| Pfad | Inhalt |
 | --- | --- |
-| `core/modules/modVereine.class.php` | Descriptor: id 492100, rights, menu, dependencies |
-| `class/vereineassociationrules.class.php` | Input rules of the association data: ZVR number, purpose, founding date, plain PHP |
-| `class/vereineorganization.class.php` | Association data and checks, plain PHP; `load()` reads Dolibarr |
-| `class/api_vereine.class.php` | REST API class `Vereine` |
-| `class/vereinepartnerrules.class.php` | Member and third party decisions, plain PHP |
-| `class/vereinepartnerservice.class.php` | Links, creates and reconciles members and third parties in Dolibarr |
-| `class/vereinelog.class.php` | The append-only log `llx_vereine_log` |
-| `core/triggers/interface_99_modVereine_VereineTriggers.class.php` | Member events keep the third party in line |
-| `partners.php`, `partner_membership.php`, `member_association.php`, `admin/partners.php` | Reconciliation, tab on the third party, tab on the member, partner setup |
-| `class/actions_vereine.class.php` | Hooks on Dolibarr's member card |
-| `class/vereinetaxrules.class.php` | Spheres, VAT treatments, tax profile checks and suggestions, plain PHP |
-| `class/vereinetaxprofiles.class.php`, `admin/taxprofiles.php` | Tax profiles in `llx_vereine_taxprofile` and their setup tab |
-| `class/vereinefeerules.class.php` | Next fee period and amount of a member: fee year, proration, admission fee, plain PHP |
-| `class/vereinefeediscounts.class.php` | Which discount a member gets on a fee, plain PHP |
-| `class/vereinefeediscountstore.class.php` | Discount rules in `llx_vereine_fee_discount` and the member fields for exemption and proof |
-| `class/vereinefeefamilies.class.php` | Payer, family rule (discount per further member, cap per fee year) and sharing a cap, plain PHP |
-| `class/vereinefeefamilystore.class.php` | Member field `vereine_fee_payer`, the family rule constants, families and what they were charged |
-| `class/vereinefunctionrules.class.php` | Suggested functions for Austria, holders on a day and problems: missing, too many, board of fewer than two, auditor on the board; plain PHP |
-| `class/vereinefunctions.class.php`, `admin/functions.php`, `functions.php` | Function catalogue (`llx_vereine_function`), terms of office (`llx_vereine_function_term`), reports to the association authority (`llx_vereine_function_report`, agenda event, letter as PDF in `documents/vereine/authority`, member field `vereine_birth_place`), user groups through functions (`fk_usergroup`, suggestions computed from terms and `llx_usergroup_user`, applied with `User::SetInGroup`/`RemoveFromGroup` only after an administrator confirms), setup tab and the overview *Board and functions* |
-| `authority.php`, `class/vereineauthorityrules.class.php`, `class/vereineauthorityletters.class.php` | Letters to the association authority: plain PHP rules (kinds, deadlines, responsible authority by seat, Tyrol list), one PDF layout for every letter incl. the report of representatives, table `llx_vereine_authority_letter` with deadline, agenda event and filed day |
-| `admin/api.php`, `class/vereineapirules.class.php` | Setup tab *API*: endpoints read from `docs/openapi.json` with `x-vereine-rights`, users with an API key and the endpoints their rights allow (plain PHP rules) |
-| `admin/meetings.php`, `class/vereineminutesrules.class.php` | Agenda templates per kind with required items (`llx_vereine_meeting_template`, defaults per country profile) and texts per agenda item (`llx_vereine_meeting_note`) with placeholders filled from attendance and votes, plain PHP rules; `VereineMeetings::items()` gives the texts for the minutes |
-| `class/vereinetextrepair.class.php` | Repair on activation of line breaks stored as `\n` by the text areas before 0.5.3 |
-| `class/vereinevoterules.class.php` | Votes and elections: kinds, majority from the statutes, result with tie and chair, plain PHP; stored in `llx_vereine_meeting_vote`; effects through `VereineFunctions::addTerm()` and `VereineStatutes::saveVersion()` |
-| `class/vereineattendancerules.class.php` | Attendance, proxies (statutes, never on the board, holder present) and quorum at a time, plain PHP; stored in `llx_vereine_meeting_attendance` |
-| `meetings.php`, `class/vereinemeetingrules.class.php`, `class/vereinemeetings.class.php` | Meetings: plain PHP rules (formats the statutes allow, deadlines, recipients: exactly the board or every active member, e-mail or letter), tables `llx_vereine_meeting` and `llx_vereine_meeting_invitation` as proof, e-mail through `CMailFile`, letters PDF, agenda event |
-| `class/vereinestatutetext.class.php` | Text of the statutes, plain PHP: text fields, check and the sections of the BMI and BMF model statutes filled with rules, functions, member types and exit rule; versions in `llx_vereine_statute` with PDF and checksum through `VereineStatutes` |
-| `class/vereinestatuterules.class.php`, `class/vereinestatutes.class.php`, `admin/statutes.php` | Rules of the statutes: plain PHP defaults from the model statutes, checks and hints; stored as JSON in the constant `VEREINE_STATUTE_RULES`, terms of office in `llx_vereine_function.term_years`; setup tab *Statutes* |
-| `class/vereinemailingrules.class.php`, `core/modules/mailings/vereine.modules.php` | Recipients of Dolibarr's e-mail campaigns by status, type, function and consent, minors through guardians (plain PHP rules and the selector class `mailing_vereine`, found by Dolibarr in `core/modules/mailings` of the module) |
-| `sql/update_*.sql` | Columns added to existing tables; Dolibarr runs them on every activation and ignores a column that exists |
-| `class/vereineconsentrules.class.php` | Consent texts, current consent per purpose, checks of a membership application, plain PHP |
-| `class/vereineconsents.class.php`, `admin/consents.php` | Consent texts with versions (`llx_vereine_consent_text`), consents and withdrawals (`llx_vereine_consent`, append only), applications by external id (`llx_vereine_application`) |
-| `class/vereinesepa.class.php`, `class/vereinesepastore.class.php` | Mandate state and pre-notification (plain PHP); mandates and last collections from Dolibarr |
-| `class/vereineexitrules.class.php` | Exit reasons and the last day after notice by the statutes' rule, plain PHP |
-| `class/vereineexits.class.php` | Exits in `llx_vereine_member_exit`, the notice rule constants, the scheduled job `runDue` |
-| `class/vereinefeerun.class.php`, `fees_run.php` | Fee run: preview of the fees due, subscription periods and linked invoices, one per payer and start day, recent fee invoices |
-| `class/vereinefeemodel.class.php`, `admin/fees.php` | Fee model as extra fields of Dolibarr's member type (`vereine_fee_start_month`, `vereine_fee_proration`, `vereine_admission_fee`, `vereine_fee_product`; the checkbox `vereine_fee_prorated` of 0.3.4 and 0.3.5 becomes `month` on activation) and its setup tab |
-| `class/vereinetaxassign.class.php` | Extra field `vereine_taxprofile` on products and invoice lines, product VAT, line profiles, deviations |
-| `class/vereinethresholds.class.php` | Dated threshold table and traffic light, plain PHP |
-| `class/vereinecashregister.class.php` | Cash register duty per sphere and sharing cash out over spheres, plain PHP |
-| `class/vereinemembersummary.class.php` | Membership status, fee status and dates of a member summary, plain PHP |
-| `class/vereinememberreport.class.php` | Reads a member summary and its open invoices; finds members by number or e-mail |
-| `class/vereinewebsiteevents.class.php` | Raises `VEREINE_MEMBER_CHANGED` with the member id only, for Dolibarr's webhooks |
-| `docs/openapi.json` | OpenAPI 3.0 description of every endpoint; `tests/run.php` compares it with the API class, `tests/runtime/openapi.py` with the answers |
-| `class/vereinethresholdreport.class.php`, `core/boxes/box_vereine_thresholds.php` | Income per tax profile from invoices; home page box |
-| `js/partners.js` | Select all and the row dialog of the reconciliation page |
-| `sql/` | Tables, created on activation and kept on deactivation |
-| `lib/vereine.lib.php` | Shared page helpers |
-| `vereineindex.php` | Overview under Members |
-| `admin/setup.php`, `admin/about.php` | Setup and about pages |
-| `langs/*/vereine.lang` | Translations; `en_US` is complete by rule |
-| `tests/run.php` | Tests without Dolibarr |
-| `tests/runtime/` | Tests in running Dolibarr 22, 23 and 24 |
-| `scripts/` | Checks, package build, release |
+| `core/modules/modVereine.class.php` | Deskriptor: Nummer 492100, Rechte, Menü, Abhängigkeiten |
+| `class/vereineassociationrules.class.php` | Eingaberegeln der Vereinsdaten: ZVR-Zahl, Vereinszweck, Gründungsdatum; reines PHP |
+| `class/vereineorganization.class.php` | Vereinsdaten und Prüfungen, reines PHP; `load()` liest aus Dolibarr |
+| `class/api_vereine.class.php` | REST-API-Klasse `Vereine` |
+| `class/vereinepartnerrules.class.php` | Entscheidungen zu Mitglied und Geschäftspartner, reines PHP |
+| `class/vereinepartnerservice.class.php` | Verknüpft, legt an und gleicht Mitglieder und Geschäftspartner in Dolibarr ab |
+| `class/vereinelog.class.php` | Das nur ergänzte Protokoll `llx_vereine_log` |
+| `core/triggers/interface_99_modVereine_VereineTriggers.class.php` | Mitgliedsereignisse ziehen den Geschäftspartner nach |
+| `partners.php`, `partner_membership.php`, `member_association.php`, `admin/partners.php` | Abgleich, Reiter am Geschäftspartner, Reiter am Mitglied, Partner-Einstellungen |
+| `class/actions_vereine.class.php` | Hooks auf Dolibarrs Mitgliedskarte, Rechnungskarten und Rechnungs-PDFs |
+| `class/vereinetaxrules.class.php` | Sphären, USt-Behandlungen, Prüfung und Vorschläge der Steuerprofile, reines PHP |
+| `class/vereinetaxprofiles.class.php`, `admin/taxprofiles.php` | Steuerprofile in `llx_vereine_taxprofile` und ihr Einrichtungsreiter |
+| `class/vereinefeerules.class.php` | Nächste Beitragsperiode und Betrag eines Mitglieds: Beitragsjahr, anteiliger Beitrag, Aufnahmegebühr; reines PHP |
+| `class/vereinefeediscounts.class.php` | Welche Ermäßigung ein Mitglied auf einen Beitrag bekommt, reines PHP |
+| `class/vereinefeediscountstore.class.php` | Ermäßigungsregeln in `llx_vereine_fee_discount` und die Mitgliedsfelder für Befreiung und Nachweis |
+| `class/vereinefeefamilies.class.php` | Zahler, Familienregel (Rabatt je weiterem Mitglied, Höchstbetrag je Beitragsjahr) und Aufteilung eines Höchstbetrags, reines PHP |
+| `class/vereinefeefamilystore.class.php` | Mitgliedsfeld `vereine_fee_payer`, die Konstanten der Familienregel, Familien und was ihnen verrechnet wurde |
+| `class/vereinefunctionrules.class.php` | Vorgeschlagene Funktionen, Inhaber an einem Tag und Probleme: fehlt, zu viele, Vorstand mit weniger als zwei, Prüfer im Vorstand; reines PHP |
+| `class/vereinefunctions.class.php`, `admin/functions.php`, `functions.php` | Funktionskatalog (`llx_vereine_function`), Funktionsperioden (`llx_vereine_function_term`), Meldungen an die Vereinsbehörde (`llx_vereine_function_report`, Agenda-Termin, Schreiben als PDF in `documents/vereine/authority`, Mitgliedsfeld `vereine_birth_place`), Benutzergruppen über Funktionen (`fk_usergroup`, Vorschläge aus Perioden und `llx_usergroup_user`, angewandt mit `User::SetInGroup`/`RemoveFromGroup` erst nach Bestätigung durch einen Administrator), Einrichtungsreiter und Übersicht *Vorstand und Funktionen* |
+| `authority.php`, `class/vereineauthorityrules.class.php`, `class/vereineauthorityletters.class.php` | Schreiben an die Vereinsbehörde: Regeln in reinem PHP (Arten, Fristen, zuständige Behörde nach Sitz, Liste für Tirol), ein PDF-Layout für jedes Schreiben samt Meldung der Vertreter, Tabelle `llx_vereine_authority_letter` mit Frist, Agenda-Termin und Tag der Einbringung |
+| `admin/api.php`, `class/vereineapirules.class.php` | Einrichtungsreiter *API*: Schnittstellen aus `docs/openapi.json` mit `x-vereine-rights`, Benutzer mit API-Schlüssel und die Schnittstellen, die ihre Rechte erlauben (Regeln in reinem PHP) |
+| `admin/meetings.php`, `class/vereineminutesrules.class.php` | Sitzungsvorlagen je Art mit Pflichtpunkten (`llx_vereine_meeting_template`, sonst die vorgeschlagenen) und Texte je Tagesordnungspunkt (`llx_vereine_meeting_note`) mit Platzhaltern aus Anwesenheit und Abstimmungen, Regeln in reinem PHP; `VereineMeetings::items()` liefert die Texte fürs Protokoll |
+| `class/vereinetextrepair.class.php` | Reparatur beim Aktivieren: Zeilenumbrüche, die die Textfelder vor 0.5.3 als `\n` gespeichert haben |
+| `class/vereinevoterules.class.php` | Abstimmungen und Wahlen: Arten, Mehrheit laut Statuten, Ergebnis mit Stimmengleichheit und Stichentscheid, reines PHP; gespeichert in `llx_vereine_meeting_vote`; Wirkung über `VereineFunctions::addTerm()` und `VereineStatutes::saveVersion()` |
+| `class/vereineattendancerules.class.php` | Anwesenheit, Vollmachten (laut Statuten, nie im Vorstand, Bevollmächtigte anwesend) und Beschlussfähigkeit zu einer Uhrzeit, reines PHP; gespeichert in `llx_vereine_meeting_attendance` |
+| `meetings.php`, `class/vereinemeetingrules.class.php`, `class/vereinemeetings.class.php` | Sitzungen: Regeln in reinem PHP (Formen, die die Statuten erlauben, Fristen, Empfänger: genau der Vorstand oder jedes aktive Mitglied, E-Mail oder Brief), Tabellen `llx_vereine_meeting` und `llx_vereine_meeting_invitation` als Nachweis, E-Mail über `CMailFile`, Briefe als PDF, Agenda-Termin |
+| `class/vereinestatutetext.class.php` | Text der Statuten, reines PHP: Textfelder, Prüfung und die Abschnitte der Musterstatuten von Innen- und Finanzministerium, gefüllt mit Regeln, Funktionen, Mitgliedsarten und Austrittsregel; Fassungen in `llx_vereine_statute` mit PDF und Prüfsumme über `VereineStatutes` |
+| `class/vereinestatuterules.class.php`, `class/vereinestatutes.class.php`, `admin/statutes.php` | Regeln der Statuten: Vorgaben aus den Musterstatuten in reinem PHP, Prüfungen und Hinweise; gespeichert als JSON in der Konstante `VEREINE_STATUTE_RULES`, Funktionsperioden in `llx_vereine_function.term_years`; Einrichtungsreiter *Statuten* |
+| `class/vereinemailingrules.class.php`, `core/modules/mailings/vereine.modules.php` | Empfänger von Dolibarrs E-Mail-Kampagnen nach Status, Art, Funktion und Einwilligung, Minderjährige über Erziehungsberechtigte (Regeln in reinem PHP und die Auswahlklasse `mailing_vereine`, die Dolibarr in `core/modules/mailings` des Moduls findet) |
+| `sql/update_*.sql` | Spalten für bestehende Tabellen; Dolibarr führt sie bei jeder Aktivierung aus und übergeht vorhandene Spalten |
+| `class/vereineconsentrules.class.php` | Einwilligungstexte, aktuelle Einwilligung je Zweck, Prüfung eines Beitrittsantrags, reines PHP |
+| `class/vereineconsents.class.php`, `admin/consents.php` | Einwilligungstexte mit Versionen (`llx_vereine_consent_text`), Einwilligungen und Widerrufe (`llx_vereine_consent`, nur ergänzt), Anträge nach externer Kennung (`llx_vereine_application`) |
+| `class/vereinesepa.class.php`, `class/vereinesepastore.class.php` | Mandatsstand und Vorankündigung (reines PHP); Mandate und letzte Einzüge aus Dolibarr |
+| `class/vereineexitrules.class.php` | Austrittsgründe und letzter Tag nach der Kündigungsregel der Statuten, reines PHP |
+| `class/vereineexits.class.php` | Austritte in `llx_vereine_member_exit`, die Konstanten der Kündigungsregel, die geplante Aufgabe `runDue` |
+| `class/vereinefeerun.class.php`, `fees_run.php` | Beitragslauf: Vorschau der fälligen Beiträge, Beitragsperioden und verknüpfte Rechnungen, eine je Zahler und Beginntag, letzte Beitragsrechnungen |
+| `class/vereinefeemodel.class.php`, `admin/fees.php` | Beitragsmodell als Zusatzfelder von Dolibarrs Mitgliedsart (`vereine_fee_start_month`, `vereine_fee_proration`, `vereine_admission_fee`, `vereine_fee_product`; das Häkchen `vereine_fee_prorated` von 0.3.4 und 0.3.5 wird beim Aktivieren zu `month`) und sein Einrichtungsreiter |
+| `class/vereinetaxassign.class.php` | Zusatzfeld `vereine_taxprofile` an Produkten und Rechnungszeilen, USt-Satz des Produkts, Profile der Zeilen, Abweichungen |
+| `class/vereinethresholds.class.php` | Grenzen mit Gültigkeit und Ampel, reines PHP |
+| `class/vereinecashregister.class.php` | Registrierkassenpflicht je Sphäre und Aufteilung von Barumsätzen auf Sphären, reines PHP |
+| `class/vereinemembersummary.class.php` | Mitgliedschaftsstatus, Beitragsstand und Termine einer Mitglieds-Zusammenfassung, reines PHP |
+| `class/vereinememberreport.class.php` | Liest eine Mitglieds-Zusammenfassung und ihre offenen Rechnungen; findet Mitglieder über Nummer oder E-Mail |
+| `class/vereinewebsiteevents.class.php` | Löst `VEREINE_MEMBER_CHANGED` nur mit der Mitglieds-ID aus, für Dolibarrs Webhooks |
+| `docs/openapi.json` | OpenAPI-3.0-Beschreibung jeder Schnittstelle; `tests/run.php` vergleicht sie mit der API-Klasse, `tests/runtime/openapi.py` mit den Antworten |
+| `class/vereinethresholdreport.class.php`, `core/boxes/box_vereine_thresholds.php` | Einnahmen je Steuerprofil aus Rechnungen; Startseiten-Widget |
+| `js/partners.js` | *Alle auswählen* und das Zeilenfenster der Abgleichsseite |
+| `sql/` | Tabellen, beim Aktivieren angelegt und beim Deaktivieren behalten |
+| `lib/vereine.lib.php` | Gemeinsame Hilfsfunktionen der Seiten |
+| `vereineindex.php` | Übersicht unter Mitglieder |
+| `admin/setup.php`, `admin/about.php` | Einrichtung und Über-Seite |
+| `langs/de_DE/vereine.lang` | Alle Texte; `langs/en_US/vereine.lang` ist eine genaue Kopie, damit Dolibarr mit englischer Oberfläche Deutsch zeigt |
+| `tests/run.php` | Tests ohne Dolibarr |
+| `tests/runtime/` | Tests im laufenden Dolibarr 22, 23 und 24 |
+| `scripts/` | Prüfungen, Paketbau, Release |
 
-Logic that can be tested without Dolibarr stays in plain PHP classes; pages and
-the API only read input, call those classes and render.
+Logik, die sich ohne Dolibarr testen lässt, bleibt in Klassen aus reinem PHP;
+Seiten und API lesen nur Eingaben, rufen diese Klassen auf und zeigen an.
 
-## Data
+## Daten
 
-The association's data are Dolibarr constants (`VEREINE_COUNTRY_PROFILE`,
-`VEREINE_REGISTER_NUMBER`, `VEREINE_REGISTER_COURT`, `VEREINE_AUTHORITY`,
-`VEREINE_FOUNDED`, `VEREINE_NONPROFIT`, `VEREINE_PURPOSE`) per entity.
-Deactivating the module keeps them.
+Die Vereinsdaten sind Dolibarr-Konstanten je Mandant (`VEREINE_REGISTER_NUMBER`,
+`VEREINE_AUTHORITY`, `VEREINE_FOUNDED`, `VEREINE_NONPROFIT`, `VEREINE_PURPOSE`).
+Deaktivieren behält sie. `VEREINE_COUNTRY_PROFILE` und `VEREINE_REGISTER_COURT`
+aus Versionen vor 0.5.8 löscht die Aktivierung.
 
-`llx_vereine_log` records what the module changed, by whom and when. Nothing in
-the module updates or deletes a row.
+`llx_vereine_log` hält fest, was das Modul geändert hat, von wem und wann.
+Nichts im Modul ändert oder löscht eine Zeile.
 
-## Members and third parties
+## Mitglieder und Geschäftspartner
 
-- Dolibarr links one member to one third party (`llx_adherent.fk_soc`;
-  `Adherent::setThirdPartyId` unlinks any other member). A family paying for
-  several members therefore cannot share one third party through this link;
-  the member field `vereine_fee_payer` names the payer instead (see Membership
-  fees).
-- Third parties are created with Dolibarr's `Societe::create_from_member` and
-  linked with `Adherent::setThirdPartyId`; single fields change through
-  `CommonObject::setValueFrom`, categories through `Categorie::add_type`.
-- The categories *Member*, *Former member* (customer) and *Guardian* (contact)
-  are created on activation and found again by the ids in
-  `VEREINE_CATEGORY_MEMBER`, `VEREINE_CATEGORY_FORMER`, `VEREINE_CATEGORY_GUARDIAN`,
-  so the association may rename them.
-- Guardians are a contact category, not a third party contact role: Dolibarr
-  offers roles on third parties only behind the hidden option
-  `MAIN_SUPPORT_SHARED_CONTACT_BETWEEN_THIRDPARTIES`, which it calls unstable.
-- A trigger never makes a member's own action fail. Problems go to the log as
-  `partner_error`.
-- Dolibarr's member card links a third party without a trigger
-  (`Societe::create_from_member` and `Adherent::setThirdPartyId` write `fk_soc`
-  with plain SQL). The hook `doActions` notes the link before Dolibarr's action;
-  `addMoreActionsButtons` runs later in the same request with the member loaded
-  again and calls `VereinePartnerService::onMemberCardLink`. Dolibarr's actions
-  are not replaced, and viewing the card changes nothing.
-- Invoice PDFs: the hook `beforePDFCreation` adds the tax profile notes and the
-  register number to the invoice's `note_public` in memory, which Dolibarr's
-  templates print; `afterPDFCreation` puts the note back. No template changes,
-  nothing is stored.
-- The reconciliation page prints the steps of each row as real forms and links
-  (with CSRF token) after its main form, because forms cannot nest;
-  `js/partners.js` only shows them in a jQuery UI dialog and ticks *select all*.
-  The runtime tests submit those forms exactly as a browser would.
+- Dolibarr verknüpft ein Mitglied mit einem Geschäftspartner
+  (`llx_adherent.fk_soc`; `Adherent::setThirdPartyId` löst jedes andere
+  Mitglied). Eine Familie, die für mehrere Mitglieder zahlt, kann sich darüber
+  also keinen Geschäftspartner teilen; stattdessen nennt das Mitgliedsfeld
+  `vereine_fee_payer` den Zahler (siehe Beiträge).
+- Geschäftspartner entstehen mit Dolibarrs `Societe::create_from_member` und
+  werden mit `Adherent::setThirdPartyId` verknüpft; einzelne Felder ändern sich
+  über `CommonObject::setValueFrom`, Kategorien über `Categorie::add_type`.
+- Die Kategorien *Mitglied*, *Ehemaliges Mitglied* (Kunde) und
+  *Erziehungsberechtigt* (Kontakt) entstehen beim Aktivieren und werden über die
+  Kennungen in `VEREINE_CATEGORY_MEMBER`, `VEREINE_CATEGORY_FORMER`,
+  `VEREINE_CATEGORY_GUARDIAN` wiedergefunden; der Verein darf sie umbenennen.
+- Erziehungsberechtigte sind eine Kontakt-Kategorie, keine Kontaktrolle am
+  Geschäftspartner: Rollen bietet Dolibarr nur hinter der versteckten Option
+  `MAIN_SUPPORT_SHARED_CONTACT_BETWEEN_THIRDPARTIES`, die es selbst als instabil
+  bezeichnet.
+- Ein Trigger lässt nie die Aktion am Mitglied scheitern. Probleme landen als
+  `partner_error` im Protokoll.
+- Dolibarrs Mitgliedskarte verknüpft einen Geschäftspartner ohne Trigger
+  (`Societe::create_from_member` und `Adherent::setThirdPartyId` schreiben
+  `fk_soc` mit einfachem SQL). Der Hook `doActions` merkt sich die Verknüpfung
+  vor Dolibarrs Aktion; `addMoreActionsButtons` läuft später in derselben Anfrage
+  mit neu geladenem Mitglied und ruft `VereinePartnerService::onMemberCardLink`
+  auf. Dolibarrs Aktionen werden nicht ersetzt, und das Ansehen der Karte ändert
+  nichts.
+- Rechnungs-PDFs: Der Hook `beforePDFCreation` ergänzt im Speicher die Hinweise
+  der Steuerprofile und die ZVR-Zahl in `note_public` der Rechnung, die
+  Dolibarrs Vorlagen drucken; `afterPDFCreation` stellt den Hinweis zurück. Keine
+  Vorlage wird geändert, nichts wird gespeichert.
+- Die Abgleichsseite druckt die Schritte jeder Zeile als echte Formulare und
+  Links (mit CSRF-Token) nach ihrem Hauptformular, weil Formulare nicht
+  verschachtelt sein dürfen; `js/partners.js` zeigt sie nur in einem
+  jQuery-UI-Fenster und hakt *Alle auswählen* an. Die Laufzeit-Tests senden diese
+  Formulare genau wie ein Browser.
 
-## Membership fees
+## Beiträge
 
-- The fee model is four extra fields of Dolibarr's member type (see Layout);
-  amount and duration stay Dolibarr's own. `VereineFeeRules` works out period
-  and amount, plain PHP.
-- A fee run creates, per member and period, what Dolibarr's member card creates
-  for *New subscription* with *Create invoice*
-  (`Adherent::subscriptionComplementaryActions`): a subscription period with
-  `Adherent::subscription()` and a validated invoice whose `linked_objects`
-  hold the subscription. Period and invoice are created in one transaction.
-  The invoice line is the fee product of the member type (Dolibarr's
-  `ADHERENT_PRODUCT_ID_FOR_SUBSCRIPTIONS` when the type has none) with the
-  gross amount, so the product's tax profile reaches the line.
-- `llx_subscription` has a unique key on member and start day, and a period
-  already created is not due any more: a second run for the same day creates
-  nothing.
+- Das Beitragsmodell sind vier Zusatzfelder von Dolibarrs Mitgliedsart (siehe
+  Dateien); Betrag und Dauer bleiben Dolibarrs eigene. `VereineFeeRules`
+  berechnet Periode und Betrag in reinem PHP.
+- Ein Beitragslauf legt je Mitglied und Periode an, was Dolibarrs Mitgliedskarte
+  bei *Neues Abonnement* mit *Rechnung erstellen* anlegt
+  (`Adherent::subscriptionComplementaryActions`): eine Beitragsperiode mit
+  `Adherent::subscription()` und eine freigegebene Rechnung, deren
+  `linked_objects` die Periode enthalten. Periode und Rechnung entstehen in einer
+  Transaktion. Die Rechnungszeile ist die Beitragsleistung der Mitgliedsart
+  (Dolibarrs `ADHERENT_PRODUCT_ID_FOR_SUBSCRIPTIONS`, wenn die Art keine hat) mit
+  dem Bruttobetrag, damit das Steuerprofil der Leistung auf die Zeile kommt.
+- `llx_subscription` hat einen eindeutigen Schlüssel auf Mitglied und Beginntag,
+  und eine angelegte Periode ist nicht mehr fällig: Ein zweiter Lauf für
+  denselben Tag legt nichts an.
 
-- Discounts are rules in `llx_vereine_fee_discount` (by age on the first day of
-  a period, or with a proof) and member fields (`vereine_fee_exempt`,
-  `vereine_fee_exempt_reason`, `vereine_fee_proof`, `vereine_fee_proof_until`).
-  `VereineFeeDiscounts` picks at most one per fee: exemption, valid proof, age.
-  The discount lowers the member type's amount before proration; an exemption
-  also drops the admission fee. A fee of 0 records the period without invoice,
-  which the member summary counts as paid.
-- Families: the member field `vereine_fee_payer` (an extra field of type link to
-  a third party) names who gets the member's fee invoices; without it the
-  member's own third party does. Active members with the same payer are a
-  family. The family rule (`VEREINE_FEE_FAMILY_MODE`, `VEREINE_FEE_FAMILY_VALUE`)
-  comes after the member's own discount and counts only members that pay a fee:
-  - `percent`: the member with the highest yearly fee after its own discount on
-    the period's first day pays in full (equal fees: the lowest member id), every
-    other one the percentage less, before proration;
-  - `cap`: the fees of a family whose periods start in the same fee year (from
-    the start month of the member type) share what is left of the cap after the
-    subscription periods already recorded in that year, except those with an
-    abandoned fee invoice.
-- Fees for the same payer starting on the same day are one transaction: every
-  subscription period, then one invoice with `linked_objects['subscription']`
-  holding all of them (Dolibarr 22 to 24 accept a list there) and one line per
-  member, named when the invoice is for several members or a payer. Periods run
-  oldest first, so a failed invoice stops the later periods of its members.
+- Ermäßigungen sind Regeln in `llx_vereine_fee_discount` (nach dem Alter am
+  ersten Tag einer Periode oder mit Nachweis) und Mitgliedsfelder
+  (`vereine_fee_exempt`, `vereine_fee_exempt_reason`, `vereine_fee_proof`,
+  `vereine_fee_proof_until`). `VereineFeeDiscounts` wählt höchstens eine je
+  Beitrag: Befreiung, gültiger Nachweis, Alter. Die Ermäßigung senkt den Betrag
+  der Mitgliedsart vor der anteiligen Berechnung; eine Befreiung entfällt auch
+  die Aufnahmegebühr. Ein Beitrag von 0 speichert die Periode ohne Rechnung, was
+  die Mitglieds-Zusammenfassung als bezahlt zählt.
+- Familien: Das Mitgliedsfeld `vereine_fee_payer` (Zusatzfeld vom Typ Verweis auf
+  einen Geschäftspartner) nennt, wer die Beitragsrechnungen bekommt; ohne es der
+  eigene Geschäftspartner des Mitglieds. Aktive Mitglieder mit demselben Zahler
+  sind eine Familie. Die Familienregel (`VEREINE_FEE_FAMILY_MODE`,
+  `VEREINE_FEE_FAMILY_VALUE`) kommt nach der eigenen Ermäßigung und zählt nur
+  Mitglieder, die einen Beitrag zahlen:
+  - `percent`: Das Mitglied mit dem höchsten Jahresbeitrag nach eigener
+    Ermäßigung am ersten Tag der Periode zahlt voll (gleiche Beiträge: die
+    niedrigste Mitglieds-ID), jedes andere den Prozentsatz weniger, vor der
+    anteiligen Berechnung;
+  - `cap`: Die Beiträge einer Familie, deren Perioden im selben Beitragsjahr
+    beginnen (ab dem Beginnmonat der Mitgliedsart), teilen sich, was vom
+    Höchstbetrag nach den schon gespeicherten Perioden dieses Jahres übrig ist,
+    außer solchen mit aufgegebener Beitragsrechnung.
+- Beiträge für denselben Zahler mit demselben Beginntag sind eine Transaktion:
+  jede Beitragsperiode, dann eine Rechnung mit `linked_objects['subscription']`
+  mit allen (Dolibarr 22 bis 24 nehmen dort eine Liste an) und einer Zeile je
+  Mitglied, benannt, wenn die Rechnung mehrere Mitglieder oder einen Zahler
+  betrifft. Perioden laufen von der ältesten an, eine gescheiterte Rechnung
+  stoppt also die späteren Perioden ihrer Mitglieder.
 
-- Exits: `llx_vereine_member_exit` keeps reason, day of notice or decision, last
-  day and status (`planned`, `done`, `cancelled`). A resignation's last day
-  follows the notice rule (`VEREINE_EXIT_NOTICE_MONTHS`, `VEREINE_EXIT_AT`,
-  `VEREINE_EXIT_START_MONTH`); the other reasons take the day entered. On the
-  last day `Adherent::exclude()` (exclusion) or `Adherent::resiliate()` (all
-  others) runs - at once when the day has come, otherwise through the scheduled
-  job `VereineCronExits` (Dolibarr's module *Scheduled jobs*) or the button on
-  the member's tab. The fee run creates no period that starts after the last
-  day.
+- Austritte: `llx_vereine_member_exit` hält Grund, Tag der Kündigung oder
+  Entscheidung, letzten Tag und Status (`planned`, `done`, `cancelled`). Der
+  letzte Tag einer Kündigung folgt der Kündigungsregel
+  (`VEREINE_EXIT_NOTICE_MONTHS`, `VEREINE_EXIT_AT`, `VEREINE_EXIT_START_MONTH`);
+  die anderen Gründe nehmen den eingetragenen Tag. Am letzten Tag läuft
+  `Adherent::exclude()` (Ausschluss) oder `Adherent::resiliate()` (alle anderen)
+  – sofort, wenn der Tag da ist, sonst über die geplante Aufgabe
+  `VereineCronExits` (Dolibarrs Modul *Geplante Aufgaben*) oder den Knopf im
+  Reiter des Mitglieds. Der Beitragslauf legt keine Periode an, die nach dem
+  letzten Tag beginnt.
 
-- SEPA direct debit: the mandate is Dolibarr's default bank account of the
-  payer (`llx_societe_rib`, type `ban`, `rum`, `date_rum`). `VereineSepa`
-  counts it expired 36 months after signing or the last processed request
-  (`llx_prelevement_demande.date_traite`). With the module `prelevement` on, the
-  fee run writes the pre-notification into the invoice's `note_public`, sets
-  payment mode `PRE` and after the commit calls
-  `CommonInvoice::demande_prelevement()` with the mandate's bank account; a
-  failed request leaves the invoice as it is. The bank order and its file stay
-  Dolibarr's own.
+- SEPA-Lastschrift: Das Mandat ist das Standard-Bankkonto des Zahlers in
+  Dolibarr (`llx_societe_rib`, Typ `ban`, `rum`, `date_rum`). `VereineSepa`
+  zählt es 36 Monate nach der Unterschrift oder dem letzten verarbeiteten Einzug
+  als abgelaufen (`llx_prelevement_demande.date_traite`). Mit aktivem Modul
+  `prelevement` schreibt der Beitragslauf die Vorankündigung in `note_public` der
+  Rechnung, setzt die Zahlungsart `PRE` und ruft nach dem Commit
+  `CommonInvoice::demande_prelevement()` mit dem Bankkonto des Mandats auf; ein
+  gescheiterter Einzugsauftrag lässt die Rechnung, wie sie ist. Bankauftrag und
+  Datei bleiben Dolibarrs eigene.
 
-### Recognising fee invoices
+### Beitragsrechnungen erkennen
 
-A customer invoice is a membership fee invoice when `llx_element_element` links
-it to a subscription period:
+Eine Kundenrechnung ist eine Beitragsrechnung, wenn `llx_element_element` sie
+mit einer Beitragsperiode verknüpft:
 
 ```sql
 SELECT ee.fk_target AS invoice_id, s.fk_adherent AS member_id, s.dateadh, s.datef
@@ -199,17 +235,20 @@ INNER JOIN llx_subscription AS s ON s.rowid = ee.fk_source
 WHERE ee.sourcetype = 'subscription' AND ee.targettype = 'facture'
 ```
 
-Dolibarr writes this link itself when a fee invoice is created on the member
-card, and the fee run writes it the same way, so other modules - such as a
-dunning module that treats membership fees differently from sales - need
-nothing from this module to read it. The website API shows it as `fee` on every
-invoice.
+Dolibarr schreibt diese Verknüpfung selbst, wenn eine Beitragsrechnung auf der
+Mitgliedskarte entsteht, und der Beitragslauf schreibt sie genauso. Andere
+Module – etwa ein Mahnwesen, das Mitgliedsbeiträge anders behandelt als
+Verkäufe – brauchen also nichts von diesem Modul, um sie zu lesen. Die
+Website-API zeigt sie als `fee` an jeder Rechnung.
 
-## Rules for every change
+## Regeln für jede Änderung
 
-- Nothing changes silently: runs and reports show a preview first and are logged.
-- Sensitive personal data (birth dates, vbPK) gets its own right and is stored
-  encrypted.
-- Features of newer Dolibarr versions are detected, not assumed from a version
-  number.
-- German and English texts change together; English is always complete.
+- Nichts ändert sich still: Läufe und Berichte zeigen zuerst eine Vorschau und
+  werden protokolliert.
+- Besonders schützenswerte Personendaten (Geburtsdaten, vbPK) bekommen ein
+  eigenes Recht und werden verschlüsselt gespeichert.
+- Funktionen neuerer Dolibarr-Versionen werden erkannt, nicht aus einer
+  Versionsnummer geschlossen.
+- Texte stehen nur in `langs/de_DE/vereine.lang`; `langs/en_US/vereine.lang`
+  ist eine genaue Kopie (`python scripts/sync_langs.py`, geprüft von
+  `tests/run.php`).

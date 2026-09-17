@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Vereine API",
+    "title": "Vereine-API",
     "version": "1",
-    "description": "Endpoints of the Dolibarr module Vereine below Dolibarr's REST API. Call them from a server with the API key of a Dolibarr user; see docs/API.md. Clients should ignore fields they do not know; info.version is the api_version and rises when a field changes meaning or disappears.",
+    "description": "Schnittstellen des Dolibarr-Moduls Vereine unter Dolibarrs REST-API. Von einem Server aus mit dem API-Schlüssel eines Dolibarr-Benutzers aufrufen; siehe docs/API.md. Clients sollen Felder, die sie nicht kennen, übergehen; info.version ist die api_version und steigt, wenn ein Feld seine Bedeutung ändert oder wegfällt.",
     "license": {
       "name": "GPL-3.0-or-later",
       "url": "https://www.gnu.org/licenses/gpl-3.0.html"
@@ -15,7 +15,7 @@
       "variables": {
         "dolibarr": {
           "default": "erp.example.org",
-          "description": "Host and path of the Dolibarr installation"
+          "description": "Host und Pfad der Dolibarr-Installation"
         }
       }
     }
@@ -29,11 +29,11 @@
     "/vereine/membershipfees": {
       "get": {
         "operationId": "getMembershipfees",
-        "summary": "Member types in use with their fee, for becoming a member",
-        "description": "Needs the right to read the association and the right to read member summaries for a website.",
+        "summary": "Verwendete Mitgliedsarten mit ihrem Beitrag, für „Mitglied werden“",
+        "description": "Braucht das Recht, den Verein zu lesen, und das Recht, die Mitglieds-Zusammenfassung für die Website zu lesen.",
         "responses": {
           "200": {
-            "description": "Member types",
+            "description": "Mitgliedsarten",
             "content": {
               "application/json": {
                 "schema": {
@@ -71,11 +71,11 @@
     "/vereine/board": {
       "get": {
         "operationId": "getBoard",
-        "summary": "Functions of the association with their holders today, names only where the website may show them",
-        "description": "Needs the right to read the association and the right to read member summaries for a website.",
+        "summary": "Funktionen des Vereins mit ihren heutigen Inhabern, Namen nur, wo die Website sie zeigen darf",
+        "description": "Braucht das Recht, den Verein zu lesen, und das Recht, die Mitglieds-Zusammenfassung für die Website zu lesen.",
         "responses": {
           "200": {
-            "description": "Functions in their order",
+            "description": "Funktionen in ihrer Reihenfolge",
             "content": {
               "application/json": {
                 "schema": {
@@ -110,11 +110,11 @@
     "/vereine/consents": {
       "get": {
         "operationId": "getConsents",
-        "summary": "Consent texts a person can agree to now, the newest version of each purpose",
-        "description": "Needs the right to read the association and the right to read member summaries for a website or to send membership applications.",
+        "summary": "Einwilligungstexte, denen eine Person jetzt zustimmen kann, die neueste Version je Zweck",
+        "description": "Braucht das Recht, den Verein zu lesen, und das Recht, die Mitglieds-Zusammenfassung für die Website zu lesen oder Beitrittsanträge anzulegen.",
         "responses": {
           "200": {
-            "description": "Consent texts",
+            "description": "Einwilligungstexte",
             "content": {
               "application/json": {
                 "schema": {
@@ -150,8 +150,8 @@
     "/vereine/applications": {
       "post": {
         "operationId": "postApplication",
-        "summary": "Membership application from a website: a member in draft with its consents",
-        "description": "Needs the right to read the association and the right to send membership applications. Sent again with the same external_id, it answers the member created the first time with duplicate true.",
+        "summary": "Beitrittsantrag von einer Website: ein Mitglied im Entwurf mit seinen Einwilligungen",
+        "description": "Braucht das Recht, den Verein zu lesen, und das Recht, Beitrittsanträge anzulegen. Nochmals mit derselben external_id geschickt, antwortet es mit dem beim ersten Mal angelegten Mitglied und duplicate true.",
         "requestBody": {
           "required": true,
           "content": {
@@ -164,7 +164,7 @@
         },
         "responses": {
           "200": {
-            "description": "The member in draft",
+            "description": "Das Mitglied im Entwurf",
             "content": {
               "application/json": {
                 "schema": {
@@ -202,14 +202,14 @@
     "/vereine/members": {
       "get": {
         "operationId": "getMembers",
-        "summary": "Member summaries for a website sync, by id",
-        "description": "All members, or with changed_since only those whose summary changed at or after that moment. Needs the same rights as the summary.",
+        "summary": "Mitglieds-Zusammenfassungen für einen Website-Abgleich, nach ID",
+        "description": "Alle Mitglieder, oder mit changed_since nur die, deren Zusammenfassung sich zu oder nach diesem Zeitpunkt geändert hat. Braucht dieselben Rechte wie die Zusammenfassung.",
         "parameters": [
           {
             "name": "changed_since",
             "in": "query",
             "required": false,
-            "description": "ISO 8601 moment with time zone, such as 2026-09-17T08:00:00Z",
+            "description": "Zeitpunkt nach ISO 8601 mit Zeitzone, etwa 2026-09-17T08:00:00Z",
             "schema": {
               "type": "string"
             }
@@ -218,7 +218,7 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Members per page, 100 when left out",
+            "description": "Mitglieder je Seite, 100 ohne Angabe",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -229,7 +229,7 @@
             "name": "page",
             "in": "query",
             "required": false,
-            "description": "Page, starting at 0",
+            "description": "Seite, ab 0",
             "schema": {
               "type": "integer",
               "minimum": 0
@@ -238,7 +238,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Member summaries",
+            "description": "Mitglieds-Zusammenfassungen",
             "content": {
               "application/json": {
                 "schema": {
@@ -276,8 +276,8 @@
     "/vereine/status": {
       "get": {
         "operationId": "getStatus",
-        "summary": "Module version, API version and country profile",
-        "description": "Needs the right to read the association.",
+        "summary": "Modulversion und API-Version",
+        "description": "Braucht das Recht, den Verein zu lesen.",
         "responses": {
           "200": {
             "description": "Status",
@@ -309,11 +309,11 @@
     "/vereine/organization": {
       "get": {
         "operationId": "getOrganization",
-        "summary": "The association, for example for a website imprint",
-        "description": "Needs the right to read the association.",
+        "summary": "Der Verein, zum Beispiel für das Impressum einer Website",
+        "description": "Braucht das Recht, den Verein zu lesen.",
         "responses": {
           "200": {
-            "description": "The association",
+            "description": "Der Verein",
             "content": {
               "application/json": {
                 "schema": {
@@ -342,11 +342,11 @@
     "/vereine/taxprofiles": {
       "get": {
         "operationId": "getTaxprofiles",
-        "summary": "The association's tax profiles (Austria)",
-        "description": "Needs the right to read the association.",
+        "summary": "Die Steuerprofile des Vereins",
+        "description": "Braucht das Recht, den Verein zu lesen.",
         "responses": {
           "200": {
-            "description": "Tax profiles",
+            "description": "Steuerprofile",
             "content": {
               "application/json": {
                 "schema": {
@@ -378,14 +378,14 @@
     "/vereine/thresholds": {
       "get": {
         "operationId": "getThresholds",
-        "summary": "Thresholds and cash register duty of a calendar year",
-        "description": "Needs the right to read the association and the right to read invoices.",
+        "summary": "Grenzen und Registrierkassenpflicht eines Kalenderjahres",
+        "description": "Braucht das Recht, den Verein zu lesen, und das Recht, Rechnungen zu lesen.",
         "parameters": [
           {
             "name": "year",
             "in": "query",
             "required": false,
-            "description": "Calendar year, the current one when left out",
+            "description": "Kalenderjahr, ohne Angabe das laufende",
             "schema": {
               "type": "integer",
               "minimum": 2000,
@@ -395,7 +395,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Thresholds",
+            "description": "Grenzen",
             "content": {
               "application/json": {
                 "schema": {
@@ -430,14 +430,14 @@
     "/vereine/members/{id}/summary": {
       "get": {
         "operationId": "getMemberSummary",
-        "summary": "What a website shows a member about the membership",
-        "description": "Needs the right to read the association and the right to read member summaries for a website. Never contains birth date, address, phone, notes or bank data.",
+        "summary": "Was eine Website einem Mitglied über die Mitgliedschaft zeigt",
+        "description": "Braucht das Recht, den Verein zu lesen, und das Recht, die Mitglieds-Zusammenfassung für die Website zu lesen. Enthält nie Geburtsdatum, Anschrift, Telefon, Notizen oder Bankdaten.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Member id",
+            "description": "Mitglieds-ID",
             "schema": {
               "type": "integer",
               "minimum": 1
@@ -446,7 +446,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Summary of the member",
+            "description": "Zusammenfassung des Mitglieds",
             "content": {
               "application/json": {
                 "schema": {
@@ -481,14 +481,14 @@
     "/vereine/members/lookup": {
       "get": {
         "operationId": "getMemberLookup",
-        "summary": "Find a member by member number or e-mail address",
-        "description": "Returns the summary of the member. Give either ref or email; e-mail addresses match ignoring upper and lower case. Needs the same rights as the summary.",
+        "summary": "Ein Mitglied über Mitgliedsnummer oder E-Mail-Adresse finden",
+        "description": "Liefert die Zusammenfassung des Mitglieds. Entweder ref oder email angeben; E-Mail-Adressen passen ohne Unterschied zwischen Groß- und Kleinschreibung. Braucht dieselben Rechte wie die Zusammenfassung.",
         "parameters": [
           {
             "name": "ref",
             "in": "query",
             "required": false,
-            "description": "Member number",
+            "description": "Mitgliedsnummer",
             "schema": {
               "type": "string"
             }
@@ -497,7 +497,7 @@
             "name": "email",
             "in": "query",
             "required": false,
-            "description": "E-mail address without surrounding spaces; Dolibarr's API answers 400 for an invalid address",
+            "description": "E-Mail-Adresse ohne Leerzeichen davor oder danach; Dolibarrs API antwortet 400 bei einer ungültigen Adresse",
             "schema": {
               "type": "string",
               "format": "email"
@@ -506,7 +506,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Summary of the member",
+            "description": "Zusammenfassung des Mitglieds",
             "content": {
               "application/json": {
                 "schema": {
@@ -547,14 +547,14 @@
     "/vereine/members/{id}/invoices": {
       "get": {
         "operationId": "getMemberInvoices",
-        "summary": "Validated invoices of a member, newest first",
-        "description": "Invoices of the member's third party; drafts are left out, an empty list when the member has no third party. Needs the same rights as the summary, not the right to read invoices.",
+        "summary": "Freigegebene Rechnungen eines Mitglieds, neueste zuerst",
+        "description": "Rechnungen des Geschäftspartners des Mitglieds; Entwürfe fehlen, eine leere Liste, wenn das Mitglied keinen Geschäftspartner hat. Braucht dieselben Rechte wie die Zusammenfassung, nicht das Recht, Rechnungen zu lesen.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Member id",
+            "description": "Mitglieds-ID",
             "schema": {
               "type": "integer",
               "minimum": 1
@@ -564,7 +564,7 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Invoices per page, 100 when left out",
+            "description": "Rechnungen je Seite, 100 ohne Angabe",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -575,7 +575,7 @@
             "name": "page",
             "in": "query",
             "required": false,
-            "description": "Page, starting at 0",
+            "description": "Seite, ab 0",
             "schema": {
               "type": "integer",
               "minimum": 0
@@ -584,7 +584,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Invoices",
+            "description": "Rechnungen",
             "content": {
               "application/json": {
                 "schema": {
@@ -625,14 +625,14 @@
     "/vereine/members/{id}/invoices/{invoice}/pdf": {
       "get": {
         "operationId": "getMemberInvoicePdf",
-        "summary": "PDF of a member's invoice",
-        "description": "Base64 encoded. Another member's invoice, a draft or an unknown invoice answers 404. A missing PDF is built with the invoice's template. Hand it only to the member it belongs to.",
+        "summary": "PDF einer Rechnung eines Mitglieds",
+        "description": "Base64-kodiert. Die Rechnung eines anderen Mitglieds, ein Entwurf oder eine unbekannte Rechnung ergibt 404. Ein fehlendes PDF wird mit der Vorlage der Rechnung erzeugt. Nur dem Mitglied geben, dem es gehört.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Member id",
+            "description": "Mitglieds-ID",
             "schema": {
               "type": "integer",
               "minimum": 1
@@ -642,7 +642,7 @@
             "name": "invoice",
             "in": "path",
             "required": true,
-            "description": "Invoice id, as listed by members/{id}/invoices",
+            "description": "Rechnungs-ID, wie members/{id}/invoices sie listet",
             "schema": {
               "type": "integer",
               "minimum": 1
@@ -651,7 +651,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The PDF",
+            "description": "Das PDF",
             "content": {
               "application/json": {
                 "schema": {
@@ -697,7 +697,7 @@
     },
     "responses": {
       "Error": {
-        "description": "Dolibarr's error answer",
+        "description": "Fehlerantwort von Dolibarr",
         "content": {
           "application/json": {
             "schema": {
@@ -710,12 +710,12 @@
     "schemas": {
       "Date": {
         "type": "string",
-        "description": "YYYY-MM-DD, or empty when unknown",
+        "description": "JJJJ-MM-TT, oder leer, wenn unbekannt",
         "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$"
       },
       "Moment": {
         "type": "string",
-        "description": "ISO 8601 in UTC, such as 2026-09-17T08:00:00Z",
+        "description": "ISO 8601 in UTC, etwa 2026-09-17T08:00:00Z",
         "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
       },
       "Error": {
@@ -764,7 +764,7 @@
               "AT"
             ],
             "deprecated": true,
-            "description": "Always AT: the module serves Austrian associations only. Removed with 1.0."
+            "description": "Immer AT: Das Modul ist für österreichische Vereine. Entfällt mit 1.0."
           },
           "country_profile_complete": {
             "type": "boolean",
@@ -772,7 +772,7 @@
               true
             ],
             "deprecated": true,
-            "description": "Always true. Removed with 1.0."
+            "description": "Immer true. Entfällt mit 1.0."
           },
           "server_time": {
             "$ref": "#/components/schemas/Moment"
@@ -804,7 +804,7 @@
               "AT"
             ],
             "deprecated": true,
-            "description": "Always AT: the module serves Austrian associations only. Removed with 1.0."
+            "description": "Immer AT: Das Modul ist für österreichische Vereine. Entfällt mit 1.0."
           },
           "country_profile_complete": {
             "type": "boolean",
@@ -812,7 +812,7 @@
               true
             ],
             "deprecated": true,
-            "description": "Always true. Removed with 1.0."
+            "description": "Immer true. Entfällt mit 1.0."
           },
           "name": {
             "type": "string"
@@ -831,7 +831,7 @@
                 "enum": [
                   "ZVR"
                 ],
-                "description": "Always ZVR"
+                "description": "Immer ZVR"
               },
               "number": {
                 "type": "string"
@@ -842,13 +842,13 @@
                   ""
                 ],
                 "deprecated": true,
-                "description": "Always empty. Removed with 1.0."
+                "description": "Immer leer. Entfällt mit 1.0."
               }
             }
           },
           "authority": {
             "type": "string",
-            "description": "Austrian association authority; always empty in Germany"
+            "description": "Vereinsbehörde"
           },
           "address": {
             "type": "object",
@@ -918,7 +918,7 @@
         "properties": {
           "id": {
             "type": "integer",
-            "description": "Value of the extra field vereine_taxprofile on products and invoice lines"
+            "description": "Wert des Zusatzfelds vereine_taxprofile an Produkten und Rechnungszeilen"
           },
           "code": {
             "type": "string",
@@ -1114,7 +1114,7 @@
           },
           "tolerance": {
             "type": "number",
-            "description": "Tolerance in percent above the limit"
+            "description": "Toleranz in Prozent über der Grenze"
           },
           "amount": {
             "type": "number"
@@ -1172,7 +1172,7 @@
           },
           "ref": {
             "type": "string",
-            "description": "Member number"
+            "description": "Mitgliedsnummer"
           },
           "firstname": {
             "type": "string"
@@ -1182,7 +1182,7 @@
           },
           "company": {
             "type": "string",
-            "description": "Name of a legal entity; empty for natural persons"
+            "description": "Name einer juristischen Person; leer bei natürlichen Personen"
           },
           "type": {
             "type": "object",
@@ -1217,7 +1217,7 @@
           },
           "functions": {
             "type": "array",
-            "description": "Functions the member holds today",
+            "description": "Funktionen, die das Mitglied heute hat",
             "items": {
               "$ref": "#/components/schemas/MemberFunction"
             }
@@ -1225,11 +1225,11 @@
           "membership_ends": {
             "type": "string",
             "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$",
-            "description": "Last day of the membership after a recorded exit (resignation with notice, exclusion, death, struck off); empty without exit"
+            "description": "Letzter Tag der Mitgliedschaft nach einem eingetragenen Austritt (Kündigung mit Frist, Ausschluss, Tod, Streichung); leer ohne Austritt"
           },
           "currency": {
             "type": "string",
-            "description": "Currency of all amounts, such as EUR"
+            "description": "Währung aller Beträge, etwa EUR"
           },
           "fee": {
             "type": "object",
@@ -1246,7 +1246,7 @@
             "properties": {
               "required": {
                 "type": "boolean",
-                "description": "Whether the member type needs a subscription"
+                "description": "Ob die Mitgliedsart ein Abonnement braucht"
               },
               "status": {
                 "type": "string",
@@ -1264,7 +1264,7 @@
               "amount": {
                 "type": "number",
                 "nullable": true,
-                "description": "Amount of a whole period for this member: the member type's amount after the member's discount, before a family discount; null when the type sets none or needs no subscription"
+                "description": "Betrag einer ganzen Periode für dieses Mitglied: der Betrag der Mitgliedsart nach der Ermäßigung des Mitglieds, vor einem Familienrabatt; null, wenn die Art keinen festlegt oder kein Abonnement braucht"
               },
               "discount": {
                 "type": "object",
@@ -1285,7 +1285,7 @@
                   },
                   "label": {
                     "type": "string",
-                    "description": "Name of the discount, or the reason of an exemption; empty without discount"
+                    "description": "Name der Ermäßigung oder Grund einer Befreiung; leer ohne Ermäßigung"
                   }
                 }
               },
@@ -1295,17 +1295,17 @@
                   "self",
                   "other"
                 ],
-                "description": "Who gets the fee invoices: the member's own third party, or another one named as payer, such as a parent; the invoices of a payer are not listed for the member"
+                "description": "Wer die Beitragsrechnungen bekommt: der eigene Geschäftspartner des Mitglieds oder ein anderer als Zahler, etwa ein Elternteil; die Rechnungen eines Zahlers stehen nicht beim Mitglied"
               },
               "payment_url": {
                 "type": "string",
-                "description": "Dolibarr's online payment page for the fee; empty unless the fee is due, the member pays itself and an online payment service is set up"
+                "description": "Dolibarrs Online-Zahlungsseite für den Beitrag; leer, außer der Beitrag ist fällig, das Mitglied zahlt selbst und ein Online-Zahlungsdienst ist eingerichtet"
               }
             }
           },
           "open_invoices": {
             "type": "array",
-            "description": "Validated, unpaid standard, replacement and deposit invoices, oldest first, at most 50",
+            "description": "Freigegebene, unbezahlte normale, Ersatz- und Anzahlungsrechnungen, älteste zuerst, höchstens 50",
             "items": {
               "$ref": "#/components/schemas/Invoice"
             }
@@ -1336,18 +1336,18 @@
           },
           "board": {
             "type": "boolean",
-            "description": "Part of the board (management body)"
+            "description": "Teil des Vorstands (Leitungsorgan)"
           },
           "represents": {
             "type": "boolean",
-            "description": "Represents the association externally"
+            "description": "Vertritt den Verein nach außen"
           },
           "auditor": {
             "type": "boolean"
           },
           "holders": {
             "type": "array",
-            "description": "Holders today; empty when vacant",
+            "description": "Heutige Inhaber; leer, wenn unbesetzt",
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -1359,7 +1359,7 @@
                 "name": {
                   "type": "string",
                   "nullable": true,
-                  "description": "Name, or null when the holder did not consent and the setting does not require the board's names"
+                  "description": "Name, oder null, wenn der Inhaber nicht eingewilligt hat und die Einstellung die Namen des Vorstands nicht verlangt"
                 },
                 "since": {
                   "$ref": "#/components/schemas/Date"
@@ -1402,7 +1402,7 @@
           "code": {
             "type": "string",
             "pattern": "^[a-z][a-z0-9_]{1,31}$",
-            "description": "Purpose, the same over all versions"
+            "description": "Zweck, über alle Versionen gleich"
           },
           "label": {
             "type": "string"
@@ -1410,11 +1410,11 @@
           "version": {
             "type": "integer",
             "minimum": 1,
-            "description": "Send this version back with the consent"
+            "description": "Diese Version mit der Einwilligung zurückschicken"
           },
           "text": {
             "type": "string",
-            "description": "The text to show next to the checkbox"
+            "description": "Der Text neben dem Ankreuzfeld"
           }
         }
       },
@@ -1429,7 +1429,7 @@
         "properties": {
           "external_id": {
             "type": "string",
-            "description": "The website's own id of the application, up to 64 letters, digits and . _ : -; the same id never creates a second member",
+            "description": "Die eigene Kennung des Antrags auf der Website, bis 64 Buchstaben, Ziffern und . _ : -; dieselbe Kennung legt nie ein zweites Mitglied an",
             "example": "web-2026-0042"
           },
           "morphy": {
@@ -1438,11 +1438,11 @@
               "phy",
               "mor"
             ],
-            "description": "Natural person (default) or legal entity"
+            "description": "Natürliche Person (Standard) oder juristische Person"
           },
           "company": {
             "type": "string",
-            "description": "Name of a legal entity, required for mor"
+            "description": "Name einer juristischen Person, Pflicht bei mor"
           },
           "firstname": {
             "type": "string"
@@ -1459,7 +1459,7 @@
           },
           "birth": {
             "type": "string",
-            "description": "YYYY-MM-DD; required while the statutes set a minimum age, younger applicants answer 400"
+            "description": "JJJJ-MM-TT; Pflicht, solange die Statuten ein Mindestalter festlegen, Jüngere ergeben 400"
           },
           "address": {
             "type": "string"
@@ -1472,19 +1472,19 @@
           },
           "country_code": {
             "type": "string",
-            "description": "Two letters, such as AT"
+            "description": "Zwei Buchstaben, etwa AT"
           },
           "type_id": {
             "type": "integer",
-            "description": "An active member type, see GET /vereine/membershipfees"
+            "description": "Eine aktive Mitgliedsart, siehe GET /vereine/membershipfees"
           },
           "note": {
             "type": "string",
-            "description": "Message of the applicant, kept as private note of the member"
+            "description": "Nachricht der antragstellenden Person, gespeichert als private Notiz am Mitglied"
           },
           "consents": {
             "type": "array",
-            "description": "Consents given, each with the version of GET /vereine/consents shown to the person",
+            "description": "Erteilte Einwilligungen, jede mit der Version aus GET /vereine/consents, die der Person gezeigt wurde",
             "items": {
               "type": "object",
               "required": [
@@ -1515,11 +1515,11 @@
         "properties": {
           "id": {
             "type": "integer",
-            "description": "Member id; the member card in Dolibarr and the summary use it"
+            "description": "Mitglieds-ID; die Mitgliedskarte in Dolibarr und die Zusammenfassung verwenden sie"
           },
           "ref": {
             "type": "string",
-            "description": "Member number"
+            "description": "Mitgliedsnummer"
           },
           "status": {
             "type": "string",
@@ -1529,11 +1529,11 @@
               "terminated",
               "excluded"
             ],
-            "description": "draft until the association validates the member"
+            "description": "draft, bis der Verein das Mitglied freigibt"
           },
           "duplicate": {
             "type": "boolean",
-            "description": "True when an application with this external_id was already received; nothing new was created"
+            "description": "true, wenn ein Antrag mit dieser external_id schon eingegangen ist; nichts Neues wurde angelegt"
           }
         }
       },
@@ -1564,7 +1564,7 @@
           },
           "description": {
             "type": "string",
-            "description": "Public description of the member type, plain text"
+            "description": "Öffentliche Beschreibung der Mitgliedsart, reiner Text"
           },
           "for": {
             "type": "string",
@@ -1580,11 +1580,11 @@
           "amount": {
             "type": "number",
             "nullable": true,
-            "description": "Fee per period; null when the type sets none or needs no subscription"
+            "description": "Beitrag je Periode; null, wenn die Art keinen festlegt oder kein Abonnement braucht"
           },
           "amount_editable": {
             "type": "boolean",
-            "description": "The member may pay a different amount"
+            "description": "Das Mitglied darf einen anderen Betrag zahlen"
           },
           "duration": {
             "type": "object",
@@ -1613,11 +1613,11 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 12,
-            "description": "Month the fee year starts, 0 when every member pays from joining"
+            "description": "Monat, in dem das Beitragsjahr beginnt, 0, wenn jedes Mitglied ab dem Eintritt zahlt"
           },
           "prorated": {
             "type": "boolean",
-            "description": "Joining during the fee year pays less than the full amount; see proration"
+            "description": "Ein Eintritt während des Beitragsjahres zahlt weniger als den vollen Betrag; siehe proration"
           },
           "proration": {
             "type": "string",
@@ -1627,11 +1627,11 @@
               "quarter",
               "half_year"
             ],
-            "description": "How joining during the fee year pays: the full amount, or the remaining months, quarters or half-years, the one of joining counted in full"
+            "description": "Wie ein Eintritt während des Beitragsjahres zahlt: den vollen Betrag oder die restlichen Monate, Quartale oder Halbjahre, das des Eintritts voll gezählt"
           },
           "admission_fee": {
             "type": "number",
-            "description": "Once, with the first fee"
+            "description": "Einmal, mit dem ersten Beitrag"
           },
           "currency": {
             "type": "string"
@@ -1660,11 +1660,11 @@
           },
           "filesize": {
             "type": "integer",
-            "description": "Size in bytes after decoding"
+            "description": "Größe in Bytes nach dem Dekodieren"
           },
           "content": {
             "type": "string",
-            "description": "The PDF, base64 encoded"
+            "description": "Das PDF, base64-kodiert"
           }
         }
       },
@@ -1687,7 +1687,7 @@
         "properties": {
           "id": {
             "type": "integer",
-            "description": "Invoice id for the PDF"
+            "description": "Rechnungs-ID für das PDF"
           },
           "ref": {
             "type": "string"
@@ -1718,22 +1718,22 @@
           },
           "total": {
             "type": "number",
-            "description": "Amount including VAT"
+            "description": "Betrag mit USt"
           },
           "remaining": {
             "type": "number",
-            "description": "Amount still to pay; 0 for paid and abandoned invoices"
+            "description": "Noch offener Betrag; 0 bei bezahlten und aufgegebenen Rechnungen"
           },
           "overdue": {
             "type": "boolean"
           },
           "payment_url": {
             "type": "string",
-            "description": "Dolibarr's online payment page for an open or overdue invoice other than a credit note; empty unless an online payment service is set up"
+            "description": "Dolibarrs Online-Zahlungsseite für eine offene oder überfällige Rechnung außer einer Gutschrift; leer ohne eingerichteten Online-Zahlungsdienst"
           },
           "fee": {
             "type": "boolean",
-            "description": "A membership fee invoice: linked to a subscription period, from a fee run or from the member card"
+            "description": "Eine Beitragsrechnung: mit einer Beitragsperiode verknüpft, aus einem Beitragslauf oder von der Mitgliedskarte"
           }
         }
       }

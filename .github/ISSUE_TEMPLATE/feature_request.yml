@@ -1,30 +1,23 @@
-name: Funktion vorschlagen / Feature request
-description: Eine neue Funktion oder Verbesserung. / A new feature or improvement.
+name: Funktion vorschlagen
+description: Eine neue Funktion oder Verbesserung.
 title: "[Idee] "
 labels: [enhancement]
 body:
-  - type: dropdown
-    id: country
-    attributes:
-      label: Land / Country
-      options: ["Österreich / Austria", "Deutschland / Germany", "beide / both"]
-    validations:
-      required: true
   - type: textarea
     id: why
     attributes:
-      label: Warum / Why
-      description: Welche Aufgabe im Verein soll das lösen? / Which task of the association does it solve?
+      label: Warum
+      description: Welche Aufgabe im Verein soll das lösen?
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Vorschlag / Proposal
+      label: Vorschlag
     validations:
       required: true
   - type: textarea
     id: legal
     attributes:
-      label: Rechtsgrundlage / Legal basis
-      description: Paragraph oder Quelle, falls es um gesetzliche Vorgaben geht. / Section or source if a legal rule is involved.
+      label: Rechtsgrundlage
+      description: Paragraph oder Quelle, falls es um gesetzliche Vorgaben geht.

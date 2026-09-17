@@ -1,210 +1,208 @@
-# Vereine for Dolibarr
+# Vereine für Dolibarr
 
-A Dolibarr ERP & CRM module for associations (Vereine) under Austrian and
-German law. It builds on Dolibarr's own Members, Donations, Invoices, Bank and
-SEPA features and adds what associations in Austria and Germany need on top -
-with a REST API for the association's website.
+Ein Modul für Dolibarr ERP & CRM für **Vereine in Österreich**. Es baut auf den
+Dolibarr-Funktionen für Mitglieder, Rechnungen, Bank, SEPA, Agenda und E-Mail
+auf, ergänzt, was ein Verein nach dem Vereinsgesetz 2002 darüber hinaus braucht,
+und bringt eine REST-API für die Vereinswebsite mit.
 
-[Deutsche Beschreibung](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/README-de.md)
+> **Beta.** Das Modul wächst Meilenstein für Meilenstein – siehe
+> [Fahrplan](https://github.com/Tabsi1998/dolibarr-vereine/milestones).
 
-> **Beta.** Version 0.2 links members and third parties on top of the
-> foundation of 0.1 (country profile, register data, overview, API). Tax profiles,
-> membership fee runs, donation reporting, volunteer allowances, officers,
-> annual accounts and general meetings follow milestone by milestone - see the
-> [roadmap](https://github.com/Tabsi1998/dolibarr-vereine/milestones).
+## Was das Modul kann
 
-## What it does so far
+### Verein und Steuern
 
-- **Country profile** Austria (complete) or Germany (preview until 1.1).
-- **Association data** Dolibarr does not know: ZVR number (Austria) or register
-  number and register court (Germany), association authority, founding date,
-  non-profit status and purpose. Name, address and contact stay in Dolibarr's
-  company settings.
-- **Overview** under *Members > Association*: the association's data and checks
-  for what is missing, for example a ZVR number that must appear on letters,
-  invoices and the website (§ 18 VerG).
-- **REST API** for websites: `GET /api/index.php/vereine/organization` and
-  `GET /api/index.php/vereine/status`. See [docs/API.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/API.md).
-- **Member summaries for the website** (0.3): membership, fee status with payment
-  link and open invoices of a member, found by member number or e-mail address,
-  for a website user that cannot read anything else of Dolibarr. All invoices of
-  a member with their PDFs (0.3.1). A sync that reads only the members changed
-  since the last one (0.3.2). Webhook notifications with the member id only
-  (0.3.3). Described in
+- **Vereinsdaten**, die Dolibarr nicht kennt: ZVR-Zahl, Vereinsbehörde,
+  Gründungsdatum, Gemeinnützigkeit und Vereinszweck. Name, Anschrift und Kontakt
+  bleiben in den Unternehmensdaten von Dolibarr.
+- **Übersicht** unter *Mitglieder > Verein*: Vereinsdaten und was noch fehlt –
+  zum Beispiel die ZVR-Zahl, die auf Briefen, Rechnungen und der Website stehen
+  muss (§ 18 VerG).
+- **Steuerprofile**: Sphäre, Umsatzsteuer-Behandlung, Satz und Rechnungshinweis
+  mit Rechtsgrundlage an Produkten und Rechnungszeilen; Warnung, wenn der Satz
+  einer Zeile nicht passt; Hinweise und ZVR-Zahl auf dem Rechnungs-PDF.
+- **Grenzen als Ampel**: Kleinunternehmer-Grenze und § 45a BAO je Kalenderjahr,
+  auf der Übersicht, als Startseiten-Widget und in der API;
+  **Registrierkassen-Check** je Bereich und der fehlende **13-%-Satz** auf
+  Knopfdruck.
+
+### Mitglieder und Beiträge
+
+- **Mitglieder und Geschäftspartner** verknüpft: automatisch angelegt oder
+  vorgeschlagen statt doppelt, Kategorien *Mitglied* und *Ehemaliges Mitglied*,
+  Kundentyp Privatperson; eine **Abgleichsseite** mit Vorschau vor jeder
+  Änderung. Erziehungsberechtigte von Minderjährigen als Kontakte.
+- **Beitragsmodell je Mitgliedsart**: Beginn des Beitragsjahres, anteiliger
+  erster Beitrag, Aufnahmegebühr, Beitragsleistung mit Steuerprofil.
+- **Beitragslauf** mit Vorschau: Beitragsperiode und verknüpfte Rechnung je
+  Mitglied, einmal je Periode; **Ermäßigungen** nach Alter, mit Nachweis oder als
+  Befreiung; **Familien** mit gemeinsamem Zahler, Rabatt oder Höchstbetrag;
+  **SEPA-Lastschrift** mit Mandatsprüfung und Vorankündigung.
+- **Austritt** mit der Kündigungsfrist der Statuten, Ausschluss, Tod oder
+  Streichung, wirksam am letzten Tag.
+- **Einwilligungen** mit Textversion, Einwilligung und Widerruf am Mitglied;
+  **Beitrittsanträge** von der Website als Mitglied im Entwurf.
+- **E-Mail-Kampagnen** nach Status, Mitgliedsart, Funktion und Einwilligung,
+  Minderjährige über die Erziehungsberechtigten.
+
+### Vorstand, Statuten und Sitzungen
+
+- **Funktionen**: Katalog mit Vorschlägen, Funktionsperioden, Prüfung gegen das
+  Vereinsgesetz; **Meldung an die Vereinsbehörde** mit Frist, Agenda-Termin und
+  Schreiben als PDF; Benutzergruppen über Funktionen nach Bestätigung.
+- **Statuten**: Regeln an einer Stelle (Generalversammlung, Vorstand,
+  Funktionsperioden, Mindestalter); die ganzen **Statuten als Text** nach dem
+  Muster des Innenministeriums oder des Finanzministeriums, als Fassungen mit
+  PDF; eine **Statutenänderung** zeigt alt neben neu und erstellt die Anzeige an
+  die Behörde.
+- **Schreiben an die Vereinsbehörde** in einem Layout: Statutenänderung,
+  Zustellanschrift, Registerauszug, Auflösung, Errichtung, Fristverlängerung.
+- **Sitzungen**: Vorstandssitzungen und Generalversammlungen, genau der Vorstand
+  oder alle Mitglieder per E-Mail oder Brief eingeladen, mit Fristen und
+  Nachweis; Anwesenheit mit Vollmachten und Beschlussfähigkeit zu jeder Uhrzeit;
+  **Abstimmungen und Wahlen** mit den Mehrheiten der Statuten; **Vorlagen** mit
+  Pflichtpunkten und Texte je Punkt fürs Protokoll mit den echten Zahlen.
+
+### Für die Vereinswebsite
+
+- **REST-API**: Vereinsdaten, Vorstand, Steuerprofile, Beiträge, Einwilligungen,
+  Beitrittsanträge und eine **Mitglieds-Zusammenfassung** (Mitgliedschaft,
+  Beitragsstand mit Zahlungslink, offene Rechnungen mit PDF), dazu ein Abgleich
+  nur der geänderten Mitglieder und eine **Webhook-Benachrichtigung** ohne
+  persönliche Daten. Beschrieben in [docs/API.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/API.md) und
   [docs/openapi.json](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/openapi.json).
-- **Members and third parties** (0.2): a validated member can get its third
-  party automatically; an existing third party with the same e-mail (or name
-  and postcode) is suggested instead of duplicated. Third parties of members
-  carry the category *Member* or *Former member* according to the member status,
-  are marked as customers and get the private customer type when they have none.
-- **Reconciliation page** *Members > Association > Members and third parties*:
-  what is not linked or not consistent - with a preview before every change.
-  *Select all* per section; a click on a row opens a dialog with the steps for
-  that row (bring in line, link, edit member or third party).
-- **Tab *Membership*** on the third party card and **tab *Association*** on the
-  member card, and guardians of minor members as contacts in the category
-  *Guardian*.
-- **Tax profiles** (0.2.3, Austria): sphere, VAT treatment, rate and invoice
-  note with their legal basis, suggested profiles and checks for combinations
-  the law excludes. Products and invoice lines carry a tax profile (0.2.5): the
-  product's VAT rate follows it, new invoice lines take it over, and an invoice
-  lists lines whose rate does not match. Invoice PDFs print the notes per line
-  and the ZVR number (0.2.6).
-- **Thresholds as traffic light** (0.2.7): small business limit and § 45a BAO per
-  calendar year from the invoices, on the overview, as home page box and in the API.
-- **Cash register check** per sphere and the missing **13 % VAT rate** for Austria
-  added on request (0.2.8).
-- **Fee model per member type** (0.3.4): when the fee year starts, prorated first
-  fee (by month, quarter or half-year since 0.3.6), admission fee and fee product
-  with tax profile, on Dolibarr's member type card; setup tab *Fees* shows what
-  joining today costs.
-- **Fee run** (0.3.5) under *Members > Association*: preview of the fees due,
-  then subscription period and linked invoice per member, once per period.
-- **Discounts** (0.3.7): by age, with proof (for example students) and
-  exemptions (for example honorary members), applied by the fee run.
-- **Families** (0.3.8): members with the same payer, such as a parent, get one
-  invoice to the payer, with a discount per further member or a cap per fee year.
-- **Exit** (0.3.9): resignation with the notice period of the statutes,
-  exclusion, death or struck off; the member is set to resiliated on the last
-  day, and the fee run stops there.
-- **SEPA direct debit** (0.3.10): the fee run checks mandates, reports expired
-  ones and requests the direct debit with pre-notification through Dolibarr's
-  own module.
-- **Consents and applications** (0.3.11): consent texts with versions, consents
-  and withdrawals on the member, and membership applications from a website
-  through the API as members in draft.
-- **Board and functions** (0.4.0): function catalogue suggested for Austria,
-  terms of office on the member and an overview of what does not fit the
-  Associations Act; new representatives get a report deadline, an agenda event
-  and the report letter to the association authority as PDF (0.4.1); the board
-  for a website through the API, names only with consent or where disclosure
-  requires them (0.4.2); user groups through functions, changed only after an
-  administrator confirms (0.4.3).
-- **E-mail campaigns** (0.4.4): recipients by member status, type, function
-  and consent, minors through their guardians, in Dolibarr's own campaigns.
-- **Rules of the statutes** (0.5.0): general assembly, board, terms of office and
-  minimum age in one place, filled in from the model statutes and checked against
-  the Associations Act; "election due" when a term has run out, applications
-  below the minimum age refused.
-- **Letters to the association authority** (0.5.1): change of statutes, new
-  address, register extract, dissolution, founding and longer deadline in one
-  layout, with the responsible authority, deadline in the agenda and a note once
-  filed.
-- **Statutes as text** (0.5.2): the whole statutes built from the model of the
-  Ministry of the Interior or, for tax-privileged associations, of the Ministry
-  of Finance, filled in from the module; checked, previewed and kept as versions
-  with PDF, existing statutes uploaded. A change shows old next to new, as PDF
-  for the invitation, and writes the notice to the authority (0.5.3).
-- **Meetings** (0.5.4): board meetings and general assemblies with agenda; the
-  board or every member invited by e-mail or letter, with the deadlines of the
-  statutes and proof per person. Attendance with proxies as the statutes allow
-  and the quorum at any time of the meeting (0.5.5). Votes and elections with
-  the majorities of the statutes; an election starts the term of office and its
-  report, a change of statutes stores the version and its notice (0.5.6).
-  Agendas from templates with required items and texts per item for the
-  minutes, with the real numbers instead of placeholders (0.5.7).
-- **API documentation in Dolibarr** (0.5.6): setup tab *API* with every endpoint,
-  its rights and an example, the users with an API key and what they can call.
-- Dolibarr's own buttons on the member card (*Create third party*, *Linked third
-  party*) work too: the module brings the third party in line right away.
+- **API-Reiter** in der Einrichtung: jede Schnittstelle mit ihren Rechten und
+  einem Beispiel, die Benutzer mit API-Schlüssel und was sie aufrufen dürfen.
 
-## Tax profiles in plain words
+## Steuerprofile einfach erklärt
 
-A tax profile says how one kind of income is treated for tax. Three questions
-lead there: what kind of income is it (the area of the association), is VAT due
-(treatment and rate), and what the invoice says when no VAT is charged. The
-setup page explains every area with the examples of the Austrian ministry of
-finance, for example a theatre association's performance as indispensable
-auxiliary business or a canteen the association runs itself as business harmful
-to tax privileges. The module calculates and warns; it gives no advice. Sources
-are listed in [docs/LEGAL-SOURCES.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/LEGAL-SOURCES.md).
+Ein Steuerprofil sagt, wie eine Art von Einnahme steuerlich behandelt wird. Drei
+Fragen führen hin:
 
-## Where it sits in Dolibarr
+1. **Was für eine Einnahme ist es?** Das bestimmt den Bereich des Vereins.
+2. **Fällt Umsatzsteuer an?** Das bestimmt Behandlung und Satz.
+3. **Was steht auf der Rechnung?** Ohne Umsatzsteuer erklärt der Hinweis warum.
 
-| Place in Dolibarr | What the module adds or uses |
+| Bereich | Was dazugehört (Beispiele des Finanzministeriums) | Umsatzsteuer meist |
+| --- | --- | --- |
+| Ideeller Bereich | echte Mitgliedsbeiträge, Spenden, Förderungen, kostenlose Vorträge | keine, es wird nichts verkauft |
+| Vermögensverwaltung | Zinsen, Vermietung von Räumen | Zinsen keine; Vermietung nach den normalen Regeln |
+| Unentbehrlicher Hilfsbetrieb | Einnahmen direkt aus dem Vereinszweck: Theatervorstellung des Theatervereins, Sportunterricht beim Sportverein | keine (Liebhaberei); Sportvereine befreit |
+| Entbehrlicher Hilfsbetrieb | passt zum Verein, ist aber nicht nötig: Faschingsball, Sommerfest, Flohmarkt | keine (Liebhaberei) |
+| Kleines Vereinsfest | von Mitgliedern getragen, Helfer gratis, höchstens 72 Stunden im Jahr | keine (Liebhaberei), keine Registrierkasse |
+| Begünstigungsschädlicher Betrieb | läuft wie ein Geschäft: selbst betriebene Kantine, großes Vereinsfest | ja, bis 55.000 € brutto als Kleinunternehmer befreit |
+
+Das Modul rechnet und warnt, es berät nicht: Ob eine Einnahme wirklich in einen
+Bereich fällt, hängt vom Einzelfall ab. Quellen und Stand stehen in
+[docs/LEGAL-SOURCES.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/LEGAL-SOURCES.md).
+
+## Wo das Modul in Dolibarr sitzt
+
+| Stelle in Dolibarr | Was das Modul ergänzt oder nutzt |
 | --- | --- |
-| *Home > Setup > Company/Organisation* | Name, address, e-mail, phone, website and first month of the fiscal year - the module reads them, it does not keep a copy |
-| *Home > Setup > Modules > Vereine* | Setup: country profile and register data; tax profiles; about page with version and licence |
-| *Members*, *Third parties*, *Categories* (Dolibarr's own modules) | Required and enabled with Vereine; the Members menu gets *Association*, *Members and third parties* and, for administrators, *Third party settings* |
-| *Members > Association* | Overview with the association's data, the checks and the thresholds of the year |
-| Home page | Box *Vereine: thresholds of the year* (users who may read invoices) |
-| *Members > Association > Members and third parties* | Reconciliation of members and their third parties |
-| Third party card | Tab *Membership*; categories *Member* and *Former member* |
-| Member card | Tab *Association*; *Create third party* and *Linked third party* are followed by the module |
-| Product and service card, invoice and supplier invoice lines | Extra field *Tax profile*; invoices warn about lines whose VAT differs from their profile |
-| Invoice PDF (Dolibarr's templates, unchanged) | Tax profile notes per line and the ZVR number in the note area |
-| Contacts of a member's third party | Category *Guardian* for guardians of minors |
-| *Home > Setup > Modules > Vereine > Members and third parties*, also *Members > Association > Third party settings* | Automatic creation, categories, customer types (administrators) |
-| *Users & Groups > Permissions* | *Read the association overview and its data* (overview, API); *Link members and third parties and bring them in line* (reconciliation changes); *Read member summaries for a website* (member endpoints of the API) |
-| *API REST* module | Needed for `/api/index.php/vereine/...`; the overview warns while it is off |
+| *Start > Einstellungen > Unternehmen/Organisation* | Name, Anschrift, E-Mail, Telefon, Website und erster Monat des Rechnungsjahres – das Modul liest sie, es führt keine eigene Kopie |
+| *Start > Einstellungen > Module > Vereine* | Einrichtung mit den Reitern Verein, Partner, Steuerprofile, Beiträge, Funktionen, Statuten, Sitzungsvorlagen, API, Einwilligungen und Über |
+| *Mitglieder*, *Geschäftspartner*, *Kategorien* (Dolibarr-eigene Module) | Pflicht und werden mit Vereine aktiviert; das Mitglieder-Menü bekommt *Verein* mit Übersicht, Abgleich, Beitragslauf, Funktionen, Schreiben an die Behörde und Sitzungen |
+| Startseite | Widget *Vereine: Grenzen des Jahres* (für Benutzer, die Rechnungen lesen dürfen) |
+| Karte eines Geschäftspartners | Reiter *Mitgliedschaft*; Kategorien *Mitglied* und *Ehemaliges Mitglied* |
+| Mitgliedskarte | Reiter *Verein*; *Geschäftspartner anlegen* und *Verknüpfung mit Geschäftspartner* zieht das Modul nach |
+| Mitgliedsart | Beitragsmodell (Reiter *Beiträge* in der Einrichtung) |
+| Produkt- und Leistungskarte, Zeilen von Rechnungen und Lieferantenrechnungen | Zusatzfeld *Steuerprofil*; Rechnungen warnen bei Zeilen, deren Umsatzsteuer nicht zum Profil passt |
+| Rechnungs-PDF (Dolibarr-Vorlagen, unverändert) | Hinweise der Steuerprofile je Zeile und ZVR-Zahl im Hinweisbereich |
+| E-Mail-Kampagnen | Empfängerauswahl *Vereine* |
+| *Benutzer & Gruppen > Berechtigungen* | *Vereinsübersicht und Vereinsdaten lesen*; *Mitglieder und Geschäftspartner verknüpfen und abgleichen*; *Mitglieder-Zusammenfassung für die Website über die API lesen*; *Beitrittsanträge über die API anlegen* |
+| Modul *API REST* | Nötig für `/api/index.php/vereine/...`; die Übersicht warnt, solange es aus ist |
 
-How the parts connect: the setup stores the association data as Dolibarr
-constants; the overview and the API read the same data through one class
-(`VereineOrganization`), so a website sees exactly what the overview shows.
-Member events (validate, resign, exclude, change, delete) reach the module
-through a Dolibarr trigger, which keeps the linked third party in line; the
-dunning module can then tell members apart by category and customer type.
+So hängt es zusammen: Die Einrichtung speichert die Vereinsdaten als
+Dolibarr-Konstanten; Übersicht und API lesen dieselben Daten über eine Klasse
+(`VereineOrganization`). Eine Website sieht also genau das, was die Übersicht
+zeigt. Mitgliedsereignisse (aktivieren, austreten, ausschließen, ändern,
+löschen) erreichen das Modul über einen Dolibarr-Trigger, der den verknüpften
+Geschäftspartner nachzieht.
 
-## Versions and updates
+## Versionen und Updates
 
-Changes are published in releases with their patch notes on the
-[releases page](https://github.com/Tabsi1998/dolibarr-vereine/releases),
-usually several merged changes at once.
-Versions below 1.0.0 are betas (`v0.1.0-beta`, `v0.1.1-beta`, ...) and marked
-as pre-releases; 1.0.0 is the first stable release. The file to install is
-always `module_vereine-x.y.z.zip` - without `-beta`, because Dolibarr only
-accepts that name.
+Änderungen erscheinen als Releases mit Patchnotes auf der
+[Release-Seite](https://github.com/Tabsi1998/dolibarr-vereine/releases),
+meist mehrere gemergte Änderungen auf einmal. Versionen unter 1.0.0 sind Betas
+(`v0.5.8-beta`, …) und als Pre-Release markiert; 1.0.0 ist das erste stabile
+Release. Die Datei zum Installieren heißt immer `module_vereine-x.y.z.zip` –
+ohne `-beta`, weil Dolibarr nur diesen Namen annimmt. Wie veröffentlicht wird,
+steht in [docs/RELEASES.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/RELEASES.md).
 
-## Requirements
+## Voraussetzungen
 
-| | Minimum | Tested |
+| | Mindestens | Getestet |
 | --- | --- | --- |
 | Dolibarr | 22.0 | 22.0.5, 23.0.4, 24.0.1 |
 | PHP | 7.4 | 7.4, 8.1, 8.2, 8.3, 8.4 |
-| Dolibarr modules | Members, Third parties, Categories | REST API for the website endpoints |
+| Dolibarr-Module | Mitglieder, Geschäftspartner, Kategorien | REST-API für die Website-Aufrufe |
 
 ## Installation
 
-1. Download `module_vereine-x.y.z.zip` from the
-   [releases](https://github.com/Tabsi1998/dolibarr-vereine/releases).
-2. In Dolibarr open *Home > Setup > Modules > Deploy an external module* and
-   upload the ZIP. Do not rename it: Dolibarr only accepts the original name.
-3. Enable **Vereine (AT/DE)** in the module list. The Members module is enabled
-   with it.
-4. Open the module's setup, choose the country profile and enter the register
-   data.
-5. Give users the right *Read the association overview and its data*.
+1. `module_vereine-x.y.z.zip` bei den
+   [Releases](https://github.com/Tabsi1998/dolibarr-vereine/releases)
+   herunterladen.
+2. In Dolibarr *Start > Einstellungen > Module > Externes Modul bereitstellen*
+   öffnen und das ZIP hochladen. Nicht umbenennen: Dolibarr nimmt nur den
+   Originalnamen an.
+3. **Vereine (Österreich)** in der Modulliste aktivieren. Das Mitgliedermodul
+   wird mit aktiviert.
+4. Die Einrichtung des Moduls öffnen und ZVR-Zahl, Vereinsbehörde und
+   Vereinszweck eintragen.
+5. Benutzern das Recht *Vereinsübersicht und Vereinsdaten lesen* geben.
 
-Updating works the same way: deploy the newer ZIP, then disable and enable the
-module once in the module list, so new tables, rights and categories are
-created. The association data stays.
+Ein Update läuft genauso: das neuere ZIP bereitstellen, dann das Modul in der
+Modulliste einmal deaktivieren und wieder aktivieren, damit neue Tabellen,
+Rechte und Kategorien entstehen. Die Vereinsdaten bleiben erhalten.
 
-## Using the API from a website
+## Die API von einer Website aus nutzen
 
-Create a Dolibarr user for the website with only the rights it needs, generate
-an API key for it, and call the API from the website's server - never from
-the browser, where the key would be visible. [docs/API.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/API.md#a-user-for-the-website)
-lists the steps and the two rights:
+Für die Website einen eigenen Dolibarr-Benutzer mit nur den nötigen Rechten
+anlegen, für ihn einen API-Schlüssel erzeugen und die API vom Server der
+Website aus aufrufen – nie aus dem Browser, dort wäre der Schlüssel sichtbar.
+
+1. *Start > Benutzer & Gruppen > Neuer Benutzer*: Login zum Beispiel `website`,
+   kein Administrator. Der Benutzer meldet sich nie an, ein starkes Passwort
+   genügt.
+2. Reiter *Berechtigungen*, Modul *Vereine (Österreich)*: genau **Vereinsübersicht
+   und Vereinsdaten lesen** und **Mitglieder-Zusammenfassung für die Website über
+   die API lesen** anhaken, für Beitrittsanträge zusätzlich **Beitrittsanträge
+   über die API senden**. Sonst nichts – vor allem nicht Mitglieder, Rechnungen
+   oder Geschäftspartner lesen.
+3. *Ändern* auf der Benutzerkarte: **API-Schlüssel** erzeugen, speichern und nur
+   auf dem Server der Website ablegen, etwa als `DOLIBARR_API_KEY` in der `.env`.
+4. Vom Server der Website aus testen:
 
 ```bash
-curl -H "DOLAPIKEY: <key>" https://erp.example.org/api/index.php/vereine/organization
+curl -H "DOLAPIKEY: <schlüssel>" "https://erp.example.org/api/index.php/vereine/members/lookup?ref=1"
 ```
 
-## Not tax or legal advice
+Mit diesem Schlüssel lässt sich die Zusammenfassung jedes Mitglieds lesen und
+ein Mitglied über seine E-Mail finden. Er gehört behandelt wie ein Passwort: nie
+in den Browser, nie in ein Repository. Dolibarrs eigene Aufrufe wie `/members`
+oder `/invoices` beantworten diesem Benutzer mit 403.
 
-The module calculates and warns. How an activity is classified for tax
-purposes remains the association's decision, ideally with a tax advisor.
+Rechnungs-PDFs holt die Website über
+`/vereine/members/{id}/invoices/{rechnung}/pdf` und gibt sie nur an das Mitglied
+weiter, dem die Rechnung gehört – durchreichen, nicht speichern. Eine fremde
+Rechnung oder ein Entwurf ergibt 404.
 
-## Support and contributing
+## Keine Steuer- oder Rechtsberatung
 
-Report problems and ideas in the
-[issue tracker](https://github.com/Tabsi1998/dolibarr-vereine/issues). Security
-problems go through a private
-[security advisory](https://github.com/Tabsi1998/dolibarr-vereine/security/advisories/new),
-see [SECURITY.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/SECURITY.md). Contributions are welcome, see
+Das Modul rechnet und warnt. Wie eine Tätigkeit steuerlich eingeordnet wird,
+entscheidet der Verein, am besten mit seiner Steuerberatung.
+
+## Hilfe und Mitarbeit
+
+Probleme und Ideen bitte im
+[Issue-Tracker](https://github.com/Tabsi1998/dolibarr-vereine/issues) melden.
+Sicherheitsprobleme über eine private
+[Security Advisory](https://github.com/Tabsi1998/dolibarr-vereine/security/advisories/new),
+siehe [SECURITY.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/SECURITY.md). Beiträge sind willkommen, siehe
 [CONTRIBUTING.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/CONTRIBUTING.md).
 
-## Licence
+## Lizenz
 
-Copyright (C) 2026 IT-Tabelander. Free software under the GNU General Public
-License v3.0 or later, see [LICENSE](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/LICENSE).
+Copyright (C) 2026 IT-Tabelander. Freie Software unter der GNU General Public
+License v3.0 oder später, siehe [LICENSE](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/LICENSE).

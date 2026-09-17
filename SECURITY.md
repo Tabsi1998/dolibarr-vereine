@@ -1,32 +1,36 @@
-# Security
+# Sicherheit
 
-Associations keep personal data of their members, donors and volunteers in
-Dolibarr - names, addresses, birth dates and bank details. The module treats a
-security problem as urgent.
+Vereine führen in Dolibarr personenbezogene Daten ihrer Mitglieder, Spender und
+Freiwilligen – Namen, Anschriften, Geburtsdaten und Bankdaten. Das Modul
+behandelt ein Sicherheitsproblem als dringend.
 
-## Reporting a problem
+## Ein Problem melden
 
-Do not open a public issue. Use the private
-[security advisory form](https://github.com/Tabsi1998/dolibarr-vereine/security/advisories/new)
-and describe the problem and how to reproduce it. Never include real member,
-donor or bank data, credentials, API keys or database dumps.
+Kein öffentliches Issue anlegen. Das private
+[Formular für Security Advisories](https://github.com/Tabsi1998/dolibarr-vereine/security/advisories/new)
+nutzen und das Problem samt Weg zum Nachstellen beschreiben. Nie echte
+Mitglieds-, Spender- oder Bankdaten, Zugangsdaten, API-Schlüssel oder
+Datenbankauszüge mitschicken.
 
-You will get an answer within seven days. A confirmed problem is fixed in a
-bugfix version and named in the changelog once the fix is released.
+Eine Antwort kommt binnen sieben Tagen. Ein bestätigtes Problem wird in einer
+Fehlerbehebungs-Version behoben und im Changelog genannt, sobald die Behebung
+veröffentlicht ist.
 
-## Supported versions
+## Unterstützte Versionen
 
-Security fixes go into the newest version. During the beta phase (0.x) that is
-the newest beta; there are no fixes for older betas.
+Sicherheitskorrekturen gehen in die neueste Version. In der Beta-Phase (0.x) ist
+das die neueste Beta; ältere Betas bekommen keine Korrekturen.
 
-## Safeguards in the code
+## Schutz im Code
 
-- Every page loads Dolibarr, refuses when the module is off and checks a right
-  or administrator status before doing anything.
-- Forms carry Dolibarr's CSRF token; input is read through `GETPOST()` only.
-- Output is escaped with `dol_escape_htmltag()`.
-- Every API endpoint checks the module state and the user's right.
-- The module runs no shell commands, evaluates no code and calls no other servers.
-- It never changes Dolibarr's files and writes only below the documents folder.
+- Jede Seite lädt Dolibarr, verweigert bei abgeschaltetem Modul und prüft ein
+  Recht oder Administratorstatus, bevor sie etwas tut.
+- Formulare tragen Dolibarrs CSRF-Token; Eingaben werden nur über `GETPOST()`
+  gelesen.
+- Ausgaben werden mit `dol_escape_htmltag()` maskiert.
+- Jede API-Schnittstelle prüft Modulzustand und Recht des Benutzers.
+- Das Modul führt keine Shell-Befehle aus, wertet keinen Code aus und ruft keine
+  anderen Server auf.
+- Es ändert nie Dateien von Dolibarr und schreibt nur unter den Dokumentenordner.
 
-`scripts/check-module.sh` enforces these rules on every change.
+`scripts/check-module.sh` setzt diese Regeln bei jeder Änderung durch.
