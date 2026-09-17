@@ -7,10 +7,6 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
-## [0.5.9-beta] - 2026-09-17
-
-Unterschriften und das Protokoll als PDF (#119, #21).
-
 ### Neu
 
 - **Beschlussbuch** (#22): Der neue Menüpunkt *Beschlussbuch* zeigt jeden
@@ -35,6 +31,13 @@ Unterschriften und das Protokoll als PDF (#119, #21).
     Tagesordnungspunkt vorgeschlagen.
   - Am Mitglied listet der Reiter *Verein* die Beschlüsse, die es betreffen
     (Wahl, Aufnahme, Ehrung, Ausschluss).
+
+## [0.5.9-beta] - 2026-09-17
+
+Unterschriften und das Protokoll als PDF (#119, #21).
+
+### Neu
+
 - **Protokoll als PDF** (#21): Eine Sitzung bekommt *Vorsitz* und
   *Protokollführung* (vorgeschlagen aus den Funktionen) und den Abschnitt
   *Protokoll*.
