@@ -46,7 +46,7 @@ class InterfaceVereineTriggers extends DolibarrTriggers
 	{
 		parent::__construct($db);
 		$this->family = 'hr';
-		$this->description = 'Vereine: keeps members and their third parties consistent and applies tax profiles.';
+		$this->description = 'Vereine: keeps members and their third parties consistent, applies tax profiles and tells website webhooks which member changed.';
 		$this->version = self::VERSIONS['prod'];
 		$this->picto = 'fa-landmark';
 	}
@@ -70,21 +70,26 @@ class InterfaceVereineTriggers extends DolibarrTriggers
 		if (!isModEnabled('vereine')) {
 			return 0;
 		}
+		$result = 0;
 		if (in_array($action, self::MEMBER_EVENTS, true) && $object instanceof Adherent) {
 			dol_include_once('/vereine/class/vereinepartnerservice.class.php');
 			$service = new VereinePartnerService($this->db);
-			return $service->onMemberEvent($action, $object, $user);
-		}
-		if (in_array($action, self::PRODUCT_EVENTS, true) || in_array($action, self::LINE_EVENTS, true)) {
+			$result = $service->onMemberEvent($action, $object, $user);
+		} elseif (in_array($action, self::PRODUCT_EVENTS, true) || in_array($action, self::LINE_EVENTS, true)) {
 			dol_include_once('/vereine/class/vereinetaxassign.class.php');
 			$assign = new VereineTaxAssign($this->db);
 			$result = in_array($action, self::PRODUCT_EVENTS, true) ? $assign->onProductSaved($object, $user) : $assign->onLineCreated($object);
 			if ($result < 0) {
 				dol_syslog('Vereine: tax profile on '.$action.': '.$assign->error, LOG_WARNING);
-				return 0;
+				$result = 0;
 			}
-			return $result;
 		}
-		return 0;
+		// Tell webhooks that a member's summary may have changed, after the module's own work.
+		if (isModEnabled('webhook') && preg_match('/^(MEMBER_|BILL_|PAYMENT_CUSTOMER_)/', $action)) {
+			dol_include_once('/vereine/class/vereinewebsiteevents.class.php');
+			$events = new VereineWebsiteEvents($this->db);
+			$result += $events->notify($action, $object, $user, $langs, $conf);
+		}
+		return $result;
 	}
 }

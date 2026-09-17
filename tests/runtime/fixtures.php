@@ -32,6 +32,9 @@
  * php fixtures.php websiteinvoices  an abandoned invoice for a member's third party
  * php fixtures.php websitechange  a part payment and a new subscription period for the website sync
  * php fixtures.php websiteflip  a subscription period that ended yesterday
+ * php fixtures.php webhook  Dolibarr's webhook module with a target for VEREINE_MEMBER_CHANGED
+ * php fixtures.php webhookchanges  payments, a subscription period and a resignation in one request
+ * php fixtures.php webhookdown  a blocking target that cannot be reached, and a member update
  *
  * Prints one JSON object. Passwords and API keys come from the environment only.
  */
@@ -584,6 +587,79 @@ if ($stage === 'websiteflip') {
 	exit(0);
 }
 
+// Dolibarr's webhook module with one target for the module's event.
+if ($stage === 'webhook') {
+	$result = activateModule('modWebhook');
+	if (!empty($result['errors'])) {
+		rt_fail('activating modWebhook failed: '.implode(' | ', (array) $result['errors']));
+	}
+	$conf->setValues($db);
+	require_once DOL_DOCUMENT_ROOT.'/webhook/class/target.class.php';
+	$target = new Target($db);
+	$target->ref = 'RT-WEBSITE';
+	$target->label = 'Runtime website';
+	$target->type = 1;
+	$target->trigger_codes = 'VEREINE_MEMBER_CHANGED';
+	$target->url = rt_env('RT_WEBHOOK_URL');
+	$target->status = Target::STATUS_AUTOMATIC_TRIGGER;
+	if ($target->create($admin) <= 0) {
+		rt_fail('webhook target: '.$target->error.' '.implode(' | ', (array) $target->errors));
+	}
+	dol_include_once('/vereine/class/vereinewebsiteevents.class.php');
+	print json_encode(array('target' => (int) $target->id, 'register_again' => VereineWebsiteEvents::ensureTriggerCode($db)))."\n";
+	exit(0);
+}
+
+// Changes that concern three members and one third party without member, in one request.
+if ($stage === 'webhookchanges') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/paiement/class/paiement.class.php';
+	// The receiver runs in the same container; conf.php of a real installation would not allow that.
+	$GLOBALS['dolibarr_allow_localurl_for_webhooks'] = 1;
+	$today = dol_mktime(0, 0, 0, (int) dol_print_date(dol_now(), '%m'), (int) dol_print_date(dol_now(), '%d'), (int) dol_print_date(dol_now(), '%Y'));
+	foreach (array('RT_PAYMENT_INVOICE', 'RT_OTHER_INVOICE') as $name) {
+		$payment = new Paiement($db);
+		$payment->datepaye = $today;
+		$payment->date = $today;
+		$payment->amounts = array((int) rt_env($name) => 1);
+		$payment->paiementid = (int) rt_value($db, "SELECT id FROM ".MAIN_DB_PREFIX."c_paiement WHERE code = 'VIR' AND entity IN (0, 1) ORDER BY entity DESC");
+		$payment->paiementcode = 'VIR';
+		if ($payment->create($admin) <= 0) {
+			rt_fail('payment for '.$name.': '.$payment->error.' '.implode(' | ', (array) $payment->errors));
+		}
+	}
+	// The next period: one member cannot have two periods starting on the same day.
+	$member = new Adherent($db);
+	if ($member->fetch((int) rt_env('RT_SUBSCRIPTION_MEMBER')) <= 0
+		|| $member->subscription(dol_time_plus_duree($today, 365, 'd'), 50, 0, '', 'Beitrag', '', '', '', dol_time_plus_duree($today, 729, 'd')) <= 0) {
+		rt_fail('subscription period: '.$member->error.' '.implode(' | ', (array) $member->errors));
+	}
+	$member = new Adherent($db);
+	if ($member->fetch((int) rt_env('RT_RESILIATE_MEMBER')) <= 0 || $member->resiliate($admin) <= 0) {
+		rt_fail('resiliate: '.$member->error);
+	}
+	print json_encode(array('done' => 1))."\n";
+	exit(0);
+}
+
+// A blocking webhook target that cannot be reached, and a member change that must still succeed.
+if ($stage === 'webhookdown') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	$GLOBALS['dolibarr_allow_localurl_for_webhooks'] = 1;
+	if (!$db->query("UPDATE ".MAIN_DB_PREFIX."webhook_target SET type = 0, url = 'http://127.0.0.1:9/nothing' WHERE ref = 'RT-WEBSITE'")) {
+		rt_fail('make the webhook target blocking: '.$db->lasterror());
+	}
+	$member = new Adherent($db);
+	if ($member->fetch((int) rt_env('RT_MEMBER_ID')) <= 0) {
+		rt_fail('member for the blocked webhook: '.$member->error);
+	}
+	$member->phone_mobile = '+43 660 0000000';
+	$result = $member->update($admin);
+	print json_encode(array('update' => (int) $result, 'error' => (string) $member->error))."\n";
+	exit(0);
+}
+
 // An abandoned invoice for the third party of a member.
 if ($stage === 'websiteinvoices') {
 	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
@@ -676,4 +752,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, resiliate, guardian or reset');

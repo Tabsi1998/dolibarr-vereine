@@ -376,6 +376,60 @@ own document download answers:
 - The website must hand the PDF only to the member it belongs to: it carries
   the member's name and address. Pass it through, do not keep it.
 
+## Notifications through webhooks
+
+Instead of asking every few minutes, a website can be told when a member's
+summary may have changed. Dolibarr's own webhooks would send the whole member -
+birth date, address, notes - and Dolibarr 23 and 24 keep that in their webhook
+history. The module therefore raises its own event `VEREINE_MEMBER_CHANGED`
+that carries the member id and the cause, nothing else:
+
+```json
+{
+  "triggercode": "VEREINE_MEMBER_CHANGED",
+  "object": {
+    "id": 12,
+    "element": "vereine_member_event",
+    "member_id": 12,
+    "cause": "PAYMENT_CUSTOMER_CREATE",
+    "occurred_at": "2026-09-17T08:00:00Z",
+    "context": []
+  }
+}
+```
+
+Set it up:
+
+1. Enable Dolibarr's module *Webhooks*.
+2. Create a webhook target: the website's URL, the event
+   *Vereine: member summary changed (for website webhooks)*
+   (`VEREINE_MEMBER_CHANGED`) and nothing else, status *automatic*.
+3. Type *Non blocking* (Dolibarr 22) or *No check of result* (23 and 24).
+   Dolibarr sends while the user waits; the module never lets a failing
+   webhook stop a change, but a slow website still slows Dolibarr down.
+
+On the website:
+
+- Dolibarr signs nothing. Put a long random token into the target URL and
+  refuse requests without it. A forged event can do no more than make the
+  website read a summary again.
+- Read the summary with the API a few seconds after the event, not at once:
+  Dolibarr sends while its database transaction is still open, so an immediate
+  read can see the old state. A 404 means the member was deleted.
+
+| `cause` | What happened |
+| --- | --- |
+| `MEMBER_CREATE`, `MEMBER_VALIDATE`, `MEMBER_MODIFY`, `MEMBER_RESILIATE`, `MEMBER_EXCLUDE`, `MEMBER_DELETE` | The member |
+| `MEMBER_SUBSCRIPTION_CREATE`, `MEMBER_SUBSCRIPTION_MODIFY`, `MEMBER_SUBSCRIPTION_DELETE` | A subscription period of the member |
+| `BILL_VALIDATE`, `BILL_UNVALIDATE`, `BILL_MODIFY`, `BILL_PAYED`, `BILL_UNPAYED`, `BILL_CANCEL`, `BILL_DELETE` | A customer invoice of the member's third party (drafts only when they became one again) |
+| `PAYMENT_CUSTOMER_CREATE`, `PAYMENT_CUSTOMER_DELETE` | A payment on such an invoice |
+
+One action raises one event per member, even when Dolibarr reports several
+things at once (a payment that also closes the invoice). Not announced: a
+changed member type, a fee that becomes due or an invoice that becomes overdue
+by the date, and the online payment service - keep the nightly sync with
+[`GET /vereine/members`](#get-vereinemembers).
+
 ## Example
 
 ```bash

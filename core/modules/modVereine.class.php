@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '0.3.2-beta';
+		$this->version = '0.3.3-beta';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -231,6 +231,11 @@ class modVereine extends DolibarrModules
 		if ($assign->ensureFields() < 0) {
 			$this->error = $assign->error;
 			dol_syslog('modVereine::init '.$assign->error, LOG_ERR);
+		}
+		// The slim event for website webhooks, so a webhook target can choose it.
+		dol_include_once('/vereine/class/vereinewebsiteevents.class.php');
+		if (VereineWebsiteEvents::ensureTriggerCode($this->db) < 0) {
+			dol_syslog('modVereine::init adding '.VereineWebsiteEvents::TRIGGER_CODE.': '.$this->db->lasterror(), LOG_ERR);
 		}
 
 		// A first activation picks the profile of the company's country. A later

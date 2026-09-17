@@ -1183,6 +1183,59 @@ def websitesync(stack: Stack) -> str:
             "those two members, also with +02:00; a fee due by the date alone counts from midnight; bad input 400, other users 403")
 
 
+WEBHOOK_RECEIVER = "<?php\nfile_put_contents('/tmp/rt-webhooks.jsonl', file_get_contents('php://input').\"\\n\", FILE_APPEND | LOCK_EX);\necho 'ok';\n"
+EVENT_FIELDS = {"id", "element", "member_id", "cause", "occurred_at", "context"}
+
+
+def websiteevents(stack: Stack) -> str:
+    """Dolibarr's webhooks tell a website which member changed - the id and the cause only - and never block a change."""
+    site = stack.notes["website"]
+    members, invoices = site["members"], site["invoices"]
+    receiver = "/var/www/html/custom/rt-webhook.php"
+    encoded = base64.b64encode(WEBHOOK_RECEIVER.encode()).decode()
+    expect(stack.shell(f"echo {encoded} | base64 -d > {receiver} && rm -f /tmp/rt-webhooks.jsonl").returncode == 0,
+           "could not install the webhook receiver")
+    try:
+        registered = stack.value("SELECT COUNT(*) FROM llx_c_action_trigger WHERE code = 'VEREINE_MEMBER_CHANGED' AND elementtype = 'member'")
+        expect(registered == "1", f"VEREINE_MEMBER_CHANGED is listed {registered} times among Dolibarr's events")
+        target = stack.php_fixture("webhook", RT_WEBHOOK_URL="http://127.0.0.1/custom/rt-webhook.php")
+        expect(target.get("register_again") == 0, f"registering the event a second time returned {target.get('register_again')}")
+
+        stack.php_fixture("webhookchanges", RT_PAYMENT_INVOICE=str(invoices["open"]["id"]), RT_OTHER_INVOICE=str(stack.notes["invoice_2026"]),
+                          RT_SUBSCRIPTION_MEMBER=str(members["expired"]), RT_RESILIATE_MEMBER=str(members["free"]))
+        raw = stack.shell("cat /tmp/rt-webhooks.jsonl").stdout
+        payloads = [json.loads(line) for line in raw.splitlines() if line.strip()]
+        found = {payload["object"]["member_id"]: payload for payload in payloads}
+        expect(len(payloads) == 3 and sorted(found) == sorted([members["paid"], members["expired"], members["free"]]),
+               f"expected one event each for Paula's payment, Emil's period and Otto's resignation, none for the third party without member: {raw[:800]}")
+        for payload in payloads:
+            event = payload["object"]
+            expect(payload["triggercode"] == "VEREINE_MEMBER_CHANGED" and set(event) == EVENT_FIELDS and event["id"] == event["member_id"]
+                   and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", event["occurred_at"] or ""),
+                   f"webhook payload: {payload}")
+        causes = {member: found[members[member]]["object"]["cause"] for member in ("paid", "expired", "free")}
+        expect(causes["paid"] == "PAYMENT_CUSTOMER_CREATE" and causes["free"] == "MEMBER_RESILIATE"
+               and causes["expired"] in ("MEMBER_SUBSCRIPTION_CREATE", "MEMBER_MODIFY"), f"causes: {causes}")
+        leaked = [secret for secret in ("Geheim", "1990", "@runtime-verein.test", "Innsbruck", "Bezahlt", "999999") if secret in raw]
+        expect(not leaked, f"the webhook payloads contain personal data: {leaked}")
+        history = ""
+        # Dolibarr 22 has the history table already, but its webhook trigger writes nothing into it.
+        if not stack.version.startswith("22."):
+            stored = stack.sql("SELECT trigger_data FROM llx_webhook_history WHERE trigger_code = 'VEREINE_MEMBER_CHANGED'")
+            leaked = [secret for secret in ("Geheim", "1990", "@runtime-verein.test", "Innsbruck") if any(secret in row[0] for row in stored)]
+            expect(len(stored) == 3 and not leaked, f"Dolibarr's webhook history holds {len(stored)} events, personal data: {leaked}")
+            history = "; Dolibarr's webhook history holds the same 3 slim events"
+
+        down = stack.php_fixture("webhookdown", RT_MEMBER_ID=str(members["paid"]))
+        expect(int(down.get("update", 0)) > 0, f"a blocking webhook that cannot be reached made the member update fail: {down}")
+        phone = stack.value(f"SELECT phone_mobile FROM llx_adherent WHERE rowid = {int(members['paid'])}")
+        expect(phone == "+43 660 0000000", f"the member update was not stored while the webhook was down: {phone!r}")
+    finally:
+        stack.shell(f"rm -f {receiver}")
+    return ("one event each for a payment, a subscription period and a resignation, none for a third party without member; "
+            "only member id, cause and moment are sent" + history + "; an unreachable blocking webhook does not stop a member update")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -1255,7 +1308,8 @@ SCENARIOS = (
     ("website", "Member summaries for a website: fee status, open invoices, lookup and rights", website, ("cashregister",)),
     ("websiteinvoices", "A member's invoices and PDFs for a website", websiteinvoices, ("website",)),
     ("websitesync", "A website sync gets all members and then only the changed ones", websitesync, ("websiteinvoices",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("websitesync",)),
+    ("websiteevents", "Webhooks tell a website which member changed, without personal data", websiteevents, ("websitesync",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("websiteevents",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 
