@@ -17,7 +17,7 @@ Since Dolibarr 24 the login endpoints are off by default, so a key is the way in
 | Answer | Meaning |
 | --- | --- |
 | 200 | JSON as described below |
-| 400 | A parameter is missing or out of range |
+| 400 | A parameter is missing, out of range or not a valid e-mail address |
 | 401 | No or unknown API key |
 | 403 | The user lacks the right |
 | 404 | No such member |
@@ -267,8 +267,8 @@ account with Dolibarr.
 | Call | Answer |
 | --- | --- |
 | `?ref=12` | the member with this member number |
-| `?email=paula@example.org` | the member with this e-mail address, ignoring upper and lower case and surrounding spaces |
-| neither or both | 400 |
+| `?email=paula@example.org` | the member with this e-mail address, ignoring upper and lower case |
+| neither or both, or an invalid e-mail address | 400 - Dolibarr's API checks the format of `email` itself, so trim spaces first |
 | nobody matches | 404 |
 | several members share the e-mail address | 409 - link the account by member number instead |
 

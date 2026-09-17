@@ -991,8 +991,11 @@ def website(stack: Stack) -> str:
         return body
 
     expect(lookup({"ref": refs["paid"]}, 200)["id"] == members["paid"], "lookup by member number found someone else")
-    expect(lookup({"email": " paula.bezahlt@RUNTIME-verein.test "}, 200)["id"] == members["paid"],
-           "lookup by e-mail does not ignore case and spaces")
+    expect(lookup({"email": "paula.bezahlt@RUNTIME-verein.test"}, 200)["id"] == members["paid"],
+           "lookup by e-mail does not ignore upper and lower case")
+    # Dolibarr's API layer checks a parameter named email itself, before the module's code runs.
+    lookup({"email": " paula.bezahlt@runtime-verein.test "}, 400)
+    lookup({"email": "keine-adresse"}, 400)
     lookup({"email": "familie@runtime-verein.test"}, 409)
     lookup({"email": "niemand@runtime-verein.test"}, 404)
     lookup({"ref": "RT-GIBT-ES-NICHT"}, 404)

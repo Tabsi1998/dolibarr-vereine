@@ -219,9 +219,10 @@
             "name": "email",
             "in": "query",
             "required": false,
-            "description": "E-mail address",
+            "description": "E-mail address without surrounding spaces; Dolibarr's API answers 400 for an invalid address",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "format": "email"
             }
           }
         ],
