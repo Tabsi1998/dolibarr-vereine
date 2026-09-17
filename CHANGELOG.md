@@ -7,6 +7,34 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.5.1-beta] - 2026-09-17
+
+Letters to the association authority in one layout (issue #87).
+
+### Added
+
+- *Members > Association > Letters to the authority*:
+  - **Responsible authority** with address, e-mail and file number (GZ). The
+    page names the Landespolizeidirektion where it is the authority for the seat
+    (§ 9 VerG with § 8 SPG) and questions a different entry. The eight district
+    authorities of Tyrol and the LPD Tirol can be taken from a list.
+  - **Letters** filled in from Dolibarr, as PDF: change of the statutes
+    (§ 14 (1) VerG), new address for service (§ 14 (3)), register extract - current,
+    with the data of § 16 (1) no. 8 or for an earlier day (§ 17), voluntary
+    dissolution with or without liquidator (§ 28 (2)), founding (§ 11) and a
+    longer deadline for the first appointment (§ 2 (3)).
+  - Notices get their four-week deadline, in Dolibarr's agenda too; overdue
+    letters are marked, "filed on" finishes the agenda event.
+- The same layout for all letters: letterhead with ZVR number, authority, file
+  number, title with section, signature lines of the representatives,
+  attachments. The report of representatives under *Board and functions* uses it
+  too.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once. That creates the
+table of the letters and the menu entry.
+
 ## [0.5.0-beta] - 2026-09-17
 
 Rules of the statutes in one place (issue #86, first part of #81).
@@ -726,7 +754,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.0-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.1-beta...HEAD
+[0.5.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.1-beta
 [0.5.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.0-beta
 [0.4.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.4-beta
 [0.4.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.3-beta

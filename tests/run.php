@@ -50,6 +50,7 @@ require_once $root.'/class/vereineconsentrules.class.php';
 require_once $root.'/class/vereinefunctionrules.class.php';
 require_once $root.'/class/vereinemailingrules.class.php';
 require_once $root.'/class/vereinestatuterules.class.php';
+require_once $root.'/class/vereineauthorityrules.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -840,6 +841,29 @@ same(array(true, true, false, false), array(
 same(array('2028-02-29', '2025-02-28', '2030-09-17'), array(VereineStatuteRules::addYears('2024-02-29', 4), VereineStatuteRules::addYears('2024-02-29', 1), VereineStatuteRules::addYears('2026-09-17', 4)),
 	'years later, 29 February becomes 28 February');
 
+// ------------------------------------------------------------ authority letters
+
+same(array('Landespolizeidirektion Tirol', 'Landespolizeidirektion Kärnten', ''), array(VereineAuthorityRules::policeAuthorityFor(' Innsbruck '),
+	VereineAuthorityRules::policeAuthorityFor('Klagenfurt am Wörthersee'), VereineAuthorityRules::policeAuthorityFor('Hall in Tirol')),
+	'the Landespolizeidirektion is the authority only in its towns, elsewhere the district authority');
+$suggestions = VereineAuthorityRules::suggestions();
+same(array(9, "Gilmstraße 2\n6020 Innsbruck"), array(count($suggestions), $suggestions['bh_innsbruck']['address']), 'eight district authorities and the LPD of Tyrol to choose from');
+same(array(), VereineAuthorityRules::validate('statutes', VereineAuthorityRules::normalize('statutes', array('date' => '2026-09-17'))), 'a change of the statutes with the day of the assembly');
+same(array('VereineLetterErrorDate_statutes'), VereineAuthorityRules::validate('statutes', VereineAuthorityRules::normalize('statutes', array())), 'without the day of the assembly');
+same(array('VereineLetterErrorKind'), VereineAuthorityRules::validate('representatives', array('date' => '2026-09-17')), 'representatives are written under Board and functions');
+same(array(), VereineAuthorityRules::validate('extract', VereineAuthorityRules::normalize('extract', array('extract' => 'full'))), 'an extract of today needs no day');
+same(array('VereineLetterErrorDate_extract'), VereineAuthorityRules::validate('extract', VereineAuthorityRules::normalize('extract', array('extract' => 'at'))), 'an extract of an earlier day needs it');
+same('current', VereineAuthorityRules::normalize('extract', array('extract' => 'all'))['extract'], 'an unknown extract is the current one');
+same(array('VereineLetterErrorLiquidator'), VereineAuthorityRules::validate('dissolution', VereineAuthorityRules::normalize('dissolution',
+	array('date' => '2026-09-17', 'effective' => 'mit sofortiger Wirkung', 'assets' => '1', 'liquidator_name' => 'Anna Abwicklerin'))), 'assets need a liquidator with every detail');
+$dissolution = VereineAuthorityRules::normalize('dissolution', array('date' => '2026-09-17', 'effective' => 'mit sofortiger Wirkung', 'liquidator_name' => 'ignored'));
+same(array(array(), false, ''), array(VereineAuthorityRules::validate('dissolution', $dissolution), $dissolution['assets'], $dissolution['liquidator_name']), 'without assets no liquidator is kept');
+same(array('VereineLetterErrorAddress'), VereineAuthorityRules::validate('address', VereineAuthorityRules::normalize('address', array('date' => '2026-09-17', 'address' => ' '))), 'a new address needs the address');
+same(array('VereineLetterErrorDate_extension', 'VereineLetterErrorReason'), VereineAuthorityRules::validate('extension', VereineAuthorityRules::normalize('extension', array())), 'a longer deadline needs the day and a reason');
+same(array(), VereineAuthorityRules::validate('founding', VereineAuthorityRules::normalize('founding', array('founders' => '1'))), 'a founding needs no day');
+same(array('2026-10-15', '', ''), array(VereineAuthorityRules::deadline('statutes', '2026-09-17'), VereineAuthorityRules::deadline('extract', '2026-09-17'), VereineAuthorityRules::deadline('dissolution', '')),
+	'four weeks for notices, none for applications');
+
 // ---------------------------------------------------------------- mailings
 
 $people = array(
@@ -986,12 +1010,20 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
 	'VereineFunctionProblem_' => array('missing', 'too_many', 'board_too_small', 'auditor_on_board', 'election_due'),
 	'VereineStatuteChannel_' => VereineStatuteRules::CHANNELS,
+	'VereineLetterKind_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
+	'VereineLetterTitle_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
+	'VereineLetterHelp_' => VereineAuthorityRules::KINDS,
+	'VereineLetterDate_' => array_values(array_diff(VereineAuthorityRules::KINDS, array(VereineAuthorityRules::KIND_FOUNDING))),
+	'VereineLetterErrorDate_' => array_values(array_diff(VereineAuthorityRules::KINDS, array(VereineAuthorityRules::KIND_FOUNDING))),
+	'VereineLetterBody_extract_' => VereineAuthorityRules::EXTRACTS,
+	'VereineLetterExtract_' => VereineAuthorityRules::EXTRACTS,
+	'VereineLetter_' => array('liquidator_name', 'liquidator_birth', 'liquidator_birth_place', 'liquidator_address', 'liquidator_start'),
 	'VereineStatuteMajority_' => VereineStatuteRules::MAJORITIES,
 	'VereineStatuteVirtual_' => VereineStatuteRules::VIRTUALS,
 	'VereineStatuteHint_' => array(VereineStatuteRules::HINT_TERM_MISSING, VereineStatuteRules::HINT_TERM_NOT_ALIGNED),

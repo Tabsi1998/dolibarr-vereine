@@ -95,6 +95,10 @@ Vereinswebsite mit.
   Statutenmuster und gegen das Vereinsgesetz geprüft; „Neuwahl fällig“, wenn eine
   Funktionsperiode abgelaufen ist, Beitrittsanträge unter dem Mindestalter werden
   abgelehnt.
+- **Schreiben an die Vereinsbehörde** (0.5.1): Statutenänderung, neue
+  Zustellanschrift, Registerauszug, Auflösung, Errichtung und Fristverlängerung in
+  einem Layout, mit zuständiger Behörde, Frist in der Agenda und Vermerk
+  „eingebracht am“.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

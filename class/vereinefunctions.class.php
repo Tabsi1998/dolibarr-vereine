@@ -601,69 +601,11 @@ class VereineFunctions
 	 */
 	public function buildReportPdf($day, $outputlangs)
 	{
-		global $conf, $mysoc;
+		require_once __DIR__.'/vereineauthorityletters.class.php';
 
-		require_once DOL_DOCUMENT_ROOT.'/core/lib/pdf.lib.php';
-		require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
-
-		$dir = DOL_DATA_ROOT.($conf->entity > 1 ? '/'.((int) $conf->entity) : '').'/vereine/authority';
-		if (dol_mkdir($dir) < 0) {
-			$this->error = 'cannot create '.$dir;
-			return '';
-		}
-		$moment = dol_mktime(12, 0, 0, (int) substr($day, 5, 2), (int) substr($day, 8, 2), (int) substr($day, 0, 4));
-		$pdf = pdf_getInstance();
-		$font = pdf_getPDFFont($outputlangs);
-		$pdf->setPrintHeader(false);
-		$pdf->setPrintFooter(false);
-		$pdf->SetMargins(20, 20, 20);
-		$pdf->SetAutoPageBreak(true, 20);
-		$pdf->AddPage();
-		$line = function ($text, $style = '', $size = 10) use ($pdf, $font) {
-			$pdf->SetFont($font, $style, $size);
-			$pdf->MultiCell(0, 5, $text, 0, 'L');
-		};
-
-		$line(trim($mysoc->name), 'B', 11);
-		$line(trim($mysoc->address."\n".$mysoc->zip.' '.$mysoc->town));
-		if (getDolGlobalString('VEREINE_REGISTER_NUMBER') !== '') {
-			$line($outputlangs->transnoentities('VereineReportRegister', getDolGlobalString('VEREINE_REGISTER_NUMBER')));
-		}
-		$pdf->Ln(8);
-		$line($outputlangs->transnoentities('VereineReportTo'));
-		$line(getDolGlobalString('VEREINE_AUTHORITY') !== '' ? getDolGlobalString('VEREINE_AUTHORITY') : $outputlangs->transnoentities('VereineReportAuthority'));
-		$pdf->Ln(8);
-		$line(trim($mysoc->town.', '.dol_print_date(dol_now(), 'day', 'tzserver', $outputlangs), ', '));
-		$pdf->Ln(4);
-		$line($outputlangs->transnoentities('VereineReportSubject'), 'B', 11);
-		$pdf->Ln(2);
-		$line($outputlangs->transnoentities('VereineReportIntro', dol_print_date($moment, 'day', 'tzserver', $outputlangs)));
-		$pdf->Ln(2);
-
-		$blank = '______________________';
-		foreach ($this->representatives($day) as $person) {
-			$address = trim($person['address']) !== '' ? trim(str_replace("\n", ', ', $person['address']).', '.$person['zip'].' '.$person['town'].($person['country'] !== '' ? ', '.$person['country'] : '')) : $blank;
-			$line($person['function'].($person['reported'] ? '' : ' - '.$outputlangs->transnoentities('VereineReportNew')), 'B');
-			$line($outputlangs->transnoentities('VereineReportName').': '.$person['name']);
-			$line($outputlangs->transnoentities('VereineReportBirth').': '.(VereineFunctionRules::isDate($person['birth'])
-				? dol_print_date(dol_mktime(12, 0, 0, (int) substr($person['birth'], 5, 2), (int) substr($person['birth'], 8, 2), (int) substr($person['birth'], 0, 4)), 'day', 'tzserver', $outputlangs) : $blank));
-			$line($outputlangs->transnoentities('VereineReportBirthPlace').': '.($person['birth_place'] !== '' ? $person['birth_place'] : $blank));
-			$line($outputlangs->transnoentities('VereineReportAddress').': '.$address);
-			$line($outputlangs->transnoentities('VereineReportStart').': '.dol_print_date(dol_mktime(12, 0, 0, (int) substr($person['start'], 5, 2), (int) substr($person['start'], 8, 2), (int) substr($person['start'], 0, 4)), 'day', 'tzserver', $outputlangs));
-			$pdf->Ln(3);
-		}
-		$pdf->Ln(10);
-		$line($outputlangs->transnoentities('VereineReportSignature'));
-		$pdf->Ln(12);
-		$line('______________________________          ______________________________');
-
-		$file = $dir.'/meldung-vertreter-'.dol_print_date(dol_now(), '%Y%m%d-%H%M%S', 'tzserver').'.pdf';
-		$pdf->Output($file, 'F');
-		if (!is_file($file)) {
-			$this->error = 'the PDF was not written';
-			return '';
-		}
-		dolChmod($file);
+		$letters = new VereineAuthorityLetters($this->db);
+		$file = $letters->build(VereineAuthorityRules::KIND_REPRESENTATIVES, array('date' => $day), $this->representatives($day), $outputlangs);
+		$this->error = $letters->error;
 		return $file;
 	}
 

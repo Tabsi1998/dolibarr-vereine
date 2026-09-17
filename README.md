@@ -86,6 +86,10 @@ with a REST API for the association's website.
   minimum age in one place, filled in from the model statutes and checked against
   the Associations Act; "election due" when a term has run out, applications
   below the minimum age refused.
+- **Letters to the association authority** (0.5.1): change of statutes, new
+  address, register extract, dissolution, founding and longer deadline in one
+  layout, with the responsible authority, deadline in the agenda and a note once
+  filed.
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 
