@@ -1,0 +1,482 @@
+<?php
+/* Copyright (C) 2026 IT-Tabelander <https://it.tabelander.co.at>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/**
+ * \file    class/vereinemeetings.class.php
+ * \ingroup vereine
+ * \brief   Stores meetings and sends their invitations by e-mail and letter, with proof per person.
+ */
+
+require_once __DIR__.'/vereinemeetingrules.class.php';
+require_once __DIR__.'/vereinestatutes.class.php';
+require_once __DIR__.'/vereinefunctions.class.php';
+require_once __DIR__.'/vereinelog.class.php';
+
+/**
+ * Meetings of the association.
+ */
+class VereineMeetings
+{
+	/**
+	 * @var DoliDB Database handler
+	 */
+	public $db;
+
+	/**
+	 * @var string Last database error
+	 */
+	public $error = '';
+
+	/**
+	 * @var string[] Language keys of the last refused input
+	 */
+	public $errors = array();
+
+	/**
+	 * Constructor.
+	 *
+	 * @param DoliDB $db Database handler
+	 */
+	public function __construct($db)
+	{
+		$this->db = $db;
+	}
+
+	/**
+	 * Meetings, newest first.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function fetchAll()
+	{
+		global $conf;
+
+		$sql = "SELECT rowid, kind, title, meeting_day, meeting_time, place, format, access, agenda, status, invited_at, fk_actioncomm FROM ".MAIN_DB_PREFIX."vereine_meeting";
+		$sql .= " WHERE entity = ".((int) $conf->entity)." ORDER BY meeting_day DESC, meeting_time DESC, rowid DESC";
+		// The table exists only after the module was enabled with 0.5.4.
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return array();
+		}
+		$meetings = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$agenda = json_decode((string) $obj->agenda, true);
+			$meetings[] = array('id' => (int) $obj->rowid, 'kind' => (string) $obj->kind, 'title' => (string) $obj->title, 'day' => (string) $obj->meeting_day,
+				'time' => (string) $obj->meeting_time, 'place' => (string) $obj->place, 'format' => (string) $obj->format, 'access' => (string) $obj->access,
+				'agenda' => is_array($agenda) ? $agenda : array(), 'status' => (string) $obj->status, 'invited_at' => $obj->invited_at ? $this->db->jdate($obj->invited_at) : 0,
+				'actioncomm_id' => (int) $obj->fk_actioncomm);
+		}
+		$this->db->free($resql);
+		return $meetings;
+	}
+
+	/**
+	 * One meeting.
+	 *
+	 * @param int $id Meeting
+	 * @return array<string,mixed>|null
+	 */
+	public function fetch($id)
+	{
+		foreach ($this->fetchAll() as $meeting) {
+			if ($meeting['id'] === (int) $id) {
+				return $meeting;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Store a new meeting or change a planned one.
+	 *
+	 * @param int                 $id      Meeting, 0 for a new one
+	 * @param array<string,mixed> $entered Entered data
+	 * @param User                $user    Who stores
+	 * @return int Id, 0 when refused (see errors), -1 on error
+	 */
+	public function save($id, array $entered, $user)
+	{
+		global $conf;
+
+		$statutes = new VereineStatutes($this->db);
+		$meeting = VereineMeetingRules::normalize($entered);
+		$this->errors = VereineMeetingRules::validate($meeting, $statutes->rules());
+		$current = (int) $id > 0 ? $this->fetch($id) : null;
+		if ((int) $id > 0 && ($current === null || $current['status'] !== VereineMeetingRules::STATUS_PLANNED)) {
+			$this->errors[] = 'VereineMeetingErrorNotPlanned';
+		}
+		if ($this->errors) {
+			return 0;
+		}
+		$fields = "kind = '".$this->db->escape($meeting['kind'])."', title = '".$this->db->escape($meeting['title'])."', meeting_day = '".$this->db->escape($meeting['day'])."',";
+		$fields .= " meeting_time = '".$this->db->escape($meeting['time'])."', place = '".$this->db->escape($meeting['place'])."', format = '".$this->db->escape($meeting['format'])."',";
+		$fields .= " access = '".$this->db->escape($meeting['access'])."', agenda = '".$this->db->escape(json_encode($meeting['agenda']))."', fk_user_modif = ".((int) $user->id);
+		if ($current !== null) {
+			if (!$this->db->query("UPDATE ".MAIN_DB_PREFIX."vereine_meeting SET ".$fields." WHERE rowid = ".((int) $id)." AND entity = ".((int) $conf->entity))) {
+				$this->error = $this->db->lasterror();
+				return -1;
+			}
+			return (int) $id;
+		}
+		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_meeting (entity, kind, title, meeting_day, meeting_time, format, status, datec)";
+		$sql .= " VALUES (".((int) $conf->entity).", '', '', '".$this->db->escape($meeting['day'])."', '', '', '".VereineMeetingRules::STATUS_PLANNED."', '".$this->db->idate(dol_now())."')";
+		if (!$this->db->query($sql)) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		$newId = (int) $this->db->last_insert_id(MAIN_DB_PREFIX.'vereine_meeting');
+		if (!$this->db->query("UPDATE ".MAIN_DB_PREFIX."vereine_meeting SET ".$fields." WHERE rowid = ".$newId)) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		VereineLog::add($this->db, $user, VereineLog::MEETING_CREATED, 0, 0, $meeting['kind'].' '.$meeting['day'].' '.$meeting['title']);
+		return $newId;
+	}
+
+	/**
+	 * Members with what an invitation needs, and whether they are on the board on a day.
+	 *
+	 * @param string $day Day of the meeting
+	 * @return array<int,array<string,mixed>> Keys id, status, type_id, email, name, board, address, zip, town
+	 */
+	public function members($day)
+	{
+		$sql = "SELECT d.rowid, d.statut, d.fk_adherent_type, d.email, d.firstname, d.lastname, d.societe, d.morphy, d.address, d.zip, d.town FROM ".MAIN_DB_PREFIX."adherent as d";
+		$sql .= " WHERE d.entity IN (".getEntity('member').") ORDER BY d.lastname, d.firstname, d.rowid";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return array();
+		}
+		$members = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$members[(int) $obj->rowid] = array('id' => (int) $obj->rowid, 'status' => (int) $obj->statut, 'type_id' => (int) $obj->fk_adherent_type, 'email' => (string) $obj->email,
+				'name' => $obj->morphy === 'mor' && (string) $obj->societe !== '' ? (string) $obj->societe : trim($obj->firstname.' '.$obj->lastname),
+				'board' => false, 'address' => (string) $obj->address, 'zip' => (string) $obj->zip, 'town' => (string) $obj->town);
+		}
+		$this->db->free($resql);
+		$functions = new VereineFunctions($this->db);
+		$board = array();
+		foreach ($functions->fetchAll(true) as $function) {
+			$board[$function['id']] = $function['board'];
+		}
+		foreach ($functions->terms() as $term) {
+			if (!empty($board[$term['function_id']]) && isset($members[$term['member_id']]) && VereineFunctionRules::isActive($term, $day)) {
+				$members[$term['member_id']]['board'] = true;
+			}
+		}
+		return array_values($members);
+	}
+
+	/**
+	 * Who a meeting invites and how.
+	 *
+	 * @param array<string,mixed> $meeting Meeting
+	 * @return array<int,array<string,mixed>> Recipients of VereineMeetingRules::recipients()
+	 */
+	public function recipients(array $meeting)
+	{
+		$statutes = new VereineStatutes($this->db);
+		return VereineMeetingRules::recipients($meeting['kind'], $this->members($meeting['day']), $statutes->rules());
+	}
+
+	/**
+	 * Invitations sent for a meeting.
+	 *
+	 * @param int $id Meeting
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function invitations($id)
+	{
+		global $conf;
+
+		$sql = "SELECT fk_adherent, name, email, channel, voting, sent_at, error FROM ".MAIN_DB_PREFIX."vereine_meeting_invitation";
+		$sql .= " WHERE fk_meeting = ".((int) $id)." AND entity = ".((int) $conf->entity)." ORDER BY rowid";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return array();
+		}
+		$invitations = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$invitations[] = array('member_id' => (int) $obj->fk_adherent, 'name' => (string) $obj->name, 'email' => (string) $obj->email, 'channel' => (string) $obj->channel,
+				'voting' => (int) $obj->voting === 1, 'sent_at' => $obj->sent_at ? $this->db->jdate($obj->sent_at) : 0, 'error' => (string) $obj->error);
+		}
+		$this->db->free($resql);
+		return $invitations;
+	}
+
+	/**
+	 * Send the invitations of a planned meeting: e-mails, one PDF with the letters, an agenda event and the proof per person.
+	 *
+	 * @param int       $id          Meeting
+	 * @param User      $user        Who invites
+	 * @param Translate $outputlangs Language of the invitation
+	 * @return int Invitations written, 0 when refused (see errors), -1 on error
+	 */
+	public function invite($id, $user, $outputlangs)
+	{
+		global $conf, $mysoc;
+
+		require_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
+
+		$meeting = $this->fetch($id);
+		if ($meeting === null || $meeting['status'] !== VereineMeetingRules::STATUS_PLANNED) {
+			$this->errors = array('VereineMeetingErrorNotPlanned');
+			return 0;
+		}
+		$recipients = $this->recipients($meeting);
+		if (!$recipients) {
+			$this->errors = array('VereineMeetingErrorNobody');
+			return 0;
+		}
+		$statutes = new VereineStatutes($this->db);
+		$rules = $statutes->rules();
+		$from = getDolGlobalString('MAIN_MAIL_EMAIL_FROM', (string) $mysoc->email);
+		$members = array();
+		foreach ($this->members($meeting['day']) as $member) {
+			$members[$member['id']] = $member;
+		}
+		$letters = array();
+		$written = 0;
+		foreach ($recipients as $recipient) {
+			$sentAt = null;
+			$error = '';
+			if ($recipient['channel'] === VereineMeetingRules::CHANNEL_EMAIL) {
+				$mail = new CMailFile($outputlangs->transnoentities('VereineMeetingMailSubject', $meeting['title'], vereineMeetingDay($meeting['day'], $outputlangs).' '.$meeting['time']),
+					$recipient['email'], $from, $this->invitationText($meeting, $recipient, $rules, $outputlangs), array(), array(), array(), '', '', 0, 0, '', '', 'meeting'.$meeting['id']);
+				if ($mail->sendfile()) {
+					$sentAt = dol_now();
+				} else {
+					$error = dol_trunc((string) $mail->error, 250, 'right', 'UTF-8', 1);
+				}
+			} else {
+				$letters[] = $recipient + array('address' => isset($members[$recipient['member_id']]) ? $members[$recipient['member_id']] : array());
+				$sentAt = dol_now();
+			}
+			$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_meeting_invitation (entity, fk_meeting, fk_adherent, name, email, channel, voting, sent_at, error, datec)";
+			$sql .= " VALUES (".((int) $conf->entity).", ".((int) $meeting['id']).", ".((int) $recipient['member_id']).", '".$this->db->escape($recipient['name'])."',";
+			$sql .= " '".$this->db->escape($recipient['email'])."', '".$this->db->escape($recipient['channel'])."', ".($recipient['voting'] ? 1 : 0).",";
+			$sql .= " ".($sentAt !== null ? "'".$this->db->idate($sentAt)."'" : "NULL").", ".($error !== '' ? "'".$this->db->escape($error)."'" : "NULL").", '".$this->db->idate(dol_now())."')";
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
+				return -1;
+			}
+			$written++;
+		}
+		if ($letters && $this->buildLetters($meeting, $letters, $rules, $outputlangs) === '') {
+			return -1;
+		}
+		$eventId = 0;
+		if (isModEnabled('agenda')) {
+			require_once DOL_DOCUMENT_ROOT.'/comm/action/class/actioncomm.class.php';
+			$event = new ActionComm($this->db);
+			$event->type_code = 'AC_OTH';
+			$event->label = $meeting['title'];
+			$event->note_private = implode("\n", $meeting['agenda']);
+			$event->location = $meeting['place'];
+			$event->datep = dol_mktime((int) substr($meeting['time'], 0, 2), (int) substr($meeting['time'], 3, 2), 0, (int) substr($meeting['day'], 5, 2),
+				(int) substr($meeting['day'], 8, 2), (int) substr($meeting['day'], 0, 4));
+			$event->datef = $event->datep + 7200;
+			$event->percentage = -1;
+			$event->userownerid = (int) $user->id;
+			$eventId = (int) $event->create($user);
+			if ($eventId <= 0) {
+				dol_syslog(__METHOD__.' agenda event: '.$event->error, LOG_WARNING);
+				$eventId = 0;
+			}
+		}
+		$sql = "UPDATE ".MAIN_DB_PREFIX."vereine_meeting SET status = '".VereineMeetingRules::STATUS_INVITED."', invited_at = '".$this->db->idate(dol_now())."',";
+		$sql .= " fk_actioncomm = ".($eventId > 0 ? $eventId : "NULL").", fk_user_modif = ".((int) $user->id)." WHERE rowid = ".((int) $meeting['id'])." AND entity = ".((int) $conf->entity);
+		if (!$this->db->query($sql)) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		VereineLog::add($this->db, $user, VereineLog::MEETING_INVITED, 0, 0, $meeting['title'].': '.$written.' ('.count($letters).' letters)');
+		return $written;
+	}
+
+	/**
+	 * Mark a meeting as held or called off.
+	 *
+	 * @param int    $id     Meeting
+	 * @param string $status STATUS_HELD or STATUS_CANCELLED
+	 * @param User   $user   Who marks it
+	 * @return int 1 when marked, 0 when refused, -1 on error
+	 */
+	public function setStatus($id, $status, $user)
+	{
+		global $conf;
+
+		$meeting = $this->fetch($id);
+		if ($meeting === null || !in_array($status, array(VereineMeetingRules::STATUS_HELD, VereineMeetingRules::STATUS_CANCELLED), true)
+			|| in_array($meeting['status'], array(VereineMeetingRules::STATUS_HELD, VereineMeetingRules::STATUS_CANCELLED), true)) {
+			$this->errors = array('VereineMeetingErrorStatus');
+			return 0;
+		}
+		$sql = "UPDATE ".MAIN_DB_PREFIX."vereine_meeting SET status = '".$this->db->escape($status)."', fk_user_modif = ".((int) $user->id);
+		$sql .= " WHERE rowid = ".((int) $id)." AND entity = ".((int) $conf->entity);
+		if (!$this->db->query($sql)) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		VereineLog::add($this->db, $user, VereineLog::MEETING_STATUS, 0, 0, $meeting['title'].': '.$status);
+		return 1;
+	}
+
+	/**
+	 * Day of the last ordinary general assembly that took place or is invited to, before a day.
+	 *
+	 * @param string $day Day
+	 * @return string YYYY-MM-DD, empty when none
+	 */
+	public function lastGeneral($day)
+	{
+		$last = '';
+		foreach ($this->fetchAll() as $meeting) {
+			if ($meeting['kind'] === VereineMeetingRules::KIND_GENERAL && $meeting['status'] !== VereineMeetingRules::STATUS_CANCELLED && $meeting['day'] <= $day && $meeting['day'] > $last) {
+				$last = $meeting['day'];
+			}
+		}
+		return $last;
+	}
+
+	/**
+	 * Path of the letters of a meeting.
+	 *
+	 * @param int $id Meeting
+	 * @return string
+	 */
+	public static function lettersPath($id)
+	{
+		global $conf;
+
+		return DOL_DATA_ROOT.($conf->entity > 1 ? '/'.((int) $conf->entity) : '').'/vereine/meetings/einladung-'.((int) $id).'-briefe.pdf';
+	}
+
+	/**
+	 * The invitation as text, the same in an e-mail and a letter.
+	 *
+	 * @param array<string,mixed> $meeting     Meeting
+	 * @param array<string,mixed> $recipient   Recipient
+	 * @param array<string,mixed> $rules       Normalized rules of the statutes
+	 * @param Translate           $outputlangs Language
+	 * @return string
+	 */
+	public function invitationText(array $meeting, array $recipient, array $rules, $outputlangs)
+	{
+		global $mysoc;
+
+		$outputlangs->load('vereine@vereine');
+		$lines = array($outputlangs->transnoentities('VereineMeetingMailGreeting', $recipient['name']), '',
+			$outputlangs->transnoentities('VereineMeetingMailIntro_'.$meeting['kind'], trim((string) $mysoc->name)), '',
+			$meeting['title'],
+			$outputlangs->transnoentities('VereineMeetingMailWhen', vereineMeetingDay($meeting['day'], $outputlangs), $meeting['time']));
+		if ($meeting['place'] !== '') {
+			$lines[] = $outputlangs->transnoentities('VereineMeetingMailWhere', $meeting['place']);
+		}
+		if ($meeting['format'] !== VereineMeetingRules::FORMAT_PHYSICAL) {
+			$lines[] = $outputlangs->transnoentities('VereineMeetingMailFormat_'.$meeting['format']);
+			$lines[] = $outputlangs->transnoentities('VereineMeetingMailAccess', $meeting['access']);
+		}
+		$lines[] = '';
+		$lines[] = $outputlangs->transnoentities('VereineMeetingMailAgenda');
+		foreach ($meeting['agenda'] as $index => $item) {
+			$lines[] = ($index + 1).'. '.$item;
+		}
+		$motions = VereineMeetingRules::motionsBy($meeting, $rules);
+		if ($motions !== '') {
+			$lines[] = '';
+			$lines[] = $outputlangs->transnoentities('VereineMeetingMailMotions', vereineMeetingDay($motions, $outputlangs));
+		}
+		if (!$recipient['voting']) {
+			$lines[] = '';
+			$lines[] = $outputlangs->transnoentities('VereineMeetingMailNotVoting');
+		}
+		$lines[] = '';
+		$lines[] = $outputlangs->transnoentities('VereineMeetingMailClosing');
+		$lines[] = $outputlangs->transnoentities('VereineMeetingMailSignature', trim((string) $mysoc->name));
+		return implode("\n", $lines);
+	}
+
+	/**
+	 * One PDF with a letter per recipient without e-mail.
+	 *
+	 * @param array<string,mixed>            $meeting     Meeting
+	 * @param array<int,array<string,mixed>> $letters     Recipients with their member under address
+	 * @param array<string,mixed>            $rules       Normalized rules of the statutes
+	 * @param Translate                      $outputlangs Language
+	 * @return string Path, empty on error
+	 */
+	private function buildLetters(array $meeting, array $letters, array $rules, $outputlangs)
+	{
+		global $mysoc;
+
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/pdf.lib.php';
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+
+		$file = self::lettersPath($meeting['id']);
+		if (dol_mkdir(dirname($file)) < 0) {
+			$this->error = 'cannot create '.dirname($file);
+			return '';
+		}
+		$pdf = pdf_getInstance();
+		$font = pdf_getPDFFont($outputlangs);
+		$pdf->setPrintHeader(false);
+		$pdf->setPrintFooter(false);
+		$pdf->SetMargins(20, 20, 20);
+		$pdf->SetAutoPageBreak(true, 20);
+		foreach ($letters as $letter) {
+			$pdf->AddPage();
+			$pdf->SetFont($font, 'B', 11);
+			$pdf->MultiCell(0, 5, trim((string) $mysoc->name), 0, 'L');
+			$pdf->SetFont($font, '', 10);
+			$pdf->MultiCell(0, 5, trim($mysoc->address."\n".trim($mysoc->zip.' '.$mysoc->town)), 0, 'L');
+			$pdf->Ln(10);
+			$member = $letter['address'];
+			$pdf->MultiCell(0, 5, trim($letter['name']."\n".(isset($member['address']) ? $member['address'] : '')."\n".trim((isset($member['zip']) ? $member['zip'] : '').' '.(isset($member['town']) ? $member['town'] : ''))), 0, 'L');
+			$pdf->Ln(8);
+			$pdf->MultiCell(0, 5, trim($mysoc->town.', '.dol_print_date(dol_now(), 'day', 'tzserver', $outputlangs), ', '), 0, 'R');
+			$pdf->Ln(4);
+			$pdf->SetFont($font, 'B', 11);
+			$pdf->MultiCell(0, 5, $outputlangs->transnoentities('VereineMeetingMailSubject', $meeting['title'], vereineMeetingDay($meeting['day'], $outputlangs).' '.$meeting['time']), 0, 'L');
+			$pdf->Ln(3);
+			$pdf->SetFont($font, '', 10);
+			$pdf->MultiCell(0, 5, $this->invitationText($meeting, $letter, $rules, $outputlangs), 0, 'L');
+		}
+		$pdf->Output($file, 'F');
+		if (!is_file($file)) {
+			$this->error = 'the PDF was not written';
+			return '';
+		}
+		dolChmod($file);
+		return $file;
+	}
+}
+
+/**
+ * A day in the words of a language, such as 17.09.2026.
+ *
+ * @param string    $day         Day YYYY-MM-DD
+ * @param Translate $outputlangs Language
+ * @return string
+ */
+function vereineMeetingDay($day, $outputlangs)
+{
+	return dol_print_date(dol_mktime(12, 0, 0, (int) substr($day, 5, 2), (int) substr($day, 8, 2), (int) substr($day, 0, 4)), 'day', 'tzserver', $outputlangs);
+}

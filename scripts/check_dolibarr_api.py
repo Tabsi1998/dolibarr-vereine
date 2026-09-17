@@ -338,6 +338,10 @@ CONTRACTS = (
     ("htdocs/core/modules/mailings/modules_mailings.php", "public function addTargetsToDatabase($mailing_id, $cibles)", "recipients are stored the way Dolibarr's own selectors store them"),
     ("htdocs/core/modules/mailings/modules_mailings.php", "$sql .= \" SET statut = 3\";", "unsubscribed addresses stay excluded"),
     ("htdocs/install/mysql/tables/llx_categorie_contact.sql", "fk_socpeople", "guardians are contacts in the guardian category"),
+    # Meetings and their invitations (issue #94)
+    ("htdocs/core/class/CMailFile.class.php", "public function __construct($subject, $to, $from, $msg, $filename_list = array(), $mimetype_list = array(), $mimefilename_list = array(), $addr_cc = \"\", $addr_bcc = \"\", $deliveryreceipt = 0, $msgishtml = 0, $errors_to = '', $css = '', $trackid = ''",
+     "invitations are sent through Dolibarr's own mail sending"),
+    ("htdocs/core/class/CMailFile.class.php", "public function sendfile()", "sending reports success or failure per invitation"),
     # Statutes as text and versions (issue #88)
     ("htdocs/core/lib/files.lib.php", "function dol_move_uploaded_file($src_file, $dest_file, $allowoverwrite, $disablevirusscan = 0, $uploaderrorcode = 0, $nohook = 0",
      "existing statutes are uploaded through Dolibarr's checks"),

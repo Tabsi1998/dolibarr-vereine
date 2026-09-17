@@ -57,6 +57,14 @@ if ($stage === 'base') {
 	rt_const($db, 'MAIN_INFO_SOCIETE_ZIP', '6020');
 	rt_const($db, 'MAIN_INFO_SOCIETE_TOWN', 'Innsbruck');
 	rt_const($db, 'MAIN_INFO_SOCIETE_MAIL', 'office@runtime-verein.test');
+	// Outgoing mail goes to the Mailpit container of the stack.
+	rt_const($db, 'MAIN_MAIL_EMAIL_FROM', 'robot@runtime-verein.test');
+	rt_const($db, 'MAIN_MAIL_SENDMODE', 'smtps');
+	rt_const($db, 'MAIN_MAIL_SMTP_SERVER', 'mail');
+	rt_const($db, 'MAIN_MAIL_SMTP_PORT', '1025');
+	rt_const($db, 'MAIN_MAIL_EMAIL_TLS', '0');
+	rt_const($db, 'MAIN_MAIL_EMAIL_STARTTLS', '0');
+	rt_const($db, 'MAIN_DISABLE_ALL_MAILS', '0');
 
 	foreach (array('modAdherent', 'modApi') as $module) {
 		$result = activateModule($module);

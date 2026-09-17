@@ -78,9 +78,9 @@ CODESTYLE_PHP = "8.2"
 # release, and the host port of its web server. dolibarr-mahnwesen uses the
 # same images, so a machine keeps one copy of each.
 RUNTIME_IMAGES = {
-    "22.0": ("dolibarr/dolibarr:22.0.5", 18042),
-    "23.0": ("dolibarr/dolibarr:23.0.4", 18043),
-    "24.0": ("local-ci/dolibarr:24.0.1", 18044),
+    "22.0": ("dolibarr/dolibarr:22.0.5", 18042, 18142),
+    "23.0": ("dolibarr/dolibarr:23.0.4", 18043, 18143),
+    "24.0": ("local-ci/dolibarr:24.0.1", 18044, 18144),
 }
 # Releases without a usable official image, built from Dolibarr's own docker
 # repository at a pinned commit. The official 24.0.0 image ends every cron run
@@ -90,6 +90,8 @@ RUNTIME_BUILDS = {
                                 "#ec6b10487e52244b64142b6d8806eb26409ac406:images/24.0.1-php8.2",
 }
 MARIADB_IMAGE = "mariadb:11.4.13"
+# Catches the e-mails of the runtime tests, such as invitations to meetings.
+MAILPIT_IMAGE = "axllent/mailpit:v1.31.1"
 RUNTIME_TESTS = ROOT / "tests" / "runtime"
 
 SNAPSHOT = STATE / "snapshot"
@@ -1090,7 +1092,7 @@ def runtime_name(version: str, part: str) -> str:
 
 
 def start_runtime_stack(context: Context, version: str):
-    """One Dolibarr with MariaDB, nothing of the module inside yet, base fixtures loaded.
+    """One Dolibarr with MariaDB and Mailpit, nothing of the module inside yet, base fixtures loaded.
 
     The module arrives the way a user installs it: the package is uploaded
     through "Deploy an external module" by the first scenario. Databases and
@@ -1100,7 +1102,7 @@ def start_runtime_stack(context: Context, version: str):
     import secrets
     scenarios = runtime_module()
     binary = docker(context)
-    image, web_port = RUNTIME_IMAGES[version]
+    image, web_port, mail_port = RUNTIME_IMAGES[version]
     if image in RUNTIME_BUILDS and context.run(binary, "image", "inspect", image, check=False,
                                                timeout=60).returncode != 0:
         built = context.run(binary, "build", "--tag", image, RUNTIME_BUILDS[image], check=False, timeout=2400)
@@ -1108,14 +1110,16 @@ def start_runtime_stack(context: Context, version: str):
         if built.returncode != 0:
             raise StepFailed(f"building {image} failed:\n" + tail(built))
     network = runtime_name(version, "net")
-    names = {part: runtime_name(version, part) for part in ("db", "web")}
+    names = {part: runtime_name(version, part) for part in ("db", "mail", "web")}
     for name in names.values():
         context.run(binary, "rm", "--force", "--volumes", name, check=False, timeout=120)
     context.run(binary, "network", "rm", network, check=False, timeout=60)
-    if port_open(web_port):
-        raise StepSkipped(f"port {web_port} is taken by something else; stop it and run again")
+    for port in (web_port, mail_port):
+        if port_open(port):
+            raise StepSkipped(f"port {port} is taken by something else; stop it and run again")
     stack = scenarios.Stack(
-        version=version, image=image, web=names["web"], db=names["db"], web_port=web_port,
+        version=version, image=image, web=names["web"], db=names["db"], mail=names["mail"],
+        web_port=web_port, mail_port=mail_port,
         admin_password=secrets.token_urlsafe(18), reader_password=secrets.token_urlsafe(18),
         nobody_password=secrets.token_urlsafe(18), reader_key=secrets.token_hex(20),
         nobody_key=secrets.token_hex(20), db_password=secrets.token_urlsafe(18),
@@ -1123,12 +1127,15 @@ def start_runtime_stack(context: Context, version: str):
         previous_package=context.cache.get("previous_package"))
     context.cache.setdefault("runtime-networks", []).append(network)
     context.run(binary, "network", "create", network, timeout=60)
-    context.cache.setdefault("runtime-containers", []).extend([names["db"], names["web"]])
+    context.cache.setdefault("runtime-containers", []).extend([names["db"], names["mail"], names["web"]])
     context.run(binary, "run", "--detach", "--name", names["db"], "--network", network,
                 "--network-alias", "db", "--tmpfs", "/var/lib/mysql",
                 "--env", f"MARIADB_ROOT_PASSWORD={stack.db_password}", "--env", "MARIADB_DATABASE=dolibarr",
                 "--env", "MARIADB_USER=dolibarr", "--env", f"MARIADB_PASSWORD={stack.db_password}",
                 MARIADB_IMAGE, timeout=900)
+    context.run(binary, "run", "--detach", "--name", names["mail"], "--network", network,
+                "--network-alias", "mail", "--publish", f"127.0.0.1:{mail_port}:8025", MAILPIT_IMAGE,
+                timeout=900)
     context.run(binary, "run", "--detach", "--name", names["web"], "--network", network,
                 "--publish", f"127.0.0.1:{web_port}:80", "--tmpfs", "/var/www/documents",
                 # The image ships custom/ read-only. An administrator who deploys
@@ -1148,7 +1155,8 @@ def start_runtime_stack(context: Context, version: str):
     # Throwaway accounts of throwaway containers, for --keep-services. The
     # folder is ignored by Git.
     access = STATE / f"runtime-{version}-access.json"
-    access.write_text(json.dumps({"url": stack.url, "admin": stack.admin_password, "rtreader": stack.reader_password,
+    access.write_text(json.dumps({"url": stack.url, "mailpit": f"http://127.0.0.1:{mail_port}",
+                                  "admin": stack.admin_password, "rtreader": stack.reader_password,
                                   "rtnobody": stack.nobody_password, "rtreader_api_key": stack.reader_key},
                                  indent=2), encoding="utf-8")
     return stack

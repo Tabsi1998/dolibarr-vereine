@@ -59,6 +59,9 @@ class VereineLog
 	const AUTHORITY_LETTER_FILED = 'authority_letter_filed';
 	const STATUTE_TEXT = 'statute_text';
 	const STATUTE_VERSION = 'statute_version';
+	const MEETING_CREATED = 'meeting_created';
+	const MEETING_INVITED = 'meeting_invited';
+	const MEETING_STATUS = 'meeting_status';
 
 	/**
 	 * Append one entry.

@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from dolibarr_http import Browser, Page, token_of
+from dolibarr_http import Browser, Mailpit, Page, token_of
 from openapi import OpenApi
 
 MODULE_DIR = "/var/www/html/custom/vereine"
@@ -55,7 +55,9 @@ class Stack:
     image: str
     web: str
     db: str
+    mail: str
     web_port: int
+    mail_port: int
     admin_password: str
     reader_password: str
     nobody_password: str
@@ -73,6 +75,9 @@ class Stack:
     @property
     def url(self) -> str:
         return f"http://127.0.0.1:{self.web_port}"
+
+    def mailpit(self) -> Mailpit:
+        return Mailpit(f"http://127.0.0.1:{self.mail_port}")
 
     @property
     def module_version(self) -> str:
@@ -326,6 +331,7 @@ def enable(stack: Stack) -> str:
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_authority", "/vereine/authority.php"],
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
+                    ["members", "vereine_meetings", "/vereine/meetings.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"]],
            f"menu entries after enabling: {menu}")
     expect(stack.sql("SHOW TABLES LIKE 'llx_vereine_log'") == [["llx_vereine_log"]], "the log table was not created")
@@ -340,7 +346,7 @@ def enable(stack: Stack) -> str:
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
     return (f"module {stack.module_version} on with Members, third parties and categories; profile AT; "
-            "4 rights, 6 menu entries, log table, 3 categories")
+            "4 rights, 7 menu entries, log table, 3 categories")
 
 
 def pages(stack: Stack) -> str:
@@ -2323,6 +2329,94 @@ def statutechange(stack: Stack) -> str:
             "version 3 stored with notice to the authority and in force")
 
 
+def meetings(stack: Stack) -> str:
+    """Meetings: a board meeting reaches exactly the board, a general assembly every active member by e-mail or letter, with deadline and proof."""
+    today = datetime.date.fromisoformat(stack.notes["website"]["dates"]["today"])
+    browser = stack.browser()
+    base = "/custom/vereine/meetings.php"
+    mailpit = stack.mailpit()
+    count = "SELECT COUNT(*) FROM llx_vereine_meeting"
+
+    def create(fields: dict) -> Page:
+        return page_ok(browser.submit(page_ok(browser.get(base), "meetings").form(name="vereinemeeting"), fields), f"create meeting {fields}")
+
+    def received() -> dict:
+        found = {}
+        for message in mailpit.messages():
+            for to in message.get("To") or []:
+                found[to["Address"].lower()] = message["ID"]
+        return found
+
+    board_day = (today + datetime.timedelta(days=3)).isoformat()
+    board = {"kind": "board", "title": "Vorstandssitzung Herbst", "day": board_day, "time": "19:00", "format": "physical", "place": "Vereinsheim"}
+    refused = create({**board, "agenda": ""})
+    expect("Tagesordnung eintragen" in html.unescape(refused.text) and stack.value(count) == "0", "a meeting without agenda was stored")
+    card = create({**board, "agenda": "Begrüßung\nBericht Kassier"})
+    board_id = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting")
+    expected = {int(row[0]) for row in stack.sql(
+        "SELECT DISTINCT t.fk_adherent FROM llx_vereine_function_term as t INNER JOIN llx_vereine_function as f ON f.rowid = t.fk_function AND f.board = 1 AND f.active = 1 "
+        f"INNER JOIN llx_adherent as d ON d.rowid = t.fk_adherent AND d.statut = 1 WHERE t.date_start <= '{board_day}' AND (t.date_end IS NULL OR t.date_end >= '{board_day}')")}
+    recipients = {int(member) for member in re.findall(r'data-recipient="(\d+)"', card.text)}
+    expect(recipients and recipients == expected, f"board meeting recipients {sorted(recipients)}, board on the day {sorted(expected)}")
+    refused = page_ok(browser.submit(card.form(name="vereinemeetinginvite"), {}, drop=("checked",)), "invite without checking the recipients")
+    expect("Empfänger geprüft" in html.unescape(refused.text) and stack.value(f"SELECT status FROM llx_vereine_meeting WHERE rowid = {board_id}") == "planned",
+           "the board was invited without the recipients checked")
+    mailpit.clear()
+    page_ok(browser.submit(page_ok(browser.get(f"{base}?id={board_id}"), "board meeting").form(name="vereinemeetinginvite"), {"checked": "1"}), "invite the board")
+    ids = ", ".join(str(member) for member in expected)
+    board_mails = {row[0].lower() for row in stack.sql(f"SELECT email FROM llx_adherent WHERE rowid IN ({ids}) AND email <> ''")}
+    others = {row[0].lower() for row in stack.sql(f"SELECT email FROM llx_adherent WHERE rowid NOT IN ({ids}) AND email <> ''")}
+    got = set(received())
+    expect(got == board_mails and not got & others, f"board invitation reached {sorted(got)}, board addresses {sorted(board_mails)}")
+    proof = stack.sql(f"SELECT fk_adherent, sent_at IS NOT NULL FROM llx_vereine_meeting_invitation WHERE fk_meeting = {board_id}")
+    expect({int(row[0]) for row in proof} == expected and all(row[1] == "1" for row in proof)
+           and stack.value(f"SELECT status FROM llx_vereine_meeting WHERE rowid = {board_id}") == "invited", f"proof of the board invitation: {proof}")
+
+    general_day = (today + datetime.timedelta(days=7)).isoformat()
+    general = {"kind": "general", "title": "Generalversammlung Runtime", "day": general_day, "time": "18:30", "place": "Vereinsheim",
+               "access": "Link im Mitgliederbereich", "agenda": "Begrüßung und Beschlussfähigkeit\nBericht des Vorstands\nWahlen\nAllfälliges"}
+    refused = create({**general, "format": "physical"})
+    expect("erlauben die Statuten" in html.unescape(refused.text), "a general assembly in person was stored although the statutes say hybrid")
+    card = create({**general, "format": "hybrid"})
+    general_id = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting")
+    expect('data-late="1"' in card.text, "an invitation seven days before a general assembly with 14 days in the statutes is not marked late")
+    without = stack.value("SELECT d.rowid FROM llx_adherent as d WHERE d.statut = 1 AND d.email <> '' AND d.lastname REGEXP '^[A-Za-z]+$' "
+                          f"AND d.rowid NOT IN ({ids}) ORDER BY d.rowid LIMIT 1")
+    lastname = stack.value(f"SELECT lastname FROM llx_adherent WHERE rowid = {int(without)}")
+    stack.sql(f"UPDATE llx_adherent SET email = '' WHERE rowid = {int(without)}")
+    card = page_ok(browser.get(f"{base}?id={general_id}"), "general assembly")
+    active = {int(row[0]) for row in stack.sql("SELECT rowid FROM llx_adherent WHERE statut = 1")}
+    rows = re.findall(r'data-recipient="(\d+)" data-channel="([a-z]+)" data-voting="(\d)"', card.text)
+    expect({int(row[0]) for row in rows} == active and (str(without), "letter") in {(row[0], row[1]) for row in rows},
+           f"general assembly recipients {rows}, active members {sorted(active)}")
+    mailpit.clear()
+    page_ok(browser.submit(card.form(name="vereinemeetinginvite"), {"checked": "1"}), "invite the general assembly")
+    mails = received()
+    expected_mails = {row[0].lower() for row in stack.sql("SELECT email FROM llx_adherent WHERE statut = 1 AND email <> ''")}
+    expect(set(mails) == expected_mails, f"general assembly invitation reached {sorted(mails)}, active addresses {sorted(expected_mails)}")
+    # Members of one family may share an address: every member gets an invitation of their own.
+    emailed = [row for row in rows if row[1] == "email"]
+    # Plain text e-mails wrap long lines, so words are compared with single spaces.
+    texts = [" ".join((mailpit.message(message["ID"]).get("Text") or "").split()) for message in mailpit.messages()]
+    notes = sum(1 for text in texts if "nicht stimmberechtigt" in text)
+    not_voting = sum(1 for row in emailed if row[2] == "0")
+    expect(len(texts) == len(emailed) and notes == not_voting and all("Wahlen" in text and "Anträge" in text for text in texts),
+           f"{len(texts)} e-mails for {len(emailed)} members by e-mail, {notes} notes for {not_voting} members without vote, or agenda and motions missing")
+    expect(lastname in pdf_text(stack, "vereine/meetings"), f"the letters PDF lacks the member without e-mail ({lastname})")
+    expect(stack.value("SELECT COUNT(*) FROM llx_actioncomm WHERE label = 'Generalversammlung Runtime'") == "1", "the general assembly is not in the agenda")
+    page_ok(browser.submit(page_ok(browser.get(f"{base}?id={general_id}"), "general assembly").form(name="vereinemeetingheld")), "note the general assembly as held")
+    expect(stack.value(f"SELECT status FROM llx_vereine_meeting WHERE rowid = {general_id}") == "held", "the general assembly is not marked held")
+
+    reader_page = stack.browser("rtreader").get(base)
+    expect(denied(reader_page) or ('name="vereinemeeting"' not in reader_page.text and 'name="vereinemeetinginvite"' not in reader_page.text),
+           "a user without the right to change members is offered a new meeting or an invitation")
+    logged = dict(stack.sql("SELECT action, COUNT(*) FROM llx_vereine_log WHERE action LIKE 'meeting%' GROUP BY action"))
+    expect(logged == {"meeting_created": "2", "meeting_invited": "2", "meeting_status": "1"}, f"meeting log: {logged}")
+    return (f"no agenda refused; board meeting: {len(expected)} board members only, not without checking, e-mails exactly to the board, proof; general assembly "
+            "in person refused (statutes hybrid), late invitation marked, every active member invited, member without e-mail in the letters PDF, "
+            "note for members without vote, agenda event, held; reader cannot create; log")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -2412,7 +2506,8 @@ SCENARIOS = (
     ("letters", "Letters to the association authority: responsible authority, notices with deadline, filed", letters, ("statutes",)),
     ("statutetext", "Statutes as text: fields, check, preview, uploaded and generated versions", statutetext, ("letters",)),
     ("statutechange", "Change of the statutes: comparison, PDF, new version with notice to the authority", statutechange, ("statutetext",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("statutechange",)),
+    ("meetings", "Meetings: exactly the board or every member invited by e-mail or letter, with deadline and proof", meetings, ("statutechange",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("meetings",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 
