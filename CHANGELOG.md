@@ -7,6 +7,10 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.5.9-beta] - 2026-09-17
+
+Unterschriften und das Protokoll als PDF (#119, #21).
+
 ### Neu
 
 - **Protokoll als PDF** (#21): Eine Sitzung bekommt *Vorsitz* und
@@ -34,6 +38,12 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   und einem ehrlichen Hinweis zur Rechtswirkung.
 - Angewandt auf die **Schreiben an die Vereinsbehörde**: Ein geschriebenes
   Schreiben startet seinen Unterschriftslauf, die Liste zeigt den Stand.
+
+### Update
+
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das
+legt die Tabellen der Unterschriften und der Protokoll-Fassungen an und ergänzt
+an der Sitzung, wer den Vorsitz hatte und wer das Protokoll geführt hat.
 
 ## [0.5.8-beta] - 2026-09-17
 
@@ -1064,7 +1074,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.8-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.9-beta...HEAD
+[0.5.9-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.9-beta
 [0.5.8-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.8-beta
 [0.5.7-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.7-beta
 [0.5.6-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.6-beta
