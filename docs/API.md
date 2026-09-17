@@ -141,6 +141,27 @@ profile; lines without profile are reported in `unassigned` and not counted.
 | `status` | `ok` below 80 %, `near` up to the limit, `tolerance` above within the tolerance, `exceeded` |
 | `previous_exceeded` | `small_business` only: the year before was above the limit, so the exemption does not apply |
 
+`cash_register` tells per sphere whether a cash register is needed:
+
+```json
+"cash_register": {
+  "turnover_limit": 15000,
+  "cash_limit": 7500,
+  "small_canteen_limit": 45000,
+  "small_canteen_days": 52,
+  "spheres": [
+    { "sphere": "harmful", "turnover": 60000, "cash": 14888.34, "status": "required" }
+  ],
+  "unassigned_cash": 148.88
+}
+```
+
+`status` is `not_relevant` (idealistic sphere, asset management), `exempt`
+(indispensable auxiliary business), `exempt_festival` (small association
+festival within 72 hours a year), `ok`, `near` (both from 80 %) or `required`.
+Turnover counts gross; cash counts payments of the year in cash, by card,
+cheque or online, shared out over the spheres of the paid invoice.
+
 Answers 400 for a year before 2000 or after 2100.
 
 ## Example

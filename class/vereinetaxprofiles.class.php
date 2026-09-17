@@ -205,6 +205,52 @@ class VereineTaxProfiles
 	}
 
 	/**
+	 * Whether Dolibarr's VAT dictionary has an active rate for Austria.
+	 *
+	 * @param float $rate Rate in percent
+	 * @return bool
+	 */
+	public function austrianRateExists($rate)
+	{
+		$sql = "SELECT COUNT(*) FROM ".MAIN_DB_PREFIX."c_tva as t INNER JOIN ".MAIN_DB_PREFIX."c_country as c ON c.rowid = t.fk_pays";
+		$sql .= " WHERE c.code = 'AT' AND t.taux = ".((float) $rate)." AND t.active = 1 AND t.entity IN (".getEntity('c_tva').")";
+		return (int) $this->value($sql) > 0;
+	}
+
+	/**
+	 * Add the reduced rate of 13 % (§ 10 (3) UStG) to Dolibarr's VAT dictionary for Austria.
+	 *
+	 * Dolibarr 22 to 24 ship 0, 10 and 20 % only. A switched-off entry is switched on again.
+	 *
+	 * @return int 1 when added or switched on, 0 when it was there already, <0 on error
+	 */
+	public function addAustrianRate13()
+	{
+		global $conf;
+
+		if ($this->austrianRateExists(13)) {
+			return 0;
+		}
+		$countryId = (int) $this->value("SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+		if ($countryId <= 0) {
+			$this->error = 'Country AT not found';
+			return -1;
+		}
+		$where = " WHERE entity = ".((int) $conf->entity)." AND fk_pays = ".$countryId." AND code = '' AND taux = 13 AND recuperableonly = 0";
+		if ((int) $this->value("SELECT COUNT(*) FROM ".MAIN_DB_PREFIX."c_tva".$where) > 0) {
+			$sql = "UPDATE ".MAIN_DB_PREFIX."c_tva SET active = 1".$where;
+		} else {
+			$sql = "INSERT INTO ".MAIN_DB_PREFIX."c_tva (entity, fk_pays, code, taux, localtax1, localtax1_type, localtax2, localtax2_type, recuperableonly, note, active)";
+			$sql .= " VALUES (".((int) $conf->entity).", ".$countryId.", '', 13, '0', '0', '0', '0', 0, 'VAT rate - reduced 13 % (added by Vereine)', 1)";
+		}
+		if (!$this->db->query($sql)) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		return 1;
+	}
+
+	/**
 	 * Whether a code is taken in the current entity.
 	 *
 	 * @param string $code      Profile code

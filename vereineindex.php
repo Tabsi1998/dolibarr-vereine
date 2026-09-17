@@ -195,7 +195,7 @@ if (isModEnabled('invoice') && $user->hasRight('facture', 'lire')) {
 		print '<td class="right nowraponall tdtop">'.$row['amount'].'</td><td class="right nowraponall tdtop">'.$row['limit'].'</td>';
 		print '<td class="center nowraponall tdtop">'.$row['badge'].'</td></tr>';
 	}
-	foreach (array(VereineThresholds::CASH_REGISTER, VereineThresholds::FESTIVAL_HOURS) as $code) {
+	foreach (array(VereineThresholds::FESTIVAL_HOURS) as $code) {
 		print '<tr class="oddeven" data-threshold="'.$code.'" data-status="unchecked"><td>'.$langs->trans('VereineThreshold_'.$code);
 		print '<br><span class="small opacitymedium">'.$langs->trans('VereineThresholdHelp_'.$code).'</span></td><td></td><td></td>';
 		print '<td class="center nowraponall tdtop"><span class="opacitymedium small">'.$langs->trans('VereineThresholdNotChecked').'</span></td></tr>';
@@ -206,6 +206,22 @@ if (isModEnabled('invoice') && $user->hasRight('facture', 'lire')) {
 		print $langs->trans('VereineThresholdUnassigned', price($report['unassigned']['gross'], 0, $langs, 1, -1, 2), (int) $report['unassigned']['lines']).'</div>';
 	}
 	print '<div class="opacitymedium small">'.$langs->trans('VereineThresholdsHow').'</div><br>';
+
+	// Cash register duty per sphere, from the same invoices and their cash payments.
+	print load_fiche_titre($langs->trans('VereineCashTitle', $year), '', '');
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-cash-register="'.$year.'">';
+	print '<tr class="liste_titre"><th>'.$langs->trans('VereineTaxSphere').'</th><th class="center">'.$langs->trans('Status').'</th></tr>';
+	$cashRows = vereineCashRegisterRows($report['cash_register']);
+	foreach ($cashRows as $row) {
+		print '<tr class="oddeven" data-cash-sphere="'.$row['sphere'].'" data-status="'.$row['status'].'">';
+		print '<td>'.$row['label'].'<br><span class="small">'.$row['text'].'</span></td>';
+		print '<td class="center nowraponall tdtop">'.$row['badge'].'</td></tr>';
+	}
+	if (!$cashRows) {
+		print '<tr class="oddeven"><td colspan="2"><span class="opacitymedium">'.$langs->trans('VereineCashNothing').'</span></td></tr>';
+	}
+	print '</table></div>';
+	print '<div class="opacitymedium small">'.$langs->trans('VereineCashNote').'</div><br>';
 }
 
 print '<div class="opacitymedium small">'.$langs->trans('VereineNoTaxAdvice').'</div>';

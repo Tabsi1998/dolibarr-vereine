@@ -126,6 +126,17 @@ if ($action === 'save') {
 	}
 	header('Location: '.$_SERVER['PHP_SELF']);
 	exit;
+} elseif ($action === 'addvat13') {
+	$result = $profiles->addAustrianRate13();
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineVat13Added'), null, 'mesgs');
+	} elseif ($result === 0) {
+		setEventMessages($langs->trans('VereineVat13Present'), null, 'mesgs');
+	} else {
+		setEventMessages($profiles->error, null, 'errors');
+	}
+	header('Location: '.$_SERVER['PHP_SELF']);
+	exit;
 } elseif ($action === 'pdfsettings') {
 	dolibarr_set_const($db, 'VEREINE_PDF_TAX_NOTES', GETPOSTINT('VEREINE_PDF_TAX_NOTES') ? '1' : '0', 'chaine', 0, '', $conf->entity);
 	setEventMessages($langs->trans('SetupSaved'), null, 'mesgs');
@@ -173,6 +184,19 @@ foreach (array('VereineTaxHowTo1', 'VereineTaxHowTo2', 'VereineTaxHowTo3') as $s
 }
 print '</ol></div>';
 print info_admin($langs->trans('VereineTaxProfilesHonest'), 0, 0, '1', '');
+
+// Dolibarr ships 0, 10 and 20 % for Austria; 13 % is added on request.
+$vat13 = $profiles->austrianRateExists(13);
+print '<div data-vat13="'.($vat13 ? 'present' : 'missing').'">';
+if (!$vat13) {
+	print '<div class="warning">'.$langs->trans('VereineVat13Missing');
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereinevat13" class="inline-block">';
+	print '<input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="action" value="addvat13">';
+	print ' <input type="submit" class="button small" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineVat13Add')).'">';
+	print '</form></div>';
+}
+print '</div>';
 
 // Whether the invoice notes appear on invoice PDFs.
 print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereinetaxpdf">';
