@@ -44,6 +44,7 @@ require_once $root.'/class/vereinewebsiteevents.class.php';
 require_once $root.'/class/vereinefeerules.class.php';
 require_once $root.'/class/vereinefeediscounts.class.php';
 require_once $root.'/class/vereinefeefamilies.class.php';
+require_once $root.'/class/vereineexitrules.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -680,6 +681,30 @@ same('2026-01-01', VereineFeeFamilies::feeYear('2026-09-17', 0), 'without start 
 same('2026-09-01', VereineFeeFamilies::feeYear('2026-09-17', 9), 'a season starting in September');
 same('2025-09-01', VereineFeeFamilies::feeYear('2026-08-31', 9), 'the last day of the season belongs to the year before');
 
+// ------------------------------------------------------------------- exits
+
+$yearEnd = VereineExitRules::normalize(3, 'year_end', 1);
+same('2026-12-31', VereineExitRules::lastDay('2026-09-30', $yearEnd), 'notice on 30 September with 3 months ends on 31 December');
+same('2027-12-31', VereineExitRules::lastDay('2026-10-01', $yearEnd), 'notice on 1 October ends a year later');
+same('2026-12-31', VereineExitRules::lastDay('2026-06-15', $yearEnd), 'notice in June ends at the end of the year');
+$season = VereineExitRules::normalize(3, 'year_end', 9);
+same('2027-08-31', VereineExitRules::lastDay('2026-09-17', $season), 'a season from September ends on 31 August');
+same('2026-08-31', VereineExitRules::lastDay('2026-05-31', $season), 'notice on 31 May is just in time for the season');
+same('2027-08-31', VereineExitRules::lastDay('2026-06-01', $season), 'notice on 1 June is too late for the season');
+same('2026-02-28', VereineExitRules::lastDay('2026-01-31', VereineExitRules::normalize(1, 'month_end', 1)), 'one month from 31 January ends with February');
+same('2026-03-31', VereineExitRules::lastDay('2026-02-15', VereineExitRules::normalize(1, 'month_end', 1)), 'one month from mid-February ends with March');
+same('2026-09-30', VereineExitRules::lastDay('2026-09-17', VereineExitRules::normalize(0, 'quarter_end', 1)), 'without period at the end of the quarter');
+same('2026-11-30', VereineExitRules::lastDay('2026-09-17', VereineExitRules::normalize(1, 'quarter_end', 3)), 'quarters of a year from March end in November');
+same('2026-09-17', VereineExitRules::lastDay('2026-09-17', VereineExitRules::normalize(0, 'any_day', 1)), 'without rule the day of the notice');
+same(null, VereineExitRules::lastDay('gestern', $yearEnd), 'no last day without a day of notice');
+same(array('months' => 0, 'at' => 'any_day', 'start_month' => 1), VereineExitRules::normalize('', 'x', 13), 'an unusable rule is no rule');
+same(array('VereineExitErrorMonths', 'VereineExitErrorAt', 'VereineExitErrorStartMonth'), VereineExitRules::validate('25', 'soon', 0), 'months, kind and start month are checked');
+same(array(), VereineExitRules::validate('3', 'year_end', 9), 'a valid notice rule');
+same(array(true, true, false), array(VereineExitRules::isDue('2026-09-17', '2026-09-17'), VereineExitRules::isDue('2026-09-16', '2026-09-17'), VereineExitRules::isDue('2026-09-18', '2026-09-17')),
+	'an exit takes effect on its last day or later');
+same(array('excluded', 'resiliated', 'resiliated'), array(VereineExitRules::statusFor('exclusion'), VereineExitRules::statusFor('death'), VereineExitRules::statusFor('resignation')),
+	'only an exclusion excludes in Dolibarr');
+
 // ------------------------------------------------------------------- openapi
 
 // Every endpoint of the API class is in docs/openapi.json, and the description lists no other.
@@ -759,7 +784,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error'),
 	'VereineSetting_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT_NATURAL', 'VEREINE_PARTNER_TYPENT_LEGAL', 'VEREINE_CATEGORY_MEMBER', 'VEREINE_CATEGORY_FORMER', 'VEREINE_CATEGORY_GUARDIAN'),
 	'VereineSettingHelp_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT'),
 	'VereineSphere_' => array_keys(VereineTaxRules::spheres()),
@@ -777,6 +802,10 @@ $prefixes = array(
 	'VereineFeeRunStatus_' => array('ready', 'no_partner', 'no_payer', 'no_amount', 'no_start'),
 	'VereineFeeRunSkip_' => array('earlier_period', 'no_partner', 'no_payer', 'no_amount', 'no_start'),
 	'VereineFamilyMode_' => array('none', 'percent', 'cap'),
+	'VereineExitReason_' => VereineExitRules::REASONS,
+	'VereineExitAt_' => VereineExitRules::ATS,
+	'VereineExitRuleText_' => VereineExitRules::ATS,
+	'VereineExitPast_' => array('done', 'cancelled'),
 	'VereineInvoiceStatus_' => array('draft', 'open', 'overdue', 'paid', 'abandoned'),
 	'VereineFeeReasonProrated_' => array('month', 'quarter', 'half_year'),
 	'VereineFeeReasonFirstPartFull_' => array('month', 'quarter', 'half_year'),
@@ -788,6 +817,10 @@ foreach (array_keys($used) as $key) {
 		foreach ($prefixes[$key] as $ending) {
 			expect(isset($english[$key.$ending]), 'language key '.$key.$ending.' is used by the code but missing in en_US');
 		}
+		continue;
+	}
+	// Class names in the descriptor, such as the scheduled job's object, are no language keys.
+	if (is_file($root.'/class/'.strtolower($key).'.class.php')) {
 		continue;
 	}
 	if (in_array($key, array('ModuleVereineDesc', 'ModuleVereineDescLong'), true) || isset($english[$key])) {

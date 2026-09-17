@@ -237,6 +237,9 @@ foreach ($rows as $row) {
 				vereineFormatDay($family['year_start']), price($family['charged'], 0, $langs, 1, -1, -1, $conf->currency),
 				price($family['before'], 0, $langs, 1, -1, -1, $conf->currency)).'</span>';
 		}
+		if ($row['exit_last_day'] !== '') {
+			$notes[] = '<span data-exit-last-day="'.dol_escape_htmltag($row['exit_last_day']).'">'.$langs->trans('VereineExitFeeRunNote', vereineFormatDay($row['exit_last_day'])).'</span>';
+		}
 		if ($row['payer_name'] !== '') {
 			$notes[] = '<span data-payer="'.((int) $row['payer_socid']).'">'.$langs->trans('VereineFamilyInvoiceTo', dol_escape_htmltag($row['payer_name'])).'</span>';
 		}

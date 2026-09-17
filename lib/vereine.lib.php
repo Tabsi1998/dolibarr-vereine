@@ -71,6 +71,21 @@ function vereineDiscountValue(array $rule)
 }
 
 /**
+ * The notice rule of the statutes in plain words.
+ *
+ * @param array{months:int,at:string,start_month:int} $rule Rule of VereineExits::rule()
+ * @return string
+ */
+function vereineExitRuleText(array $rule)
+{
+	global $langs;
+
+	$months = array(1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April', 5 => 'May', 6 => 'June', 7 => 'July', 8 => 'August',
+		9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December');
+	return $langs->trans('VereineExitRuleText_'.$rule['at'], $rule['months'], $langs->trans($months[$rule['start_month']]));
+}
+
+/**
  * Why a fee has its amount, in plain words, or empty for a whole period.
  *
  * @param array<string,mixed> $fee Fee of VereineFeeRules::nextFee()

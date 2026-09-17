@@ -66,6 +66,7 @@ if (!$res) {
 require_once DOL_DOCUMENT_ROOT.'/core/lib/member.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
 require_once __DIR__.'/class/vereinepartnerservice.class.php';
+require_once __DIR__.'/class/vereineexits.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('companies', 'members', 'bills', 'categories', 'vereine@vereine'));
@@ -98,6 +99,10 @@ if ($socid > 0) {
 }
 $service = new VereinePartnerService($db);
 $canWrite = $user->hasRight('vereine', 'partner', 'write') && $user->hasRight('societe', 'creer');
+$exits = new VereineExits($db);
+$canExit = $user->hasRight('adherent', 'creer');
+$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
+$exitBack = $_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereineexit';
 
 
 /*
@@ -115,6 +120,35 @@ if ($action === 'apply' && $canWrite && $partner) {
 		setEventMessages($service->error, null, 'errors');
 	}
 	header('Location: '.$_SERVER['PHP_SELF'].'?id='.((int) $object->id));
+	exit;
+}
+if ($action === 'planexit' && $canExit) {
+	$result = $exits->plan($object, GETPOST('exit_reason', 'aZ09'), GETPOST('exit_notice_day', 'alpha'), GETPOST('exit_last_day', 'alpha'), GETPOST('exit_note', 'alphanohtml'), $user);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineExitSaved'), null, 'mesgs');
+	} elseif ($result < 0) {
+		setEventMessages($exits->error, null, 'errors');
+	} else {
+		setEventMessages(null, array_map(array($langs, 'trans'), $exits->errors), 'errors');
+	}
+	header('Location: '.$exitBack);
+	exit;
+}
+if (($action === 'cancelexit' || $action === 'carryoutexit') && $canExit) {
+	foreach ($exits->planned(array((int) $object->id)) as $exit) {
+		if ($exit['id'] !== GETPOSTINT('exit_id')) {
+			continue;
+		}
+		if ($action === 'cancelexit') {
+			$result = $exits->cancel($exit['id'], $user);
+		} else {
+			$result = VereineExitRules::isDue($exit['last_day'], $today) ? $exits->carryOut($exit, $user) : 0;
+		}
+		if ($result < 0) {
+			setEventMessages($exits->error, null, 'errors');
+		}
+	}
+	header('Location: '.$exitBack);
 	exit;
 }
 
@@ -189,6 +223,59 @@ if (!$partner) {
 	vereinePrintOpenInvoices($db, (int) $partner->id);
 	vereinePrintGuardians($db, (int) $partner->id);
 }
+
+// Exit: reason, notice and last day; Dolibarr's status changes on the last day.
+print load_fiche_titre($langs->trans('VereineExitTitle'), '', '', 0, 'vereineexit');
+$exitRule = $exits->rule();
+$planned = $exits->planned(array((int) $object->id));
+if ($planned) {
+	$exit = current($planned);
+	print '<div class="warning" data-exit="planned" data-last-day="'.dol_escape_htmltag($exit['last_day']).'">';
+	print $langs->trans('VereineExitPlannedNote', $langs->trans('VereineExitReason_'.$exit['reason']), vereineFormatDay($exit['last_day']));
+	if ($exit['note'] !== '') {
+		print '<br>'.dol_escape_htmltag($exit['note']);
+	}
+	print '</div>';
+	if (!isModEnabled('cron')) {
+		print info_admin($langs->trans('VereineExitCronOff'), 0, 0, '1', 'warning');
+	}
+	if ($canExit) {
+		foreach (VereineExitRules::isDue($exit['last_day'], $today) ? array('carryoutexit', 'cancelexit') : array('cancelexit') as $exitAction) {
+			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'" name="vereine'.$exitAction.'" class="inline-block">';
+			print '<input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="'.$exitAction.'">';
+			print '<input type="hidden" name="exit_id" value="'.((int) $exit['id']).'">';
+			print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv($exitAction === 'cancelexit' ? 'VereineExitCancel' : 'VereineExitCarryOut')).'"> ';
+			print '</form>';
+		}
+	}
+} elseif ((int) $object->statut === 1 && $canExit) {
+	print '<span class="opacitymedium" data-exit-rule="1">'.$langs->trans('VereineExitRuleToday', vereineExitRuleText($exitRule), vereineFormatDay((string) VereineExitRules::lastDay($today, $exitRule))).'</span>';
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'" name="vereineplanexit">';
+	print '<input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="action" value="planexit">';
+	$reasons = array();
+	foreach (VereineExitRules::REASONS as $reason) {
+		$reasons[$reason] = $langs->trans('VereineExitReason_'.$reason);
+	}
+	print '<table class="border centpercent">';
+	print '<tr><td class="titlefieldcreate"><label for="exit_reason">'.$langs->trans('VereineExitReason').'</label></td><td>'.Form::selectarray('exit_reason', $reasons, VereineExitRules::REASON_RESIGNATION, 0, 0, 0, '', 0, 0, 0, '', 'minwidth200').'</td></tr>';
+	print '<tr><td><label for="exit_notice_day">'.$langs->trans('VereineExitNoticeDay').'</label></td><td><input type="date" id="exit_notice_day" name="exit_notice_day" value="'.$today.'"></td></tr>';
+	print '<tr><td><label for="exit_last_day">'.$langs->trans('VereineExitLastDay').'</label></td><td><input type="date" id="exit_last_day" name="exit_last_day" value="'.$today.'">';
+	print ' <span class="opacitymedium small">'.$langs->trans('VereineExitLastDayHelp').'</span></td></tr>';
+	print '<tr><td><label for="exit_note">'.$langs->trans('VereineExitNote').'</label></td><td><input type="text" id="exit_note" name="exit_note" class="minwidth300" maxlength="255"></td></tr>';
+	print '</table>';
+	print '<div class="center"><input type="submit" class="button" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineExitPlan')).'"></div>';
+	print '</form>';
+} else {
+	print '<span class="opacitymedium" data-exit="none">'.$langs->trans((int) $object->statut === 1 ? 'VereineExitNoRight' : 'VereineExitNotActive').'</span>';
+}
+foreach ($exits->fetchAll(array((int) $object->id)) as $past) {
+	if ($past['status'] !== VereineExits::STATUS_PLANNED) {
+		print '<div class="opacitymedium small" data-exit="'.dol_escape_htmltag($past['status']).'">'.$langs->trans('VereineExitPast_'.$past['status'], $langs->trans('VereineExitReason_'.$past['reason']), vereineFormatDay($past['last_day'])).'</div>';
+	}
+}
+print '<br>';
 
 vereinePrintLog($db, (int) $object->id, $partner ? (int) $partner->id : 0);
 

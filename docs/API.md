@@ -260,6 +260,7 @@ A summary counts as changed - and its `updated_at` moves - when
   or abandoned;
 - a payment on such an invoice is added or changed;
 - the member's fee fields change: exemption, proof, payer (*Fees paid by*);
+- an exit is recorded, carried out or taken back;
 - a fee becomes due or an invoice overdue by the date alone: the summary changes
   at midnight (server time) of the day after the period or the due date.
 
@@ -297,6 +298,7 @@ in Dolibarr (the number in the address of the member card).
   "status": "active",
   "member_since": "2023-01-01",
   "paid_until": "2026-12-31",
+  "membership_ends": "",
   "currency": "EUR",
   "fee": {
     "required": true,
@@ -333,6 +335,7 @@ in Dolibarr (the number in the address of the member card).
 | `status` | `draft` (not yet validated), `active`, `terminated` (resiliated in Dolibarr), `excluded` |
 | `member_since` | Start of the first subscription period or the validation date, whichever is earlier; empty for drafts |
 | `paid_until` | End of the last paid subscription period, the whole day included: a period without fee invoice (recorded as paid on the member card) or with its fee invoice paid. Empty when the member never paid |
+| `membership_ends` | Last day of the membership after a recorded exit: a resignation with the notice period of the statutes, an exclusion, death or being struck off. `status` stays `active` until that day. Empty without exit or after an exit was taken back |
 | `fee.required` | Whether the member type needs a subscription |
 | `fee.status` | `paid` (a paid period covers today), `invoiced` (the period covering today has a fee invoice that is not paid yet, see `open_invoices`), `due` (never paid, or the last period has ended), `not_required` (member type without subscription), `inactive` (draft, terminated or excluded) |
 | `fee.next_due` | The day after `paid_until`; the validation date when the member never paid; empty for `not_required` and `inactive` |

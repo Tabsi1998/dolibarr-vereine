@@ -801,6 +801,38 @@ if ($stage === 'familychild') {
 	exit(0);
 }
 
+// Members of the member type with fee, validated today, for exits: Karl gives notice, Xaver is excluded, Lena's planned exit is due.
+if ($stage === 'exitmembers') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	$members = array();
+	foreach (array('karl' => 'Karl', 'xaver' => 'Xaver', 'lena' => 'Lena') as $key => $firstname) {
+		$member = new Adherent($db);
+		$member->typeid = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."adherent_type WHERE libelle = 'Beitragspflichtig'");
+		$member->morphy = 'phy';
+		$member->firstname = $firstname;
+		$member->lastname = 'Austritt';
+		$member->email = $key.'.austritt@runtime-verein.test';
+		$member->country_id = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+		$member->public = 0;
+		if ($member->create($admin) <= 0 || $member->validate($admin) <= 0) {
+			rt_fail('member '.$firstname.': '.$member->error.' '.implode(' | ', (array) $member->errors));
+		}
+		$members[$key] = (int) $member->id;
+	}
+	print json_encode(array('members' => $members))."\n";
+	exit(0);
+}
+
+// Dolibarr's scheduled job for exits, as the cron runner calls it.
+if ($stage === 'runexits') {
+	dol_include_once('/vereine/class/vereineexits.class.php');
+	$GLOBALS['user'] = $admin;
+	$exits = new VereineExits($db);
+	$result = $exits->runDue();
+	print json_encode(array('result' => (int) $result, 'output' => $exits->output))."\n";
+	exit(0);
+}
+
 // Pay what is left of an invoice by bank transfer, closing it as paid.
 if ($stage === 'payinvoice') {
 	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
@@ -913,7 +945,7 @@ if ($stage === 'reset') {
 		$extrafields = new ExtraFields($db);
 		$extrafields->delete($name, 'adherent');
 	}
-	foreach (array('vereine_log', 'vereine_taxprofile', 'vereine_fee_discount') as $table) {
+	foreach (array('vereine_log', 'vereine_taxprofile', 'vereine_fee_discount', 'vereine_member_exit') as $table) {
 		if (!$db->query("DROP TABLE IF EXISTS ".MAIN_DB_PREFIX.$table)) {
 			rt_fail('drop table '.$table.': '.$db->lasterror());
 		}
@@ -922,4 +954,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, resiliate, guardian or reset');

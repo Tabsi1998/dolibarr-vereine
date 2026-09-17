@@ -24,6 +24,7 @@
 require_once __DIR__.'/vereinemembersummary.class.php';
 require_once __DIR__.'/vereinefeediscountstore.class.php';
 require_once __DIR__.'/vereinefeefamilystore.class.php';
+require_once __DIR__.'/vereineexits.class.php';
 
 /**
  * Reads what a website may show about a member.
@@ -125,6 +126,14 @@ class VereineMemberReport
 		// A payer gets the fee invoices; paying the member's fee online would bypass them.
 		$familyStore = new VereineFeeFamilyStore($this->db);
 		$paidByOther = VereineFeeFamilies::paidByOther((int) $row->fk_soc, $familyStore->payerOfMember((int) $row->rowid));
+		$exitStore = new VereineExits($this->db);
+		$membershipEnds = '';
+		foreach ($exitStore->fetchAll(array((int) $row->rowid)) as $exit) {
+			if ($exit['status'] !== VereineExits::STATUS_CANCELLED) {
+				$membershipEnds = $exit['last_day'];
+				break;
+			}
+		}
 
 		return array(
 			'id' => (int) $row->rowid,
@@ -136,6 +145,7 @@ class VereineMemberReport
 			'status' => $status,
 			'member_since' => VereineMemberSummary::memberSince($status, VereineMemberSummary::dayOf($row->first_period), $validatedOn),
 			'paid_until' => $paidUntil,
+			'membership_ends' => $membershipEnds,
 			'currency' => (string) $conf->currency,
 			'fee' => array(
 				'required' => $required,
@@ -245,6 +255,9 @@ class VereineMemberReport
 		$sql .= " (SELECT MAX(f.tms)".$fees." INNER JOIN ".MAIN_DB_PREFIX."facture as f ON f.rowid = ee.fk_target WHERE s.fk_adherent = d.rowid) as fee_invoice_tms,";
 		$sql .= " (SELECT MAX(p.tms)".$fees." INNER JOIN ".MAIN_DB_PREFIX."paiement_facture as pf ON pf.fk_facture = ee.fk_target";
 		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."paiement as p ON p.rowid = pf.fk_paiement WHERE s.fk_adherent = d.rowid) as fee_payment_tms,";
+		// The exit table exists only after the module was enabled with 0.3.9.
+		$exitTable = (bool) $this->db->query("SELECT rowid FROM ".MAIN_DB_PREFIX."vereine_member_exit WHERE 1 = 0");
+		$sql .= $exitTable ? " (SELECT MAX(x.tms) FROM ".MAIN_DB_PREFIX."vereine_member_exit as x WHERE x.fk_adherent = d.rowid) as exit_tms," : " NULL as exit_tms,";
 		$sql .= " (SELECT MAX(f.date_lim_reglement) FROM ".MAIN_DB_PREFIX."facture as f WHERE f.fk_soc = d.fk_soc AND f.entity IN (".$entities.")";
 		$sql .= " AND ".$open." AND f.date_lim_reglement < '".$this->db->escape($today)."') as last_due";
 		$sql .= " FROM ".MAIN_DB_PREFIX."adherent as d";
@@ -269,7 +282,7 @@ class VereineMemberReport
 		$changes = array();
 		foreach ($rows as $obj) {
 			$moments = array();
-			foreach (array('tms', 'fields_tms', 'type_tms', 'subscription_tms', 'invoice_tms', 'payment_tms', 'fee_invoice_tms', 'fee_payment_tms') as $field) {
+			foreach (array('tms', 'fields_tms', 'type_tms', 'subscription_tms', 'invoice_tms', 'payment_tms', 'fee_invoice_tms', 'fee_payment_tms', 'exit_tms') as $field) {
 				$moments[] = $obj->$field ? (int) $this->db->jdate($obj->$field) - $offset : 0;
 			}
 			$days = VereineMemberSummary::changeDays(VereineMemberSummary::status($obj->statut), (int) $obj->subscription === 1,

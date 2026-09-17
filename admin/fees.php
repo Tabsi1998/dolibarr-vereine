@@ -65,6 +65,7 @@ require_once __DIR__.'/../lib/vereine.lib.php';
 require_once __DIR__.'/../class/vereinefeemodel.class.php';
 require_once __DIR__.'/../class/vereinefeediscountstore.class.php';
 require_once __DIR__.'/../class/vereinefeefamilystore.class.php';
+require_once __DIR__.'/../class/vereineexits.class.php';
 
 $langs->loadLangs(array('admin', 'members', 'vereine@vereine'));
 
@@ -85,6 +86,8 @@ $familyModes = array(
 	VereineFeeFamilies::MODE_CAP => $langs->trans('VereineFamilyMode_cap'),
 );
 $familyEdit = $familyStore->setting();
+$exits = new VereineExits($db);
+$exitEdit = $exits->rule();
 $modes = array(
 	VereineFeeDiscounts::MODE_PERCENT => $langs->trans('VereineDiscountMode_percent'),
 	VereineFeeDiscounts::MODE_AMOUNT => $langs->trans('VereineDiscountMode_amount'),
@@ -155,6 +158,19 @@ if ($action === 'savediscount') {
 		setEventMessages(null, array_map(array($langs, 'trans'), $familyStore->errors), 'errors');
 	}
 	$familyEdit = array('mode' => $familyMode, 'value' => $familyValue);
+} elseif ($action === 'saveexitrule') {
+	$exitEdit = array('months' => GETPOST('exit_months', 'alpha'), 'at' => GETPOST('exit_at', 'aZ09'), 'start_month' => GETPOSTINT('exit_start_month'));
+	$result = $exits->saveRule($exitEdit['months'], $exitEdit['at'], $exitEdit['start_month']);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineExitRuleSaved'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereineexitrule');
+		exit;
+	}
+	if ($result < 0) {
+		setEventMessages($exits->error, null, 'errors');
+	} else {
+		setEventMessages(null, array_map(array($langs, 'trans'), $exits->errors), 'errors');
+	}
 }
 
 $feeModel = new VereineFeeModel($db);
@@ -350,7 +366,34 @@ foreach ($families as $family) {
 	}
 	print implode(', ', $links).'</td></tr>';
 }
-print '</table></div>';
+print '</table></div><br>';
+
+// Exit: the notice period of the statutes.
+print load_fiche_titre($langs->trans('VereineExitRuleTitle'), '', '', 0, 'vereineexitrule');
+print '<div class="info" data-exit-howto="1"><ul>';
+foreach (array('VereineExitHowToRule', 'VereineExitHowToMember', 'VereineExitHowToCron', 'VereineExitHowToFees') as $line) {
+	print '<li>'.$langs->trans($line).'</li>';
+}
+print '</ul></div>';
+$atOptions = array();
+foreach (VereineExitRules::ATS as $at) {
+	$atOptions[$at] = $langs->trans('VereineExitAt_'.$at);
+}
+$monthOptions = array();
+foreach (VereineFeeModel::MONTHS as $number => $monthKey) {
+	$monthOptions[$number] = $langs->trans($monthKey);
+}
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereineexitrule">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="saveexitrule">';
+print '<table class="border centpercent">';
+print '<tr><td class="titlefieldcreate"><label for="exit_months">'.$langs->trans('VereineExitMonths').'</label></td>';
+print '<td><input type="number" min="0" max="'.VereineExitRules::MAX_MONTHS.'" id="exit_months" name="exit_months" class="width50" value="'.dol_escape_htmltag((string) $exitEdit['months']).'"></td></tr>';
+print '<tr><td><label for="exit_at">'.$langs->trans('VereineExitAt').'</label></td><td>'.Form::selectarray('exit_at', $atOptions, $exitEdit['at'], 0, 0, 0, '', 0, 0, 0, '', 'minwidth200').'</td></tr>';
+print '<tr><td><label for="exit_start_month">'.$langs->trans('VereineExitStartMonth').'</label></td><td>'.Form::selectarray('exit_start_month', $monthOptions, $exitEdit['start_month'], 0, 0, 0, '', 0, 0, 0, '', 'minwidth200').'</td></tr>';
+print '</table>';
+print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'"></div>';
+print '</form>';
 
 print dol_get_fiche_end();
 
