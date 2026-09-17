@@ -40,6 +40,9 @@ class VereineFunctionRules
 	/** Smallest number of persons on the board. */
 	const BOARD_MIN = 2;
 
+	/** Days to report a new representative: four weeks (§ 14 (2) VerG). */
+	const REPORT_DAYS = 28;
+
 	/**
 	 * Functions suggested for Austria: code, label, board, represents the association, auditor, min, max.
 	 *
@@ -167,6 +170,42 @@ class VereineFunctionRules
 			$problems[] = array('kind' => self::PROBLEM_AUDITOR_ON_BOARD, 'function_id' => 0, 'count' => count($both), 'members' => $both);
 		}
 		return array('holders' => $holders, 'problems' => $problems);
+	}
+
+	/**
+	 * Last day to report a new representative to the association authority: four weeks after the start (§ 14 (2) VerG).
+	 *
+	 * @param string $start First day of the term
+	 * @return string YYYY-MM-DD
+	 */
+	public static function reportDeadline($start)
+	{
+		list($year, $month, $day) = array_map('intval', explode('-', $start));
+		return gmdate('Y-m-d', gmmktime(12, 0, 0, $month, $day + self::REPORT_DAYS, $year));
+	}
+
+	/**
+	 * What a report to the association authority needs and a person lacks.
+	 *
+	 * @param array<string,mixed> $person Keys birth, birth_place, address, zip, town
+	 * @return string[] Missing: 'birth', 'birth_place', 'address'
+	 */
+	public static function missingForReport(array $person)
+	{
+		$missing = array();
+		if (!self::isDate(isset($person['birth']) ? $person['birth'] : '')) {
+			$missing[] = 'birth';
+		}
+		if (trim((string) (isset($person['birth_place']) ? $person['birth_place'] : '')) === '') {
+			$missing[] = 'birth_place';
+		}
+		foreach (array('address', 'zip', 'town') as $key) {
+			if (trim((string) (isset($person[$key]) ? $person[$key] : '')) === '') {
+				$missing[] = 'address';
+				break;
+			}
+		}
+		return $missing;
 	}
 
 	/**

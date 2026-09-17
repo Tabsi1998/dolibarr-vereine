@@ -82,7 +82,8 @@ Vereinswebsite mit.
   Website über die API als Mitglied im Entwurf.
 - **Vorstand und Funktionen** (0.4.0): Funktionskatalog mit Vorschlägen für
   Österreich, Funktionsperioden am Mitglied und eine Übersicht, was nicht zum
-  Vereinsgesetz passt.
+  Vereinsgesetz passt; neue Vertreter:innen bekommen eine Meldefrist, einen
+  Agenda-Termin und das Meldungsschreiben an die Vereinsbehörde als PDF (0.4.1).
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

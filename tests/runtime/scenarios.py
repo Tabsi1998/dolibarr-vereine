@@ -1887,6 +1887,64 @@ def functions(stack: Stack) -> str:
             "audit term ended today still counts today, tomorrow one auditor is missing; log")
 
 
+def authority(stack: Stack) -> str:
+    """New representatives get a report deadline of four weeks, a letter with every detail § 14 (2) VerG asks for, and a note once reported."""
+    site = stack.notes["website"]
+    today = site["dates"]["today"]
+    deadline = (datetime.date.fromisoformat(today) + datetime.timedelta(days=28)).isoformat()
+    yesterday = (datetime.date.fromisoformat(today) - datetime.timedelta(days=1)).isoformat()
+    members = site["members"]
+    karl = int(stack.value("SELECT rowid FROM llx_adherent WHERE firstname = 'Karl' AND lastname = 'Austritt'"))
+    browser = stack.browser()
+    stack.php_fixture("agenda")
+
+    def overview() -> Page:
+        return page_ok(browser.get(f"/custom/vereine/functions.php?day={today}"), "board, functions and reports")
+
+    page = overview()
+    reports = re.findall(r'data-report="(\d+)" data-deadline="([^"]+)" data-overdue="(\d)"', page.text)
+    expect(len(reports) == 2 and all(report[1] == deadline and report[2] == "0" for report in reports),
+           f"reports for the chair and the treasurer of the functions scenario: {reports}, expected deadline {deadline}")
+
+    deputy = stack.value("SELECT rowid FROM llx_vereine_function WHERE code = 'kassier_stv'")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={karl}"), "association tab of Karl")
+    page_ok(browser.submit(tab.form(name="vereineaddfunction"), {"function_id": deputy, "function_start": today, "function_end": "", "function_note": ""}),
+            "Karl becomes deputy treasurer")
+    events = stack.sql(f"SELECT label, DATE(datep), percent FROM llx_actioncomm WHERE elementtype = 'member' AND fk_element = {karl}")
+    expect(len(events) == 1 and "Vereinsbeh" in events[0][0] and events[0][1] == deadline and events[0][2] == "0",
+           f"agenda event for the new representative: {events}")
+
+    page = overview()
+    missing = sorted(int(value) for value in re.findall(r'data-missing="(\d+)"', page.text))
+    expect(missing == sorted([int(members["paid"]), int(members["expired"]), karl]), f"representatives with missing details: {missing}")
+    stack.sql(f"UPDATE llx_vereine_function_report as r INNER JOIN llx_vereine_function_term as t ON t.rowid = r.fk_term "
+              f"SET r.deadline = '{yesterday}' WHERE t.fk_adherent = {int(members['paid'])}")
+    page = overview()
+    expect(re.search(rf'data-deadline="{yesterday}" data-overdue="1"', page.text) is not None, "a report past its deadline is not marked overdue")
+
+    stack.php_fixture("reportpeople", RT_MEMBERS=f"{members['paid']},{members['expired']},{karl}")
+    page = overview()
+    expect("data-missing=" not in page.text, "details are still reported missing after completing them")
+    browser.post(f"/custom/vereine/functions.php?day={today}", [("token", token_of(page)), ("action", "reportpdf")])
+    text = pdf_text(stack, "vereine/authority")
+    for word in ("Bezahlt", "Abgelaufen", "Austritt", "Kassier", "Obmann", "Hall", "Tirol", "Musterweg", "6020", "123456789", "bestellt"):
+        expect(word in text, f"the report letter lacks {word!r}")
+
+    page = overview()
+    page_ok(browser.submit(page.form(name="vereinemarkreported"), {"reported_on": today}), "note the reports as reported")
+    open_reports = stack.value("SELECT COUNT(*) FROM llx_vereine_function_report WHERE reported_on IS NULL")
+    percent = stack.value(f"SELECT percent FROM llx_actioncomm WHERE elementtype = 'member' AND fk_element = {karl}")
+    expect(open_reports == "0" and percent == "100" and "data-report=" not in overview().text,
+           f"after noting as reported: {open_reports} open, agenda event at {percent} %")
+    browser.post(f"/custom/vereine/functions.php?day={today}", [("token", token_of(overview())), ("action", "reportpdf")])
+    expect("bestellt" not in pdf_text(stack, "vereine/authority"), "the letter still marks representatives as new after they were reported")
+    logged = stack.value("SELECT COUNT(*) FROM llx_vereine_log WHERE action = 'function_reported'")
+    expect(logged == "3", f"{logged} reports logged, expected 3")
+    return (f"chair and treasurer due on {deadline}; deputy treasurer with agenda event on the deadline; missing birth date, place of birth "
+            "and address reported, overdue marked; letter with names, functions, birth place, address, ZVR number and new ones marked; "
+            "noted as reported: no open report, agenda event done, letter without new marks")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -1968,7 +2026,8 @@ SCENARIOS = (
     ("sepa", "SEPA direct debit from the fee run: mandate check, one request, pre-notification", sepa, ("exits",)),
     ("applications", "Consent texts with versions and membership applications through the API", applications, ("sepa",)),
     ("functions", "Function catalogue, terms of office and what does not fit on a day", functions, ("applications",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("functions",)),
+    ("authority", "Report of new representatives to the association authority: deadline, agenda, letter, noted as reported", authority, ("functions",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("authority",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

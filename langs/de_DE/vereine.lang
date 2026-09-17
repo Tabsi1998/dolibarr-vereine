@@ -696,3 +696,38 @@ VereineFunctionNoteHelp=Notiz, zum Beispiel gewählt in der Versammlung vom ...
 VereineFunctionTermSaved=Funktionsperiode gespeichert.
 VereineLog_function_start=Funktion übernommen
 VereineLog_function_end=Funktion beendet
+VereineLog_function_reported=Funktion der Vereinsbehörde gemeldet
+VereineLog_function_report_pdf=Meldungsschreiben an die Vereinsbehörde erstellt
+
+#
+# Meldung an die Vereinsbehörde
+#
+VereineReportTitle=Meldung an die Vereinsbehörde
+VereineReportHowTo=Wer eine Funktion übernimmt, die den Verein vertritt, ist der Vereinsbehörde binnen vier Wochen zu melden: Funktion, Name, Geburtsdatum, Geburtsort, Zustellanschrift und Beginn (§ 14 Abs. 2 VerG). Das Meldungsschreiben listet alle Vertreter:innen am Stichtag, neue sind markiert. Nach dem Absenden „als gemeldet vermerken“. Mit Dolibarrs Agenda steht die Frist auch dort.
+VereineReportDeadline=Frist
+VereineReportOverdue=überfällig
+VereineReportNoneOpen=Keine offene Meldung.
+VereineReportMissingData=%s: für die Meldung fehlt %s. Am Mitglied ergänzen.
+VereineReportMissing_birth=Geburtsdatum
+VereineReportMissing_birth_place=Geburtsort
+VereineReportMissing_address=Zustellanschrift
+VereineReportPdf=Meldungsschreiben (PDF)
+VereineReportReportedOn=Gemeldet am
+VereineReportMark=Als gemeldet vermerken
+VereineReportMarked=%s Meldungen als gemeldet vermerkt.
+VereineReportErrorDay=Bitte den Tag der Meldung eintragen.
+VereineReportBirthPlace=Geburtsort
+VereineReportBirthPlaceHelp=Für die Meldung an die Vereinsbehörde, wenn das Mitglied den Verein vertritt.
+VereineReportAgendaLabel=Meldung an die Vereinsbehörde: %s %s
+VereineReportAgendaNote=Neue organschaftliche Vertretung binnen vier Wochen der Vereinsbehörde melden (§ 14 Abs. 2 VerG). Das Meldungsschreiben gibt es unter Mitglieder > Vorstand und Funktionen.
+VereineReportRegister=ZVR-Zahl: %s
+VereineReportTo=An die
+VereineReportAuthority=Vereinsbehörde
+VereineReportSubject=Bekanntgabe der organschaftlichen Vertreter gemäß § 14 Abs. 2 VerG
+VereineReportIntro=Der Verein gibt seine organschaftlichen Vertreter mit Stand %s bekannt:
+VereineReportNew=neu bestellt
+VereineReportName=Name
+VereineReportBirth=Geburtsdatum
+VereineReportAddress=Zustellanschrift
+VereineReportStart=Beginn der Vertretungsbefugnis
+VereineReportSignature=Für den Verein

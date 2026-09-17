@@ -41,7 +41,7 @@ legal source, not in code, so a changed threshold is a data update.
 | `class/vereinefeefamilies.class.php` | Payer, family rule (discount per further member, cap per fee year) and sharing a cap, plain PHP |
 | `class/vereinefeefamilystore.class.php` | Member field `vereine_fee_payer`, the family rule constants, families and what they were charged |
 | `class/vereinefunctionrules.class.php` | Suggested functions for Austria, holders on a day and problems: missing, too many, board of fewer than two, auditor on the board; plain PHP |
-| `class/vereinefunctions.class.php`, `admin/functions.php`, `functions.php` | Function catalogue (`llx_vereine_function`), terms of office (`llx_vereine_function_term`), setup tab and the overview *Board and functions* |
+| `class/vereinefunctions.class.php`, `admin/functions.php`, `functions.php` | Function catalogue (`llx_vereine_function`), terms of office (`llx_vereine_function_term`), reports to the association authority (`llx_vereine_function_report`, agenda event, letter as PDF in `documents/vereine/authority`, member field `vereine_birth_place`), setup tab and the overview *Board and functions* |
 | `class/vereineconsentrules.class.php` | Consent texts, current consent per purpose, checks of a membership application, plain PHP |
 | `class/vereineconsents.class.php`, `admin/consents.php` | Consent texts with versions (`llx_vereine_consent_text`), consents and withdrawals (`llx_vereine_consent`, append only), applications by external id (`llx_vereine_application`) |
 | `class/vereinesepa.class.php`, `class/vereinesepastore.class.php` | Mandate state and pre-notification (plain PHP); mandates and last collections from Dolibarr |

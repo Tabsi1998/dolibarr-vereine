@@ -763,6 +763,13 @@ same(array(array('missing', 3)), array_map(function ($problem) {
 	return array($problem['kind'], $problem['function_id']);
 }, $check['problems']), 'on 1 October: treasurer on board, the ended auditor term leaves one auditor');
 
+same(array('2026-10-15', '2027-01-28'), array(VereineFunctionRules::reportDeadline('2026-09-17'), VereineFunctionRules::reportDeadline('2026-12-31')),
+	'a new representative is reported within four weeks');
+same(array('birth', 'birth_place', 'address'), VereineFunctionRules::missingForReport(array('birth' => '', 'birth_place' => ' ', 'address' => 'Hauptplatz 1', 'zip' => '', 'town' => 'Innsbruck')),
+	'birth date, place of birth and a complete address are needed');
+same(array(), VereineFunctionRules::missingForReport(array('birth' => '1980-05-05', 'birth_place' => 'Innsbruck', 'address' => 'Hauptplatz 1', 'zip' => '6020', 'town' => 'Innsbruck')),
+	'nothing missing');
+
 // ---------------------------------------------------------------- consents
 
 same(array(true, false, false), array(VereineConsentRules::isCode('fotos_web'), VereineConsentRules::isCode('Fotos'), VereineConsentRules::isCode('1newsletter')), 'codes are lower case and start with a letter');
@@ -875,7 +882,8 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf'),
+	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
 	'VereineFunctionProblem_' => array('missing', 'too_many', 'board_too_small', 'auditor_on_board'),
 	'VereineConsentSource_' => VereineConsentRules::SOURCES,
 	'VereineConsentState_' => array('none', 'given', 'withdrawn'),

@@ -316,6 +316,13 @@ CONTRACTS = (
     ("htdocs/adherents/class/api_members.class.php", "public function post($request_data = null)", "a POST body reaches the method as request_data, as in Dolibarr's own API"),
     ("htdocs/adherents/class/adherent.class.php", "if (!getDolGlobalString('ADHERENT_LOGIN_NOT_REQUIRED')) {", "an application sets a login only when Dolibarr requires one"),
     ("htdocs/adherents/class/adherent.class.php", "$sql .= \" (ref, datec, login, fk_user_author, fk_user_mod, fk_user_valid, morphy, fk_adherent_type, entity, import_key, ip)\";", "a new member starts as draft"),
+    # Report to the association authority (issue #77)
+    ("htdocs/comm/action/class/actioncomm.class.php", "public function create(User $user, $notrigger = 0)", "agenda event on the report deadline"),
+    ("htdocs/comm/action/class/actioncomm.class.php", "public $elementtype;", "the event is linked to the member"),
+    ("htdocs/comm/action/class/actioncomm.class.php", "public $userownerid;", "the event belongs to the user who records the function"),
+    ("htdocs/core/lib/pdf.lib.php", "function pdf_getInstance($format = '', $metric = 'mm', $pagetype = 'P')", "the report letter as PDF"),
+    ("htdocs/core/lib/pdf.lib.php", "function pdf_getPDFFont($outputlangs)", "font of the report letter"),
+    ("htdocs/core/lib/functions.lib.php", "function dolChmod($filepath, $newmask = '')", "permissions of the stored report letter"),
 )
 
 LANG_KEYS = {
