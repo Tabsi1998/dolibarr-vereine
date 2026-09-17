@@ -7,6 +7,26 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.3.3-beta] - 2026-09-17
+
+Website API, part 4 of 4 (issues #52 and #16): notifications without personal
+data.
+
+### Added
+
+- New event `VEREINE_MEMBER_CHANGED` for Dolibarr's webhooks: when a member, a
+  subscription period, a customer invoice of the member's third party or a
+  payment on it changes, a webhook target receives the member id, the cause and
+  the moment - never birth date, address or notes, which Dolibarr's own member
+  webhooks would send and keep in their history.
+- One event per member per action; a webhook that fails never stops the change.
+- `docs/API.md` explains the setup in Dolibarr and on the website.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that lists the new event for webhook targets.
+
 ## [0.3.2-beta] - 2026-09-17
 
 Website API, part 3 (issue #51): a sync that reads only changed members.
@@ -357,7 +377,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.2-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.3-beta...HEAD
+[0.3.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.3-beta
 [0.3.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.2-beta
 [0.3.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.1-beta
 [0.3.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.0-beta

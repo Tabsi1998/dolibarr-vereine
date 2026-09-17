@@ -234,6 +234,28 @@ CONTRACTS = (
     ("htdocs/install/mysql/tables/llx_facture.sql", "timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP", "a new or changed invoice"),
     ("htdocs/install/mysql/tables/llx_paiement.sql", "timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP", "a new or changed payment"),
     ("htdocs/install/mysql/tables/llx_paiement_facture.sql", "fk_paiement", "payments of an invoice"),
+    # Slim webhook event for the website (issue #52)
+    ("htdocs/core/class/interfaces.class.php", "public function run_triggers($action, $object, $user, $langs, $conf)", "raising VEREINE_MEMBER_CHANGED"),
+    ("htdocs/core/triggers/interface_95_modWebhook_WebhookTriggers.class.php", "$actionarraytmp = explode(\",\", $tmpobject->trigger_codes);", "a webhook target chooses events by code"),
+    ("htdocs/core/triggers/interface_95_modWebhook_WebhookTriggers.class.php", "$sendmanualtriggers = (!empty($object->context['sendmanualtriggers'])", "the event object needs a context"),
+    ("htdocs/core/triggers/interface_95_modWebhook_WebhookTriggers.class.php", "global $dolibarr_allow_localurl_for_webhooks;", "runtime receiver in the same container"),
+    ("htdocs/webhook/class/target.class.php", "c_action_trigger as c ORDER BY c.rang ASC", "a webhook target offers the events listed in c_action_trigger"),
+    ("htdocs/webhook/class/target.class.php", "const STATUS_AUTOMATIC_TRIGGER = 1;", "runtime webhook target"),
+    ("htdocs/install/mysql/tables/llx_c_action_trigger.key.sql", "uk_action_trigger_code (code)", "the event is registered once"),
+    ("htdocs/adherents/class/adherent.class.php", "call_trigger('MEMBER_CREATE'", "a new member"),
+    ("htdocs/adherents/class/adherent.class.php", "call_trigger('MEMBER_MODIFY'", "a changed member"),
+    ("htdocs/adherents/class/subscription.class.php", "call_trigger('MEMBER_SUBSCRIPTION_CREATE'", "a new subscription period"),
+    ("htdocs/adherents/class/subscription.class.php", "call_trigger('MEMBER_SUBSCRIPTION_MODIFY'", "a changed subscription period"),
+    ("htdocs/adherents/class/subscription.class.php", "call_trigger('MEMBER_SUBSCRIPTION_DELETE'", "a deleted subscription period"),
+    ("htdocs/compta/facture/class/facture.class.php", "call_trigger('BILL_VALIDATE'", "a validated invoice"),
+    ("htdocs/compta/facture/class/facture.class.php", "call_trigger('BILL_UNVALIDATE'", "an invoice back to draft"),
+    ("htdocs/compta/facture/class/facture.class.php", "call_trigger('BILL_PAYED'", "a paid invoice"),
+    ("htdocs/compta/facture/class/facture.class.php", "call_trigger('BILL_UNPAYED'", "an invoice reopened"),
+    ("htdocs/compta/facture/class/facture.class.php", "call_trigger('BILL_CANCEL'", "an abandoned invoice"),
+    ("htdocs/compta/facture/class/facture.class.php", "call_trigger('BILL_DELETE'", "a deleted invoice"),
+    ("htdocs/compta/facture/class/facture.class.php", "call_trigger('BILL_MODIFY'", "a changed invoice"),
+    ("htdocs/compta/paiement/class/paiement.class.php", "call_trigger('PAYMENT_CUSTOMER_CREATE'", "a new payment"),
+    ("htdocs/compta/paiement/class/paiement.class.php", "call_trigger('PAYMENT_CUSTOMER_DELETE'", "a deleted payment, raised while it is still linked to its invoices"),
 )
 
 LANG_KEYS = {

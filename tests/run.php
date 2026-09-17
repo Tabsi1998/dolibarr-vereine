@@ -40,6 +40,7 @@ require_once $root.'/class/vereinetaxrules.class.php';
 require_once $root.'/class/vereinethresholds.class.php';
 require_once $root.'/class/vereinecashregister.class.php';
 require_once $root.'/class/vereinemembersummary.class.php';
+require_once $root.'/class/vereinewebsiteevents.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -500,6 +501,18 @@ same('', VereineMemberSummary::dayOf(null), 'no day for an empty value');
 same('', VereineMemberSummary::dayOf('0000-00-00 00:00:00'), 'no day for a zero date');
 same('2026-09-17', VereineMemberSummary::datePart('2026-09-17 21:30:00'), 'a validation in the evening keeps its day');
 same('', VereineMemberSummary::datePart(''), 'no validation date');
+
+// ----------------------------------------------------------- website events
+
+expect(VereineWebsiteEvents::handles('BILL_PAYED') && VereineWebsiteEvents::handles('MEMBER_SUBSCRIPTION_CREATE') && VereineWebsiteEvents::handles('PAYMENT_CUSTOMER_DELETE'),
+	'payments, subscription periods and invoices can change a member summary');
+expect(!VereineWebsiteEvents::handles('BILL_SUPPLIER_PAYED') && !VereineWebsiteEvents::handles('VEREINE_MEMBER_CHANGED') && !VereineWebsiteEvents::handles('BILL_CREATE'),
+	'supplier invoices, the module\'s own event and new drafts do not');
+same(array(12, 13), VereineWebsiteEvents::notYetAnnounced(array(12, 13, 12)), 'a member is announced once, even when the event names it twice');
+same(array(14), VereineWebsiteEvents::notYetAnnounced(array(13, 14, 0)), 'a member already announced in this request is left out');
+$eventVars = array_keys(get_object_vars(new VereineMemberEvent()));
+sort($eventVars);
+same(array('cause', 'context', 'element', 'id', 'member_id', 'occurred_at'), $eventVars, 'a webhook receives the member id, the cause and the moment, nothing personal');
 
 // ------------------------------------------------------------------- openapi
 

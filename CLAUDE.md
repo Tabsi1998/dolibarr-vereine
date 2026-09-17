@@ -178,6 +178,11 @@ raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
   The runtime runs PHP in Europe/Vienna and MariaDB in UTC, so `jdate(tms)`
   reads two hours early; `VereineMemberSummary::clockOffset()` corrects it by
   comparing `CURRENT_TIMESTAMP` with `dol_now()`.
+- Dolibarr's webhook sends `get_object_vars()` of the event object and, from 23
+  on, stores it in `llx_webhook_history` (22 has the table but writes nothing); a target offers the codes of
+  `llx_c_action_trigger`. It posts while the transaction of the change is still
+  open, and only to external URLs unless `$dolibarr_allow_localurl_for_webhooks`
+  is set (the runtime fixture sets it as a global).
 - Every answer of `vereine/...` in the runtime checks goes through
   `docs/openapi.json`; the last API scenario fails when a documented endpoint
   never answered 200. Dolibarr's answer for a disabled module is not covered
