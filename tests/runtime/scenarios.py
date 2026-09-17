@@ -1995,6 +1995,54 @@ def board(stack: Stack) -> str:
             "youth leaders without consent not; other users 403; a member's own functions in the summary")
 
 
+def groups(stack: Stack) -> str:
+    """A function names a user group; holders with a Dolibarr user join or leave it only after an administrator confirms."""
+    site = stack.notes["website"]
+    today = site["dates"]["today"]
+    members = site["members"]
+    emil, paula = int(members["expired"]), int(members["paid"])
+    created = stack.php_fixture("groupuser", RT_MEMBER_ID=str(emil))
+    group, account = int(created["group"]), int(created["user"])
+    browser = stack.browser()
+
+    kassier = stack.value("SELECT rowid FROM llx_vereine_function WHERE code = 'kassier'")
+    setup = page_ok(browser.get("/custom/vereine/admin/functions.php"), "function setup")
+    link = next((html.unescape(href) for href in re.findall(r'href="([^"]*action=editfunction[^"]*)"', setup.text)
+                 if re.search(rf"[?&;]id={kassier}(&|#|$)", html.unescape(href))), None)
+    expect(link is not None, "the function setup offers no edit link for the treasurer")
+    edit = page_ok(browser.get(link), "edit the treasurer")
+    page_ok(browser.submit(edit.form(name="vereinefunction"), {"group_id": str(group)}), "give the treasurer the user group")
+    expect(stack.value(f"SELECT fk_usergroup FROM llx_vereine_function WHERE rowid = {int(kassier)}") == str(group), "the user group was not stored on the function")
+
+    def membership() -> str | None:
+        return stack.value(f"SELECT COUNT(*) FROM llx_usergroup_user WHERE fk_user = {account} AND fk_usergroup = {group}")
+
+    page = page_ok(browser.get("/custom/vereine/functions.php"), "board and functions with group suggestions")
+    expect(f'data-group-change="add:{account}:{group}"' in page.text and membership() == "0",
+           "the treasurer's user is not suggested for the group, or was added without confirmation")
+    expect(f'data-without-user-member="{paula}"' in page.text, "the chair without Dolibarr user is not listed")
+    page_ok(browser.submit(page.form(name="vereineapplygroups")), "confirm the suggestion")
+    page = page_ok(browser.get("/custom/vereine/functions.php"), "after confirming")
+    expect(membership() == "1" and 'data-group-change=' not in page.text and 'data-right="rtkassier"' in page.text,
+           f"after confirming: membership {membership()}, suggestions left: {'data-group-change=' in page.text}")
+
+    two_days = (datetime.date.fromisoformat(today) - datetime.timedelta(days=2)).isoformat()
+    yesterday = (datetime.date.fromisoformat(today) - datetime.timedelta(days=1)).isoformat()
+    term = stack.value(f"SELECT rowid FROM llx_vereine_function_term WHERE fk_adherent = {emil} AND fk_function = {int(kassier)} AND date_end IS NULL")
+    stack.sql(f"UPDATE llx_vereine_function_term SET date_start = '{two_days}' WHERE rowid = {int(term)}")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={emil}"), "association tab of the treasurer")
+    page_ok(browser.post(f"/custom/vereine/member_association.php?id={emil}",
+                         [("token", token_of(tab)), ("action", "endfunction"), ("term_id", term), ("function_end", yesterday)]), "the treasurer's term ended yesterday")
+    page = page_ok(browser.get("/custom/vereine/functions.php"), "suggestions after the term ended")
+    expect(f'data-group-change="remove:{account}:{group}"' in page.text and membership() == "1",
+           "the user is not suggested for removal, or was removed without confirmation")
+    page_ok(browser.submit(page.form(name="vereineapplygroups")), "confirm the removal")
+    logged = dict(stack.sql("SELECT action, COUNT(*) FROM llx_vereine_log WHERE action LIKE 'function_group%' GROUP BY action"))
+    expect(membership() == "0" and logged == {"function_group_add": "1", "function_group_remove": "1"}, f"after the removal: {membership()}, log {logged}")
+    return ("user group on the treasurer; suggestion to add the treasurer's user, nothing before confirming, added after; chair without user listed; "
+            "term ended yesterday: removal suggested, nothing before confirming, removed after; log")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -2078,7 +2126,8 @@ SCENARIOS = (
     ("functions", "Function catalogue, terms of office and what does not fit on a day", functions, ("applications",)),
     ("authority", "Report of new representatives to the association authority: deadline, agenda, letter, noted as reported", authority, ("functions",)),
     ("board", "Board for a website: names with consent or disclosure, functions in the summary", board, ("authority",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("board",)),
+    ("groups", "User groups through functions, changed only after an administrator confirms", groups, ("board",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("groups",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

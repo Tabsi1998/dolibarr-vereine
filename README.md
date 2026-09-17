@@ -78,7 +78,8 @@ with a REST API for the association's website.
   Associations Act; new representatives get a report deadline, an agenda event
   and the report letter to the association authority as PDF (0.4.1); the board
   for a website through the API, names only with consent or where disclosure
-  requires them (0.4.2).
+  requires them (0.4.2); user groups through functions, changed only after an
+  administrator confirms (0.4.3).
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 

@@ -747,3 +747,23 @@ VereineBoardNoConsent=none
 VereineBoardSaved=Board setting for the website saved.
 VereineBoardErrorMode=Please choose when names are shown.
 VereineBoardErrorConsent=Please choose a valid consent text.
+
+#
+# Rights through functions
+#
+VereineFunctionHowToGroups=<strong>User group:</strong> a function often needs matching rights in Dolibarr, the treasurer for example invoices and bank. With a user group on the function, the module suggests adding holders with a Dolibarr user to the group and removing them after the end. Nothing takes effect until an administrator confirms.
+VereineFunctionGroup=User group
+VereineFunctionGroupHelp=optional; holders of this function get the rights of the group, after confirmation
+VereineGroupsTitle=Rights through functions
+VereineGroupsHowTo=Suggestions which Dolibarr users belong to a user group because of their function, or no longer. The module changes nothing on its own. It never touches groups without function or users without member.
+VereineGroupsChange=Suggestion
+VereineGroupsChange_add=add to the group
+VereineGroupsChange_remove=remove from the group
+VereineGroupsNone=No change suggested.
+VereineGroupsApply=Confirm the selected changes
+VereineGroupsAdminOnly=Only an administrator can confirm.
+VereineGroupsApplied=%s changes of user groups carried out.
+VereineGroupsWithoutUser=Holders without Dolibarr user (the member card can create one):
+VereineGroupsNoRights=No rights through functions yet.
+VereineLog_function_group_add=added to a user group because of a function
+VereineLog_function_group_remove=removed from a user group after a function ended

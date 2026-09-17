@@ -747,3 +747,23 @@ VereineBoardNoConsent=keiner
 VereineBoardSaved=Einstellung für den Vorstand auf der Website gespeichert.
 VereineBoardErrorMode=Bitte wählen, wann Namen gezeigt werden.
 VereineBoardErrorConsent=Bitte einen gültigen Einwilligungstext wählen.
+
+#
+# Rechte über Funktionen
+#
+VereineFunctionHowToGroups=<strong>Benutzergruppe:</strong> Wer eine Funktion hat, braucht oft passende Rechte in Dolibarr, der Kassier etwa Rechnungen und Bank. Ordnet man der Funktion eine Benutzergruppe zu, schlägt das Modul vor, Funktionsträger mit Dolibarr-Benutzer in die Gruppe aufzunehmen oder nach dem Ende wieder herauszunehmen. Wirksam wird das erst, wenn ein Admin bestätigt.
+VereineFunctionGroup=Benutzergruppe
+VereineFunctionGroupHelp=optional; Mitglieder dieser Funktion bekommen die Rechte der Gruppe, nach Bestätigung
+VereineGroupsTitle=Rechte über Funktionen
+VereineGroupsHowTo=Vorschläge, welche Dolibarr-Benutzer:innen wegen ihrer Funktion in eine Benutzergruppe gehören oder nicht mehr. Das Modul ändert nichts von selbst. Gruppen ohne Funktion und Benutzer:innen ohne Mitglied fasst es nie an.
+VereineGroupsChange=Vorschlag
+VereineGroupsChange_add=in die Gruppe aufnehmen
+VereineGroupsChange_remove=aus der Gruppe entfernen
+VereineGroupsNone=Keine Änderung vorgeschlagen.
+VereineGroupsApply=Ausgewählte Änderungen bestätigen
+VereineGroupsAdminOnly=Bestätigen kann nur ein Admin.
+VereineGroupsApplied=%s Änderungen an Benutzergruppen durchgeführt.
+VereineGroupsWithoutUser=Funktionsträger:innen ohne Dolibarr-Benutzer (auf der Mitgliedskarte lässt sich einer anlegen):
+VereineGroupsNoRights=Noch keine Rechte über Funktionen.
+VereineLog_function_group_add=wegen Funktion in Benutzergruppe aufgenommen
+VereineLog_function_group_remove=wegen Funktionsende aus Benutzergruppe entfernt

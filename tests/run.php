@@ -763,6 +763,20 @@ same(array(array('missing', 3)), array_map(function ($problem) {
 	return array($problem['kind'], $problem['function_id']);
 }, $check['problems']), 'on 1 October: treasurer on board, the ended auditor term leaves one auditor');
 
+$groupFunctions = array(array('id' => 1, 'group_id' => 7), array('id' => 2, 'group_id' => 0), array('id' => 3, 'group_id' => 8));
+$groupTerms = array(
+	array('function_id' => 1, 'member_id' => 20, 'member_status' => 1, 'start' => '2026-01-01', 'end' => ''),
+	array('function_id' => 3, 'member_id' => 21, 'member_status' => 1, 'start' => '2025-01-01', 'end' => '2026-06-30'),
+	array('function_id' => 2, 'member_id' => 22, 'member_status' => 1, 'start' => '2026-01-01', 'end' => ''),
+	array('function_id' => 1, 'member_id' => 23, 'member_status' => 0, 'start' => '2026-01-01', 'end' => ''),
+);
+same(array(
+	array('action' => 'add', 'user_id' => 100, 'member_id' => 20, 'group_id' => 7),
+	array('action' => 'remove', 'user_id' => 101, 'member_id' => 21, 'group_id' => 8),
+	array('action' => 'remove', 'user_id' => 103, 'member_id' => 23, 'group_id' => 7),
+), VereineFunctionRules::groupChanges($groupFunctions, $groupTerms, array(20 => 100, 21 => 101, 22 => 102, 23 => 103), array(101 => array(8, 5), 102 => array(5), 104 => array(7), 103 => array(7)), '2026-09-17'),
+	'the treasurer joins the group, an ended term and a resigned member leave it; groups without function and users without member stay');
+same(array(), VereineFunctionRules::groupChanges($groupFunctions, $groupTerms, array(20 => 100), array(100 => array(7)), '2026-09-17'), 'nothing to change when groups fit');
 same(array(false, true, true, false, true), array(
 	VereineFunctionRules::showName('consent', true, false),
 	VereineFunctionRules::showName('consent', false, true),
@@ -889,7 +903,8 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove'),
+	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
 	'VereineFunctionProblem_' => array('missing', 'too_many', 'board_too_small', 'auditor_on_board'),
 	'VereineConsentSource_' => VereineConsentRules::SOURCES,

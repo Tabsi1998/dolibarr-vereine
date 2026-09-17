@@ -77,7 +77,8 @@ if (empty($user->admin)) {
 $action = GETPOST('action', 'aZ09');
 $id = GETPOSTINT('id');
 $functions = new VereineFunctions($db);
-$edit = array('id' => 0, 'code' => '', 'label' => '', 'board' => false, 'represents' => false, 'auditor' => false, 'min' => 0, 'max' => 0, 'position' => 100, 'active' => true);
+$edit = array('id' => 0, 'code' => '', 'label' => '', 'board' => false, 'represents' => false, 'auditor' => false, 'min' => 0, 'max' => 0, 'position' => 100, 'active' => true, 'group_id' => 0);
+$userGroups = $functions->userGroups();
 
 
 /*
@@ -95,6 +96,7 @@ if ($action === 'savefunction') {
 		'max' => GETPOST('max', 'alpha'),
 		'position' => GETPOSTINT('position'),
 		'active' => GETPOSTINT('active') === 1,
+		'group_id' => GETPOSTINT('group_id'),
 	);
 	$result = $functions->save($id, $data, $user);
 	if ($result > 0) {
@@ -139,7 +141,7 @@ $head = vereineAdminPrepareHead();
 print dol_get_fiche_head($head, 'functions', $title, -1, 'fa-landmark');
 
 print '<div class="info" data-functions-howto="1"><ul>';
-foreach (array('VereineFunctionHowToCatalogue', 'VereineFunctionHowToBoard', 'VereineFunctionHowToRepresents', 'VereineFunctionHowToAuditors', 'VereineFunctionHowToTerms') as $line) {
+foreach (array('VereineFunctionHowToCatalogue', 'VereineFunctionHowToBoard', 'VereineFunctionHowToRepresents', 'VereineFunctionHowToAuditors', 'VereineFunctionHowToTerms', 'VereineFunctionHowToGroups') as $line) {
 	print '<li>'.$langs->trans($line).'</li>';
 }
 print '</ul></div>';
@@ -147,12 +149,13 @@ print '</ul></div>';
 print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
 print '<tr class="liste_titre"><td>'.$langs->trans('VereineFunctionLabel').'</td><td class="center">'.$langs->trans('VereineFunctionBoard').'</td>';
 print '<td class="center">'.$langs->trans('VereineFunctionRepresents').'</td><td class="center">'.$langs->trans('VereineFunctionAuditor').'</td>';
-print '<td class="center">'.$langs->trans('VereineFunctionCount').'</td><td class="center">'.$langs->trans('Status').'</td><td></td></tr>';
+print '<td class="center">'.$langs->trans('VereineFunctionCount').'</td><td>'.$langs->trans('VereineFunctionGroup').'</td><td class="center">'.$langs->trans('Status').'</td><td></td></tr>';
 foreach ($functions->fetchAll() as $function) {
 	print '<tr class="oddeven" data-function="'.dol_escape_htmltag($function['code']).'" data-active="'.($function['active'] ? 1 : 0).'">';
 	print '<td>'.dol_escape_htmltag($function['label']).' <span class="opacitymedium small">'.dol_escape_htmltag($function['code']).'</span></td>';
 	print '<td class="center">'.yn($function['board'] ? 1 : 0).'</td><td class="center">'.yn($function['represents'] ? 1 : 0).'</td><td class="center">'.yn($function['auditor'] ? 1 : 0).'</td>';
 	print '<td class="center nowraponall">'.vereineFunctionCount($function).'</td>';
+	print '<td data-function-group="'.((int) $function['group_id']).'">'.($function['group_id'] > 0 && isset($userGroups[$function['group_id']]) ? dol_escape_htmltag($userGroups[$function['group_id']]) : '').'</td>';
 	print '<td class="center">'.dolGetBadge($langs->trans($function['active'] ? 'Enabled' : 'Disabled'), '', $function['active'] ? 'success' : 'secondary').'</td>';
 	print '<td class="right"><a class="editfielda" href="'.$_SERVER['PHP_SELF'].'?action=editfunction&amp;id='.((int) $function['id']).'&amp;token='.newToken().'#vereinefunction">'.img_edit().'</a></td></tr>';
 }
@@ -176,6 +179,9 @@ print '<tr><td><label for="min">'.$langs->trans('VereineFunctionCount').'</label
 print '<input type="number" min="0" max="99" id="min" name="min" class="width50" value="'.dol_escape_htmltag((string) $edit['min']).'"> - ';
 print '<input type="number" min="0" max="99" id="max" name="max" class="width50" value="'.dol_escape_htmltag((string) $edit['max']).'">';
 print ' <span class="opacitymedium small">'.$langs->trans('VereineFunctionCountHelp').'</span></td></tr>';
+print '<tr><td><label for="group_id">'.$langs->trans('VereineFunctionGroup').'</label></td><td>';
+print Form::selectarray('group_id', $userGroups, (int) $edit['group_id'], 1, 0, 0, '', 0, 0, 0, '', 'minwidth200');
+print ' <span class="opacitymedium small">'.$langs->trans('VereineFunctionGroupHelp').'</span></td></tr>';
 print '<tr><td><label for="position">'.$langs->trans('Position').'</label></td>';
 print '<td><input type="number" min="0" id="position" name="position" class="width50" value="'.((int) $edit['position']).'"></td></tr>';
 print '</table>';

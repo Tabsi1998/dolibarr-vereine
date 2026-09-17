@@ -13,21 +13,6 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- Functions of the association: board, representation, auditors, how many are needed.
-CREATE TABLE llx_vereine_function(
-	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
-	entity INTEGER DEFAULT 1 NOT NULL,
-	code VARCHAR(32) NOT NULL,
-	label VARCHAR(128) NOT NULL,
-	board SMALLINT DEFAULT 0 NOT NULL,
-	represents SMALLINT DEFAULT 0 NOT NULL,
-	auditor SMALLINT DEFAULT 0 NOT NULL,
-	min_count INTEGER DEFAULT 0 NOT NULL,
-	max_count INTEGER DEFAULT 0 NOT NULL,
-	fk_usergroup INTEGER DEFAULT 0 NOT NULL,
-	position INTEGER DEFAULT 0 NOT NULL,
-	active SMALLINT DEFAULT 1 NOT NULL,
-	datec DATETIME NOT NULL,
-	tms TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-	fk_user_modif INTEGER
-) ENGINE=innodb;
+-- 0.4.3: a function can name the Dolibarr user group its holders belong to.
+-- Dolibarr runs update files on every activation and ignores a column that exists already.
+ALTER TABLE llx_vereine_function ADD COLUMN fk_usergroup INTEGER DEFAULT 0 NOT NULL;
