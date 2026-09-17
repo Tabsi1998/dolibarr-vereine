@@ -80,6 +80,9 @@ Vereinswebsite mit.
 - **Einwilligungen und Beitrittsanträge** (0.3.11): Einwilligungstexte mit
   Version, Einwilligung und Widerruf am Mitglied, Beitrittsanträge von der
   Website über die API als Mitglied im Entwurf.
+- **Vorstand und Funktionen** (0.4.0): Funktionskatalog mit Vorschlägen für
+  Österreich, Funktionsperioden am Mitglied und eine Übersicht, was nicht zum
+  Vereinsgesetz passt.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

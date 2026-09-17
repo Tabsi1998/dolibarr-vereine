@@ -48,6 +48,8 @@ class VereineLog
 	const CONSENT_GIVEN = 'consent_given';
 	const CONSENT_WITHDRAWN = 'consent_withdrawn';
 	const APPLICATION_RECEIVED = 'application_received';
+	const FUNCTION_START = 'function_start';
+	const FUNCTION_END = 'function_end';
 
 	/**
 	 * Append one entry.

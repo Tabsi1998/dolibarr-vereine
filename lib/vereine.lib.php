@@ -71,6 +71,22 @@ function vereineDiscountValue(array $rule)
 }
 
 /**
+ * How many holders a function needs, in plain words.
+ *
+ * @param array{min:int,max:int} $function Function
+ * @return string
+ */
+function vereineFunctionCount(array $function)
+{
+	global $langs;
+
+	if ($function['max'] > 0) {
+		return $langs->trans($function['min'] === $function['max'] ? 'VereineFunctionCountExactly' : 'VereineFunctionCountBetween', $function['min'], $function['max']);
+	}
+	return $langs->trans('VereineFunctionCountAtLeast', $function['min']);
+}
+
+/**
  * The notice rule of the statutes in plain words.
  *
  * @param array{months:int,at:string,start_month:int} $rule Rule of VereineExits::rule()
@@ -139,6 +155,11 @@ function vereineAdminPrepareHead()
 	$head[$h][0] = dol_buildpath('/vereine/admin/fees.php', 1);
 	$head[$h][1] = $langs->trans('VereineSetupTabFees');
 	$head[$h][2] = 'fees';
+	$h++;
+
+	$head[$h][0] = dol_buildpath('/vereine/admin/functions.php', 1);
+	$head[$h][1] = $langs->trans('VereineSetupTabFunctions');
+	$head[$h][2] = 'functions';
 	$h++;
 
 	$head[$h][0] = dol_buildpath('/vereine/admin/consents.php', 1);

@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '0.3.11-beta';
+		$this->version = '0.4.0-beta';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -196,6 +196,20 @@ class modVereine extends DolibarrModules
 			'target' => '',
 			'user' => 0,
 		);
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
+			'titre' => 'VereineMenuFunctions',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_functions',
+			'url' => '/vereine/functions.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->hasRight("vereine", "association", "read") && $user->hasRight("adherent", "lire")',
+			'target' => '',
+			'user' => 0,
+		);
 		// The same setup page as in the module list, for administrators who work in Members.
 		$this->menu[$r++] = array(
 			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
@@ -280,6 +294,13 @@ class modVereine extends DolibarrModules
 		if ($discountStore->ensureFields() < 0) {
 			$this->error = $discountStore->error;
 			dol_syslog('modVereine::init '.$discountStore->error, LOG_ERR);
+		}
+		// The functions suggested for Austria; changed or switched off ones stay as the association left them.
+		dol_include_once('/vereine/class/vereinefunctions.class.php');
+		$functions = new VereineFunctions($this->db);
+		if ($functions->ensureStandard() < 0) {
+			$this->error = $functions->error;
+			dol_syslog('modVereine::init '.$functions->error, LOG_ERR);
 		}
 		// Member field for the third party that pays the fees of a family; kept when the module is disabled.
 		dol_include_once('/vereine/class/vereinefeefamilystore.class.php');
