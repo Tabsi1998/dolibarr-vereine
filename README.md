@@ -80,6 +80,8 @@ with a REST API for the association's website.
   for a website through the API, names only with consent or where disclosure
   requires them (0.4.2); user groups through functions, changed only after an
   administrator confirms (0.4.3).
+- **E-mail campaigns** (0.4.4): recipients by member status, type, function
+  and consent, minors through their guardians, in Dolibarr's own campaigns.
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 

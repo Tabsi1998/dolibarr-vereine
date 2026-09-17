@@ -331,6 +331,13 @@ CONTRACTS = (
     ("htdocs/install/mysql/tables/llx_usergroup_user.sql", "fk_usergroup", "group memberships are read to suggest changes"),
     ("htdocs/core/lib/admin.lib.php", "'DB_ERROR_COLUMN_ALREADY_EXISTS',", "update files may add a column that exists already"),
     ("htdocs/core/modules/DolibarrModules.class.php", "substr($file, 0, 6) == 'update'", "update files of the module run on every activation"),
+    # Recipients of e-mail campaigns (issue #19)
+    ("htdocs/core/lib/functions2.lib.php", "if (is_dir($dirroot.'/'.$file.'/core/modules'.$subdir.'/')) {", "Dolibarr finds the recipient selector in core/modules/mailings of the module"),
+    ("htdocs/comm/mailing/targetemailing.php", "$classname = \"mailing_\".$module;", "the selector class is named after its file"),
+    ("htdocs/comm/mailing/targetemailing.php", "$result = $obj->add_to_target($id);", "the filter form posts to add_to_target"),
+    ("htdocs/core/modules/mailings/modules_mailings.php", "public function addTargetsToDatabase($mailing_id, $cibles)", "recipients are stored the way Dolibarr's own selectors store them"),
+    ("htdocs/core/modules/mailings/modules_mailings.php", "$sql .= \" SET statut = 3\";", "unsubscribed addresses stay excluded"),
+    ("htdocs/install/mysql/tables/llx_categorie_contact.sql", "fk_socpeople", "guardians are contacts in the guardian category"),
 )
 
 LANG_KEYS = {

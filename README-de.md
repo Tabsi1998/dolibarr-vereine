@@ -87,6 +87,9 @@ Vereinswebsite mit.
   der Vorstand für die Website über die API, Namen nur mit Einwilligung oder wo
   die Offenlegung sie verlangt (0.4.2); Benutzergruppen über Funktionen, geändert
   erst nach Bestätigung durch einen Admin (0.4.3).
+- **E-Mail-Kampagnen** (0.4.4): Empfänger nach Mitgliedsstatus, Mitgliedsart,
+  Funktion und Einwilligung, Minderjährige über die Erziehungsberechtigten, in
+  Dolibarrs eigenen Kampagnen.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

@@ -767,3 +767,18 @@ VereineGroupsWithoutUser=Funktionsträger:innen ohne Dolibarr-Benutzer (auf der 
 VereineGroupsNoRights=Noch keine Rechte über Funktionen.
 VereineLog_function_group_add=wegen Funktion in Benutzergruppe aufgenommen
 VereineLog_function_group_remove=wegen Funktionsende aus Benutzergruppe entfernt
+
+#
+# E-Mail-Kampagnen
+#
+VereineMailingTargets=Vereinsmitglieder nach Status, Mitgliedsart, Funktion und Einwilligung
+VereineMailingStatus_active=aktive Mitglieder
+VereineMailingStatus_draft=Mitglieder im Entwurf
+VereineMailingStatus_former=ausgetretene und ausgeschlossene Mitglieder
+VereineMailingStatus_all=alle Mitglieder
+VereineMailingAllTypes=alle Mitgliedsarten
+VereineMailingAnyFunction=mit und ohne Funktion
+VereineMailingBoard=Vorstand
+VereineMailingPurposeInfo=Vereinsinformation, zum Beispiel Einladung (ohne Einwilligung)
+VereineMailingPurposeConsent=nur mit Einwilligung: %s
+VereineMailingGuardians=Minderjährige über die Erziehungsberechtigten erreichen

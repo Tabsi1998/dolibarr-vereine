@@ -7,6 +7,27 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.4.4-beta] - 2026-09-17
+
+Recipients of e-mail campaigns (issue #19).
+
+### Added
+
+- Dolibarr's e-mail campaigns get the recipients *Association members by status,
+  member type, function and consent*: active, draft, former or all members; one
+  member type; the board or one function held today.
+- Purpose: information of the association such as an invitation needs no
+  consent; a newsletter or other purpose reaches only members whose latest
+  consent for that text is given. The newsletter is preselected when such a text
+  exists.
+- *Reach minors through their guardians*: members under 18 get their guardian
+  contacts instead of their own address.
+- Sending, unsubscribing and statistics stay Dolibarr's own.
+
+### Upgrade
+
+Deploy the new ZIP. Nothing to activate again.
+
 ## [0.4.3-beta] - 2026-09-17
 
 Officers, part 4 (issue #79): user groups through functions, only after
@@ -676,7 +697,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.4.3-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.4.4-beta...HEAD
+[0.4.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.4-beta
 [0.4.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.3-beta
 [0.4.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.2-beta
 [0.4.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.1-beta
