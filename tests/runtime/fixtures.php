@@ -30,6 +30,8 @@
  * php fixtures.php website  a website user with two rights and members in every fee situation
  * php fixtures.php onlinepayment  Stripe on (RT_ONLINE=1) or off, for payment links
  * php fixtures.php websiteinvoices  an abandoned invoice for a member's third party
+ * php fixtures.php websitechange  a part payment and a new subscription period for the website sync
+ * php fixtures.php websiteflip  a subscription period that ended yesterday
  *
  * Prints one JSON object. Passwords and API keys come from the environment only.
  */
@@ -541,6 +543,47 @@ if ($stage === 'website') {
 	exit(0);
 }
 
+// Changes a website sync must notice: a part payment on an invoice and a new subscription period.
+if ($stage === 'websitechange') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/paiement/class/paiement.class.php';
+	$today = dol_mktime(0, 0, 0, (int) dol_print_date(dol_now(), '%m'), (int) dol_print_date(dol_now(), '%d'), (int) dol_print_date(dol_now(), '%Y'));
+	$payment = new Paiement($db);
+	$payment->datepaye = $today;
+	$payment->date = $today;
+	$payment->amounts = array((int) rt_env('RT_INVOICE_ID') => 5);
+	$payment->paiementid = (int) rt_value($db, "SELECT id FROM ".MAIN_DB_PREFIX."c_paiement WHERE code = 'VIR' AND entity IN (0, 1) ORDER BY entity DESC");
+	$payment->paiementcode = 'VIR';
+	if ($payment->create($admin) <= 0) {
+		rt_fail('part payment: '.$payment->error.' '.implode(' | ', (array) $payment->errors));
+	}
+	$member = new Adherent($db);
+	if ($member->fetch((int) rt_env('RT_MEMBER_ID')) <= 0 || $member->subscription($today, 50, 0, '', 'Beitrag', '', '', '', dol_time_plus_duree($today, 364, 'd')) <= 0) {
+		rt_fail('new subscription period: '.$member->error.' '.implode(' | ', (array) $member->errors));
+	}
+	print json_encode(array('payment' => (int) $payment->id, 'paid_until' => dol_print_date(dol_time_plus_duree($today, 364, 'd'), '%Y-%m-%d')))."\n";
+	exit(0);
+}
+
+// A subscription period that ended yesterday: the fee became due today by the date alone.
+if ($stage === 'websiteflip') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
+	$midnight = dol_mktime(0, 0, 0, (int) substr($today, 5, 2), (int) substr($today, 8, 2), (int) substr($today, 0, 4), 'tzserver');
+	$member = new Adherent($db);
+	if ($member->fetch((int) rt_env('RT_MEMBER_ID')) <= 0
+		|| $member->subscription(dol_time_plus_duree($midnight, -365, 'd'), 50, 0, '', 'Beitrag', '', '', '', dol_time_plus_duree($midnight, -1, 'd')) <= 0) {
+		rt_fail('ended subscription period: '.$member->error.' '.implode(' | ', (array) $member->errors));
+	}
+	print json_encode(array(
+		'moment' => gmdate('Y-m-d\TH:i:s\Z', $midnight),
+		'paid_until' => dol_print_date(dol_time_plus_duree($midnight, -1, 'd'), '%Y-%m-%d', 'tzserver'),
+		'backdate' => $db->idate(dol_time_plus_duree($midnight, -10, 'd')),
+	))."\n";
+	exit(0);
+}
+
 // An abandoned invoice for the third party of a member.
 if ($stage === 'websiteinvoices') {
 	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
@@ -633,4 +676,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, resiliate, guardian or reset');

@@ -7,6 +7,27 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.3.2-beta] - 2026-09-17
+
+Website API, part 3 (issue #51): a sync that reads only changed members.
+
+### Added
+
+- `GET /vereine/members`: summaries of all members by id, paged with `?limit=`
+  and `?page=`. With `?changed_since=` only the members whose summary changed at
+  or after that moment - also when only a subscription period, an invoice or a
+  payment changed, or when a fee became due or an invoice overdue by the date.
+- Every member summary carries `updated_at`, the moment it last changed.
+- `GET /vereine/status` returns `server_time`, Dolibarr's clock, to start a sync
+  from.
+- `docs/API.md` lists what counts as a change, what a sync does not notice
+  (deletions, a credit note used on an unpaid invoice, the payment service) and
+  how to sync without losing anything.
+
+### Upgrade
+
+Deploy the new ZIP. Disabling and enabling is not needed.
+
 ## [0.3.1-beta] - 2026-09-17
 
 Website API, part 2 (issue #50): a member's invoices and their PDFs.
@@ -336,7 +357,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.1-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.2-beta...HEAD
+[0.3.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.2-beta
 [0.3.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.1-beta
 [0.3.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.0-beta
 [0.2.8-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.8-beta

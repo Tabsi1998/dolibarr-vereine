@@ -29,7 +29,8 @@ Vereinswebsite mit.
 - **Mitglieds-Zusammenfassung für die Website** (0.3): Mitgliedschaft,
   Beitragsstand mit Zahlungslink und offene Rechnungen eines Mitglieds, gefunden
   über Mitgliedsnummer oder E-Mail – für einen Website-Benutzer, der sonst nichts
-  aus Dolibarr lesen kann. Alle Rechnungen eines Mitglieds mit PDF (0.3.1). Beschrieben in
+  aus Dolibarr lesen kann. Alle Rechnungen eines Mitglieds mit PDF (0.3.1).
+  Abgleich, der nur die seit dem letzten Mal geänderten Mitglieder liest (0.3.2). Beschrieben in
   [docs/openapi.json](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/openapi.json).
 - **Mitglieder und Geschäftspartner** (0.2): Ein aktiviertes Mitglied kann
   automatisch seinen Geschäftspartner bekommen; gibt es schon einen mit derselben

@@ -173,6 +173,11 @@ raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
 - `Facture::validate()` does not build the PDF; the invoice card does, and so
   does `Paiement::create()` for every invoice it pays (unless
   `MAIN_DISABLE_PDF_AUTOUPDATE`). A fixture invoice without payment has no PDF.
+- Columns the database fills itself (`tms`, `DEFAULT CURRENT_TIMESTAMP`) are in
+  the database's time zone, columns Dolibarr writes with `idate()` in PHP's.
+  The runtime runs PHP in Europe/Vienna and MariaDB in UTC, so `jdate(tms)`
+  reads two hours early; `VereineMemberSummary::clockOffset()` corrects it by
+  comparing `CURRENT_TIMESTAMP` with `dol_now()`.
 - Every answer of `vereine/...` in the runtime checks goes through
   `docs/openapi.json`; the last API scenario fails when a documented endpoint
   never answered 200. Dolibarr's answer for a disabled module is not covered

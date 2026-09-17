@@ -28,7 +28,8 @@ with a REST API for the association's website.
 - **Member summaries for the website** (0.3): membership, fee status with payment
   link and open invoices of a member, found by member number or e-mail address,
   for a website user that cannot read anything else of Dolibarr. All invoices of
-  a member with their PDFs (0.3.1). Described in
+  a member with their PDFs (0.3.1). A sync that reads only the members changed
+  since the last one (0.3.2). Described in
   [docs/openapi.json](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/openapi.json).
 - **Members and third parties** (0.2): a validated member can get its third
   party automatically; an existing third party with the same e-mail (or name

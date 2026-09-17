@@ -131,7 +131,122 @@ class VereineMemberReport
 					? getOnlinePaymentUrl(0, 'member', (string) $row->ref, $amount === null ? 0 : $amount) : '',
 			),
 			'open_invoices' => (int) $row->fk_soc > 0 ? $this->invoices((int) $row->fk_soc, $today, $online, true, self::MAX_OPEN_INVOICES, 0) : array(),
+			'updated_at' => VereineMemberSummary::isoMoment(current($this->changes((int) $row->rowid))),
 		);
+	}
+
+	/**
+	 * Summaries of the members of this entity for a website sync, by id.
+	 *
+	 * @param int|null $since Only members whose summary changed at or after this moment, null for all
+	 * @param int      $limit Members per page
+	 * @param int      $page  Page, starting at 0
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function members($since, $limit, $page)
+	{
+		if ($since === null) {
+			$ids = $this->ids('1 = 1', (int) $limit, (int) $limit * (int) $page);
+		} else {
+			$ids = array();
+			foreach ($this->changes(0) as $id => $moment) {
+				if ($moment >= (int) $since) {
+					$ids[] = $id;
+				}
+			}
+			$ids = array_slice($ids, (int) $limit * (int) $page, (int) $limit);
+		}
+		$members = array();
+		foreach ($ids as $id) {
+			$summary = $this->summary($id);
+			if ($summary !== null) {
+				$members[] = $summary;
+			}
+		}
+		return $members;
+	}
+
+	/**
+	 * When the summaries of members last changed.
+	 *
+	 * Counts changes of the member, its member type, its subscription periods, the invoices
+	 * of its third party and payments on them, and the days on which a fee becomes due or an
+	 * open invoice overdue by the date alone.
+	 *
+	 * @param int $id One member, or 0 for every member of this entity
+	 * @return array<int,int> Unix timestamp per member id, ordered by id
+	 */
+	private function changes($id)
+	{
+		require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+
+		$now = dol_now();
+		$today = dol_print_date($now, '%Y-%m-%d', 'tzserver');
+		$entities = getEntity('invoice');
+		$open = "f.fk_statut = ".((int) Facture::STATUS_VALIDATED)." AND f.paye = 0";
+		$open .= " AND f.type IN (".((int) Facture::TYPE_STANDARD).", ".((int) Facture::TYPE_REPLACEMENT).", ".((int) Facture::TYPE_DEPOSIT).")";
+
+		$sql = "SELECT d.rowid, d.statut, d.datefin, d.tms, t.subscription, t.tms as type_tms,";
+		$sql .= " (SELECT MAX(s.tms) FROM ".MAIN_DB_PREFIX."subscription as s WHERE s.fk_adherent = d.rowid) as subscription_tms,";
+		$sql .= " (SELECT MAX(f.tms) FROM ".MAIN_DB_PREFIX."facture as f WHERE f.fk_soc = d.fk_soc AND f.entity IN (".$entities.")";
+		$sql .= " AND f.fk_statut <> ".((int) Facture::STATUS_DRAFT).") as invoice_tms,";
+		$sql .= " (SELECT MAX(p.tms) FROM ".MAIN_DB_PREFIX."paiement as p";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."paiement_facture as pf ON pf.fk_paiement = p.rowid";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."facture as f ON f.rowid = pf.fk_facture";
+		$sql .= " WHERE f.fk_soc = d.fk_soc AND f.entity IN (".$entities.")) as payment_tms,";
+		$sql .= " (SELECT MAX(f.date_lim_reglement) FROM ".MAIN_DB_PREFIX."facture as f WHERE f.fk_soc = d.fk_soc AND f.entity IN (".$entities.")";
+		$sql .= " AND ".$open." AND f.date_lim_reglement < '".$this->db->escape($today)."') as last_due";
+		$sql .= " FROM ".MAIN_DB_PREFIX."adherent as d";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."adherent_type as t ON t.rowid = d.fk_adherent_type";
+		$sql .= " WHERE d.entity IN (".getEntity('adherent').")";
+		if ($id > 0) {
+			$sql .= " AND d.rowid = ".((int) $id);
+		}
+		$sql .= " ORDER BY d.rowid";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			dol_syslog(__METHOD__.' '.$this->db->lasterror(), LOG_ERR);
+			return array();
+		}
+		$rows = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$rows[] = $obj;
+		}
+		$this->db->free($resql);
+
+		$offset = $rows ? $this->databaseClockOffset($now) : 0;
+		$changes = array();
+		foreach ($rows as $obj) {
+			$moments = array();
+			foreach (array('tms', 'type_tms', 'subscription_tms', 'invoice_tms', 'payment_tms') as $field) {
+				$moments[] = $obj->$field ? (int) $this->db->jdate($obj->$field) - $offset : 0;
+			}
+			$days = VereineMemberSummary::changeDays(VereineMemberSummary::status($obj->statut), (int) $obj->subscription === 1,
+				VereineMemberSummary::dayOf($obj->datefin), VereineMemberSummary::dayOf($obj->last_due), $today);
+			foreach ($days as $day) {
+				$moments[] = (int) dol_mktime(0, 0, 0, (int) substr($day, 5, 2), (int) substr($day, 8, 2), (int) substr($day, 0, 4), 'tzserver');
+			}
+			$changes[(int) $obj->rowid] = VereineMemberSummary::latestMoment($moments, $now);
+		}
+		return $changes;
+	}
+
+	/**
+	 * Seconds the moments the database fills in itself read off, see VereineMemberSummary::clockOffset().
+	 *
+	 * @param int $now PHP's current time
+	 * @return int
+	 */
+	private function databaseClockOffset($now)
+	{
+		$resql = $this->db->query("SELECT CURRENT_TIMESTAMP as dbnow");
+		$obj = $resql ? $this->db->fetch_object($resql) : null;
+		if (!$obj) {
+			dol_syslog(__METHOD__.' '.$this->db->lasterror(), LOG_ERR);
+			return 0;
+		}
+		$this->db->free($resql);
+		return VereineMemberSummary::clockOffset((int) $this->db->jdate($obj->dbnow), $now);
 	}
 
 	/**
@@ -305,13 +420,18 @@ class VereineMemberReport
 	 * Member ids of this entity matching a condition.
 	 *
 	 * @param string $condition SQL condition on the member table d, escaped by the caller
+	 * @param int    $limit     At most this many, 0 for all
+	 * @param int    $offset    Skip this many
 	 * @return int[]
 	 */
-	private function ids($condition)
+	private function ids($condition, $limit = 0, $offset = 0)
 	{
 		$sql = "SELECT d.rowid FROM ".MAIN_DB_PREFIX."adherent as d";
 		$sql .= " WHERE ".$condition." AND d.entity IN (".getEntity('adherent').")";
 		$sql .= " ORDER BY d.rowid";
+		if ($limit > 0) {
+			$sql .= $this->db->plimit((int) $limit, (int) $offset);
+		}
 		$resql = $this->db->query($sql);
 		if (!$resql) {
 			dol_syslog(__METHOD__.' '.$this->db->lasterror(), LOG_ERR);

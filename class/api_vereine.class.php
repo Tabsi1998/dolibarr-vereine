@@ -54,7 +54,7 @@ class Vereine extends DolibarrApi
 	 *
 	 * Module version, API version and country profile. Useful to test a connection.
 	 *
-	 * @return array Fields module_version, api_version, country_profile, country_profile_complete
+	 * @return array Fields module_version, api_version, country_profile, country_profile_complete, server_time
 	 *
 	 * @url GET status
 	 *
@@ -73,6 +73,8 @@ class Vereine extends DolibarrApi
 			'api_version' => self::API_VERSION,
 			'country_profile' => $profile,
 			'country_profile_complete' => VereineProfile::isComplete($profile),
+			// Dolibarr's clock, for changed_since of a website sync.
+			'server_time' => gmdate('Y-m-d\TH:i:s\Z', dol_now()),
 		);
 	}
 
@@ -173,6 +175,43 @@ class Vereine extends DolibarrApi
 		dol_include_once('/vereine/class/vereinethresholdreport.class.php');
 		$report = new VereineThresholdReport($this->db);
 		return $report->report($year);
+	}
+
+	/**
+	 * Members for a website sync
+	 *
+	 * Summaries of the members, by id. With changed_since only the members whose summary
+	 * changed at or after that moment: the member, its member type, subscription periods,
+	 * invoices and payments, or a fee that became due or an invoice that became overdue by
+	 * the date. Needs the right to read member summaries for a website.
+	 *
+	 * @param string $changed_since ISO 8601 moment with time zone, such as 2026-09-17T08:00:00Z
+	 * @param int    $limit         Members per page, 1 to 100
+	 * @param int    $page          Page, starting at 0
+	 * @return array List of member summaries as documented in docs/API.md
+	 *
+	 * @url GET members
+	 *
+	 * @throws RestException 400 changed_since, limit or page invalid
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMembers($changed_since = '', $limit = 100, $page = 0)
+	{
+		$this->checkAccess();
+		$this->checkWebsiteRight();
+		dol_include_once('/vereine/class/vereinemembersummary.class.php');
+		$since = null;
+		if ((string) $changed_since !== '') {
+			$since = VereineMemberSummary::parseMoment($changed_since);
+			if ($since === null) {
+				throw new RestException(400, 'changed_since must be an ISO 8601 moment with time zone, such as 2026-09-17T08:00:00Z');
+			}
+		}
+		if ((int) $limit < 1 || (int) $limit > 100 || (int) $page < 0) {
+			throw new RestException(400, 'The limit must be between 1 and 100 and the page 0 or more');
+		}
+		return $this->memberReport()->members($since, (int) $limit, (int) $page);
 	}
 
 	/**

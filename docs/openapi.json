@@ -26,6 +26,72 @@
     }
   ],
   "paths": {
+    "/vereine/members": {
+      "get": {
+        "operationId": "getMembers",
+        "summary": "Member summaries for a website sync, by id",
+        "description": "All members, or with changed_since only those whose summary changed at or after that moment. Needs the same rights as the summary.",
+        "parameters": [
+          {
+            "name": "changed_since",
+            "in": "query",
+            "required": false,
+            "description": "ISO 8601 moment with time zone, such as 2026-09-17T08:00:00Z",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Members per page, 100 when left out",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page, starting at 0",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Member summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemberSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/vereine/status": {
       "get": {
         "operationId": "getStatus",
@@ -411,6 +477,11 @@
         "description": "YYYY-MM-DD, or empty when unknown",
         "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$"
       },
+      "Moment": {
+        "type": "string",
+        "description": "ISO 8601 in UTC, such as 2026-09-17T08:00:00Z",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+      },
       "Error": {
         "type": "object",
         "required": ["error"],
@@ -432,7 +503,7 @@
       "Status": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["module_version", "api_version", "country_profile", "country_profile_complete"],
+        "required": ["module_version", "api_version", "country_profile", "country_profile_complete", "server_time"],
         "properties": {
           "module_version": {
             "type": "string"
@@ -446,6 +517,9 @@
           },
           "country_profile_complete": {
             "type": "boolean"
+          },
+          "server_time": {
+            "$ref": "#/components/schemas/Moment"
           }
         }
       },
@@ -704,7 +778,7 @@
       "MemberSummary": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "ref", "firstname", "lastname", "company", "type", "status", "member_since", "paid_until", "currency", "fee", "open_invoices"],
+        "required": ["id", "ref", "firstname", "lastname", "company", "type", "status", "member_since", "paid_until", "currency", "fee", "open_invoices", "updated_at"],
         "properties": {
           "id": {
             "type": "integer"
@@ -783,6 +857,9 @@
             "items": {
               "$ref": "#/components/schemas/Invoice"
             }
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/Moment"
           }
         }
       },
