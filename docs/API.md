@@ -241,6 +241,69 @@ Needs the website right.
 Example: `amount` 60, a year from January, prorated, joining on 15 March - the
 first fee covers March to December, 10 of 12 months, 50 plus the admission fee.
 
+## GET /vereine/consents
+
+The consent texts a person can agree to now - one per purpose, in its newest
+version. The association writes them under *Setup > Vereine > Consents*; a
+changed text becomes a new version. Needs the right to read member summaries for
+a website or to send membership applications.
+
+```json
+[
+  { "code": "fotos", "label": "Fotos auf der Website", "version": 2, "text": "Fotos von Veranstaltungen, ..." },
+  { "code": "newsletter", "label": "Newsletter", "version": 1, "text": "Ich möchte den Newsletter ..." }
+]
+```
+
+Show `text` next to the checkbox and send `code` and `version` back with the
+application. An application with an older version answers 400: read the texts
+again right before showing the form.
+
+## POST /vereine/applications
+
+A membership application from the website. It creates a member **in draft** with
+the consents given; the association checks and validates the member in Dolibarr,
+the website never can. Give the form's user its own API user with only the rights
+*Read the association* and *Send membership applications*.
+
+```json
+{
+  "external_id": "web-2026-0042",
+  "firstname": "Amelie",
+  "lastname": "Beispiel",
+  "email": "amelie@example.org",
+  "birth": "2001-04-30",
+  "address": "Hauptplatz 1",
+  "zip": "6020",
+  "town": "Innsbruck",
+  "country_code": "AT",
+  "type_id": 2,
+  "note": "Ich spiele gern Schach.",
+  "consents": [{ "code": "fotos", "version": 2 }]
+}
+```
+
+Answer:
+
+```json
+{ "id": 57, "ref": "57", "status": "draft", "duplicate": false }
+```
+
+| Field | Content |
+| --- | --- |
+| `external_id` | The website's own id of the application, up to 64 letters, digits and `. _ : -`. Sent again with the same id - after a network error, say - the answer is the member created the first time with `duplicate: true`; nothing new is created |
+| `morphy`, `company` | `phy` (default) or `mor` with the name of the legal entity |
+| `firstname`, `lastname`, `email` | Required |
+| `type_id` | Required, an active member type of [`GET /vereine/membershipfees`](#get-vereinemembershipfees) open to this kind of person |
+| `birth` | `YYYY-MM-DD`, optional; discounts by age need it |
+| `note` | Message of the applicant, kept as private note of the member |
+| `consents` | The consents given, each with the version shown; purposes not ticked are left out |
+
+Answers 400 with every problem in the message, 403 without the right. Consents
+of children: for an online form offered directly to children, a child in Austria
+can consent itself from 14 years of age (§ 4 (4) DSG); for younger ones ask the
+parents.
+
 ## GET /vereine/members
 
 Summaries of all members, by id, for a website that keeps its own copy.

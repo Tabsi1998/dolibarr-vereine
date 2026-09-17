@@ -60,6 +60,81 @@
         }
       }
     },
+    "/vereine/consents": {
+      "get": {
+        "operationId": "getConsents",
+        "summary": "Consent texts a person can agree to now, the newest version of each purpose",
+        "description": "Needs the right to read the association and the right to read member summaries for a website or to send membership applications.",
+        "responses": {
+          "200": {
+            "description": "Consent texts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConsentText"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/vereine/applications": {
+      "post": {
+        "operationId": "postApplication",
+        "summary": "Membership application from a website: a member in draft with its consents",
+        "description": "Needs the right to read the association and the right to send membership applications. Sent again with the same external_id, it answers the member created the first time with duplicate true.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Application"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member in draft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/vereine/members": {
       "get": {
         "operationId": "getMembers",
@@ -919,6 +994,128 @@
           },
           "updated_at": {
             "$ref": "#/components/schemas/Moment"
+          }
+        }
+      },
+      "ConsentText": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "label", "version", "text"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,31}$",
+            "description": "Purpose, the same over all versions"
+          },
+          "label": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Send this version back with the consent"
+          },
+          "text": {
+            "type": "string",
+            "description": "The text to show next to the checkbox"
+          }
+        }
+      },
+      "Application": {
+        "type": "object",
+        "required": ["firstname", "lastname", "email", "type_id"],
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "description": "The website's own id of the application, up to 64 letters, digits and . _ : -; the same id never creates a second member",
+            "example": "web-2026-0042"
+          },
+          "morphy": {
+            "type": "string",
+            "enum": ["phy", "mor"],
+            "description": "Natural person (default) or legal entity"
+          },
+          "company": {
+            "type": "string",
+            "description": "Name of a legal entity, required for mor"
+          },
+          "firstname": {
+            "type": "string"
+          },
+          "lastname": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "birth": {
+            "type": "string",
+            "description": "YYYY-MM-DD"
+          },
+          "address": {
+            "type": "string"
+          },
+          "zip": {
+            "type": "string"
+          },
+          "town": {
+            "type": "string"
+          },
+          "country_code": {
+            "type": "string",
+            "description": "Two letters, such as AT"
+          },
+          "type_id": {
+            "type": "integer",
+            "description": "An active member type, see GET /vereine/membershipfees"
+          },
+          "note": {
+            "type": "string",
+            "description": "Message of the applicant, kept as private note of the member"
+          },
+          "consents": {
+            "type": "array",
+            "description": "Consents given, each with the version of GET /vereine/consents shown to the person",
+            "items": {
+              "type": "object",
+              "required": ["code", "version"],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ApplicationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "ref", "status", "duplicate"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Member id; the member card in Dolibarr and the summary use it"
+          },
+          "ref": {
+            "type": "string",
+            "description": "Member number"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["draft", "active", "terminated", "excluded"],
+            "description": "draft until the association validates the member"
+          },
+          "duplicate": {
+            "type": "boolean",
+            "description": "True when an application with this external_id was already received; nothing new was created"
           }
         }
       },

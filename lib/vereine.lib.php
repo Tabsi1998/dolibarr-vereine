@@ -141,6 +141,11 @@ function vereineAdminPrepareHead()
 	$head[$h][2] = 'fees';
 	$h++;
 
+	$head[$h][0] = dol_buildpath('/vereine/admin/consents.php', 1);
+	$head[$h][1] = $langs->trans('VereineSetupTabConsents');
+	$head[$h][2] = 'consents';
+	$h++;
+
 	$head[$h][0] = dol_buildpath('/vereine/admin/about.php', 1);
 	$head[$h][1] = $langs->trans('About');
 	$head[$h][2] = 'about';

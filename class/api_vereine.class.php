@@ -227,6 +227,84 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Consent texts
+	 *
+	 * The texts a person can agree to now, the newest version of each purpose - to show them on
+	 * a membership form and send back the version agreed to. Needs the right to read member
+	 * summaries for a website or to send membership applications.
+	 *
+	 * @return array List of consent texts as documented in docs/API.md
+	 *
+	 * @url GET consents
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getConsents()
+	{
+		$this->checkAccess();
+		if (!DolibarrApiAccess::$user->hasRight('vereine', 'website', 'read') && !DolibarrApiAccess::$user->hasRight('vereine', 'application', 'write')) {
+			throw new RestException(403, 'Not allowed: the user needs the right to read member summaries for a website or to send membership applications');
+		}
+		dol_include_once('/vereine/class/vereineconsents.class.php');
+		$consents = new VereineConsents($this->db);
+		$result = array();
+		foreach ($consents->currentTexts() as $text) {
+			$result[] = array('code' => $text['code'], 'label' => $text['label'], 'version' => $text['version'], 'text' => $text['text']);
+		}
+		return $result;
+	}
+
+	/**
+	 * Membership application
+	 *
+	 * Creates a member in draft from an application on a website, with the consents given and
+	 * the version of each text. The association checks and validates the member in Dolibarr;
+	 * the website never can. Sent twice with the same external_id, the application creates one
+	 * member and answers duplicate true. Needs the right to send membership applications.
+	 *
+	 * @param array $request_data Application as documented in docs/API.md
+	 * @return array Member id, number, status and whether the application was already received
+	 *
+	 * @url POST applications
+	 * @status 200
+	 *
+	 * @throws RestException 400 The application is incomplete or invalid
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 500 The member could not be created
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function postApplication($request_data = null)
+	{
+		$this->checkAccess();
+		if (!DolibarrApiAccess::$user->hasRight('vereine', 'application', 'write')) {
+			throw new RestException(403, 'Not allowed: the user needs the right to send membership applications');
+		}
+		dol_include_once('/vereine/class/vereineconsents.class.php');
+		dol_include_once('/vereine/class/vereinefeemodel.class.php');
+		$feeModel = new VereineFeeModel($this->db);
+		$types = array();
+		foreach ($feeModel->memberTypes(true) as $type) {
+			$types[$type['id']] = array('morphy' => (string) $type['morphy']);
+		}
+		$consents = new VereineConsents($this->db);
+		$texts = array();
+		foreach ($consents->currentTexts() as $code => $text) {
+			$texts[$code] = $text['version'];
+		}
+		$checked = VereineConsentRules::application($request_data, $types, $texts);
+		if ($checked['errors']) {
+			throw new RestException(400, implode('; ', $checked['errors']));
+		}
+		$result = $consents->createApplication($checked['application'], DolibarrApiAccess::$user);
+		if ($result === null) {
+			dol_syslog(__METHOD__.' '.$consents->error, LOG_ERR);
+			throw new RestException(500, 'The member could not be created');
+		}
+		return $result;
+	}
+
+	/**
 	 * Members for a website sync
 	 *
 	 * Summaries of the members, by id. With changed_since only the members whose summary

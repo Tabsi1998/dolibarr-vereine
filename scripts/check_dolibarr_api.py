@@ -312,6 +312,10 @@ CONTRACTS = (
     ("htdocs/societe/class/companybankaccount.class.php", "public $rum;", "mandate reference on the bank account"),
     ("htdocs/compta/facture/prelevement.php", "$usercancreate = $user->hasRight('facture', 'creer');", "requesting a direct debit needs only the right to create invoices"),
     ("htdocs/compta/prelevement/class/bonprelevement.class.php", "PRELEVEMENT_ICS", "the creditor identifier of the pre-notification"),
+    # Consents and membership applications (issue #65)
+    ("htdocs/adherents/class/api_members.class.php", "public function post($request_data = null)", "a POST body reaches the method as request_data, as in Dolibarr's own API"),
+    ("htdocs/adherents/class/adherent.class.php", "if (!getDolGlobalString('ADHERENT_LOGIN_NOT_REQUIRED')) {", "an application sets a login only when Dolibarr requires one"),
+    ("htdocs/adherents/class/adherent.class.php", "$sql .= \" (ref, datec, login, fk_user_author, fk_user_mod, fk_user_valid, morphy, fk_adherent_type, entity, import_key, ip)\";", "a new member starts as draft"),
 )
 
 LANG_KEYS = {

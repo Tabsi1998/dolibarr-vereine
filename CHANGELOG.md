@@ -7,6 +7,30 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.3.11-beta] - 2026-09-17
+
+Membership fees, part 6 (issue #65): consents with text version and membership
+applications through the API.
+
+### Added
+
+- Setup tab *Consents*: consent texts per purpose, for example photos on the
+  website or the newsletter. A changed text becomes a new version; earlier
+  consents keep the version agreed to.
+- The member's tab *Association*, section *Consents*: state per purpose with
+  version, moment and source (website, paper, member card), recording a consent
+  on paper, recording a withdrawal, and the whole history. Nothing is changed or
+  deleted.
+- Website API: `GET /vereine/consents` with the texts to show, and `POST
+  /vereine/applications`, which creates a member in draft with its consents -
+  once per `external_id` - and needs the new right *Send membership
+  applications*.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that creates the consent and application tables and the new right.
+
 ## [0.3.10-beta] - 2026-09-17
 
 Membership fees, part 4 (issue #63): SEPA direct debit from the fee run.
@@ -567,7 +591,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.10-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.11-beta...HEAD
+[0.3.11-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.11-beta
 [0.3.10-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.10-beta
 [0.3.9-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.9-beta
 [0.3.8-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.8-beta

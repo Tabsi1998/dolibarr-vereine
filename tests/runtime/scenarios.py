@@ -118,10 +118,14 @@ class Stack:
     def shell(self, command: str) -> subprocess.CompletedProcess:
         return self.run(self.docker, "exec", "-u", "www-data", self.web, "sh", "-c", command, check=False, timeout=120)
 
-    def api(self, path: str, key: str | None, check: bool = True) -> tuple[int, object]:
-        """GET an API path. Answers of the Vereine API must match docs/openapi.json unless check is off."""
-        request = urllib.request.Request(f"{self.url}/api/index.php/{path.lstrip('/')}", method="GET",
-                                         headers={"Accept": "application/json", **({"DOLAPIKEY": key} if key else {})})
+    def api(self, path: str, key: str | None, check: bool = True, method: str = "GET", data: object = None) -> tuple[int, object]:
+        """Call an API path, GET or with a JSON body. Answers of the Vereine API must match docs/openapi.json unless check is off."""
+        headers = {"Accept": "application/json", **({"DOLAPIKEY": key} if key else {})}
+        body = None
+        if data is not None:
+            body = json.dumps(data).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+        request = urllib.request.Request(f"{self.url}/api/index.php/{path.lstrip('/')}", method=method, data=body, headers=headers)
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
                 status, raw = response.status, response.read()
@@ -132,7 +136,7 @@ class Stack:
         except ValueError:
             body = raw.decode("utf-8", errors="replace")
         if check and path.lstrip("/").startswith("vereine/"):
-            problems = self.openapi.check("GET", path, status, body)
+            problems = self.openapi.check(method, path, status, body)
             expect(not problems, "the answer differs from docs/openapi.json:\n" + "\n".join(problems[:10]))
         return status, body
 
@@ -317,8 +321,8 @@ def enable(stack: Stack) -> str:
     expect(stack.const("VEREINE_COUNTRY_PROFILE") == "AT",
            f"an Austrian company should start with profile AT, found {stack.const('VEREINE_COUNTRY_PROFILE')!r}")
     rights = stack.sql("SELECT id, perms, subperms FROM llx_rights_def WHERE module = 'vereine' AND entity = 1 ORDER BY id")
-    expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"], ["49210003", "website", "read"]],
-           f"rights after enabling: {rights}")
+    expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"], ["49210003", "website", "read"],
+                      ["49210004", "application", "write"]], f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_feerun", "/vereine/fees_run.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"]],
@@ -335,7 +339,7 @@ def enable(stack: Stack) -> str:
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
     return (f"module {stack.module_version} on with Members, third parties and categories; profile AT; "
-            "3 rights, 4 menu entries, log table, 3 categories")
+            "4 rights, 4 menu entries, log table, 3 categories")
 
 
 def pages(stack: Stack) -> str:
@@ -1746,6 +1750,70 @@ def sepa(stack: Stack) -> str:
             "pre-notification with mandate, creditor id and collection in 10 days")
 
 
+def applications(stack: Stack) -> str:
+    """A website reads the consent texts and sends applications that become members in draft with their consents."""
+    key = stack.notes["website"]["key"]
+    browser = stack.browser()
+    setup = page_ok(browser.get("/custom/vereine/admin/consents.php"), "consent setup")
+    expect('data-consents-howto="1"' in setup.text, "the consent setup does not explain consents")
+    refused = page_ok(browser.submit(setup.form(name="vereineconsenttext"), {"code": "Fotos!", "label": "Fotos", "text": "Text"}), "a consent text with a bad code")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_consent_text") == "0" and "Die Kennung besteht" in html.unescape(refused.text),
+           "a consent text with a bad code was stored or not explained")
+    for fields in ({"code": "fotos", "label": "Fotos auf der Website", "text": "Fotos von Veranstaltungen, auf denen ich zu sehen bin, dürfen auf der Website des Vereins erscheinen."},
+                   {"code": "newsletter", "label": "Newsletter", "text": "Ich möchte den Newsletter des Vereins per E-Mail bekommen."},
+                   {"code": "fotos", "label": "Fotos auf Website und Social Media", "text": "Fotos von Veranstaltungen, auf denen ich zu sehen bin, dürfen auf der Website und in den sozialen Medien des Vereins erscheinen."}):
+        page = page_ok(browser.get("/custom/vereine/admin/consents.php"), "consent setup")
+        page_ok(browser.submit(page.form(name="vereineconsenttext"), fields), f"store consent text {fields['code']}")
+    stored = stack.sql("SELECT code, version, active FROM llx_vereine_consent_text ORDER BY code, version")
+    expect(stored == [["fotos", "1", "0"], ["fotos", "2", "1"], ["newsletter", "1", "1"]], f"consent texts with versions: {stored}")
+
+    status, texts = stack.api("vereine/consents", key)
+    expect(status == 200 and [(text["code"], text["version"]) for text in texts] == [("fotos", 2), ("newsletter", 1)],
+           f"GET vereine/consents answered HTTP {status}: {texts}")
+    status, _ = stack.api("vereine/consents", stack.nobody_key)
+    expect(status == 403, f"a user without rights got HTTP {status} for the consent texts")
+
+    form_key = secrets.token_hex(16)
+    stack.php_fixture("applicationuser", RT_APPLICATION_KEY=form_key)
+    type_id = int(stack.value("SELECT rowid FROM llx_adherent_type WHERE libelle = 'Beitragspflichtig'"))
+    email = "amelie.antrag@runtime-verein.test"
+    body = {"external_id": "web-2026-0042", "firstname": "Amelie", "lastname": "Antrag", "email": email, "birth": "2001-04-30",
+            "zip": "6020", "town": "Innsbruck", "country_code": "AT", "type_id": type_id, "note": "Ich spiele gern Schach.",
+            "consents": [{"code": "fotos", "version": 2}]}
+    status, _ = stack.api("vereine/applications", key, method="POST", data=body)
+    expect(status == 403, f"the website user without the right to send applications got HTTP {status}")
+    status, created = stack.api("vereine/applications", form_key, method="POST", data=body)
+    expect(status == 200 and created.get("status") == "draft" and created.get("duplicate") is False, f"POST vereine/applications answered HTTP {status}: {created}")
+    member_id = int(created["id"])
+    member = stack.sql(f"SELECT statut, firstname, lastname, email, fk_adherent_type, DATE(birth), town FROM llx_adherent WHERE rowid = {member_id}")
+    expect(member == [["-1", "Amelie", "Antrag", email, str(type_id), "2001-04-30", "Innsbruck"]], f"member from the application: {member}")
+    consents = stack.sql(f"SELECT code, version, given, source FROM llx_vereine_consent WHERE fk_adherent = {member_id}")
+    expect(consents == [["fotos", "2", "1", "website"]], f"consents from the application: {consents}")
+
+    status, again = stack.api("vereine/applications", form_key, method="POST", data=body)
+    count = stack.value(f"SELECT COUNT(*) FROM llx_adherent WHERE email = '{email}'")
+    expect(status == 200 and again.get("id") == member_id and again.get("duplicate") is True and count == "1",
+           f"the same application sent again: HTTP {status} {again}, {count} members")
+    for change, message in (({"consents": [{"code": "fotos", "version": 1}]}, "the current version is 2"),
+                            ({"email": "amelie at runtime"}, "valid e-mail"), ({"lastname": ""}, "lastname are required")):
+        status, answer = stack.api("vereine/applications", form_key, method="POST", data={**body, **change, "external_id": ""})
+        expect(status == 400 and message in json.dumps(answer), f"application with {change}: HTTP {status} {answer}")
+    count = stack.value(f"SELECT COUNT(*) FROM llx_adherent WHERE email = '{email}' OR lastname = 'Antrag'")
+    expect(count == "1", f"refused applications created members: {count}")
+
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={member_id}"), "association tab of the applicant")
+    expect('data-member-consent="fotos" data-state="given" data-version="2"' in tab.text and 'data-member-consent="newsletter" data-state="none"' in tab.text,
+           "the member tab does not show the consents of the application")
+    page_ok(browser.submit(tab.form(name="vereinewithdrawconsent")), "record the withdrawal of the photo consent")
+    events = stack.sql(f"SELECT code, version, given, source FROM llx_vereine_consent WHERE fk_adherent = {member_id} ORDER BY rowid")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={member_id}"), "association tab after the withdrawal")
+    expect(events == [["fotos", "2", "1", "website"], ["fotos", "2", "0", "paper"]] and 'data-member-consent="fotos" data-state="withdrawn"' in tab.text,
+           f"withdrawal: {events}")
+    return ("bad code refused; photos v1 and v2 and newsletter v1 stored, API offers the newest versions; website user without right 403; "
+            "application became a member in draft with the photo consent v2 from the website; sent again: same member, duplicate; "
+            "outdated version, bad e-mail and missing name refused with 400; withdrawal recorded and shown")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -1825,7 +1893,8 @@ SCENARIOS = (
     ("families", "Families with one payer: shared invoice, discount per further member and cap per fee year", families, ("discounts",)),
     ("exits", "Exits with notice period: planned, carried out on the last day, fee run and API follow", exits, ("families",)),
     ("sepa", "SEPA direct debit from the fee run: mandate check, one request, pre-notification", sepa, ("exits",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("sepa",)),
+    ("applications", "Consent texts with versions and membership applications through the API", applications, ("sepa",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("applications",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 
