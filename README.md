@@ -82,6 +82,10 @@ with a REST API for the association's website.
   administrator confirms (0.4.3).
 - **E-mail campaigns** (0.4.4): recipients by member status, type, function
   and consent, minors through their guardians, in Dolibarr's own campaigns.
+- **Rules of the statutes** (0.5.0): general assembly, board, terms of office and
+  minimum age in one place, filled in from the model statutes and checked against
+  the Associations Act; "election due" when a term has run out, applications
+  below the minimum age refused.
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 

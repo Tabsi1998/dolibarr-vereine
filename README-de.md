@@ -90,6 +90,11 @@ Vereinswebsite mit.
 - **E-Mail-Kampagnen** (0.4.4): Empfänger nach Mitgliedsstatus, Mitgliedsart,
   Funktion und Einwilligung, Minderjährige über die Erziehungsberechtigten, in
   Dolibarrs eigenen Kampagnen.
+- **Regeln der Statuten** (0.5.0): Generalversammlung, Vorstand,
+  Funktionsperioden und Mindestalter an einer Stelle, vorbelegt aus dem
+  Statutenmuster und gegen das Vereinsgesetz geprüft; „Neuwahl fällig“, wenn eine
+  Funktionsperiode abgelaufen ist, Beitrittsanträge unter dem Mindestalter werden
+  abgelehnt.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

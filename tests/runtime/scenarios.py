@@ -1776,6 +1776,7 @@ def applications(stack: Stack) -> str:
 
     form_key = secrets.token_hex(16)
     stack.php_fixture("applicationuser", RT_APPLICATION_KEY=form_key)
+    stack.notes["applicationkey"] = form_key
     type_id = int(stack.value("SELECT rowid FROM llx_adherent_type WHERE libelle = 'Beitragspflichtig'"))
     email = "amelie.antrag@runtime-verein.test"
     body = {"external_id": "web-2026-0042", "firstname": "Amelie", "lastname": "Antrag", "email": email, "birth": "2001-04-30",
@@ -2079,6 +2080,72 @@ def mailing(stack: Stack) -> str:
             "guardian as contact, adults directly")
 
 
+def statutes(stack: Stack) -> str:
+    """Rules of the statutes: the model statutes filled in, checked against the Associations Act, used for elections and applications."""
+    today = stack.notes["website"]["dates"]["today"]
+    browser = stack.browser()
+    page = page_ok(browser.get("/custom/vereine/admin/statutes.php"), "statute setup")
+    form = page.form(name="vereinestatutes")
+    expect('data-statutes-stored="0"' in page.text and form.value("general_years") == "1" and form.value("invite_days") == "14"
+           and form.value("motion_days") == "3" and form.value("proxy") == "1" and form.value("virtual") == "none",
+           "the statute setup does not show the model statutes")
+    hints = re.findall(r'data-hint="([a-z_]+)" data-function="([a-z_]+)"', page.text)
+    expect(("term_missing", "obmann") in hints and ("term_missing", "rechnungspruefung") in hints and all(code != "jugendleitung" for _, code in hints),
+           f"hints of the model statutes: {hints}")
+    ids = dict(stack.sql("SELECT code, rowid FROM llx_vereine_function WHERE entity = 1"))
+    type_id = stack.value("SELECT rowid FROM llx_adherent_type WHERE libelle = 'Beitragspflichtig'")
+
+    def send(changes: dict, drop: tuple = (), channels: list | None = None) -> Page:
+        form = page_ok(browser.get("/custom/vereine/admin/statutes.php"), "statute setup").form(name="vereinestatutes")
+        if channels is not None:
+            drop = drop + ("invite_channels[]",)
+        fields = [(name, value) for name, value in form.values() if name not in drop and name not in changes]
+        fields += [(name, str(value)) for name, value in changes.items()]
+        fields += [("invite_channels[]", channel) for channel in channels or []]
+        return page_ok(browser.post(form.url(), fields), f"store statute rules {changes}")
+
+    stored = "SELECT COUNT(*) FROM llx_const WHERE name = 'VEREINE_STATUTE_RULES'"
+    for changes, channels, message in (({"general_years": "6"}, None, "mindestens alle fünf Jahre"), ({"motion_days": "14"}, None, "Frist für Anträge"),
+                                       ({}, [], "Mindestens einen Weg"), ({f"term_years[{ids['obmann']}]": "25"}, None, "0 bis 20 Jahren")):
+        refused = send(dict(changes), channels=channels)
+        expect(message in html.unescape(refused.text) and stack.value(stored) == "0", f"statute rules with {changes} {channels} were stored or not explained")
+
+    after = send({"general_years": "2", "min_age": "18", "virtual": "hybrid", "voting_types[]": type_id, f"term_years[{ids['obmann']}]": "4",
+                  f"term_years[{ids['kassier']}]": "3", f"term_years[{ids['rechnungspruefung']}]": "2"}, drop=("proxy",), channels=["email"])
+    rules = json.loads(stack.value("SELECT value FROM llx_const WHERE name = 'VEREINE_STATUTE_RULES' AND entity = 1"))
+    expect(rules["general_years"] == 2 and rules["min_age"] == 18 and rules["virtual"] == "hybrid" and rules["proxy"] is False
+           and rules["invite_channels"] == ["email"] and rules["voting_types"] == [int(type_id)] and rules["invite_days"] == 14, f"stored rules: {rules}")
+    years = dict(stack.sql("SELECT code, term_years FROM llx_vereine_function WHERE entity = 1"))
+    expect(years["obmann"] == "4" and years["kassier"] == "3" and years["rechnungspruefung"] == "2" and years["jugendleitung"] == "0", f"terms of office: {years}")
+    hints = re.findall(r'data-hint="([a-z_]+)" data-function="([a-z_]+)"', after.text)
+    expect('data-statutes-stored="1"' in after.text and ("term_not_aligned", "kassier") in hints and ("term_missing", "obmann_stv") in hints
+           and all(code not in ("obmann", "rechnungspruefung") for _, code in hints), f"hints after storing: {hints}")
+
+    later = (datetime.date.fromisoformat(today) + datetime.timedelta(days=4 * 366)).isoformat()
+    due = re.findall(r'data-problem="election_due" data-function="([a-z_]+)"', page_ok(browser.get(f"/custom/vereine/functions.php?day={later}"), "functions in four years").text)
+    now = page_ok(browser.get(f"/custom/vereine/functions.php?day={today}"), "functions today")
+    expect("obmann" in due and set(due) <= {"obmann", "kassier", "rechnungspruefung"} and 'data-problem="election_due"' not in now.text,
+           f"elections due in four years: {due}")
+
+    key = stack.notes["applicationkey"]
+    day = datetime.date.fromisoformat(today)
+    body = {"firstname": "Ylvie", "lastname": "Jung", "email": "ylvie.jung@runtime-verein.test", "type_id": int(type_id),
+            "birth": (day - datetime.timedelta(days=17 * 365)).isoformat()}
+    for change, message in (({}, "the statutes admit members from 18 years of age"), ({"birth": ""}, "birth is required")):
+        status, answer = stack.api("vereine/applications", key, method="POST", data={**body, **change})
+        expect(status == 400 and message in json.dumps(answer), f"application with {change or 'age 17'}: HTTP {status} {answer}")
+    expect(stack.value("SELECT COUNT(*) FROM llx_adherent WHERE lastname = 'Jung' AND firstname = 'Ylvie'") == "0", "a refused application created a member")
+    status, created = stack.api("vereine/applications", key, method="POST",
+                                data={**body, "lastname": "Alt", "email": "ylvie.alt@runtime-verein.test", "birth": (day - datetime.timedelta(days=30 * 365)).isoformat()})
+    expect(status == 200 and created.get("status") == "draft", f"an adult's application: HTTP {status} {created}")
+
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_log WHERE action = 'statute_rules'") == "1", "storing the rules was not logged once")
+    expect(denied(stack.browser("rtreader").get("/custom/vereine/admin/statutes.php")), "a non-administrator opens the statute setup")
+    return ("model statutes filled in, board and audit functions without term hinted; general assembly less often than five years, motions not before the invitation, "
+            "no invitation channel and a term of 25 years refused; rules and terms stored, term ending between two assemblies hinted; "
+            "election due in four years for the chair, not today; applications under 18 and without birth date refused, adult accepted; log")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -2164,7 +2231,8 @@ SCENARIOS = (
     ("board", "Board for a website: names with consent or disclosure, functions in the summary", board, ("authority",)),
     ("groups", "User groups through functions, changed only after an administrator confirms", groups, ("board",)),
     ("mailing", "E-mail campaign recipients by function, consent and guardians of minors", mailing, ("groups",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("mailing",)),
+    ("statutes", "Rules of the statutes: checked, stored, election due and minimum age for applications", statutes, ("mailing",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("statutes",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

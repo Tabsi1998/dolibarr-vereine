@@ -54,6 +54,7 @@ class VereineLog
 	const FUNCTION_REPORT_PDF = 'function_report_pdf';
 	const FUNCTION_GROUP_ADD = 'function_group_add';
 	const FUNCTION_GROUP_REMOVE = 'function_group_remove';
+	const STATUTE_RULES = 'statute_rules';
 
 	/**
 	 * Append one entry.

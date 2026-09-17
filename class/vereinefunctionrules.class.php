@@ -23,6 +23,8 @@
  * Dates are strings YYYY-MM-DD.
  */
 
+require_once __DIR__.'/vereinestatuterules.class.php';
+
 /**
  * Rules of functions and terms of office.
  */
@@ -36,6 +38,8 @@ class VereineFunctionRules
 	const PROBLEM_BOARD_TOO_SMALL = 'board_too_small';
 	/** An auditor also sits on the board that is audited (§ 5 (5) and (4) VerG). */
 	const PROBLEM_AUDITOR_ON_BOARD = 'auditor_on_board';
+	/** Holders whose term of office under the statutes has run out: an election is due. */
+	const PROBLEM_ELECTION_DUE = 'election_due';
 
 	/** Smallest number of persons on the board. */
 	const BOARD_MIN = 2;
@@ -191,7 +195,7 @@ class VereineFunctionRules
 	/**
 	 * Who holds which function on a day, and what does not fit.
 	 *
-	 * @param array<int,array<string,mixed>> $functions Active functions, keys id, code, board, auditor, min, max
+	 * @param array<int,array<string,mixed>> $functions Active functions, keys id, code, board, auditor, min, max, term_years (optional)
 	 * @param array<int,array<string,mixed>> $terms     Terms, keys function_id, member_id, start, end
 	 * @param string                         $day       Day
 	 * @return array{holders:array<int,int[]>,problems:array<int,array{kind:string,function_id:int,count:int,members:int[]}>}
@@ -200,13 +204,25 @@ class VereineFunctionRules
 	public static function check(array $functions, array $terms, $day)
 	{
 		$holders = array();
+		$years = array();
+		$due = array();
 		foreach ($functions as $function) {
 			$holders[(int) $function['id']] = array();
+			$years[(int) $function['id']] = isset($function['term_years']) ? (int) $function['term_years'] : 0;
+			$due[(int) $function['id']] = array();
 		}
 		foreach ($terms as $term) {
 			$functionId = (int) $term['function_id'];
-			if (isset($holders[$functionId]) && self::isActive($term, $day) && !in_array((int) $term['member_id'], $holders[$functionId], true)) {
+			if (!isset($holders[$functionId]) || !self::isActive($term, $day)) {
+				continue;
+			}
+			if (!in_array((int) $term['member_id'], $holders[$functionId], true)) {
 				$holders[$functionId][] = (int) $term['member_id'];
+			}
+			// The statutes usually keep the holder in office until the election, so this is a reminder, not an end.
+			if ($years[$functionId] > 0 && VereineStatuteRules::addYears($term['start'], $years[$functionId]) <= $day
+				&& !in_array((int) $term['member_id'], $due[$functionId], true)) {
+				$due[$functionId][] = (int) $term['member_id'];
 			}
 		}
 		$problems = array();
@@ -219,6 +235,9 @@ class VereineFunctionRules
 				$problems[] = array('kind' => self::PROBLEM_MISSING, 'function_id' => $id, 'count' => $count, 'members' => array());
 			} elseif ((int) $function['max'] > 0 && $count > (int) $function['max']) {
 				$problems[] = array('kind' => self::PROBLEM_TOO_MANY, 'function_id' => $id, 'count' => $count, 'members' => $holders[$id]);
+			}
+			if ($due[$id]) {
+				$problems[] = array('kind' => self::PROBLEM_ELECTION_DUE, 'function_id' => $id, 'count' => $years[$id], 'members' => $due[$id]);
 			}
 			if (!empty($function['board'])) {
 				$board = array_merge($board, $holders[$id]);

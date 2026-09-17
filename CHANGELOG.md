@@ -7,6 +7,35 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.5.0-beta] - 2026-09-17
+
+Rules of the statutes in one place (issue #86, first part of #81).
+
+### Added
+
+- Setup tab *Statutes* with what the statutes lay down, filled in from the model
+  statutes of the Austrian Ministry of the Interior (April 2024):
+  - Membership: minimum age, member types voting in the general assembly; the
+    exit rule of the tab *Fees* is shown.
+  - General assembly: how often (at least every five years, § 5 (2) VerG),
+    invitation days before and by letter, e-mail or website, days for motions,
+    proxy votes, quorum, majorities for changes of the statutes and dissolution,
+    virtual or hybrid assemblies where the statutes provide for them (§ 1 VirtGesG).
+  - Board: quorum and whether the chair decides a tie.
+  - Term of office per function in years (§ 3 (2) no. 8 VerG).
+- Checks in plain words: values the Associations Act does not allow are not
+  stored; hints show board and audit functions without a term of office and terms
+  that end between two general assemblies.
+- *Board and functions* shows "election due" when a term of office under the
+  statutes has run out.
+- Membership applications through the API are refused below the minimum age of
+  the statutes, and without a birth date while there is one.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once. That adds the term
+of office to the functions (`sql/update_0.5.0.sql`).
+
 ## [0.4.4-beta] - 2026-09-17
 
 Recipients of e-mail campaigns (issue #19).
@@ -697,7 +726,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.4.4-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.0-beta...HEAD
+[0.5.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.0-beta
 [0.4.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.4-beta
 [0.4.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.3-beta
 [0.4.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.2-beta

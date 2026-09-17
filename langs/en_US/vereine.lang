@@ -782,3 +782,66 @@ VereineMailingBoard=Board
 VereineMailingPurposeInfo=information of the association, for example an invitation (no consent)
 VereineMailingPurposeConsent=only with consent: %s
 VereineMailingGuardians=Reach minors through their guardians
+
+#
+# Statutes
+#
+VereineSetupTabStatutes=Statutes
+VereineStatutesHowToWhere=These values are in your statutes. The model statutes of the Ministry of the Interior (April 2024) are filled in; where your statutes say otherwise, enter your values.
+VereineStatutesHowToUse=The module uses them: "election due" under Board and functions, the minimum age for membership applications from the website, later invitations and resolutions of meetings.
+VereineStatutesHowToAdvice=The module checks against the Associations Act but gives no legal advice.
+VereineStatutesNotStored=Not stored yet: the model statutes are shown.
+VereineStatutesMembership=Membership
+VereineStatuteMinAge=Minimum age
+VereineStatuteMinAgeHelp=Years; 0 = none. Membership applications from the website by younger people are refused.
+VereineStatuteVotingTypes=Voting in the general assembly
+VereineStatuteVotingTypesHelp=None ticked = all member types. In the model statutes: ordinary and honorary members.
+VereineStatuteExit=Exit
+VereineStatuteExitHelp=Set in the tab Fees.
+VereineStatutesGeneral=General assembly
+VereineStatuteGeneralYears=Ordinary general assembly every
+VereineStatuteGeneralYearsUnit=years (at least every five years, § 5 (2) VerG)
+VereineStatuteInviteDays=Invitation at least
+VereineStatuteDaysBefore=days before
+VereineStatuteInviteChannels=Invitation by
+VereineStatuteChannel_letter=letter
+VereineStatuteChannel_email=e-mail to the address given
+VereineStatuteChannel_website=publication on the website
+VereineStatuteMotionDays=Motions at least
+VereineStatuteProxy=A member may transfer the vote to another member in writing
+VereineStatuteGeneralQuorum=Quorum from
+VereineStatuteGeneralQuorumHelp=%% of the voting members present; 0 = regardless of the number present, as in the model statutes
+VereineStatuteStatuteMajority=Majority for changes of the statutes
+VereineStatuteDissolutionMajority=Majority for dissolution
+VereineStatuteMajority_simple=simple majority of the valid votes cast
+VereineStatuteMajority_two_thirds=two-thirds majority of the valid votes cast
+VereineStatuteMajority_three_quarters=three-quarters majority of the valid votes cast
+VereineStatuteVirtual=Virtual assembly
+VereineStatuteVirtual_none=not provided, physical presence only
+VereineStatuteVirtual_convener=possible, whoever convenes decides
+VereineStatuteVirtual_always=always virtual
+VereineStatuteVirtual_hybrid=hybrid, every member chooses in person or virtual
+VereineStatuteVirtualHelp=Only where the statutes provide for it (§ 1 VirtGesG). The invitation then has to say what participants need technically (§ 2 (2) VirtGesG).
+VereineStatutesBoard=Board
+VereineStatuteBoardQuorum=Quorum when all were invited and at least
+VereineStatuteBoardQuorumUnit=%% are present
+VereineStatuteBoardTieChair=In a tie the chair's vote decides
+VereineStatutesTerms=Terms of office
+VereineStatutesTermsHelp=How long a function lasts under the statutes, in years; 0 = not set. When it has run out, Board and functions shows "election due".
+VereineStatuteTermYears=years
+VereineStatutesCheck=Check
+VereineStatutesAllFine=The rules fit together.
+VereineStatuteHint_term_missing=%s: no term of office. The statutes have to say how long it lasts (§ 3 (2) no. 8 VerG).
+VereineStatuteHint_term_not_aligned=%s: %s years do not fit the interval of general assemblies (every %s years), the term ends between two assemblies.
+VereineStatutesSaved=Rules of the statutes stored.
+VereineStatuteErrorMinAge=The minimum age is a whole number from 0 to 99.
+VereineStatuteErrorGeneralYears=The ordinary general assembly has to meet at least every five years (§ 5 (2) VerG): 1 to 5 years.
+VereineStatuteErrorDays=The invitation needs at least one day, motions 0 or more days, at most 365.
+VereineStatuteErrorMotionDays=The deadline for motions has to be shorter than the invitation period, otherwise members do not know the date yet.
+VereineStatuteErrorChannels=Choose at least one way of inviting.
+VereineStatuteErrorQuorum=Quorum in percent: general assembly 0 to 100, board 1 to 100.
+VereineStatuteErrorMajority=The module does not know this majority.
+VereineStatuteErrorVirtual=The module does not know this kind of virtual assembly.
+VereineStatuteErrorTermYears=A term of office is a whole number from 0 to 20 years.
+VereineFunctionProblem_election_due=%s: term of office under the statutes (%s years) has run out for %s. An election is due; whether the function lasts until then, the statutes say (in the model statutes it does).
+VereineLog_statute_rules=rules of the statutes stored

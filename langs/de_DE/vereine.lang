@@ -782,3 +782,66 @@ VereineMailingBoard=Vorstand
 VereineMailingPurposeInfo=Vereinsinformation, zum Beispiel Einladung (ohne Einwilligung)
 VereineMailingPurposeConsent=nur mit Einwilligung: %s
 VereineMailingGuardians=Minderjährige über die Erziehungsberechtigten erreichen
+
+#
+# Statuten
+#
+VereineSetupTabStatutes=Statuten
+VereineStatutesHowToWhere=Diese Werte stehen in euren Statuten. Vorbelegt ist das Statutenmuster des Innenministeriums (April 2024); steht in euren Statuten etwas anderes, tragt eure Werte ein.
+VereineStatutesHowToUse=Das Modul verwendet sie: „Neuwahl fällig“ unter Vorstand und Funktionen, das Mindestalter bei Beitrittsanträgen über die Website, später Einladungen und Beschlüsse der Sitzungen.
+VereineStatutesHowToAdvice=Das Modul prüft gegen das Vereinsgesetz, ersetzt aber keine Rechtsberatung.
+VereineStatutesNotStored=Noch nicht gespeichert: angezeigt wird das Statutenmuster.
+VereineStatutesMembership=Mitgliedschaft
+VereineStatuteMinAge=Mindestalter
+VereineStatuteMinAgeHelp=Jahre; 0 = keines. Beitrittsanträge über die Website von Jüngeren werden abgelehnt.
+VereineStatuteVotingTypes=Stimmberechtigt in der Generalversammlung
+VereineStatuteVotingTypesHelp=Keine angehakt = alle Mitgliedsarten. Im Statutenmuster: ordentliche und Ehrenmitglieder.
+VereineStatuteExit=Austritt
+VereineStatuteExitHelp=Einstellen im Reiter Beiträge.
+VereineStatutesGeneral=Generalversammlung
+VereineStatuteGeneralYears=Ordentliche Generalversammlung alle
+VereineStatuteGeneralYearsUnit=Jahre (mindestens alle fünf Jahre, § 5 Abs. 2 VerG)
+VereineStatuteInviteDays=Einladung mindestens
+VereineStatuteDaysBefore=Tage vorher
+VereineStatuteInviteChannels=Einladung per
+VereineStatuteChannel_letter=Brief
+VereineStatuteChannel_email=E-Mail an die bekanntgegebene Adresse
+VereineStatuteChannel_website=Veröffentlichung auf der Website
+VereineStatuteMotionDays=Anträge mindestens
+VereineStatuteProxy=Stimmrecht darf schriftlich an ein anderes Mitglied übertragen werden
+VereineStatuteGeneralQuorum=Beschlussfähig ab
+VereineStatuteGeneralQuorumHelp=%% der Stimmberechtigten anwesend; 0 = ohne Rücksicht auf die Zahl der Erschienenen, wie im Statutenmuster
+VereineStatuteStatuteMajority=Mehrheit für Statutenänderungen
+VereineStatuteDissolutionMajority=Mehrheit für die Auflösung
+VereineStatuteMajority_simple=einfache Mehrheit der abgegebenen gültigen Stimmen
+VereineStatuteMajority_two_thirds=Zweidrittelmehrheit der abgegebenen gültigen Stimmen
+VereineStatuteMajority_three_quarters=Dreiviertelmehrheit der abgegebenen gültigen Stimmen
+VereineStatuteVirtual=Virtuelle Versammlung
+VereineStatuteVirtual_none=nicht vorgesehen, nur mit physischer Anwesenheit
+VereineStatuteVirtual_convener=möglich, wer einberuft, entscheidet
+VereineStatuteVirtual_always=immer virtuell
+VereineStatuteVirtual_hybrid=hybrid, jedes Mitglied wählt vor Ort oder virtuell
+VereineStatuteVirtualHelp=Nur wenn die Statuten es vorsehen (§ 1 VirtGesG). Die Einladung muss dann sagen, was man technisch für die Teilnahme braucht (§ 2 Abs. 2 VirtGesG).
+VereineStatutesBoard=Vorstand
+VereineStatuteBoardQuorum=Beschlussfähig, wenn alle eingeladen sind und mindestens
+VereineStatuteBoardQuorumUnit=%% anwesend sind
+VereineStatuteBoardTieChair=Bei Stimmengleichheit entscheidet die Stimme des Vorsitzes
+VereineStatutesTerms=Funktionsperioden
+VereineStatutesTermsHelp=Wie lange eine Funktion laut Statuten dauert, in Jahren; 0 = nicht festgelegt. Ist sie abgelaufen, zeigt Vorstand und Funktionen „Neuwahl fällig“.
+VereineStatuteTermYears=Jahre
+VereineStatutesCheck=Prüfung
+VereineStatutesAllFine=Die Regeln passen zusammen.
+VereineStatuteHint_term_missing=%s: keine Funktionsperiode. Die Statuten müssen festlegen, wie lange sie dauert (§ 3 Abs. 2 Z 8 VerG).
+VereineStatuteHint_term_not_aligned=%s: %s Jahre passen nicht zum Abstand der Generalversammlungen (alle %s Jahre), die Funktionsperiode endet zwischen zwei Versammlungen.
+VereineStatutesSaved=Regeln der Statuten gespeichert.
+VereineStatuteErrorMinAge=Das Mindestalter ist eine ganze Zahl von 0 bis 99.
+VereineStatuteErrorGeneralYears=Die ordentliche Generalversammlung muss mindestens alle fünf Jahre stattfinden (§ 5 Abs. 2 VerG): 1 bis 5 Jahre.
+VereineStatuteErrorDays=Die Einladung braucht mindestens einen Tag, Anträge 0 oder mehr Tage, höchstens 365.
+VereineStatuteErrorMotionDays=Die Frist für Anträge muss kürzer sein als die Einladungsfrist, sonst kennen die Mitglieder den Termin noch nicht.
+VereineStatuteErrorChannels=Mindestens einen Weg für die Einladung wählen.
+VereineStatuteErrorQuorum=Beschlussfähigkeit in Prozent: Generalversammlung 0 bis 100, Vorstand 1 bis 100.
+VereineStatuteErrorMajority=Diese Mehrheit kennt das Modul nicht.
+VereineStatuteErrorVirtual=Diese Art der virtuellen Versammlung kennt das Modul nicht.
+VereineStatuteErrorTermYears=Eine Funktionsperiode ist eine ganze Zahl von 0 bis 20 Jahren.
+VereineFunctionProblem_election_due=%s: Funktionsperiode laut Statuten (%s Jahre) abgelaufen bei %s. Neuwahl fällig; ob die Funktion bis zur Wahl weiterläuft, sagen die Statuten (im Statutenmuster ja).
+VereineLog_statute_rules=Regeln der Statuten gespeichert
