@@ -23,6 +23,7 @@
 
 require_once __DIR__.'/vereinemeetingrules.class.php';
 require_once __DIR__.'/vereineattendancerules.class.php';
+require_once __DIR__.'/vereinevoterules.class.php';
 require_once __DIR__.'/vereinestatutes.class.php';
 require_once __DIR__.'/vereinefunctions.class.php';
 require_once __DIR__.'/vereinelog.class.php';
@@ -438,6 +439,129 @@ class VereineMeetings
 		}));
 		VereineLog::add($this->db, $user, VereineLog::MEETING_ATTENDANCE, 0, 0, $meeting['title'].': '.$present.' present');
 		return 1;
+	}
+
+	/**
+	 * Votes and elections of a meeting, in the order they took place.
+	 *
+	 * @param int $id Meeting
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function votes($id)
+	{
+		global $conf;
+
+		$sql = "SELECT rowid, item, kind, title, secret, yes, no, abstain, tie, vote_time, majority, passed, fk_function, fk_candidate, applied FROM ".MAIN_DB_PREFIX."vereine_meeting_vote";
+		$sql .= " WHERE fk_meeting = ".((int) $id)." AND entity = ".((int) $conf->entity)." ORDER BY rowid";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return array();
+		}
+		$votes = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$votes[] = array('id' => (int) $obj->rowid, 'item' => (int) $obj->item, 'kind' => (string) $obj->kind, 'title' => (string) $obj->title, 'secret' => (int) $obj->secret === 1,
+				'yes' => (int) $obj->yes, 'no' => (int) $obj->no, 'abstain' => (int) $obj->abstain, 'tie' => (string) $obj->tie, 'time' => (string) $obj->vote_time,
+				'majority' => (string) $obj->majority, 'passed' => (int) $obj->passed === 1, 'function_id' => (int) $obj->fk_function, 'candidate_id' => (int) $obj->fk_candidate,
+				'applied' => (string) $obj->applied);
+		}
+		$this->db->free($resql);
+		return $votes;
+	}
+
+	/**
+	 * Store a vote with its result; an election that passed starts the term of office, a change of the statutes that passed stores the version and its notice.
+	 *
+	 * @param int                 $id      Meeting
+	 * @param array<string,mixed> $entered Entered vote
+	 * @param User                $user    Who stores
+	 * @param Translate           $outputlangs Language of letters
+	 * @return int Id of the vote, 0 when refused (see errors), -1 on error
+	 */
+	public function saveVote($id, array $entered, $user, $outputlangs)
+	{
+		global $conf;
+
+		require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+
+		$this->errors = array();
+		$meeting = $this->fetch($id);
+		if ($meeting === null || !in_array($meeting['status'], array(VereineMeetingRules::STATUS_INVITED, VereineMeetingRules::STATUS_HELD), true)) {
+			$this->errors = array('VereineMeetingErrorNotInvited');
+			return 0;
+		}
+		$statutes = new VereineStatutes($this->db);
+		$rules = $statutes->rules();
+		$vote = VereineVoteRules::normalize($entered);
+		$attendance = $this->attendance($id);
+		$quorum = VereineAttendanceRules::quorum($meeting['kind'], $attendance['rows'], $attendance['voting'], $rules, $vote['time']);
+		$this->errors = VereineVoteRules::validate($meeting['kind'], $vote, $quorum['votes'], count($meeting['agenda']));
+		if (!$quorum['reached']) {
+			$this->errors[] = 'VereineVoteErrorQuorum';
+		}
+		if ($this->errors) {
+			return 0;
+		}
+		$majority = VereineVoteRules::majority($vote['kind'], $rules);
+		$result = VereineVoteRules::result($vote, $majority, $meeting['kind'], $rules);
+		$applied = '';
+		if ($result['passed'] && $vote['kind'] === VereineVoteRules::KIND_ELECTION) {
+			$member = new Adherent($this->db);
+			$functions = new VereineFunctions($this->db);
+			$function = null;
+			foreach ($functions->fetchAll(true) as $candidate) {
+				if ($candidate['id'] === $vote['function_id']) {
+					$function = $candidate;
+				}
+			}
+			if ($function === null || $member->fetch($vote['candidate_id']) <= 0) {
+				$this->errors = array('VereineVoteErrorElection');
+				return 0;
+			}
+			if ((int) $function['max'] === 1) {
+				foreach ($functions->terms() as $term) {
+					if ($term['function_id'] === $function['id'] && $term['member_id'] !== $vote['candidate_id'] && VereineFunctionRules::isActive($term, $meeting['day'])) {
+						$end = $term['start'] < $meeting['day'] ? VereineMeetingRules::addDays($meeting['day'], -1) : $term['start'];
+						if ($functions->endTerm($term['id'], $end, $user) < 0) {
+							$this->error = $functions->error;
+							return -1;
+						}
+					}
+				}
+			}
+			$termId = $functions->addTerm($member, $function['id'], $meeting['day'], '', $meeting['title'].': '.$vote['title'], $user);
+			if ($termId <= 0) {
+				$this->errors = $functions->errors ?: array('VereineVoteErrorElection');
+				$this->error = $functions->error;
+				return $termId < 0 ? -1 : 0;
+			}
+			$applied = 'term:'.$termId;
+		} elseif ($result['passed'] && $vote['kind'] === VereineVoteRules::KIND_STATUTES) {
+			$version = $statutes->saveVersion($meeting['day'], '', $meeting['title'].': '.$vote['title'], $user);
+			if ($version <= 0) {
+				$this->errors = $statutes->errors;
+				$this->error = $statutes->error;
+				return $version < 0 ? -1 : 0;
+			}
+			$applied = 'version:'.$version;
+			require_once __DIR__.'/vereineauthorityletters.class.php';
+			$letters = new VereineAuthorityLetters($this->db);
+			if ($letters->create(VereineAuthorityRules::KIND_STATUTES, array('date' => $meeting['day']), $user, $outputlangs) > 0) {
+				$applied .= ',notice';
+			}
+		}
+		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_meeting_vote (entity, fk_meeting, item, kind, title, secret, yes, no, abstain, tie, vote_time, majority, passed, fk_function, fk_candidate, applied, datec, fk_user_modif)";
+		$sql .= " VALUES (".((int) $conf->entity).", ".((int) $id).", ".((int) $vote['item']).", '".$this->db->escape($vote['kind'])."', '".$this->db->escape($vote['title'])."',";
+		$sql .= " ".($vote['secret'] ? 1 : 0).", ".((int) $vote['yes']).", ".((int) $vote['no']).", ".((int) $vote['abstain']).", '".$this->db->escape($vote['tie'])."',";
+		$sql .= " '".$this->db->escape($vote['time'])."', '".$this->db->escape($majority)."', ".($result['passed'] ? 1 : 0).", ".((int) $vote['function_id']).",";
+		$sql .= " ".((int) $vote['candidate_id']).", '".$this->db->escape($applied)."', '".$this->db->idate(dol_now())."', ".((int) $user->id).")";
+		if (!$this->db->query($sql)) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		$voteId = (int) $this->db->last_insert_id(MAIN_DB_PREFIX.'vereine_meeting_vote');
+		VereineLog::add($this->db, $user, VereineLog::MEETING_VOTE, $vote['candidate_id'], 0, $vote['title'].': '.($result['passed'] ? 'passed' : 'rejected').($applied !== '' ? ' ('.$applied.')' : ''));
+		return $voteId;
 	}
 
 	/**

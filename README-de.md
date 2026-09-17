@@ -108,7 +108,12 @@ Vereinswebsite mit.
   Tagesordnung; genau der Vorstand oder alle Mitglieder per E-Mail oder Brief
   eingeladen, mit den Fristen der Statuten und Nachweis je Person. Anwesenheit
   mit Vollmachten, wie es die Statuten erlauben, und Beschlussfähigkeit zu jeder
-  Uhrzeit (0.5.5).
+  Uhrzeit (0.5.5). Abstimmungen und Wahlen mit den Mehrheiten der Statuten; eine
+  Wahl setzt die Funktionsperiode samt Meldung, eine Statutenänderung speichert
+  Fassung und Anzeige (0.5.6).
+- **API-Dokumentation in Dolibarr** (0.5.6): Einrichtungsreiter *API* mit jeder
+  Schnittstelle, ihren Rechten und einem Beispiel, den Benutzern mit
+  API-Schlüssel und was sie aufrufen können.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

@@ -155,6 +155,24 @@ if ($action === 'savemeeting' && $canWrite) {
 		}
 		setEventMessages(null, $messages, 'errors');
 	}
+} elseif ($action === 'savevote' && $canWrite) {
+	$entered = array();
+	foreach (array('kind', 'item', 'title', 'yes', 'no', 'abstain', 'tie', 'time', 'function_id', 'candidate_id') as $key) {
+		$entered[$key] = GETPOST($key, 'alphanohtml');
+	}
+	$entered['secret'] = GETPOSTISSET('secret');
+	$result = $meetings->saveVote($id, $entered, $user, $langs);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineVoteSaved'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id.'#vereinevotes');
+		exit;
+	}
+	if ($result < 0) {
+		setEventMessages($meetings->error, null, 'errors');
+	} else {
+		setEventMessages(null, array_map(array($langs, 'trans'), $meetings->errors), 'errors');
+	}
+	$entered = null;
 } elseif ($action === 'letters') {
 	$file = VereineMeetings::lettersPath($id);
 	if ($meetings->fetch($id) === null || !is_file($file)) {
@@ -384,6 +402,68 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 	if ($canWrite) {
 		print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('VereineAttendanceSave')).'"></div>';
 		print '</form>';
+	}
+
+	// Votes and elections.
+	require_once __DIR__.'/class/vereinefunctions.class.php';
+	$functionStore = new VereineFunctions($db);
+	$catalogue = array();
+	foreach ($functionStore->fetchAll(true) as $function) {
+		$catalogue[$function['id']] = $function['label'];
+	}
+	print '<br>'.load_fiche_titre($langs->trans('VereineVotes'), '', '', 0, 'vereinevotes');
+	print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineVotesHowTo').'</div>';
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+	print '<tr class="liste_titre"><td>'.$langs->trans('VereineVoteItem').'</td><td>'.$langs->trans('VereineVoteTitle').'</td><td>'.$langs->trans('VereineVoteCounts').'</td>';
+	print '<td>'.$langs->trans('VereineVoteMajority').'</td><td>'.$langs->trans('VereineVoteResult').'</td></tr>';
+	$votes = $meetings->votes($meeting['id']);
+	if (!$votes) {
+		print '<tr class="oddeven"><td colspan="5"><span class="opacitymedium">'.$langs->trans('VereineVotesNone').'</span></td></tr>';
+	}
+	foreach ($votes as $vote) {
+		print '<tr class="oddeven" data-vote="'.$vote['id'].'" data-kind="'.$vote['kind'].'" data-passed="'.($vote['passed'] ? 1 : 0).'" data-applied="'.dol_escape_htmltag($vote['applied']).'">';
+		print '<td>'.$vote['item'].'</td><td>'.dol_escape_htmltag($vote['title']).($vote['kind'] === VereineVoteRules::KIND_ELECTION && isset($catalogue[$vote['function_id']])
+			? ' <span class="opacitymedium">('.dol_escape_htmltag($catalogue[$vote['function_id']]).')</span>' : '').($vote['secret'] ? ' '.dolGetBadge($langs->trans('VereineVoteSecret'), '', 'secondary') : '').'</td>';
+		print '<td>'.$langs->trans('VereineVoteCountsText', $vote['yes'], $vote['no'], $vote['abstain']).'</td><td>'.$langs->trans('VereineStatuteMajority_'.$vote['majority']).'</td>';
+		print '<td>'.dolGetBadge($langs->trans($vote['passed'] ? 'VereineVotePassed' : 'VereineVoteRejected'), '', $vote['passed'] ? 'success' : 'danger').'</td></tr>';
+	}
+	print '</table></div>';
+	if ($canWrite) {
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'#vereinevotes" name="vereinevote" class="paddingtop">';
+		print '<input type="hidden" name="token" value="'.newToken().'">';
+		print '<input type="hidden" name="action" value="savevote">';
+		print '<table class="border centpercent">';
+		print '<tr><td class="titlefieldcreate fieldrequired">'.$langs->trans('VereineVoteItem').'</td><td><select name="item">';
+		foreach ($meeting['agenda'] as $index => $item) {
+			print '<option value="'.($index + 1).'">'.($index + 1).'. '.dol_escape_htmltag($item).'</option>';
+		}
+		print '</select></td></tr>';
+		print '<tr><td>'.$langs->trans('VereineVoteKind').'</td><td><select name="kind">';
+		foreach (VereineVoteRules::KINDS as $kind) {
+			print '<option value="'.$kind.'">'.$langs->trans('VereineVoteKind_'.$kind).'</option>';
+		}
+		print '</select></td></tr>';
+		print '<tr><td class="fieldrequired">'.$langs->trans('VereineVoteTitle').'</td><td><input type="text" name="title" class="minwidth300" maxlength="255" value=""></td></tr>';
+		print '<tr><td>'.$langs->trans('VereineVoteCounts').'</td><td>'.$langs->trans('VereineVoteYes').' <input type="number" min="0" name="yes" class="width50" value="0"> ';
+		print $langs->trans('VereineVoteNo').' <input type="number" min="0" name="no" class="width50" value="0"> '.$langs->trans('VereineVoteAbstain');
+		print ' <input type="number" min="0" name="abstain" class="width50" value="0"> <label><input type="checkbox" name="secret" value="1"> '.$langs->trans('VereineVoteSecret').'</label></td></tr>';
+		print '<tr><td>'.$langs->trans('VereineVoteTime').'</td><td><input type="time" name="time" value=""> <span class="opacitymedium small">'.$langs->trans('VereineVoteTimeHelp').'</span></td></tr>';
+		if ($meeting['kind'] === VereineMeetingRules::KIND_BOARD && !empty($rules['board_tie_chair'])) {
+			print '<tr><td>'.$langs->trans('VereineVoteTie').'</td><td><select name="tie"><option value=""></option><option value="yes">'.$langs->trans('VereineVoteYes').'</option>';
+			print '<option value="no">'.$langs->trans('VereineVoteNo').'</option></select></td></tr>';
+		}
+		print '<tr><td>'.$langs->trans('VereineVoteFunction').'</td><td><select name="function_id"><option value="0"></option>';
+		foreach ($catalogue as $functionId => $label) {
+			print '<option value="'.$functionId.'">'.dol_escape_htmltag($label).'</option>';
+		}
+		print '</select> '.$langs->trans('VereineVoteCandidate').' <select name="candidate_id"><option value="0"></option>';
+		foreach ($meetings->members($meeting['day']) as $member) {
+			if ($member['status'] === 1) {
+				print '<option value="'.$member['id'].'">'.dol_escape_htmltag($member['name']).'</option>';
+			}
+		}
+		print '</select> <span class="opacitymedium small">'.$langs->trans('VereineVoteElectionHelp').'</span></td></tr>';
+		print '</table><div class="center"><input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineVoteSave')).'"></div></form>';
 	}
 
 	if ($canWrite && $meeting['status'] === VereineMeetingRules::STATUS_INVITED) {

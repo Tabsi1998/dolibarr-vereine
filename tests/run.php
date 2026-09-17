@@ -54,6 +54,8 @@ require_once $root.'/class/vereineauthorityrules.class.php';
 require_once $root.'/class/vereinestatutetext.class.php';
 require_once $root.'/class/vereinemeetingrules.class.php';
 require_once $root.'/class/vereineattendancerules.class.php';
+require_once $root.'/class/vereinevoterules.class.php';
+require_once $root.'/class/vereineapirules.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -1007,6 +1009,30 @@ same(true, VereineAttendanceRules::quorum('general', $rows, $voting, array('gene
 $board = VereineAttendanceRules::quorum('board', $rows, $voting, $proxyRules, '19:00');
 same(array(2, 0, 2, true), array($board['present'], $board['represented'], $board['required'], $board['reached']), 'the board counts only who is present, half of four');
 
+// ------------------------------------------------------------------- votes
+
+$voteRules = VereineStatuteRules::normalize(array('statute_majority' => 'two_thirds', 'dissolution_majority' => 'three_quarters', 'board_tie_chair' => '1'));
+$vote = VereineVoteRules::normalize(array('kind' => 'statutes', 'item' => '2', 'title' => 'Statutenänderung', 'yes' => '4', 'no' => '2', 'abstain' => '', 'time' => '19:00'));
+same(array('statutes', 2, 4, 2, 0, '19:00', 0), array($vote['kind'], $vote['item'], $vote['yes'], $vote['no'], $vote['abstain'], $vote['time'], $vote['function_id']),
+	'a vote as entered, no abstentions when left empty');
+same(array(), VereineVoteRules::validate('general', $vote, 6, 3), 'six votes of six present on item 2 of 3');
+same(array('VereineVoteErrorItem', 'VereineVoteErrorBoardKind', 'VereineVoteErrorTooMany'), VereineVoteRules::validate('board', array('item' => 4) + $vote, 5, 3),
+	'an item not on the agenda, a change of statutes on the board and more votes than present');
+same(array('VereineVoteErrorElection'), VereineVoteRules::validate('general', VereineVoteRules::normalize(array('kind' => 'election', 'item' => '1', 'title' => 'Kassier', 'yes' => '3', 'no' => '0')), 3, 1),
+	'an election needs function and candidate');
+same(array('two_thirds', 'three_quarters', 'simple'), array(VereineVoteRules::majority('statutes', $voteRules), VereineVoteRules::majority('dissolution', $voteRules),
+	VereineVoteRules::majority('election', $voteRules)), 'majorities from the statutes');
+same(array(true, false, false, true), array(VereineVoteRules::result($vote, 'two_thirds', 'general', $voteRules)['passed'],
+	VereineVoteRules::result(array('yes' => 3, 'no' => 2) + $vote, 'two_thirds', 'general', $voteRules)['passed'],
+	VereineVoteRules::result(array('yes' => 2, 'no' => 1) + $vote, 'three_quarters', 'general', $voteRules)['passed'],
+	VereineVoteRules::result(array('yes' => 3, 'no' => 1) + $vote, 'three_quarters', 'general', $voteRules)['passed']), 'two thirds and three quarters of the valid votes cast, abstentions not cast');
+same(array(array('passed' => true, 'tie' => true, 'decided_by_chair' => true), array('passed' => false, 'tie' => true, 'decided_by_chair' => false),
+	array('passed' => false, 'tie' => true, 'decided_by_chair' => false)), array(
+	VereineVoteRules::result(array('yes' => 2, 'no' => 2, 'tie' => 'yes') + $vote, 'simple', 'board', $voteRules),
+	VereineVoteRules::result(array('yes' => 2, 'no' => 2, 'tie' => 'yes') + $vote, 'simple', 'general', $voteRules),
+	VereineVoteRules::result(array('yes' => 2, 'no' => 2, 'tie' => 'yes') + $vote, 'simple', 'board', array('board_tie_chair' => false) + $voteRules),
+), 'a tie: the chair decides on the board where the statutes say so, never in the general assembly');
+
 // ---------------------------------------------------------------- mailings
 
 $people = array(
@@ -1096,6 +1122,22 @@ sort($described);
 sort($implemented);
 same($implemented, $described, 'the endpoints in class/api_vereine.class.php and docs/openapi.json');
 
+// Every endpoint names the rights it needs, so the API tab of the setup can show them.
+$apiEndpoints = VereineApiRules::endpoints($openapi);
+expect(count($apiEndpoints) >= 13 && count(array_filter($apiEndpoints, function ($endpoint) {
+	return $endpoint['rights'] && $endpoint['operation'] !== '';
+})) === count($apiEndpoints), 'every endpoint in docs/openapi.json has an operationId and x-vereine-rights');
+$thresholds = array_values(array_filter($apiEndpoints, function ($endpoint) {
+	return $endpoint['path'] === '/vereine/thresholds';
+}));
+same(array(true, false, true, false), array(
+	VereineApiRules::canCall($thresholds[0]['rights'], array('vereine:association:read', 'facture:lire'), false),
+	VereineApiRules::canCall($thresholds[0]['rights'], array('vereine:association:read'), false),
+	VereineApiRules::canCall($thresholds[0]['rights'], array(), true),
+	VereineApiRules::canCall(array(), array('vereine:association:read'), false),
+), 'thresholds need both rights, an administrator has all, an endpoint without rights is never callable');
+same(array('vereine:website:read', 'facture:lire'), array(VereineApiRules::rightKey('vereine', 'website', 'read'), VereineApiRules::rightKey('facture', 'lire', null)), 'rights as in the description');
+
 // ------------------------------------------------------------ language files
 
 $english = langEntries($root.'/langs/en_US/vereine.lang');
@@ -1153,7 +1195,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
@@ -1175,6 +1217,8 @@ $prefixes = array(
 	'VereineMeetingGeneralOverdue_' => array('statutes', 'law'),
 	'VereineAttendanceState_' => VereineAttendanceRules::STATES,
 	'VereineAttendanceHowTo_' => array('board', 'general'),
+	'VereineVoteKind_' => VereineVoteRules::KINDS,
+	'VereineApiEndpoint_' => array_column(VereineApiRules::endpoints($openapi), 'operation'),
 	'VereineLetterKind_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
 	'VereineLetterTitle_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
 	'VereineLetterHelp_' => VereineAuthorityRules::KINDS,

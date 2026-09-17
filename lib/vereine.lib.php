@@ -194,6 +194,11 @@ function vereineAdminPrepareHead()
 	$head[$h][2] = 'statutes';
 	$h++;
 
+	$head[$h][0] = dol_buildpath('/vereine/admin/api.php', 1);
+	$head[$h][1] = $langs->trans('VereineSetupTabApi');
+	$head[$h][2] = 'api';
+	$h++;
+
 	$head[$h][0] = dol_buildpath('/vereine/admin/consents.php', 1);
 	$head[$h][1] = $langs->trans('VereineSetupTabConsents');
 	$head[$h][2] = 'consents';

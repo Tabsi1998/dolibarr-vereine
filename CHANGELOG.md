@@ -7,6 +7,44 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.5.6-beta] - 2026-09-17
+
+Votes and elections (issue #96, last part of #9), and the API documentation in
+Dolibarr (issue #99).
+
+### Added
+
+- Meetings get votes on their agenda items: resolution, election, change of the
+  statutes and voluntary dissolution, with yes, no, abstentions and, for secret
+  votes, only the result.
+- **Only with quorum** at the time of the vote and never with more votes than
+  present and represented.
+- **Majorities from the statutes:** simple majority, the majority for changes
+  of the statutes and for dissolution; abstentions are not votes cast. A tie on
+  the board is decided by the chair where the statutes say so. Changes of the
+  statutes and dissolution only in a general assembly.
+- **An election that passed** starts the term of office on the day of the
+  meeting, ends the other terms of a function held by one person, and writes the
+  report to the association authority for representatives.
+- **A change of the statutes that passed** stores the current text as a version
+  and writes the notice to the association authority.
+- Setup tab *API*:
+  - how to connect a website step by step, with a warning while Dolibarr's REST
+    API module is off, and a link to Dolibarr's API explorer
+  - **every endpoint** of the module with method and path, what it is for,
+    the rights it needs and a `curl` example, read from `docs/openapi.json` in
+    the package, so the list is never out of date
+  - **users with an API key**: their rights for these endpoints, directly or
+    through groups, and which endpoints they can call; administrators are
+    warned about; the key itself is never shown
+  - **webhooks**: the event, what it carries and how to set it up safely
+- `docs/openapi.json` names the rights of every endpoint (`x-vereine-rights`).
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once. That creates the
+table of the votes.
+
 ## [0.5.5-beta] - 2026-09-17
 
 Attendance, proxies and quorum (issue #95, second part of #9), the layout of the
@@ -877,7 +915,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.5-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.6-beta...HEAD
+[0.5.6-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.6-beta
 [0.5.5-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.5-beta
 [0.5.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.4-beta
 [0.5.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.3-beta
