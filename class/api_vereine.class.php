@@ -292,7 +292,10 @@ class Vereine extends DolibarrApi
 		foreach ($consents->currentTexts() as $code => $text) {
 			$texts[$code] = $text['version'];
 		}
-		$checked = VereineConsentRules::application($request_data, $types, $texts);
+		dol_include_once('/vereine/class/vereinestatutes.class.php');
+		$statutes = new VereineStatutes($this->db);
+		$statuteRules = $statutes->rules();
+		$checked = VereineConsentRules::application($request_data, $types, $texts, $statuteRules['min_age'], dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
 		if ($checked['errors']) {
 			throw new RestException(400, implode('; ', $checked['errors']));
 		}

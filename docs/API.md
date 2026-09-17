@@ -326,7 +326,7 @@ Answer:
 | `morphy`, `company` | `phy` (default) or `mor` with the name of the legal entity |
 | `firstname`, `lastname`, `email` | Required |
 | `type_id` | Required, an active member type of [`GET /vereine/membershipfees`](#get-vereinemembershipfees) open to this kind of person |
-| `birth` | `YYYY-MM-DD`, optional; discounts by age need it |
+| `birth` | `YYYY-MM-DD`, optional; discounts by age need it. Required while the statutes set a minimum age (setup tab *Statutes*): younger applicants are refused with 400 |
 | `note` | Message of the applicant, kept as private note of the member |
 | `consents` | The consents given, each with the version shown; purposes not ticked are left out |
 

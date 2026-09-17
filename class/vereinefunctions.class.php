@@ -323,8 +323,8 @@ class VereineFunctions
 			$functions[] = array('id' => (int) $obj->rowid, 'code' => (string) $obj->code, 'label' => (string) $obj->label, 'board' => (int) $obj->board === 1,
 				'represents' => (int) $obj->represents === 1, 'auditor' => (int) $obj->auditor === 1, 'min' => (int) $obj->min_count, 'max' => (int) $obj->max_count,
 				'position' => (int) $obj->position, 'active' => (int) $obj->active === 1,
-				// The column exists only after the module was enabled with 0.4.3.
-				'group_id' => isset($obj->fk_usergroup) ? (int) $obj->fk_usergroup : 0);
+				// The columns exist only after the module was enabled with 0.4.3 and 0.5.0.
+				'group_id' => isset($obj->fk_usergroup) ? (int) $obj->fk_usergroup : 0, 'term_years' => isset($obj->term_years) ? (int) $obj->term_years : 0);
 		}
 		$this->db->free($resql);
 		return $functions;

@@ -21,6 +21,8 @@
  * \brief   Consent texts, consents of members and membership applications, plain PHP.
  */
 
+require_once __DIR__.'/vereinestatuterules.class.php';
+
 /**
  * Rules of consents and applications.
  */
@@ -93,9 +95,11 @@ class VereineConsentRules
 	 * @param mixed                            $data  Body of the request
 	 * @param array<int,array<string,mixed>>   $types Active member types by id, keys morphy ('phy', 'mor' or '')
 	 * @param array<string,int>                $texts Current version of every active consent text by code
+	 * @param int                              $minAge Minimum age of the statutes for natural persons, 0 for none
+	 * @param string                           $today  Day of the application, YYYY-MM-DD
 	 * @return array{errors:string[],application:array<string,mixed>} Errors in English for the API answer
 	 */
-	public static function application($data, array $types, array $texts)
+	public static function application($data, array $types, array $texts, $minAge = 0, $today = '')
 	{
 		$errors = array();
 		$data = is_array($data) ? $data : array();
@@ -137,6 +141,11 @@ class VereineConsentRules
 		}
 		if ($application['birth'] !== '' && !(preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $application['birth'], $parts) && checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]))) {
 			$errors[] = 'birth must be a date YYYY-MM-DD';
+		}
+		if ((int) $minAge > 0 && $application['morphy'] === 'phy' && !in_array('birth must be a date YYYY-MM-DD', $errors, true)
+			&& !VereineStatuteRules::oldEnough($application['birth'], (int) $minAge, $today)) {
+			$errors[] = $application['birth'] === '' ? 'birth is required: the statutes admit members from '.((int) $minAge).' years of age'
+				: 'the statutes admit members from '.((int) $minAge).' years of age';
 		}
 		if ($application['country_code'] !== '' && !preg_match('/^[A-Z]{2}$/', $application['country_code'])) {
 			$errors[] = 'country_code must be two letters such as AT';

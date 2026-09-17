@@ -49,6 +49,7 @@ require_once $root.'/class/vereinesepa.class.php';
 require_once $root.'/class/vereineconsentrules.class.php';
 require_once $root.'/class/vereinefunctionrules.class.php';
 require_once $root.'/class/vereinemailingrules.class.php';
+require_once $root.'/class/vereinestatuterules.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -763,6 +764,14 @@ $check = VereineFunctionRules::check($catalogue, $terms, '2026-10-01');
 same(array(array('missing', 3)), array_map(function ($problem) {
 	return array($problem['kind'], $problem['function_id']);
 }, $check['problems']), 'on 1 October: treasurer on board, the ended auditor term leaves one auditor');
+$catalogue[0]['term_years'] = 2;
+$catalogue[2]['term_years'] = 0;
+$check = VereineFunctionRules::check($catalogue, $terms, '2027-01-01');
+same(array(array('election_due', 1, 2, array(10)), array('missing', 3, 1, array())), array_map(function ($problem) {
+	return array($problem['kind'], $problem['function_id'], $problem['count'], $problem['members']);
+}, $check['problems']), 'two years after the start the chair is due for election, a function without term never');
+same(false, in_array('election_due', array_column(VereineFunctionRules::check($catalogue, $terms, '2026-12-31')['problems'], 'kind'), true),
+	'the day before two years are over no election is due');
 
 $groupFunctions = array(array('id' => 1, 'group_id' => 7), array('id' => 2, 'group_id' => 0), array('id' => 3, 'group_id' => 8));
 $groupTerms = array(
@@ -791,6 +800,45 @@ same(array('birth', 'birth_place', 'address'), VereineFunctionRules::missingForR
 	'birth date, place of birth and a complete address are needed');
 same(array(), VereineFunctionRules::missingForReport(array('birth' => '1980-05-05', 'birth_place' => 'Innsbruck', 'address' => 'Hauptplatz 1', 'zip' => '6020', 'town' => 'Innsbruck')),
 	'nothing missing');
+
+// ---------------------------------------------------------------- statutes
+
+$model = VereineStatuteRules::defaults();
+same(array(1, 14, 3, true, 0, 'two_thirds', 'two_thirds', 'none', 50, true), array($model['general_years'], $model['invite_days'], $model['motion_days'], $model['proxy'],
+	$model['general_quorum'], $model['statute_majority'], $model['dissolution_majority'], $model['virtual'], $model['board_quorum'], $model['board_tie_chair']),
+	'the defaults are the model statutes of the Ministry of the Interior');
+$entered = array('min_age' => '18', 'voting_types' => array('3', '1', '3', 'x'), 'general_years' => '2', 'invite_days' => '14', 'invite_channels' => array('email', 'fax', 'letter'),
+	'motion_days' => '3', 'proxy' => '', 'general_quorum' => '0', 'statute_majority' => 'three_quarters', 'dissolution_majority' => 'two_thirds', 'virtual' => 'hybrid',
+	'board_quorum' => '50', 'board_tie_chair' => '1', 'unknown' => 'x');
+$rules = VereineStatuteRules::normalize($entered);
+same(array(18, array(1, 3), array('letter', 'email'), false, 'hybrid', true), array($rules['min_age'], $rules['voting_types'], $rules['invite_channels'], $rules['proxy'], $rules['virtual'], $rules['board_tie_chair']),
+	'entered rules: numbers, member types once, known channels in order, unticked proxy');
+same(false, isset($rules['unknown']), 'unknown keys are dropped');
+same($model, VereineStatuteRules::normalize('not stored'), 'nothing stored gives the model statutes');
+same(array(), VereineStatuteRules::validate(array_merge($entered, array('invite_channels' => array('email', 'letter')))), 'valid rules');
+same(array('VereineStatuteErrorGeneralYears'), VereineStatuteRules::validate(array_merge($entered, array('invite_channels' => array('email'), 'general_years' => '6'))),
+	'a general assembly less often than every five years is refused');
+same(array('VereineStatuteErrorMinAge', 'VereineStatuteErrorMotionDays', 'VereineStatuteErrorChannels', 'VereineStatuteErrorQuorum', 'VereineStatuteErrorMajority', 'VereineStatuteErrorVirtual'),
+	VereineStatuteRules::validate(array('min_age' => '-1', 'general_years' => '1', 'invite_days' => '7', 'motion_days' => '7', 'invite_channels' => array('fax'),
+		'general_quorum' => '0', 'board_quorum' => '0', 'statute_majority' => 'most', 'dissolution_majority' => 'two_thirds', 'virtual' => 'zoom')),
+	'bad age, motions not before the invitation, unknown channel, a board quorum of 0, unknown majority and kind of assembly');
+same(array('VereineStatuteErrorDays'), VereineStatuteRules::validate(array_merge($entered, array('invite_channels' => array('email'), 'invite_days' => '0'))), 'an invitation needs at least one day');
+same(array(true, true, false, false), array(VereineStatuteRules::isTermYears('4'), VereineStatuteRules::isTermYears('0'), VereineStatuteRules::isTermYears('21'), VereineStatuteRules::isTermYears('x')),
+	'terms of office from 0 to 20 years');
+same(array(array('kind' => 'term_missing', 'function_id' => 1), array('kind' => 'term_not_aligned', 'function_id' => 2)), VereineStatuteRules::hints(array('general_years' => 2), array(
+	array('id' => 1, 'board' => true, 'auditor' => false, 'term_years' => 0),
+	array('id' => 2, 'board' => false, 'auditor' => true, 'term_years' => 3),
+	array('id' => 3, 'board' => true, 'auditor' => false, 'term_years' => 4),
+	array('id' => 4, 'board' => false, 'auditor' => false, 'term_years' => 0),
+)), 'a board function without term and a term ending between two assemblies; other functions need no term');
+same(array(true, true, false, false), array(
+	VereineStatuteRules::oldEnough('', 0, '2026-09-17'),
+	VereineStatuteRules::oldEnough('2008-09-17', 18, '2026-09-17'),
+	VereineStatuteRules::oldEnough('2008-09-18', 18, '2026-09-17'),
+	VereineStatuteRules::oldEnough('', 18, '2026-09-17'),
+), 'old enough on the 18th birthday, not the day before, and not with an unknown birth date');
+same(array('2028-02-29', '2025-02-28', '2030-09-17'), array(VereineStatuteRules::addYears('2024-02-29', 4), VereineStatuteRules::addYears('2024-02-29', 1), VereineStatuteRules::addYears('2026-09-17', 4)),
+	'years later, 29 February becomes 28 February');
 
 // ---------------------------------------------------------------- mailings
 
@@ -853,6 +901,11 @@ same(array('external_id may only contain letters, digits and . _ : -', 'firstnam
 	'birth must be a date YYYY-MM-DD', 'the member type is not open to this kind of person (morphy)'), $checked['errors'], 'bad input is explained');
 same(array('body' => array('type_id must be an active member type, see GET /vereine/membershipfees')),
 	array('body' => array_values(array_filter(VereineConsentRules::application(array('type_id' => 99) + $valid, $types, $texts)['errors']))), 'an unknown member type is refused');
+same(array(array(), array('the statutes admit members from 18 years of age'), array('birth is required: the statutes admit members from 18 years of age')), array(
+	VereineConsentRules::application(array('birth' => '2008-09-17') + $valid, $types, $texts, 18, '2026-09-17')['errors'],
+	VereineConsentRules::application(array('birth' => '2008-09-18') + $valid, $types, $texts, 18, '2026-09-17')['errors'],
+	VereineConsentRules::application(array('birth' => '') + $valid, $types, $texts, 18, '2026-09-17')['errors'],
+), 'the minimum age of the statutes: old enough on the birthday, younger and unknown birth dates refused');
 
 // ------------------------------------------------------------------- openapi
 
@@ -933,11 +986,15 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
-	'VereineFunctionProblem_' => array('missing', 'too_many', 'board_too_small', 'auditor_on_board'),
+	'VereineFunctionProblem_' => array('missing', 'too_many', 'board_too_small', 'auditor_on_board', 'election_due'),
+	'VereineStatuteChannel_' => VereineStatuteRules::CHANNELS,
+	'VereineStatuteMajority_' => VereineStatuteRules::MAJORITIES,
+	'VereineStatuteVirtual_' => VereineStatuteRules::VIRTUALS,
+	'VereineStatuteHint_' => array(VereineStatuteRules::HINT_TERM_MISSING, VereineStatuteRules::HINT_TERM_NOT_ALIGNED),
 	'VereineConsentSource_' => VereineConsentRules::SOURCES,
 	'VereineConsentState_' => array('none', 'given', 'withdrawn'),
 	'VereineSetting_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT_NATURAL', 'VEREINE_PARTNER_TYPENT_LEGAL', 'VEREINE_CATEGORY_MEMBER', 'VEREINE_CATEGORY_FORMER', 'VEREINE_CATEGORY_GUARDIAN'),

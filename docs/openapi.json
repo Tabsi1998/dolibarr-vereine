@@ -1152,7 +1152,7 @@
           },
           "birth": {
             "type": "string",
-            "description": "YYYY-MM-DD"
+            "description": "YYYY-MM-DD; required while the statutes set a minimum age, younger applicants answer 400"
           },
           "address": {
             "type": "string"
