@@ -169,6 +169,81 @@ class VereineMemberSummary
 	}
 
 	/**
+	 * The latest of several moments that are not in the future.
+	 *
+	 * @param array<int,int|null> $moments Unix timestamps; empty values are left out
+	 * @param int                 $now     Now
+	 * @return int The latest moment, 0 when there is none
+	 */
+	public static function latestMoment(array $moments, $now)
+	{
+		$latest = 0;
+		foreach ($moments as $moment) {
+			if ((int) $moment > $latest && (int) $moment <= (int) $now) {
+				$latest = (int) $moment;
+			}
+		}
+		return $latest;
+	}
+
+	/**
+	 * A moment as ISO 8601 in UTC, such as 2026-09-17T08:00:00Z.
+	 *
+	 * @param int $moment Unix timestamp
+	 * @return string Empty for 0
+	 */
+	public static function isoMoment($moment)
+	{
+		return (int) $moment > 0 ? gmdate('Y-m-d\TH:i:s\Z', (int) $moment) : '';
+	}
+
+	/**
+	 * Read an ISO 8601 moment with time zone, such as 2026-09-17T08:00:00Z or 2026-09-17T10:00:00+02:00.
+	 *
+	 * @param string $text Moment
+	 * @return int|null Unix timestamp, null when the text is no such moment
+	 */
+	public static function parseMoment($text)
+	{
+		if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(Z|([+-])(\d{2}):(\d{2}))$/', trim((string) $text), $parts)) {
+			return null;
+		}
+		$second = isset($parts[6]) && $parts[6] !== '' ? (int) $parts[6] : 0;
+		if (!checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]) || (int) $parts[4] > 23 || (int) $parts[5] > 59 || $second > 59) {
+			return null;
+		}
+		$moment = gmmktime((int) $parts[4], (int) $parts[5], $second, (int) $parts[2], (int) $parts[3], (int) $parts[1]);
+		if ($parts[7] !== 'Z') {
+			$offset = ((int) $parts[9] * 60 + (int) $parts[10]) * 60;
+			$moment -= $parts[8] === '+' ? $offset : -$offset;
+		}
+		return $moment;
+	}
+
+	/**
+	 * The day a stored status changes by the date alone: a paid fee becomes due the day after
+	 * the period, an open invoice overdue the day after its due date.
+	 *
+	 * @param string $status      Membership status
+	 * @param bool   $required    Whether the member type needs a subscription
+	 * @param string $paidUntil   End of the last subscription period
+	 * @param string $lastDueDate The latest due date of an open invoice that is already past
+	 * @param string $today       Today
+	 * @return string[] Days, YYYY-MM-DD, not after today
+	 */
+	public static function changeDays($status, $required, $paidUntil, $lastDueDate, $today)
+	{
+		$days = array();
+		if ($status === self::STATUS_ACTIVE && $required && (string) $paidUntil !== '' && $paidUntil < $today) {
+			$days[] = self::dayAfter($paidUntil);
+		}
+		if ((string) $lastDueDate !== '' && $lastDueDate < $today) {
+			$days[] = self::dayAfter($lastDueDate);
+		}
+		return $days;
+	}
+
+	/**
 	 * The day after a date.
 	 *
 	 * @param string $date YYYY-MM-DD

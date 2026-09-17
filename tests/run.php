@@ -469,6 +469,22 @@ same(array('standard', 'replacement', 'credit_note', 'deposit', ''),
 	array_map(array('VereineMemberSummary', 'invoiceType'), array(0, '1', 2, 3, 5)),
 	'names of Dolibarr\'s invoice types, none for a type the module does not list');
 
+same(1758096000, VereineMemberSummary::parseMoment('2025-09-17T08:00:00Z'), 'a moment in UTC');
+same(1758096000, VereineMemberSummary::parseMoment('2025-09-17T10:00:00+02:00'), 'a moment in Vienna summer time');
+same(1758096000, VereineMemberSummary::parseMoment('2025-09-17T03:00-05:00'), 'a moment west of UTC without seconds');
+same(null, VereineMemberSummary::parseMoment('2025-09-17T08:00:00'), 'a moment without time zone is refused');
+same(null, VereineMemberSummary::parseMoment('2025-02-30T08:00:00Z'), 'a day that does not exist is refused');
+same(null, VereineMemberSummary::parseMoment('gestern'), 'no moment in words');
+same('2025-09-17T08:00:00Z', VereineMemberSummary::isoMoment(1758096000), 'a moment written in UTC');
+same('', VereineMemberSummary::isoMoment(0), 'no moment');
+same(300, VereineMemberSummary::latestMoment(array(100, null, 300, 900), 500), 'the latest moment not in the future');
+same(0, VereineMemberSummary::latestMoment(array(null, 0), 500), 'no moment at all');
+same(array('2026-09-11'), VereineMemberSummary::changeDays('active', true, '2026-09-10', '', $today), 'a fee that ran out changes the summary the day after');
+same(array(), VereineMemberSummary::changeDays('active', true, '2026-09-17', '', $today), 'a fee paid until today changes nothing yet');
+same(array(), VereineMemberSummary::changeDays('terminated', true, '2026-09-10', '', $today), 'the fee of a former member changes nothing');
+same(array(), VereineMemberSummary::changeDays('active', false, '2026-09-10', '', $today), 'a member type without subscription changes nothing');
+same(array('2026-08-16'), VereineMemberSummary::changeDays('active', false, '', '2026-08-15', $today), 'an invoice becomes overdue the day after its due date');
+
 same('2025-01-01', VereineMemberSummary::dayAfter('2024-12-31'), 'the day after New Year\'s Eve');
 same('2024-02-29', VereineMemberSummary::dayAfter('2024-02-28'), 'the day after 28 February in a leap year');
 same('', VereineMemberSummary::dayAfter('31.12.2024'), 'no day after an invalid date');

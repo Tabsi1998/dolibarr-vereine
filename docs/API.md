@@ -17,7 +17,7 @@ Since Dolibarr 24 the login endpoints are off by default, so a key is the way in
 | Answer | Meaning |
 | --- | --- |
 | 200 | JSON as described below |
-| 400 | A parameter is missing, out of range or not a valid e-mail address |
+| 400 | A parameter is missing, out of range or malformed, such as an invalid e-mail address or a moment without time zone |
 | 401 | No or unknown API key |
 | 403 | The user lacks the right |
 | 404 | No such member |
@@ -37,9 +37,13 @@ connection.
   "module_version": "0.1.0-beta",
   "api_version": 1,
   "country_profile": "AT",
-  "country_profile_complete": true
+  "country_profile_complete": true,
+  "server_time": "2026-09-17T08:00:00Z"
 }
 ```
+
+`server_time` is Dolibarr's clock in UTC - take it before a website sync and use
+it as `changed_since` of the next one (see below).
 
 ## GET /vereine/organization
 
@@ -197,6 +201,41 @@ Whoever has the key can read the summary of every member and find members by
 e-mail address. Treat it like a password: never in the browser, never in a
 repository.
 
+## GET /vereine/members
+
+Summaries of all members, by id, for a website that keeps its own copy.
+`?limit=` (1 to 100, default 100) and `?page=` (from 0) page through them.
+
+With `?changed_since=2026-09-17T08:00:00Z` only the members whose summary
+changed at or after that moment come back. The moment needs a time zone (`Z`
+or an offset such as `+02:00`); anything else answers 400.
+
+A summary counts as changed - and its `updated_at` moves - when
+
+- the member changes: status, member type, third party, name, number, paid until;
+- its member type changes, for example the fee amount;
+- a subscription period of the member is added or changed;
+- an invoice of its third party is validated, changed, paid or abandoned;
+- a payment on an invoice of its third party is added or changed;
+- a fee becomes due or an invoice overdue by the date alone: the summary changes
+  at midnight (server time) of the day after the period or the due date.
+
+Not noticed, so a full sync now and then is still worth it, for example once a
+night:
+
+- deleted members, subscription periods, invoices or payments;
+- a credit note or deposit used on an invoice that stays unpaid;
+- switching an online payment service on or off (the payment links).
+
+A sync that loses nothing:
+
+1. Take `server_time` from `GET /vereine/status` and keep it.
+2. Read `GET /vereine/members?changed_since=<the time kept last time>`, page by
+   page until a page is empty.
+3. After the last page, keep the new time from step 1 for the next sync.
+
+The first sync leaves `changed_since` out and reads every member.
+
 ## GET /vereine/members/{id}/summary
 
 What a website shows a member about the membership. `{id}` is the member's id
@@ -234,7 +273,8 @@ in Dolibarr (the number in the address of the member card).
       "overdue": true,
       "payment_url": "https://erp.example.org/public/payment/newpayment.php?source=invoice&ref=FA2608-0003&securekey=..."
     }
-  ]
+  ],
+  "updated_at": "2026-09-17T06:12:40Z"
 }
 ```
 
@@ -251,6 +291,7 @@ in Dolibarr (the number in the address of the member card).
 | `fee.amount` | Amount of the member type; `null` when the type sets none or needs no subscription |
 | `fee.payment_url` | Dolibarr's online payment page for the fee, only while the fee is `due` and an online payment service (Stripe, PayPal or one added by a module) is set up; otherwise empty |
 | `open_invoices` | Validated, unpaid invoices of the member's third party, oldest first, at most 50: standard, replacement and deposit invoices. Empty when the member has no third party. Each invoice as in [`members/{id}/invoices`](#get-vereinemembersidinvoices) |
+| `updated_at` | When something in the summary last changed, in UTC; see [`GET /vereine/members`](#get-vereinemembers) for what counts |
 
 Dates are `YYYY-MM-DD` or empty, amounts are numbers in `currency`. The summary
 never contains birth date, address, phone, e-mail, notes, bank data or dunning

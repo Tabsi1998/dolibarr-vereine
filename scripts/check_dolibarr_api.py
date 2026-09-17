@@ -227,6 +227,13 @@ CONTRACTS = (
     ("htdocs/core/class/commoninvoice.class.php", "const CLOSECODE_ABANDONED = 'abandon';", "runtime fixture abandons an invoice"),
     ("htdocs/compta/facture/class/facture.class.php", "public function setCanceled($user, $close_code = '', $close_note = '')", "runtime fixture abandons an invoice"),
     ("htdocs/api/class/api_documents.class.php", "$check_access = dol_check_secure_access_document($modulepart, $relativefile, $entity, DolibarrApiAccess::$user, '', 'read');", "the website user cannot download invoices through Dolibarr's own API"),
+    # Website sync with changed_since (issue #51)
+    ("htdocs/install/mysql/tables/llx_adherent.sql", "timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP", "a changed member"),
+    ("htdocs/install/mysql/tables/llx_adherent_type.sql", "timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP", "a changed member type"),
+    ("htdocs/install/mysql/tables/llx_subscription.sql", "timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP", "a new or changed subscription period"),
+    ("htdocs/install/mysql/tables/llx_facture.sql", "timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP", "a new or changed invoice"),
+    ("htdocs/install/mysql/tables/llx_paiement.sql", "timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP", "a new or changed payment"),
+    ("htdocs/install/mysql/tables/llx_paiement_facture.sql", "fk_paiement", "payments of an invoice"),
 )
 
 LANG_KEYS = {

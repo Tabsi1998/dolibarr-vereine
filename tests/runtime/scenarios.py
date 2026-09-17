@@ -438,8 +438,12 @@ def api(stack: Stack) -> str:
     """The REST API answers the reader, refuses others, and returns the stored association."""
     status, body = stack.api("vereine/status", stack.reader_key)
     expect(status == 200, f"GET vereine/status answered HTTP {status}: {body}")
+    server_time = body.pop("server_time", "") if isinstance(body, dict) else ""
     expect(body == {"module_version": stack.module_version, "api_version": 1, "country_profile": "AT",
                     "country_profile_complete": True}, f"GET vereine/status returned {body}")
+    drift = abs((datetime.datetime.now(datetime.timezone.utc)
+                 - datetime.datetime.strptime(server_time, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)).total_seconds())
+    expect(drift < 300, f"server_time {server_time} is {drift:.0f} s away from this computer's clock")
     status, body = stack.api("vereine/organization", stack.reader_key)
     expect(status == 200 and isinstance(body, dict), f"GET vereine/organization answered HTTP {status}: {body}")
     expected = {
@@ -1105,11 +1109,87 @@ def websiteinvoices(stack: Stack) -> str:
             status, _ = stack.api(path, who)
             expect(status == 403, f"{name} got HTTP {status} for {path}, expected 403")
 
+    return ("abandoned, paid and overdue invoice newest first, pages, draft left out; missing PDF built once, stored PDFs returned as stored, "
+            "foreign, draft and unknown invoices 404; Dolibarr's documents API 403")
+
+
+def websitesync(stack: Stack) -> str:
+    """A website sync reads all members page by page, and afterwards only those whose summary changed."""
+    site = stack.notes["website"]
+    key, members, invoices = site["key"], site["members"], site["invoices"]
+
+    def listing(query: str) -> list:
+        status, body = stack.api(f"vereine/members?{query}", key)
+        expect(status == 200 and isinstance(body, list), f"members with {query} answered HTTP {status}: {str(body)[:300]}")
+        return body
+
+    total = int(stack.value("SELECT COUNT(*) FROM llx_adherent WHERE entity = 1"))
+    everyone = listing("")
+    ids = [member["id"] for member in everyone]
+    expect(len(everyone) == total and ids == sorted(ids), f"all {total} members by id, got {ids}")
+    paged, page = [], 0
+    while page < 50:
+        chunk = listing(f"limit=3&page={page}")
+        if not chunk:
+            break
+        paged += chunk
+        page += 1
+    expect([member["id"] for member in paged] == ids, f"pages of 3 give {[member['id'] for member in paged]}, expected {ids}")
+
+    time.sleep(2)
+    status, info = stack.api("vereine/status", key)
+    expect(status == 200, f"GET vereine/status answered HTTP {status} for the website user")
+    since = info["server_time"]
+    expect(all(member["updated_at"] < since for member in everyone), "a member changed after the sync started")
+    expect(listing("changed_since=" + urllib.parse.quote(since)) == [], f"members changed since {since} without any change")
+
+    change = stack.php_fixture("websitechange", RT_INVOICE_ID=str(invoices["open"]["id"]), RT_MEMBER_ID=str(members["expired"]))
+    changed = listing("changed_since=" + urllib.parse.quote(since))
+    expect([member["id"] for member in changed] == sorted([members["paid"], members["expired"]]),
+           f"after a part payment for Paula and a new period for Emil the sync returned {[member['id'] for member in changed]}")
+    found = {member["id"]: member for member in changed}
+    paula, emil = found[members["paid"]], found[members["expired"]]
+    expect(paula["open_invoices"][0]["remaining"] == 45 and paula["updated_at"] >= since,
+           f"Paula after the part payment: {paula['open_invoices']}, updated {paula['updated_at']}")
+    expect(emil["fee"]["status"] == "paid" and emil["paid_until"] == change["paid_until"] and emil["updated_at"] >= since,
+           f"Emil after the new period: {emil['fee']}, paid until {emil['paid_until']}, updated {emil['updated_at']}")
+    vienna = (datetime.datetime.strptime(since, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+              .astimezone(datetime.timezone(datetime.timedelta(hours=2))).isoformat())
+    expect([member["id"] for member in listing("changed_since=" + urllib.parse.quote(vienna))] == [member["id"] for member in changed],
+           f"changed_since={vienna} gives other members than {since}")
+
+    # Nina's period ended yesterday; with every stored change backdated, only the date changed her summary today.
+    nina = members["unpaid"]
+    flip = stack.php_fixture("websiteflip", RT_MEMBER_ID=str(nina))
+    stack.sql(f"UPDATE llx_adherent SET tms = '{flip['backdate']}' WHERE rowid = {int(nina)}")
+    stack.sql(f"UPDATE llx_subscription SET tms = '{flip['backdate']}' WHERE fk_adherent = {int(nina)}")
+    stack.sql(f"UPDATE llx_adherent_type SET tms = '{flip['backdate']}' WHERE rowid = {int(stack.value(f'SELECT fk_adherent_type FROM llx_adherent WHERE rowid = {int(nina)}'))}")
+    status, summary = stack.api(f"vereine/members/{nina}/summary", key)
+    expect(status == 200 and summary["updated_at"] == flip["moment"] and summary["paid_until"] == flip["paid_until"]
+           and summary["fee"]["status"] == "due", f"Nina after her period ended yesterday: {summary}")
+    after = (datetime.datetime.strptime(flip["moment"], "%Y-%m-%dT%H:%M:%SZ") + datetime.timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    expect(nina in [member["id"] for member in listing("changed_since=" + urllib.parse.quote(flip["moment"]))],
+           f"Nina is missing from the sync since {flip['moment']}, when her fee became due")
+    expect(nina not in [member["id"] for member in listing("changed_since=" + urllib.parse.quote(after))],
+           f"Nina is in the sync since {after}, although nothing changed after her fee became due")
+
+    for query in ("changed_since=gestern", "changed_since=2026-09-17T08:00:00", "limit=0", "limit=101", "page=-1"):
+        status, _ = stack.api(f"vereine/members?{query}", key)
+        expect(status == 400, f"members with {query} answered HTTP {status}, expected 400")
+    for who, name in ((stack.reader_key, "a user who may read members but lacks the website right"), (stack.nobody_key, "a user without rights")):
+        status, _ = stack.api("vereine/members", who)
+        expect(status == 403, f"{name} got HTTP {status} for the member list, expected 403")
+    return (f"all {total} members by id and in pages; nothing changed, nothing listed; a part payment and a new period listed exactly "
+            "those two members, also with +02:00; a fee due by the date alone counts from midnight; bad input 400, other users 403")
+
+
+def openapi(stack: Stack) -> str:
+    """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
                      if status == "200" and (method, path, status) not in stack.openapi.checked)
     expect(not missing, f"no runtime check compared a successful answer with docs/openapi.json for: {missing}")
-    return (f"abandoned, paid and overdue invoice newest first, pages, draft left out; missing PDF built once, stored PDFs returned as stored, "
-            f"foreign, draft and unknown invoices 404; Dolibarr's documents API 403; {len(stack.openapi.checked)} answer kinds match docs/openapi.json")
+    endpoints = len({(method, path) for method, path, _ in stack.openapi.operations()})
+    return f"all {endpoints} endpoints answered 200; {len(stack.openapi.checked)} kinds of answers matched docs/openapi.json"
 
 
 def action_link_for(page: Page, action: str, row_id: str | None) -> str:
@@ -1173,7 +1253,9 @@ SCENARIOS = (
     ("thresholds", "Thresholds of a calendar year as traffic light on overview, home page and API", thresholds, ("invoicepdf",)),
     ("cashregister", "Cash register duty per sphere and the missing 13 % VAT rate", cashregister, ("thresholds",)),
     ("website", "Member summaries for a website: fee status, open invoices, lookup and rights", website, ("cashregister",)),
-    ("websiteinvoices", "A member's invoices and PDFs for a website, and every answer matches docs/openapi.json", websiteinvoices, ("website",)),
+    ("websiteinvoices", "A member's invoices and PDFs for a website", websiteinvoices, ("website",)),
+    ("websitesync", "A website sync gets all members and then only the changed ones", websitesync, ("websiteinvoices",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("websitesync",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 
