@@ -74,6 +74,9 @@ Vereinswebsite mit.
 - **Austritt** (0.3.9): Kündigung mit der Frist laut Statuten, Ausschluss, Tod
   oder Streichung; am letzten Tag wird das Mitglied auf ausgetreten gesetzt,
   der Beitragslauf endet dort.
+- **SEPA-Lastschrift** (0.3.10): Der Beitragslauf prüft Mandate, meldet
+  abgelaufene und fordert die Lastschrift mit Vorankündigung über Dolibarrs
+  eigenes Modul an.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

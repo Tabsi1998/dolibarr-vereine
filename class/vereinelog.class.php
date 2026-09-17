@@ -40,6 +40,7 @@ class VereineLog
 	const FEE_RUN = 'fee_run';
 	const FEE_ERROR = 'fee_error';
 	const FEE_PERIOD = 'fee_period';
+	const FEE_DIRECT_DEBIT = 'fee_direct_debit';
 	const EXIT_PLANNED = 'exit_planned';
 	const EXIT_DONE = 'exit_done';
 	const EXIT_CANCELLED = 'exit_cancelled';

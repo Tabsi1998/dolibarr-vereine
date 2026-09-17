@@ -581,3 +581,26 @@ VereineLog_exit_planned=Austritt vorgemerkt
 VereineLog_exit_done=Austritt wirksam
 VereineLog_exit_cancelled=Austritt zurückgenommen
 VereineLog_exit_error=Austritt konnte nicht wirksam gesetzt werden
+
+#
+# SEPA-Lastschrift
+#
+VereineSepaTitle=SEPA-Lastschrift
+VereineSepaHowToModule=<strong>Dolibarrs Modul <em>Lastschriften</em></strong> einschalten und dort die Gläubiger-ID des Vereins eintragen. Der Beitragslauf legt dann die Lastschrift-Anforderungen an, die Datei für die Bank erstellt Dolibarr wie gewohnt unter <em>Bank > Lastschriften</em>.
+VereineSepaHowToMandate=<strong>Mandat:</strong> am Geschäftspartner des Zahlers, Reiter <em>Bankkonten</em>, das Standardkonto mit IBAN, Mandatsreferenz und Datum der Unterschrift.
+VereineSepaHowToExpiry=<strong>Ablauf:</strong> Ein Mandat, das 36 Monate lang nicht verwendet wurde, gilt nicht mehr. Der Beitragslauf meldet es und fordert dafür keine Lastschrift an.
+VereineSepaHowToNotice=<strong>Vorankündigung:</strong> Auf der Rechnung stehen Betrag, frühester Einzugstag, Mandatsreferenz und Gläubiger-ID. Üblich sind 14 Kalendertage vor dem Einzug, wenn mit dem Mitglied nichts anderes vereinbart ist.
+VereineSepaHowToOrder=<strong>Im Beitragslauf</strong> ist „Lastschrift anfordern“ angehakt. Rechnungen ohne gültiges Mandat bleiben normale Rechnungen.
+VereineSepaModuleOff=Dolibarrs Modul „Lastschriften“ ist aus: Der Beitragslauf fordert keine Lastschriften an.
+VereineSepaNoCreditorId=Im Modul „Lastschriften“ fehlt die Gläubiger-ID. Sie gehört auf die Vorankündigung.
+VereineSepaNoticeDays=Vorankündigung in Tagen
+VereineSepaNoticeDaysHelp=frühester Einzug so viele Tage nach dem Rechnungsdatum; 1 bis 60, üblich 14
+VereineSepaErrorDays=Tage der Vorankündigung als ganze Zahl von 1 bis 60 eintragen.
+VereineSepaSaved=Einstellung zur Lastschrift gespeichert.
+VereineSepaMandateValid=Lastschrift, Mandat %s
+VereineSepaMandateExpired=Mandat %s abgelaufen: 36 Monate ohne Einzug, keine Lastschrift
+VereineSepaRequestOption=Lastschrift anfordern, wo ein gültiges Mandat vorliegt
+VereineSepaRequested=Lastschrift angefordert
+VereineSepaRequestFailed=Lastschrift nicht angefordert: %s
+VereineSepaPreNotification=Der Betrag von %s wird frühestens am %s per SEPA-Lastschrift eingezogen. Mandatsreferenz: %s, Gläubiger-ID: %s.
+VereineLog_fee_direct_debit=Lastschrift angefordert

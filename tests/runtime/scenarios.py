@@ -1687,6 +1687,65 @@ def exits(stack: Stack) -> str:
             "API shows membership_ends; exclusion today takes effect at once; a due exit is carried out by the scheduled job; taking back clears it")
 
 
+def sepa(stack: Stack) -> str:
+    """The fee run requests a SEPA direct debit only for a payer with a valid mandate and puts the pre-notification on the invoice."""
+    today = stack.notes["website"]["dates"]["today"]
+    browser = stack.browser()
+    setup = page_ok(browser.get("/custom/vereine/admin/fees.php"), "fee setup without direct debit module")
+    expect('data-sepa-howto="1"' in setup.text and 'data-sepa-module="off"' in setup.text, "the fee setup does not explain that the direct debit module is off")
+    preview = page_ok(browser.get(f"/custom/vereine/fees_run.php?dueuntil={today}"), "fee run without direct debit module")
+    expect('name="directdebit"' not in preview.text, "the fee run offers direct debits while the module is off")
+
+    fixture = stack.php_fixture("sepamembers")
+    members, accounts = fixture["members"], fixture["accounts"]
+    setup = page_ok(browser.get("/custom/vereine/admin/fees.php"), "fee setup with direct debit module")
+    expect('data-sepa-module="off"' not in setup.text and 'data-sepa-ics="missing"' not in setup.text, "the fee setup still warns after enabling direct debits")
+    refused = page_ok(browser.submit(setup.form(name="vereinesepa"), {"sepa_notice_days": "70"}), "70 days of pre-notification")
+    expect(stack.const("VEREINE_SEPA_NOTICE_DAYS") is None and "von 1 bis 60" in html.unescape(refused.text), "70 days were stored or not explained")
+    page = page_ok(browser.get("/custom/vereine/admin/fees.php"), "fee setup")
+    page_ok(browser.submit(page.form(name="vereinesepa"), {"sepa_notice_days": "10"}), "store 10 days of pre-notification")
+    expect(stack.const("VEREINE_SEPA_NOTICE_DAYS") == "10", f"stored days: {stack.const('VEREINE_SEPA_NOTICE_DAYS')}")
+
+    preview = page_ok(browser.get(f"/custom/vereine/fees_run.php?dueuntil={today}"), "fee run with direct debit module")
+    rows = {}
+    for match in re.finditer(r'<tr class="oddeven" data-fee-row="([^"]+)" data-status="([a-z_]+)" data-total="([^"]*)">(.*?)</tr>', preview.text, re.S):
+        rows[match.group(1)] = (match.group(2), match.group(3), html.unescape(match.group(4)))
+    keys = {person: f"{members[person]}:{today}" for person in members}
+    expect(all(rows.get(key, ("",))[0] == "ready" for key in keys.values()), f"the three members are not ready: {[rows.get(key, ('',))[:2] for key in keys.values()]}")
+    expect('data-sepa="valid"' in rows[keys["valid"]][2] and "RT-MANDAT-GUELTIG" in rows[keys["valid"]][2], "the valid mandate is not shown")
+    expect('data-sepa="expired"' in rows[keys["expired"]][2], "the mandate unused for 40 months is not reported as expired")
+    expect("data-sepa" not in rows[keys["none"]][2], "a member without mandate is shown with one")
+    expect(re.search(r'name="directdebit" value="1" checked', preview.text) is not None, "the fee run does not offer direct debits")
+
+    fields = [("token", token_of(preview)), ("action", "run"), ("dueuntil", today), ("typeid", "0"), ("directdebit", "1")]
+    fields += [("fees[]", key) for key in keys.values()]
+    result = page_ok(browser.post("/custom/vereine/fees_run.php", fields), "run the fees with direct debit")
+    outcomes = dict((row, outcome) for outcome, row in re.findall(r'data-fee-outcome="([a-z]+)" data-fee-key="([^"]+)"', result.text))
+    expect(outcomes == {key: "created" for key in keys.values()} and result.text.count('data-sepa-request="requested"') == 1,
+           f"outcome of the run with direct debit: {outcomes}, requested {result.text.count('data-sepa-request=')}")
+
+    invoices = {}
+    for person in members:
+        invoices[person] = stack.value(f"SELECT ee.fk_target FROM llx_subscription as s INNER JOIN llx_element_element as ee ON ee.fk_source = s.rowid "
+                                       f"AND ee.sourcetype = 'subscription' AND ee.targettype = 'facture' WHERE s.fk_adherent = {int(members[person])}")
+    ids = ", ".join(str(int(value)) for value in invoices.values() if value)
+    requests = stack.sql(f"SELECT pd.fk_facture, pd.amount, pd.fk_societe_rib, pd.traite, f.total_ttc FROM llx_prelevement_demande as pd "
+                         f"INNER JOIN llx_facture as f ON f.rowid = pd.fk_facture WHERE pd.fk_facture IN ({ids})")
+    expect(len(requests) == 1 and requests[0][0] == invoices["valid"] and float(requests[0][1]) == float(requests[0][4])
+           and requests[0][2] == str(accounts["valid"]) and requests[0][3] == "0",
+           f"direct debit requests: {requests}; expected one for invoice {invoices['valid']} over its total with account {accounts['valid']}")
+    note, mode = stack.sql(f"SELECT f.note_public, p.code FROM llx_facture as f LEFT JOIN llx_c_paiement as p ON p.id = f.fk_mode_reglement "
+                           f"WHERE f.rowid = {int(invoices['valid'])}")[0]
+    collection = (datetime.date.fromisoformat(today) + datetime.timedelta(days=10)).strftime("%d.%m.%Y")
+    expect(mode == "PRE" and "RT-MANDAT-GUELTIG" in note and "AT12ZZZ00000000001" in note and collection in note,
+           f"invoice with direct debit: payment mode {mode}, note {note!r}; expected PRE, mandate, creditor id and {collection}")
+    other = stack.value(f"SELECT COALESCE(note_public, '') FROM llx_facture WHERE rowid = {int(invoices['expired'])}") or ""
+    expect("SEPA" not in other, f"the invoice with the expired mandate carries a pre-notification: {other!r}")
+    return ("module off: explained and not offered; 70 days refused, 10 stored; preview: valid mandate named, 40 months unused reported expired, "
+            "none without note; run: exactly one direct debit request, for the valid mandate over the invoice total, payment mode PRE, "
+            "pre-notification with mandate, creditor id and collection in 10 days")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -1765,7 +1824,8 @@ SCENARIOS = (
     ("discounts", "Discounts by age, with proof and exemptions in the fee run and the website summary", discounts, ("feerun",)),
     ("families", "Families with one payer: shared invoice, discount per further member and cap per fee year", families, ("discounts",)),
     ("exits", "Exits with notice period: planned, carried out on the last day, fee run and API follow", exits, ("families",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("exits",)),
+    ("sepa", "SEPA direct debit from the fee run: mandate check, one request, pre-notification", sepa, ("exits",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("sepa",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

@@ -40,6 +40,7 @@ legal source, not in code, so a changed threshold is a data update.
 | `class/vereinefeediscountstore.class.php` | Discount rules in `llx_vereine_fee_discount` and the member fields for exemption and proof |
 | `class/vereinefeefamilies.class.php` | Payer, family rule (discount per further member, cap per fee year) and sharing a cap, plain PHP |
 | `class/vereinefeefamilystore.class.php` | Member field `vereine_fee_payer`, the family rule constants, families and what they were charged |
+| `class/vereinesepa.class.php`, `class/vereinesepastore.class.php` | Mandate state and pre-notification (plain PHP); mandates and last collections from Dolibarr |
 | `class/vereineexitrules.class.php` | Exit reasons and the last day after notice by the statutes' rule, plain PHP |
 | `class/vereineexits.class.php` | Exits in `llx_vereine_member_exit`, the notice rule constants, the scheduled job `runDue` |
 | `class/vereinefeerun.class.php`, `fees_run.php` | Fee run: preview of the fees due, subscription periods and linked invoices, one per payer and start day, recent fee invoices |
@@ -160,6 +161,16 @@ the module updates or deletes a row.
   job `VereineCronExits` (Dolibarr's module *Scheduled jobs*) or the button on
   the member's tab. The fee run creates no period that starts after the last
   day.
+
+- SEPA direct debit: the mandate is Dolibarr's default bank account of the
+  payer (`llx_societe_rib`, type `ban`, `rum`, `date_rum`). `VereineSepa`
+  counts it expired 36 months after signing or the last processed request
+  (`llx_prelevement_demande.date_traite`). With the module `prelevement` on, the
+  fee run writes the pre-notification into the invoice's `note_public`, sets
+  payment mode `PRE` and after the commit calls
+  `CommonInvoice::demande_prelevement()` with the mandate's bank account; a
+  failed request leaves the invoice as it is. The bank order and its file stay
+  Dolibarr's own.
 
 ### Recognising fee invoices
 

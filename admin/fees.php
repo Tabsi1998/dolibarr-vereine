@@ -66,6 +66,7 @@ require_once __DIR__.'/../class/vereinefeemodel.class.php';
 require_once __DIR__.'/../class/vereinefeediscountstore.class.php';
 require_once __DIR__.'/../class/vereinefeefamilystore.class.php';
 require_once __DIR__.'/../class/vereineexits.class.php';
+require_once __DIR__.'/../class/vereinesepastore.class.php';
 
 $langs->loadLangs(array('admin', 'members', 'vereine@vereine'));
 
@@ -88,6 +89,8 @@ $familyModes = array(
 $familyEdit = $familyStore->setting();
 $exits = new VereineExits($db);
 $exitEdit = $exits->rule();
+$sepaStore = new VereineSepaStore($db);
+$sepaDays = (string) $sepaStore->noticeDays();
 $modes = array(
 	VereineFeeDiscounts::MODE_PERCENT => $langs->trans('VereineDiscountMode_percent'),
 	VereineFeeDiscounts::MODE_AMOUNT => $langs->trans('VereineDiscountMode_amount'),
@@ -158,6 +161,15 @@ if ($action === 'savediscount') {
 		setEventMessages(null, array_map(array($langs, 'trans'), $familyStore->errors), 'errors');
 	}
 	$familyEdit = array('mode' => $familyMode, 'value' => $familyValue);
+} elseif ($action === 'savesepa') {
+	$sepaDays = GETPOST('sepa_notice_days', 'alpha');
+	$result = $sepaStore->saveNoticeDays($sepaDays);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineSepaSaved'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereinesepa');
+		exit;
+	}
+	setEventMessages($result < 0 ? $sepaStore->error : $langs->trans('VereineSepaErrorDays'), null, 'errors');
 } elseif ($action === 'saveexitrule') {
 	$exitEdit = array('months' => GETPOST('exit_months', 'alpha'), 'at' => GETPOST('exit_at', 'aZ09'), 'start_month' => GETPOSTINT('exit_start_month'));
 	$result = $exits->saveRule($exitEdit['months'], $exitEdit['at'], $exitEdit['start_month']);
@@ -367,6 +379,29 @@ foreach ($families as $family) {
 	print implode(', ', $links).'</td></tr>';
 }
 print '</table></div><br>';
+
+// SEPA direct debit: Dolibarr's own module does the orders; the fee run requests them.
+print load_fiche_titre($langs->trans('VereineSepaTitle'), '', '', 0, 'vereinesepa');
+print '<div class="info" data-sepa-howto="1"><ul>';
+foreach (array('VereineSepaHowToModule', 'VereineSepaHowToMandate', 'VereineSepaHowToExpiry', 'VereineSepaHowToNotice', 'VereineSepaHowToOrder') as $line) {
+	print '<li>'.$langs->trans($line).'</li>';
+}
+print '</ul></div>';
+if (!VereineSepaStore::enabled()) {
+	print '<div class="warning" data-sepa-module="off">'.$langs->trans('VereineSepaModuleOff').'</div>';
+} elseif (getDolGlobalString('PRELEVEMENT_ICS') === '') {
+	print '<div class="warning" data-sepa-ics="missing">'.$langs->trans('VereineSepaNoCreditorId').'</div>';
+}
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereinesepa">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="savesepa">';
+print '<table class="border centpercent">';
+print '<tr><td class="titlefieldcreate"><label for="sepa_notice_days">'.$langs->trans('VereineSepaNoticeDays').'</label></td>';
+print '<td><input type="number" min="1" max="'.VereineSepa::MAX_NOTICE_DAYS.'" id="sepa_notice_days" name="sepa_notice_days" class="width50" value="'.dol_escape_htmltag($sepaDays).'">';
+print ' <span class="opacitymedium small">'.$langs->trans('VereineSepaNoticeDaysHelp').'</span></td></tr>';
+print '</table>';
+print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'"></div>';
+print '</form><br>';
 
 // Exit: the notice period of the statutes.
 print load_fiche_titre($langs->trans('VereineExitRuleTitle'), '', '', 0, 'vereineexitrule');

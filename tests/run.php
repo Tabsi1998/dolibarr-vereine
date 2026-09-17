@@ -45,6 +45,7 @@ require_once $root.'/class/vereinefeerules.class.php';
 require_once $root.'/class/vereinefeediscounts.class.php';
 require_once $root.'/class/vereinefeefamilies.class.php';
 require_once $root.'/class/vereineexitrules.class.php';
+require_once $root.'/class/vereinesepa.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -705,6 +706,19 @@ same(array(true, true, false), array(VereineExitRules::isDue('2026-09-17', '2026
 same(array('excluded', 'resiliated', 'resiliated'), array(VereineExitRules::statusFor('exclusion'), VereineExitRules::statusFor('death'), VereineExitRules::statusFor('resignation')),
 	'only an exclusion excludes in Dolibarr');
 
+// -------------------------------------------------------------------- sepa
+
+same('valid', VereineSepa::mandateStatus('M-1', '2024-01-10', '', '2026-09-17'), 'a mandate signed 32 months ago and never used is valid');
+same('expired', VereineSepa::mandateStatus('M-1', '2023-01-10', '', '2026-09-17'), 'a mandate never used for more than 36 months has expired');
+same('valid', VereineSepa::mandateStatus('M-1', '2020-01-10', '2024-03-01', '2026-09-17'), 'a collection starts the 36 months again');
+same('valid', VereineSepa::mandateStatus('M-1', '2023-09-17', '', '2026-09-17'), 'on the day 36 months after signing the mandate still counts');
+same('expired', VereineSepa::mandateStatus('M-1', '2023-09-16', '', '2026-09-17'), 'a day later it has expired');
+same('expired', VereineSepa::mandateStatus('M-2', '2023-01-10', '2019-05-01', '2026-09-17'), 'a collection before signing a new mandate does not count');
+same(array('none', 'none'), array(VereineSepa::mandateStatus('', '2026-01-01', '', '2026-09-17'), VereineSepa::mandateStatus('M-1', '', '', '2026-09-17')),
+	'without reference or signature date there is no mandate');
+same(array(14, 5, 14, 14), array(VereineSepa::noticeDays(''), VereineSepa::noticeDays('5'), VereineSepa::noticeDays('0'), VereineSepa::noticeDays('61')), 'days of pre-notification from 1 to 60, 14 otherwise');
+same('2026-10-01', VereineSepa::collectionDay('2026-09-17', 14), 'collection 14 days after the invoice');
+
 // ------------------------------------------------------------------- openapi
 
 // Every endpoint of the API class is in docs/openapi.json, and the description lists no other.
@@ -784,7 +798,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error'),
 	'VereineSetting_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT_NATURAL', 'VEREINE_PARTNER_TYPENT_LEGAL', 'VEREINE_CATEGORY_MEMBER', 'VEREINE_CATEGORY_FORMER', 'VEREINE_CATEGORY_GUARDIAN'),
 	'VereineSettingHelp_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT'),
 	'VereineSphere_' => array_keys(VereineTaxRules::spheres()),
