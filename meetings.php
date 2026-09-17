@@ -173,6 +173,14 @@ if ($action === 'savemeeting' && $canWrite) {
 		setEventMessages(null, array_map(array($langs, 'trans'), $meetings->errors), 'errors');
 	}
 	$entered = null;
+} elseif ($action === 'savenotes' && $canWrite) {
+	$result = $meetings->saveNotes($id, (array) GETPOST('note', 'array:restricthtml'), $user);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineMinutesSaved'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id.'#vereinemeetingnotes');
+		exit;
+	}
+	setEventMessages($result < 0 ? $meetings->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $meetings->errors), 'errors');
 } elseif ($action === 'letters') {
 	$file = VereineMeetings::lettersPath($id);
 	if ($meetings->fetch($id) === null || !is_file($file)) {
@@ -234,6 +242,51 @@ function vereineMeetingForm(array $meeting, $id)
 	print '</form>';
 }
 
+/**
+ * The texts of the agenda items for the minutes, with the real numbers once the meeting was invited to.
+ *
+ * @param VereineMeetings     $meetings Meetings
+ * @param array<string,mixed> $meeting  Meeting to show
+ * @param bool                $canWrite Whether the user may change the texts
+ * @return void
+ */
+function vereineMeetingNotes($meetings, array $meeting, $canWrite)
+{
+	global $langs, $user;
+
+	$planned = $meeting['status'] === VereineMeetingRules::STATUS_PLANNED;
+	print '<br>'.load_fiche_titre($langs->trans('VereineMinutesTitle'), '', '', 0, 'vereinemeetingnotes');
+	print '<div class="opacitymedium small paddingbottom">'.$langs->trans($planned ? 'VereineMinutesHowToPlanned' : 'VereineMinutesHowTo');
+	if (!empty($user->admin)) {
+		print ' <a href="'.dol_buildpath('/vereine/admin/meetings.php', 1).'">'.$langs->trans('VereineMinutesTemplatesLink').'</a>';
+	}
+	print '</div>';
+	if ($canWrite) {
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'#vereinemeetingnotes" name="vereinemeetingnotes">';
+		print '<input type="hidden" name="token" value="'.newToken().'">';
+		print '<input type="hidden" name="action" value="savenotes">';
+	}
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+	print '<tr class="liste_titre"><td class="width25p">'.$langs->trans('VereineVoteItem').'</td><td>'.$langs->trans('VereineMinutesText').'</td></tr>';
+	foreach ($meetings->items($meeting, $langs) as $item) {
+		print '<tr class="oddeven tdtop" data-note="'.$item['item'].'" data-stored="'.($item['stored'] ? 1 : 0).'"><td>'.$item['item'].'. '.dol_escape_htmltag($item['title']).'</td><td>';
+		if ($canWrite) {
+			print '<textarea name="note['.$item['item'].']" rows="3" class="centpercent">'.dol_escape_htmltag($item['text'], 0, 1).'</textarea>';
+		}
+		if (!$planned && $item['filled'] !== '') {
+			print '<div class="'.($canWrite ? 'opacitymedium small paddingtop ' : '').'" data-note-preview="'.$item['item'].'">'.nl2br(dol_escape_htmltag($item['filled'], 0, 1)).'</div>';
+		} elseif (!$canWrite) {
+			print nl2br(dol_escape_htmltag($item['text'], 0, 1));
+		}
+		print '</td></tr>';
+	}
+	print '</table></div>';
+	if ($canWrite) {
+		print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('VereineMinutesSave')).'"></div>';
+		print '</form>';
+	}
+}
+
 $meeting = $id > 0 ? $meetings->fetch($id) : null;
 if ($id > 0 && $meeting === null) {
 	print '<div class="error">'.$langs->trans('VereineMeetingUnknown').'</div>';
@@ -268,7 +321,18 @@ if ($meeting === null) {
 	}
 	print '</table></div><br>';
 	if ($canWrite) {
-		print load_fiche_titre($langs->trans('VereineMeetingNew'), '', '');
+		print load_fiche_titre($langs->trans('VereineMeetingNew'), '', '', 0, 'vereinemeetingnew');
+		$template = GETPOST('template', 'aZ09');
+		print '<div class="paddingbottom" data-templates="1">'.$langs->trans('VereineMeetingFromTemplate');
+		foreach (VereineMeetingRules::KINDS as $kind) {
+			print ' <a class="button smallpaddingimp marginleftonly" href="'.$_SERVER['PHP_SELF'].'?template='.$kind.'#vereinemeetingnew" data-template-link="'.$kind.'">';
+			print $langs->trans('VereineMeetingKind_'.$kind).'</a>';
+		}
+		print '</div>';
+		if ($entered === null && in_array($template, VereineMeetingRules::KINDS, true)) {
+			$entered = VereineMeetingRules::normalize(array('kind' => $template, 'title' => $langs->transnoentitiesnoconv('VereineMeetingKind_'.$template).' '.substr($today, 0, 4),
+				'agenda' => implode("\n", VereineMinutesRules::agenda($meetings->templates(), $template))));
+		}
 		vereineMeetingForm($entered !== null ? $entered : VereineMeetingRules::normalize(array()), 0);
 	}
 	llxFooter();
@@ -304,6 +368,14 @@ print '</table>';
 if ($late) {
 	print '<div class="warning">'.$langs->trans('VereineMeetingLate', vereineFormatDay($inviteBy)).'</div>';
 }
+$missing = VereineMinutesRules::missing($meetings->templates(), $meeting['kind'], $meeting['agenda']);
+if ($missing && $meeting['status'] !== VereineMeetingRules::STATUS_CANCELLED) {
+	print '<div class="warning" data-missing-items="'.count($missing).'">'.$langs->trans('VereineMeetingMissingItems').'<ul>';
+	foreach ($missing as $title) {
+		print '<li>'.dol_escape_htmltag($title).'</li>';
+	}
+	print '</ul></div>';
+}
 print '<br>';
 
 if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
@@ -323,7 +395,9 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 		print '<td>'.$langs->trans('VereineMeetingChannel_'.$recipient['channel']).'</td><td>'.yn($recipient['voting']).'</td></tr>';
 	}
 	print '</table></div>';
+	vereineMeetingNotes($meetings, $meeting, $canWrite);
 	if ($canWrite) {
+		print '<br>';
 		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'" name="vereinemeetinginvite" class="center paddingtop">';
 		print '<input type="hidden" name="token" value="'.newToken().'">';
 		print '<input type="hidden" name="action" value="invite">';
@@ -464,6 +538,10 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 		}
 		print '</select> <span class="opacitymedium small">'.$langs->trans('VereineVoteElectionHelp').'</span></td></tr>';
 		print '</table><div class="center"><input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineVoteSave')).'"></div></form>';
+	}
+
+	if ($meeting['status'] !== VereineMeetingRules::STATUS_CANCELLED) {
+		vereineMeetingNotes($meetings, $meeting, $canWrite);
 	}
 
 	if ($canWrite && $meeting['status'] === VereineMeetingRules::STATUS_INVITED) {

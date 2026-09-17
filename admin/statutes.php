@@ -338,6 +338,13 @@ foreach (array('VereineStatuteTextHowToModel', 'VereineStatuteTextHowToComplete'
 	print '<li>'.$langs->trans($line).'</li>';
 }
 print '</ul></div>';
+// The purpose of the association comes from the tab Association; shown here so it is not mistaken for the purpose of the assets.
+$purposeLink = dol_buildpath('/vereine/admin/setup.php', 1).'#VEREINE_PURPOSE';
+$associationPurpose = trim(getDolGlobalString('VEREINE_PURPOSE'));
+print '<table class="border centpercent" data-association-purpose="'.($associationPurpose !== '' ? 1 : 0).'"><tr><td class="titlefieldcreate tdtop">'.$langs->trans('VereinePurpose').'</td><td>';
+print ($associationPurpose !== '' ? nl2br(dol_escape_htmltag($associationPurpose, 0, 1)) : '<span class="opacitymedium">'.$langs->trans('VereineStatutePurposeEmpty').'</span>');
+print ' <a href="'.$purposeLink.'">'.img_picto($langs->trans('Modify'), 'edit').' '.$langs->trans('VereineStatutePurposeEdit').'</a>';
+print '<div class="opacitymedium small">'.$langs->trans('VereineStatutePurposeHelp').'</div></td></tr></table><br>';
 print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereinestatutetext" name="vereinestatutetext">';
 print '<input type="hidden" name="token" value="'.newToken().'">';
 print '<input type="hidden" name="action" value="savetext">';
@@ -380,7 +387,11 @@ $problems = VereineStatuteText::problems($text, $context);
 if ($problems) {
 	print '<div class="warning" data-text-problems="'.count($problems).'"><ul>';
 	foreach ($problems as $problem) {
-		print '<li data-text-problem="'.$problem.'">'.$langs->trans('VereineStatuteTextProblem_'.$problem).'</li>';
+		print '<li data-text-problem="'.$problem.'">'.$langs->trans('VereineStatuteTextProblem_'.$problem);
+		if ($problem === VereineStatuteText::PROBLEM_PURPOSE) {
+			print ' <a href="'.$purposeLink.'" data-purpose-link="1">'.$langs->trans('VereineStatutePurposeEdit').'</a>';
+		}
+		print '</li>';
 	}
 	print '</ul></div>';
 } else {

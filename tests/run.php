@@ -53,6 +53,8 @@ require_once $root.'/class/vereinestatuterules.class.php';
 require_once $root.'/class/vereineauthorityrules.class.php';
 require_once $root.'/class/vereinestatutetext.class.php';
 require_once $root.'/class/vereinemeetingrules.class.php';
+require_once $root.'/class/vereineminutesrules.class.php';
+require_once $root.'/class/vereinetextrepair.class.php';
 require_once $root.'/class/vereineattendancerules.class.php';
 require_once $root.'/class/vereinevoterules.class.php';
 require_once $root.'/class/vereineapirules.class.php';
@@ -1218,6 +1220,7 @@ $prefixes = array(
 	'VereineAttendanceState_' => VereineAttendanceRules::STATES,
 	'VereineAttendanceHowTo_' => array('board', 'general'),
 	'VereineVoteKind_' => VereineVoteRules::KINDS,
+	'VereineMinutesPlaceholder_' => VereineMinutesRules::PLACEHOLDERS,
 	'VereineApiEndpoint_' => array_column(VereineApiRules::endpoints($openapi), 'operation'),
 	'VereineLetterKind_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
 	'VereineLetterTitle_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
@@ -1278,6 +1281,42 @@ foreach (array_keys($used) as $key) {
 }
 expect(isset($english['ModuleVereineName']), 'the module name has a translation');
 expect(isset($english['Permission49210001']), 'the read permission has a translation');
+
+// ------------------------------------------------------------ minutes texts
+
+$templates = VereineMinutesRules::defaults('AT');
+same(array('Begrüßung und Feststellung der Beschlussfähigkeit', true), array($templates['general'][0]['title'], $templates['general'][0]['required']), 'a general assembly starts with the quorum, required');
+same(array(), VereineMinutesRules::missing($templates, 'general', VereineMinutesRules::agenda($templates, 'general')), 'an agenda from the Austrian template lacks no required item');
+same(array('Rechenschaftsbericht des Vorstands', 'Bericht über den Rechnungsabschluss'), VereineMinutesRules::missing($templates, 'general', array('begrüßung und  feststellung der beschlussfähigkeit', 'Wahlen')),
+	'the report on activity and finances is required in Austria, titles compared regardless of case and spaces');
+$german = VereineMinutesRules::defaults('DE');
+expect(strpos($german['general'][1]['title'], 'Mitgliederversammlung') !== false && strpos($templates['general'][1]['title'], 'Generalversammlung') !== false, 'Germany says Mitgliederversammlung, Austria Generalversammlung');
+same(array(), VereineMinutesRules::missing($german, 'general', array('Begrüßung und Feststellung der Beschlussfähigkeit')), 'Germany requires only the quorum');
+$own = VereineMinutesRules::normalize(array('board' => array(array('title' => ' <b>Kassa</b>  prüfen ', 'text' => "Zeile 1\r\nZeile 2", 'required' => '1'), array('title' => '', 'text' => 'ohne Titel'))), 'AT');
+same(array(array('title' => 'Kassa prüfen', 'text' => "Zeile 1\nZeile 2", 'required' => true)), $own['board'], 'own template: tags and empty titles removed, lines kept');
+same($templates['general'], $own['general'], 'kinds without own items keep the template of the profile');
+same('{ergebnis}', VereineMinutesRules::textFor($templates, 'general', 'WAHLEN'), 'the text of an item is found by its title');
+same('', VereineMinutesRules::textFor($templates, 'board', 'Wahlen'), 'no text for an item the template lacks');
+same(array(1 => 2, 3 => 1), VereineMinutesRules::remap(array('A', 'B', 'C'), array('C', 'A')), 'texts follow their titles when the agenda changes, removed items drop out');
+same(array(1 => 1, 2 => 2), VereineMinutesRules::remap(array('Wahl', 'Wahl'), array('Wahl', 'Wahl', 'X')), 'items with the same title keep their order');
+$meeting = array('kind' => 'general', 'format' => 'physical', 'place' => 'Vereinsheim');
+$quorum = array('eligible' => 12, 'present' => 5, 'represented' => 2, 'votes' => 7, 'required' => 6, 'reached' => true);
+$values = VereineMinutesRules::values($meeting, $quorum, array(array('title' => 'Budget', 'yes' => 6, 'no' => 1, 'abstain' => 0, 'passed' => true, 'secret' => false)), 'Testverein', '1. März 2026');
+same('Anwesend sind 5 Stimmberechtigte, vertreten 2, zusammen 7 von 12 Stimmen; nötig sind 6. Die Versammlung ist beschlussfähig.',
+	substr(VereineMinutesRules::fill($templates['general'][0]['text'], $values), strpos(VereineMinutesRules::fill($templates['general'][0]['text'], $values), 'Anwesend sind')), 'placeholders filled with the real numbers');
+same('Budget: angenommen mit 6 Ja, 1 Nein und 0 Enthaltungen. {unbekannt}', VereineMinutesRules::fill('{ergebnis} {unbekannt}', $values), 'result of the vote filled, unknown placeholders stay');
+same('Keine Abstimmung.', VereineMinutesRules::values($meeting, $quorum, array(), 'V', 'D')['ergebnis'], 'an item without vote says so');
+same('1', VereineMinutesRules::values(array('kind' => 'board', 'format' => 'virtual', 'place' => 'x'), array('eligible' => 2, 'present' => 0, 'represented' => 0, 'votes' => 0, 'required' => 0, 'reached' => false), array(), 'V', 'D')['quorum'],
+	'a board needs at least one member present');
+same('virtuell', VereineMinutesRules::values(array('kind' => 'board', 'format' => 'virtual', 'place' => 'x'), $quorum, array(), 'V', 'D')['ort'], 'a virtual meeting takes place virtually');
+
+// ------------------------------------------------------------- text repair
+
+same("Gilmstraße 2\n6020 Innsbruck", VereineTextRepair::text('Gilmstraße 2\n6020 Innsbruck'), 'a stored \\n becomes a line break');
+same("a\nb\nc", VereineTextRepair::text('a\r\nb\rc'), 'stored \\r\\n and \\r become line breaks too');
+same(array('activities' => array('Turniere', 'Training', 'Liga'), 'asset_purpose' => "Zeile 1\nZeile 2", 'arrears_months' => 3),
+	VereineTextRepair::statuteText(array('activities' => array('Turniere\nTraining', 'Liga'), 'asset_purpose' => 'Zeile 1\nZeile 2', 'arrears_months' => 3)),
+	'statute text: lists split into items, texts get line breaks, numbers stay');
 
 // ------------------------------------------------------------------- result
 

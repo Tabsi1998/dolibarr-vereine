@@ -24,6 +24,8 @@
 require_once __DIR__.'/vereinemeetingrules.class.php';
 require_once __DIR__.'/vereineattendancerules.class.php';
 require_once __DIR__.'/vereinevoterules.class.php';
+require_once __DIR__.'/vereineminutesrules.class.php';
+require_once __DIR__.'/vereineprofile.class.php';
 require_once __DIR__.'/vereinestatutes.class.php';
 require_once __DIR__.'/vereinefunctions.class.php';
 require_once __DIR__.'/vereinelog.class.php';
@@ -136,6 +138,10 @@ class VereineMeetings
 		if ($current !== null) {
 			if (!$this->db->query("UPDATE ".MAIN_DB_PREFIX."vereine_meeting SET ".$fields." WHERE rowid = ".((int) $id)." AND entity = ".((int) $conf->entity))) {
 				$this->error = $this->db->lasterror();
+				return -1;
+			}
+			// Texts prepared for agenda items follow their title when the agenda is reordered.
+			if ($current['agenda'] !== $meeting['agenda'] && $this->moveNotes($id, VereineMinutesRules::remap($current['agenda'], $meeting['agenda'])) < 0) {
 				return -1;
 			}
 			return (int) $id;
@@ -562,6 +568,189 @@ class VereineMeetings
 		$voteId = (int) $this->db->last_insert_id(MAIN_DB_PREFIX.'vereine_meeting_vote');
 		VereineLog::add($this->db, $user, VereineLog::MEETING_VOTE, $vote['candidate_id'], 0, $vote['title'].': '.($result['passed'] ? 'passed' : 'rejected').($applied !== '' ? ' ('.$applied.')' : ''));
 		return $voteId;
+	}
+
+	/**
+	 * Agenda templates of the association, or those of the country profile.
+	 *
+	 * @return array<string,array<int,array{title:string,text:string,required:bool}>>
+	 */
+	public function templates()
+	{
+		global $conf;
+
+		$stored = array();
+		$sql = "SELECT kind, title, body, mandatory FROM ".MAIN_DB_PREFIX."vereine_meeting_template WHERE entity = ".((int) $conf->entity)." ORDER BY kind, position, rowid";
+		$resql = $this->db->query($sql);
+		while ($resql && ($obj = $this->db->fetch_object($resql))) {
+			$stored[(string) $obj->kind][] = array('title' => (string) $obj->title, 'text' => (string) $obj->body, 'required' => (int) $obj->mandatory === 1);
+		}
+		return VereineMinutesRules::normalize($stored, getDolGlobalString('VEREINE_COUNTRY_PROFILE', VereineProfile::AUSTRIA));
+	}
+
+	/**
+	 * Store the agenda templates; kinds without an item get the templates of the country profile.
+	 *
+	 * @param array<string,mixed>|null $entered Templates by kind, null to go back to the country profile
+	 * @param User                     $user    Who stores
+	 * @return int 1 when stored, -1 on error
+	 */
+	public function saveTemplates($entered, $user)
+	{
+		global $conf;
+
+		$this->db->begin();
+		if (!$this->db->query("DELETE FROM ".MAIN_DB_PREFIX."vereine_meeting_template WHERE entity = ".((int) $conf->entity))) {
+			$this->error = $this->db->lasterror();
+			$this->db->rollback();
+			return -1;
+		}
+		if ($entered !== null) {
+			foreach (VereineMinutesRules::normalize($entered, getDolGlobalString('VEREINE_COUNTRY_PROFILE', VereineProfile::AUSTRIA)) as $kind => $items) {
+				foreach ($items as $position => $item) {
+					$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_meeting_template (entity, kind, position, title, body, mandatory, fk_user_modif)";
+					$sql .= " VALUES (".((int) $conf->entity).", '".$this->db->escape($kind)."', ".((int) $position).", '".$this->db->escape($item['title'])."',";
+					$sql .= " '".$this->db->escape($item['text'])."', ".($item['required'] ? 1 : 0).", ".((int) $user->id).")";
+					if (!$this->db->query($sql)) {
+						$this->error = $this->db->lasterror();
+						$this->db->rollback();
+						return -1;
+					}
+				}
+			}
+		}
+		$this->db->commit();
+		return 1;
+	}
+
+	/**
+	 * Stored texts of the agenda items of a meeting.
+	 *
+	 * @param int $id Meeting
+	 * @return array<int,string> Text by item number from 1
+	 */
+	public function notes($id)
+	{
+		global $conf;
+
+		$notes = array();
+		$resql = $this->db->query("SELECT item, body FROM ".MAIN_DB_PREFIX."vereine_meeting_note WHERE fk_meeting = ".((int) $id)." AND entity = ".((int) $conf->entity));
+		while ($resql && ($obj = $this->db->fetch_object($resql))) {
+			$notes[(int) $obj->item] = (string) $obj->body;
+		}
+		return $notes;
+	}
+
+	/**
+	 * Store the texts of the agenda items; an emptied text stays empty and does not fall back to the template.
+	 *
+	 * @param int                $id      Meeting
+	 * @param array<mixed,mixed> $entered Texts by item number from 1
+	 * @param User               $user    Who stores
+	 * @return int 1 when stored, 0 when refused (see errors), -1 on error
+	 */
+	public function saveNotes($id, array $entered, $user)
+	{
+		global $conf;
+
+		$this->errors = array();
+		$meeting = $this->fetch($id);
+		if ($meeting === null || $meeting['status'] === VereineMeetingRules::STATUS_CANCELLED) {
+			$this->errors = array('VereineMinutesErrorMeeting');
+			return 0;
+		}
+		$notes = array();
+		foreach (array_keys($meeting['agenda']) as $index) {
+			$notes[$index + 1] = VereineMinutesRules::text(isset($entered[$index + 1]) ? $entered[$index + 1] : '');
+		}
+		$this->db->begin();
+		if (!$this->db->query("DELETE FROM ".MAIN_DB_PREFIX."vereine_meeting_note WHERE fk_meeting = ".((int) $id)." AND entity = ".((int) $conf->entity))) {
+			$this->error = $this->db->lasterror();
+			$this->db->rollback();
+			return -1;
+		}
+		foreach ($notes as $item => $text) {
+			$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_meeting_note (entity, fk_meeting, item, body, fk_user_modif)";
+			$sql .= " VALUES (".((int) $conf->entity).", ".((int) $id).", ".((int) $item).", '".$this->db->escape($text)."', ".((int) $user->id).")";
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
+				$this->db->rollback();
+				return -1;
+			}
+		}
+		$this->db->commit();
+		return 1;
+	}
+
+	/**
+	 * The agenda items with their text, stored or from the template, and the text with the real numbers of the meeting.
+	 *
+	 * The numbers of an item are those at the time of its first vote, so a later arrival counts from then on; an item without a
+	 * vote takes the time of the last vote before it, or the start of the meeting.
+	 *
+	 * @param array<string,mixed> $meeting     Meeting
+	 * @param Translate           $outputlangs Language of the day in words
+	 * @return array<int,array{item:int,title:string,text:string,stored:bool,filled:string}>
+	 */
+	public function items(array $meeting, $outputlangs)
+	{
+		global $mysoc;
+
+		$templates = $this->templates();
+		$notes = $this->notes($meeting['id']);
+		$rules = (new VereineStatutes($this->db))->rules();
+		$attendance = $this->attendance($meeting['id']);
+		$votes = $this->votes($meeting['id']);
+		$day = vereineMeetingDay($meeting['day'], $outputlangs);
+		$items = array();
+		$time = $meeting['time'];
+		foreach (array_values($meeting['agenda']) as $index => $title) {
+			$number = $index + 1;
+			$onItem = array_values(array_filter($votes, function ($vote) use ($number) {
+				return $vote['item'] === $number;
+			}));
+			if ($onItem && $onItem[0]['time'] !== '') {
+				$time = $onItem[0]['time'];
+			}
+			$quorum = VereineAttendanceRules::quorum($meeting['kind'], $attendance['rows'], $attendance['voting'], $rules, $time);
+			$text = isset($notes[$number]) ? $notes[$number] : VereineMinutesRules::textFor($templates, $meeting['kind'], $title);
+			$values = VereineMinutesRules::values($meeting, $quorum, $onItem, trim((string) $mysoc->name), $day);
+			$items[] = array('item' => $number, 'title' => $title, 'text' => $text, 'stored' => isset($notes[$number]), 'filled' => VereineMinutesRules::fill($text, $values));
+		}
+		return $items;
+	}
+
+	/**
+	 * Move the texts of agenda items to their new numbers; texts of removed items are deleted.
+	 *
+	 * @param int            $id  Meeting
+	 * @param array<int,int> $map New item number by old item number
+	 * @return int 1 when moved, -1 on error
+	 */
+	private function moveNotes($id, array $map)
+	{
+		global $conf;
+
+		$notes = $this->notes($id);
+		if (!$notes) {
+			return 1;
+		}
+		$where = " WHERE fk_meeting = ".((int) $id)." AND entity = ".((int) $conf->entity);
+		if (!$this->db->query("DELETE FROM ".MAIN_DB_PREFIX."vereine_meeting_note".$where)) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		foreach ($notes as $item => $text) {
+			if (!isset($map[$item])) {
+				continue;
+			}
+			$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_meeting_note (entity, fk_meeting, item, body) VALUES (".((int) $conf->entity).", ".((int) $id).", ".((int) $map[$item]).", '".$this->db->escape($text)."')";
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
+				return -1;
+			}
+		}
+		return 1;
 	}
 
 	/**
