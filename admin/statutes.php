@@ -88,6 +88,10 @@ $termYears = array();
 foreach ($functions as $function) {
 	$termYears[$function['id']] = (string) $function['term_years'];
 }
+$text = $statutes->text();
+// Shown as entered while a refused text form is on the page.
+$shownText = $text;
+$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
 
 
 /*
@@ -118,6 +122,65 @@ if ($action === 'saverules') {
 	} else {
 		setEventMessages(null, array_map(array($langs, 'trans'), array_unique($statutes->errors)), 'errors');
 	}
+}
+
+if ($action === 'savetext') {
+	$wording = explode(':', GETPOST('wording', 'alphanohtml').':');
+	$shownText = array('area' => GETPOST('area', 'alphanohtml'), 'admission' => GETPOST('admission', 'alphanohtml'), 'asset_purpose' => GETPOST('asset_purpose', 'alphanohtml'),
+		'asset_recipient' => GETPOST('asset_recipient', 'alphanohtml'), 'activities' => GETPOST('activities', 'restricthtml'), 'funds' => GETPOST('funds', 'restricthtml'),
+		'branches' => GETPOSTISSET('branches') ? 1 : 0, 'legal_persons' => GETPOSTISSET('legal_persons') ? 1 : 0, 'arrears_months' => GETPOST('arrears_months', 'alphanohtml'),
+		'tax' => $wording[0], 'asset' => $wording[1]);
+	$result = $statutes->saveText($shownText, $user);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineStatuteTextSaved'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereinestatutetext');
+		exit;
+	}
+	if ($result < 0) {
+		setEventMessages($statutes->error, null, 'errors');
+	} else {
+		setEventMessages(null, array_map(array($langs, 'trans'), $statutes->errors), 'errors');
+	}
+	$shownText = VereineStatuteText::normalize($shownText);
+} elseif ($action === 'draftpdf') {
+	$context = $statutes->context($rules);
+	$file = VereineStatutes::directory().'/entwurf-'.dol_print_date(dol_now(), '%Y%m%d-%H%M%S', 'tzserver').'.pdf';
+	if ($statutes->buildPdf(VereineStatuteText::sections($rules, $text, $context), $context['name'], $langs->transnoentities('VereineStatuteDraft', vereineFormatDay($today)), $file)) {
+		header('Content-Type: application/pdf');
+		header('Content-Disposition: attachment; filename="'.basename($file).'"');
+		header('Content-Length: '.filesize($file));
+		readfile($file);
+		dol_delete_file($file);
+		exit;
+	}
+	setEventMessages($statutes->error, null, 'errors');
+} elseif ($action === 'saveversion' || $action === 'uploadversion') {
+	if ($action === 'saveversion') {
+		$result = $statutes->saveVersion(GETPOST('decided_on', 'alpha'), GETPOST('valid_from', 'alpha'), GETPOST('note', 'alphanohtml'), $user);
+	} else {
+		$uploaded = isset($_FILES['statute_file']['tmp_name']) && is_string($_FILES['statute_file']['tmp_name']) ? $_FILES['statute_file']['tmp_name'] : '';
+		$result = $statutes->uploadVersion($uploaded, GETPOST('decided_on', 'alpha'), GETPOST('valid_from', 'alpha'), GETPOST('note', 'alphanohtml'), $user);
+	}
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineStatuteVersionSaved'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereinestatuteversions');
+		exit;
+	}
+	if ($result < 0) {
+		setEventMessages($statutes->error, null, 'errors');
+	} else {
+		setEventMessages(null, array_map(array($langs, 'trans'), $statutes->errors), 'errors');
+	}
+} elseif ($action === 'download') {
+	$file = $statutes->path(GETPOSTINT('id'));
+	if ($file === '') {
+		accessforbidden();
+	}
+	header('Content-Type: application/pdf');
+	header('Content-Disposition: attachment; filename="'.basename($file).'"');
+	header('Content-Length: '.filesize($file));
+	readfile($file);
+	exit;
 }
 
 
@@ -244,6 +307,125 @@ if ($hints) {
 } else {
 	print '<div class="ok" data-hints="0">'.$langs->trans('VereineStatutesAllFine').'</div>';
 }
+print '<br>';
+
+// Text of the statutes.
+print load_fiche_titre($langs->trans('VereineStatuteTextTitle'), '', '', 0, 'vereinestatutetext');
+print '<div class="info" data-statute-text-howto="1"><ul>';
+foreach (array('VereineStatuteTextHowToModel', 'VereineStatuteTextHowToComplete', 'VereineStatuteTextHowToAdvice') as $line) {
+	print '<li>'.$langs->trans($line).'</li>';
+}
+print '</ul></div>';
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereinestatutetext" name="vereinestatutetext">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="savetext">';
+print '<table class="border centpercent">';
+print '<tr><td class="titlefieldcreate"><label for="area">'.$langs->trans('VereineStatuteTextArea').'</label></td>';
+print '<td><input type="text" id="area" name="area" class="minwidth300" maxlength="255" value="'.dol_escape_htmltag($shownText['area']).'">';
+print ' <span class="opacitymedium small">'.$langs->trans('VereineStatuteTextAreaHelp').'</span></td></tr>';
+print '<tr><td></td><td><label><input type="checkbox" name="branches" value="1"'.$checked($shownText['branches']).'> '.$langs->trans('VereineStatuteTextBranches').'</label></td></tr>';
+foreach (array('activities' => VereineStatuteText::SUGGESTED_ACTIVITIES, 'funds' => VereineStatuteText::SUGGESTED_FUNDS) as $key => $suggested) {
+	print '<tr><td class="tdtop"><label for="'.$key.'">'.$langs->trans('VereineStatuteText_'.$key).'</label></td>';
+	print '<td><textarea id="'.$key.'" name="'.$key.'" rows="6" class="centpercent">'.dol_escape_htmltag(implode("\n", $shownText[$key])).'</textarea>';
+	print '<div class="opacitymedium small">'.$langs->trans('VereineStatuteTextHelp_'.$key).' '.dol_escape_htmltag(implode('; ', $suggested)).'</div></td></tr>';
+}
+print '<tr><td><label for="admission">'.$langs->trans('VereineStatuteTextAdmission').'</label></td>';
+print '<td><input type="text" id="admission" name="admission" class="minwidth300" maxlength="255" value="'.dol_escape_htmltag($shownText['admission']).'">';
+print ' <span class="opacitymedium small">'.$langs->trans('VereineStatuteTextAdmissionHelp').'</span></td></tr>';
+print '<tr><td></td><td><label><input type="checkbox" name="legal_persons" value="1"'.$checked($shownText['legal_persons']).'> '.$langs->trans('VereineStatuteTextLegalPersons').'</label></td></tr>';
+print '<tr><td><label for="arrears_months">'.$langs->trans('VereineStatuteTextArrears').'</label></td>';
+print '<td>'.$number('arrears_months', $shownText['arrears_months'], 24).' '.$langs->trans('VereineStatuteTextArrearsUnit').'</td></tr>';
+print '<tr><td class="tdtop"><label for="wording">'.$langs->trans('VereineStatuteTextWording').'</label></td><td><select id="wording" name="wording" class="minwidth300">';
+foreach (VereineStatuteText::ASSETS as $tax => $assets) {
+	print '<optgroup label="'.dol_escape_htmltag($langs->trans('VereineStatuteTextTax_'.$tax)).'">';
+	foreach ($assets as $asset) {
+		$selected = $shownText['tax'] === $tax && $shownText['asset'] === (string) $asset;
+		print '<option value="'.$tax.':'.$asset.'"'.($selected ? ' selected' : '').'>'.$langs->trans('VereineStatuteTextWording_'.$tax.'_'.$asset).'</option>';
+	}
+	print '</optgroup>';
+}
+print '</select><div class="opacitymedium small">'.$langs->trans('VereineStatuteTextWordingHelp').'</div></td></tr>';
+print '<tr><td><label for="asset_purpose">'.$langs->trans('VereineStatuteTextAssetPurpose').'</label></td>';
+print '<td><input type="text" id="asset_purpose" name="asset_purpose" class="minwidth300" maxlength="255" value="'.dol_escape_htmltag($shownText['asset_purpose']).'"></td></tr>';
+print '<tr><td><label for="asset_recipient">'.$langs->trans('VereineStatuteTextAssetRecipient').'</label></td>';
+print '<td><input type="text" id="asset_recipient" name="asset_recipient" class="minwidth300" maxlength="255" value="'.dol_escape_htmltag($shownText['asset_recipient']).'"></td></tr>';
+print '</table>';
+print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'"></div>';
+print '</form><br>';
+
+$context = $statutes->context($rules);
+$problems = VereineStatuteText::problems($text, $context);
+if ($problems) {
+	print '<div class="warning" data-text-problems="'.count($problems).'"><ul>';
+	foreach ($problems as $problem) {
+		print '<li data-text-problem="'.$problem.'">'.$langs->trans('VereineStatuteTextProblem_'.$problem).'</li>';
+	}
+	print '</ul></div>';
+} else {
+	print '<div class="ok" data-text-problems="0">'.$langs->trans('VereineStatuteTextComplete').'</div>';
+}
+
+// Preview of the statutes as they would be generated now.
+print load_fiche_titre($langs->trans('VereineStatutePreview'), '', '', 0, 'vereinestatutepreview');
+print '<div class="statute-preview" data-statute-preview="1" style="max-height: 40em; overflow: auto; padding: 1em; border: 1px solid #ddd;">';
+print '<h3 class="center">'.dol_escape_htmltag('Statuten des Vereins „'.$context['name'].'“').'</h3>';
+foreach (VereineStatuteText::sections($rules, $text, $context) as $section) {
+	print '<h4 data-section-number="'.$section['number'].'">§ '.$section['number'].': '.dol_escape_htmltag($section['title']).'</h4>';
+	foreach ($section['paragraphs'] as $paragraph) {
+		print '<p>'.nl2br(dol_escape_htmltag($paragraph)).'</p>';
+	}
+}
+print '</div>';
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereinestatutedraft" class="center paddingtop">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="draftpdf">';
+print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineStatuteDraftPdf')).'">';
+print '</form><br>';
+
+// Versions.
+print load_fiche_titre($langs->trans('VereineStatuteVersions'), '', '', 0, 'vereinestatuteversions');
+$versions = $statutes->versions();
+$current = $statutes->current($today);
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+print '<tr class="liste_titre"><td>'.$langs->trans('VereineStatuteVersion').'</td><td>'.$langs->trans('VereineStatuteDecidedOn').'</td><td>'.$langs->trans('VereineStatuteValidFrom').'</td>';
+print '<td>'.$langs->trans('VereineStatuteSource').'</td><td>'.$langs->trans('Note').'</td><td></td></tr>';
+if (!$versions) {
+	print '<tr class="oddeven"><td colspan="6"><span class="opacitymedium">'.$langs->trans('VereineStatuteNoVersion').'</span></td></tr>';
+}
+foreach ($versions as $version) {
+	$isCurrent = $current !== null && $current['id'] === $version['id'];
+	print '<tr class="oddeven" data-statute-version="'.$version['version'].'" data-source="'.$version['source'].'" data-current="'.($isCurrent ? 1 : 0).'">';
+	print '<td>'.$version['version'].($isCurrent ? ' '.dolGetBadge($langs->trans('VereineStatuteCurrent'), '', 'success') : '').'</td>';
+	print '<td>'.vereineFormatDay($version['decided_on']).'</td><td>'.vereineFormatDay($version['valid_from']).'</td>';
+	print '<td>'.$langs->trans('VereineStatuteSource_'.$version['source']).'</td><td>'.dol_escape_htmltag($version['note']).'</td>';
+	print '<td class="right"><a href="'.$_SERVER['PHP_SELF'].'?action=download&amp;id='.$version['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.dol_escape_htmltag($version['filename']).'</a></td></tr>';
+}
+print '</table></div><br>';
+
+print '<div class="fichecenter"><div class="fichehalfleft">';
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereinestatuteversions" name="vereinestatuteversion">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="saveversion">';
+print '<div class="titre">'.$langs->trans('VereineStatuteSaveVersion').'</div>';
+print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineStatuteSaveVersionHelp').'</div>';
+print '<table class="border centpercent">';
+print '<tr><td class="fieldrequired">'.$langs->trans('VereineStatuteDecidedOn').'</td><td><input type="date" name="decided_on" value=""></td></tr>';
+print '<tr><td>'.$langs->trans('VereineStatuteValidFrom').'</td><td><input type="date" name="valid_from" value=""></td></tr>';
+print '<tr><td>'.$langs->trans('Note').'</td><td><input type="text" name="note" class="minwidth200" maxlength="255" value=""></td></tr>';
+print '</table><div class="center"><input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineStatuteSaveVersion')).'"></div>';
+print '</form></div><div class="fichehalfright">';
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereinestatuteversions" name="vereinestatuteupload" enctype="multipart/form-data">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="uploadversion">';
+print '<div class="titre">'.$langs->trans('VereineStatuteUpload').'</div>';
+print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineStatuteUploadHelp').'</div>';
+print '<table class="border centpercent">';
+print '<tr><td class="fieldrequired">'.$langs->trans('VereineStatuteFile').'</td><td><input type="file" name="statute_file" accept="application/pdf"></td></tr>';
+print '<tr><td class="fieldrequired">'.$langs->trans('VereineStatuteDecidedOn').'</td><td><input type="date" name="decided_on" value=""></td></tr>';
+print '<tr><td>'.$langs->trans('VereineStatuteValidFrom').'</td><td><input type="date" name="valid_from" value=""></td></tr>';
+print '<tr><td>'.$langs->trans('Note').'</td><td><input type="text" name="note" class="minwidth200" maxlength="255" value=""></td></tr>';
+print '</table><div class="center"><input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineStatuteUpload')).'"></div>';
+print '</form></div></div><div class="clearboth"></div>';
 
 print dol_get_fiche_end();
 

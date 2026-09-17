@@ -234,6 +234,17 @@ class VereineStatuteRules
 	}
 
 	/**
+	 * Whether a text is a real date YYYY-MM-DD.
+	 *
+	 * @param string $date Text
+	 * @return bool
+	 */
+	public static function isDate($date)
+	{
+		return (bool) preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', (string) $date, $parts) && checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]);
+	}
+
+	/**
 	 * The same day some years later; 29 February becomes 28 February in other years.
 	 *
 	 * @param string $date  Day YYYY-MM-DD

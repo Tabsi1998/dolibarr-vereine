@@ -7,6 +7,37 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.5.2-beta] - 2026-09-17
+
+Statutes as text from their rules, with versions (issue #88).
+
+### Added
+
+- Setup tab *Statutes*, new sections:
+  - **Text of the statutes:** area of activity, branch associations,
+    activities and sources of money as lists (with the suggestions of the Ministry
+    of Finance), further conditions for admission, legal persons as members,
+    exclusion for unpaid fees and the wording on the assets on dissolution:
+    without tax privileges, for §§ 34 ff. BAO (four wordings) or for deductible
+    donations under § 4a EStG (four proposals).
+  - **Check** in plain words: missing purpose, activities or sources of money,
+    board without or with differing terms of office, fewer than two auditors,
+    missing purpose or recipient of the assets, a non-profit association without
+    asset binding.
+  - **Preview** of the whole statutes: the model of the Ministry of the Interior
+    (April 2024), for tax-privileged associations with the additions of the
+    Ministry of Finance (Vereinsrichtlinien Rz 867, 2025). Name, seat, purpose,
+    rules, board and auditors from the function catalogue, member types and the
+    exit rule come from the module.
+  - **Versions:** draft as PDF, the current text stored as a version with the
+    day of the resolution, or existing statutes uploaded as PDF. Every version
+    keeps its PDF and checksum; the one in force is marked.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once. That creates the
+table of the versions.
+
 ## [0.5.1-beta] - 2026-09-17
 
 Letters to the association authority in one layout (issue #87).
@@ -754,7 +785,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.1-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.2-beta...HEAD
+[0.5.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.2-beta
 [0.5.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.1-beta
 [0.5.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.0-beta
 [0.4.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.4-beta

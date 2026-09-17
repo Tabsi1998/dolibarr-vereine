@@ -51,6 +51,7 @@ require_once $root.'/class/vereinefunctionrules.class.php';
 require_once $root.'/class/vereinemailingrules.class.php';
 require_once $root.'/class/vereinestatuterules.class.php';
 require_once $root.'/class/vereineauthorityrules.class.php';
+require_once $root.'/class/vereinestatutetext.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -864,6 +865,69 @@ same(array(), VereineAuthorityRules::validate('founding', VereineAuthorityRules:
 same(array('2026-10-15', '', ''), array(VereineAuthorityRules::deadline('statutes', '2026-09-17'), VereineAuthorityRules::deadline('extract', '2026-09-17'), VereineAuthorityRules::deadline('dissolution', '')),
 	'four weeks for notices, none for applications');
 
+// ------------------------------------------------------------ statute text
+
+$statuteText = VereineStatuteText::normalize(array('activities' => "Turniere\n\n Training \nTurniere", 'funds' => array('Mitgliedsbeiträge', ''), 'tax' => 'bao', 'asset' => 'x',
+	'arrears_months' => '3', 'branches' => '1', 'unknown' => 'x'));
+same(array(array('Turniere', 'Training'), array('Mitgliedsbeiträge'), 'bao', 'base', 3, true, false), array($statuteText['activities'], $statuteText['funds'], $statuteText['tax'],
+	$statuteText['asset'], $statuteText['arrears_months'], $statuteText['branches'], isset($statuteText['unknown'])), 'lists one entry per line, once; an unknown wording is the first of its kind');
+same(VereineStatuteText::defaults(), VereineStatuteText::normalize(array('tax' => array('bao'))), 'a tax kind is a text');
+same(array(), VereineStatuteText::validate(array('arrears_months' => '6', 'tax' => 'donation', 'asset' => '3')), 'valid text fields');
+same(array('VereineStatuteTextErrorArrears', 'VereineStatuteTextErrorAsset'), VereineStatuteText::validate(array('arrears_months' => '0', 'tax' => 'none', 'asset' => 'a')),
+	'no exclusion without months, and a tax wording without tax privilege');
+$statuteContext = array('name' => 'Musterverein', 'seat' => 'Innsbruck', 'purpose' => 'die Förderung des Schachsports', 'nonprofit' => true,
+	'board' => array('Obmann/Obfrau', 'Kassier:in', 'Schriftführer:in'), 'board_terms' => array(4, 4, 4), 'chair' => 'Obmann/Obfrau', 'secretary' => 'Schriftführer:in',
+	'treasurer' => 'Kassier:in', 'auditors' => 2, 'auditor_term' => 2, 'types' => array('Ordentlich', 'Ehrenmitglied'), 'voting' => array('Ordentlich'), 'honorary' => true,
+	'exit' => array('months' => 1, 'at' => 'month_end', 'start_month' => 1));
+same(array('assets'), VereineStatuteText::problems(VereineStatuteText::normalize(array('activities' => 'Turniere', 'tax' => 'bao', 'asset' => 'b', 'asset_purpose' => 'Jugendsport')),
+	$statuteContext), 'a recipient is missing for the chosen wording');
+same(array('purpose', 'activities', 'board_terms_differ', 'auditors', 'nonprofit'), VereineStatuteText::problems(VereineStatuteText::defaults(),
+	array('purpose' => '', 'board_terms' => array(4, 2), 'auditors' => 1, 'auditor_term' => 2) + $statuteContext),
+	'missing purpose and activities, differing board terms, one auditor, non-profit without tax wording');
+$statuteRules = VereineStatuteRules::normalize(array('min_age' => '18', 'general_years' => '2', 'invite_channels' => array('email', 'website'), 'virtual' => 'hybrid',
+	'statute_majority' => 'two_thirds', 'dissolution_majority' => 'three_quarters', 'proxy' => ''));
+$sections = VereineStatuteText::sections($statuteRules, VereineStatuteText::normalize(array('activities' => "Turniere\nTraining", 'tax' => 'bao', 'asset' => 'a',
+	'asset_purpose' => 'Jugendsport')), $statuteContext);
+$byTitle = array();
+foreach ($sections as $section) {
+	$byTitle[$section['title']] = implode("\n", $section['paragraphs']);
+}
+same(17, count($sections), 'sixteen sections of the model and § 17 on the assets of a tax-privileged association');
+expect(strpos($byTitle['Mittel zur Erreichung des Vereinszwecks'], "Tätigkeiten sind:\na) Turniere\nb) Training") !== false, 'activities as a list');
+expect(strpos($byTitle['Erwerb der Mitgliedschaft'], 'die das 18. Lebensjahr vollendet haben, sowie juristische Personen') !== false, 'minimum age in the admission');
+expect(strpos($byTitle['Erwerb der Mitgliedschaft'], 'Ehrenmitglied') !== false, 'honorary members where a member type is one');
+expect(strpos($byTitle['Beendigung der Mitgliedschaft'], 'nur zum Ende eines Monats erfolgen. Er muss dem Vorstand mindestens einen Monat vorher') !== false, 'exit rule in words');
+$general = $byTitle['Generalversammlung'];
+expect(strpos($general, 'alle zwei Jahre statt') !== false && strpos($general, 'mindestens zwei Wochen vor dem Termin per E-Mail an die vom Mitglied dem Verein bekanntgegebene E-Mail-Adresse oder durch Veröffentlichung auf der Website des Vereins einzuladen') !== false, 'interval, invitation period and channels');
+expect(strpos($general, 'Übertragung des Stimmrechts') === false && strpos($general, 'Stimmberechtigt sind nur Mitglieder folgender Mitgliedsarten: Ordentlich.') !== false,
+	'no proxy votes, voting member types');
+expect(strpos($general, 'geändert werden soll, bedürfen jedoch einer Zweidrittelmehrheit') !== false && strpos($general, 'aufgelöst werden soll, bedürfen einer Dreiviertelmehrheit') !== false,
+	'different majorities for changes and dissolution');
+expect(strpos($general, 'zwischen physischer und virtueller Teilnahme wählen') !== false && strpos($general, 'technischen Voraussetzungen') !== false, 'hybrid assembly under the VirtGesG');
+expect(strpos($byTitle['Vorstand'], 'aus drei Mitgliedern, und zwar aus: Obmann/Obfrau, Kassier:in und Schriftführer:in') !== false
+	&& strpos($byTitle['Vorstand'], 'beträgt vier Jahre') !== false, 'board from the function catalogue with its term');
+expect(strpos($byTitle['Rechnungsprüfer'], 'Zwei Rechnungsprüfer werden von der Generalversammlung auf die Dauer von zwei Jahren gewählt') !== false, 'auditors with their term');
+expect(strpos($byTitle['Freiwillige Auflösung des Vereins'], 'Dreiviertelmehrheit') !== false && strpos($byTitle['Freiwillige Auflösung des Vereins'], 'binnen vier Wochen') !== false,
+	'dissolution with its majority and the notice of the Ministry of Finance model');
+expect(strpos(end($sections)['paragraphs'][0], 'für den Zweck „Jugendsport“ zu verwenden') !== false, 'the assets go to the entered purpose');
+$plain = VereineStatuteText::sections(VereineStatuteRules::defaults(), VereineStatuteText::defaults(), array('purpose' => '', 'honorary' => false) + $statuteContext);
+expect(count($plain) === 16 && strpos(end($plain)['paragraphs'][1], 'sonst Zwecken der Sozialhilfe') !== false, 'without tax privileges the model of the Ministry of the Interior');
+expect(strpos(implode(' ', $plain[1]['paragraphs']), 'Zweck: __________') !== false && strpos(implode(' ', $plain[4]['paragraphs']), 'Ehrenmitglied') === false,
+	'a blank for the missing purpose, no honorary members without such a type');
+same(array('Der Austritt kann jederzeit erfolgen. Er muss dem Vorstand schriftlich mitgeteilt werden.', 'Der Austritt kann nur zum 31. Dezember jeden Jahres erfolgen.'),
+	array(VereineStatuteText::exitSentence(array('months' => 0, 'at' => 'any_day', 'start_month' => 1)),
+		substr(VereineStatuteText::exitSentence(array('months' => 0, 'at' => 'year_end', 'start_month' => 1)), 0, 61)), 'exit at any day and at the end of the calendar year');
+same(array('zwei Wochen', 'eine Woche', '10 Tage', 'einen Tag', 'ein Jahr', 'sechs Monate', 'a, b und c', 'a oder b'), array(VereineStatuteText::days(14), VereineStatuteText::days(7),
+	VereineStatuteText::days(10), VereineStatuteText::days(1), VereineStatuteText::years(1), VereineStatuteText::months(6), VereineStatuteText::join(array('a', 'b', 'c')),
+	VereineStatuteText::join(array('a', 'b'), 'oder')), 'numbers and lists in words');
+foreach (VereineStatuteText::ASSETS as $tax => $assets) {
+	foreach ($assets as $asset) {
+		$wording = VereineStatuteText::assetText(VereineStatuteText::normalize(array('tax' => $tax, 'asset' => $asset, 'asset_purpose' => 'ZZZ', 'asset_recipient' => 'XY')));
+		expect($tax === 'none' || (strpos($wording, 'Passiva') !== false && (!in_array($tax.':'.$asset, VereineStatuteText::NEEDS_PURPOSE, true) || strpos($wording, '„ZZZ“') !== false)
+			&& (!in_array($tax.':'.$asset, VereineStatuteText::NEEDS_RECIPIENT, true) || strpos($wording, '„XY“') !== false)), 'asset wording '.$tax.':'.$asset.' names what it needs');
+	}
+}
+
 // ---------------------------------------------------------------- mailings
 
 $people = array(
@@ -1010,12 +1074,18 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
 	'VereineFunctionProblem_' => array('missing', 'too_many', 'board_too_small', 'auditor_on_board', 'election_due'),
 	'VereineStatuteChannel_' => VereineStatuteRules::CHANNELS,
+	'VereineStatuteText_' => array('activities', 'funds'),
+	'VereineStatuteTextHelp_' => array('activities', 'funds'),
+	'VereineStatuteTextTax_' => array_keys(VereineStatuteText::ASSETS),
+	'VereineStatuteTextWording_' => array('none_bmi', 'bao_base', 'bao_a', 'bao_b', 'bao_c', 'donation_1', 'donation_2', 'donation_3', 'donation_4'),
+	'VereineStatuteTextProblem_' => array('purpose', 'activities', 'funds', 'board', 'board_term', 'board_terms_differ', 'auditors', 'assets', 'nonprofit'),
+	'VereineStatuteSource_' => array('generated', 'uploaded'),
 	'VereineLetterKind_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
 	'VereineLetterTitle_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
 	'VereineLetterHelp_' => VereineAuthorityRules::KINDS,

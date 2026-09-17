@@ -57,6 +57,8 @@ class VereineLog
 	const STATUTE_RULES = 'statute_rules';
 	const AUTHORITY_LETTER = 'authority_letter';
 	const AUTHORITY_LETTER_FILED = 'authority_letter_filed';
+	const STATUTE_TEXT = 'statute_text';
+	const STATUTE_VERSION = 'statute_version';
 
 	/**
 	 * Append one entry.

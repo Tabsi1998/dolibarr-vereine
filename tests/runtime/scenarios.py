@@ -2226,6 +2226,66 @@ def letters(stack: Stack) -> str:
             "filed noted, PDF download; reader cannot write; log")
 
 
+def statutetext(stack: Stack) -> str:
+    """Statutes as text from the rules: fields, check, preview, an uploaded and a generated version with PDF."""
+    today = stack.notes["website"]["dates"]["today"]
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/statutes.php"
+
+    def page() -> Page:
+        return page_ok(browser.get(setup), "statute setup")
+
+    start = page()
+    problems = re.findall(r'data-text-problem="([a-z_]+)"', start.text)
+    expect("activities" in problems and 'data-statute-preview="1"' in start.text, f"problems of the empty text: {problems}")
+    refused = page_ok(browser.submit(start.form(name="vereinestatutetext"), {"arrears_months": "0"}), "text with no months for exclusion")
+    expect("1 bis 24 Monate" in html.unescape(refused.text) and not stack.const("VEREINE_STATUTE_TEXT"), "text fields without months for exclusion were stored")
+    page_ok(browser.submit(page().form(name="vereinestatutetext"), {
+        "activities": "Turniere und Ligaspiele\nTraining", "funds": "Beitrittsgebühren und Mitgliedsbeiträge\nSponsorgelder", "arrears_months": "3",
+        "wording": "bao:a", "asset_purpose": "Förderung des Jugendsports"}), "store the text of the statutes")
+    stored = json.loads(stack.const("VEREINE_STATUTE_TEXT") or "{}")
+    expect(stored.get("activities") == ["Turniere und Ligaspiele", "Training"] and stored.get("tax") == "bao" and stored.get("asset") == "a" and stored.get("arrears_months") == 3,
+           f"stored text fields: {stored}")
+    preview = page()
+    text = html.unescape(preview.text)
+    for words in ("Turniere und Ligaspiele", "Förderung des Jugendsports", "alle zwei Jahre", "18. Lebensjahr", "länger als drei Monate"):
+        expect(words in text, f"the preview lacks {words!r}")
+    expect('data-section-number="17"' in preview.text, "the preview of a tax-privileged association has no § 17 on the assets")
+
+    count = "SELECT COUNT(*) FROM llx_vereine_statute"
+    upload = preview.form(name="vereinestatuteupload")
+    fields = [(name, value) for name, value in upload.values() if name not in ("decided_on", "valid_from", "note")]
+    refused = page_ok(browser.post_multipart(upload.url(), fields + [("decided_on", "2019-03-01"), ("valid_from", ""), ("note", "")],
+                                             [("statute_file", "statuten.txt", b"not a pdf")]), "upload of a text file")
+    expect("PDF-Datei" in html.unescape(refused.text) and stack.value(count) == "0", "a file that is no PDF was stored as statutes")
+    old_pdf = b"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
+    page_ok(browser.post_multipart(upload.url(), fields + [("decided_on", "2019-03-01"), ("valid_from", ""), ("note", "Gründungsstatuten")],
+                                   [("statute_file", "statuten-2019.pdf", old_pdf)]), "upload the existing statutes")
+    refused = page_ok(browser.submit(page().form(name="vereinestatuteversion"), {"decided_on": today, "valid_from": "2019-01-01"}), "version valid before its resolution")
+    expect("nicht davor liegen" in html.unescape(refused.text) and stack.value(count) == "1", "a version valid before its resolution was stored")
+    page_ok(browser.submit(page().form(name="vereinestatuteversion"), {"decided_on": today, "note": "Neue Fassung"}), "store the generated version")
+    versions = stack.sql("SELECT version, decided_on, valid_from, source, LENGTH(sha256), content IS NOT NULL FROM llx_vereine_statute ORDER BY version")
+    expect(versions == [["1", "2019-03-01", "2019-03-01", "uploaded", "64", "0"], ["2", today, today, "generated", "64", "1"]], f"versions: {versions}")
+    listing = page()
+    expect('data-statute-version="2" data-source="generated" data-current="1"' in listing.text and 'data-statute-version="1" data-source="uploaded" data-current="0"' in listing.text,
+           "the generated version is not the one in force")
+    pdf = pdf_text(stack, "vereine/statutes")
+    for word in ("Statuten", "Innsbruck", "Training", "Rechnungspr", "Sponsorgelder"):
+        expect(word in pdf, f"the generated statutes lack {word!r}")
+    first = stack.value("SELECT rowid FROM llx_vereine_statute WHERE version = 1")
+    download = browser.get(f"{setup}?action=download&id={first}&token={token_of(listing)}")
+    expect(download.status == 200 and download.body == old_pdf, f"the uploaded statutes did not download unchanged (HTTP {download.status})")
+    draft = browser.post(setup, [("token", token_of(listing)), ("action", "draftpdf")])
+    leftovers = stack.shell("ls /var/www/documents/vereine/statutes").stdout
+    expect(draft.status == 200 and draft.body.startswith(b"%PDF") and stack.value(count) == "2" and "entwurf" not in leftovers,
+           f"the draft was stored or not delivered (HTTP {draft.status}, files: {leftovers.split()})")
+    logged = dict(stack.sql("SELECT action, COUNT(*) FROM llx_vereine_log WHERE action IN ('statute_text', 'statute_version') GROUP BY action"))
+    expect(logged == {"statute_text": "1", "statute_version": "2"}, f"statute log: {logged}")
+    return ("empty text lacks activities; no months for exclusion refused; activities, funds and tax wording stored; preview with activities, asset purpose, "
+            "interval, minimum age, exclusion and § 17; text file refused, existing statutes uploaded as version 1; version valid before its resolution refused; "
+            "generated version 2 in force with PDF and hash; upload downloads unchanged; draft PDF not stored; log")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -2313,7 +2373,8 @@ SCENARIOS = (
     ("mailing", "E-mail campaign recipients by function, consent and guardians of minors", mailing, ("groups",)),
     ("statutes", "Rules of the statutes: checked, stored, election due and minimum age for applications", statutes, ("mailing",)),
     ("letters", "Letters to the association authority: responsible authority, notices with deadline, filed", letters, ("statutes",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("letters",)),
+    ("statutetext", "Statutes as text: fields, check, preview, uploaded and generated versions", statutetext, ("letters",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("statutetext",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 
