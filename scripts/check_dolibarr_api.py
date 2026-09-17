@@ -284,6 +284,12 @@ CONTRACTS = (
     # Proration by month, quarter or half-year (issue #68)
     ("htdocs/core/class/extrafields.class.php", "public function fetch_name_optionals_label($elementtype, $forceload = false", "whether the old prorated checkbox still exists"),
     ("htdocs/core/class/extrafields.class.php", "public function delete($attrname, $elementtype = '')", "the old prorated checkbox is removed after moving its values"),
+    # Fee discounts and exemptions (issue #62)
+    ("htdocs/install/mysql/tables/llx_adherent.sql", "birth", "age of a member for discounts"),
+    ("htdocs/install/mysql/tables/llx_adherent_extrafields.sql", "fk_object", "exemption and proof fields of a member"),
+    ("htdocs/adherents/card.php", "$extrafields->fetch_name_optionals_label($object->table_element);", "the member card shows exemption and proof"),
+    ("htdocs/core/lib/functions.lib.php", "function load_fiche_titre($title, $morehtmlright = '', $picto = 'generic', $pictoisfullpath = 0, $id = ''", "anchor of the discounts on the fee setup"),
+    ("htdocs/adherents/class/adherent.class.php", "public function subscription($date, $amount, $accountid = 0, $operation = '', $label = ''", "a period of 0 for an exempt member"),
 )
 
 LANG_KEYS = {

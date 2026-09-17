@@ -861,7 +861,7 @@
           "fee": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["required", "status", "next_due", "amount", "payment_url"],
+            "required": ["required", "status", "next_due", "amount", "discount", "payment_url"],
             "properties": {
               "required": {
                 "type": "boolean",
@@ -877,7 +877,22 @@
               "amount": {
                 "type": "number",
                 "nullable": true,
-                "description": "Amount of the member type; null when the type sets none or needs no subscription"
+                "description": "Amount of a whole period for this member: the member type's amount after the member's discount; null when the type sets none or needs no subscription"
+              },
+              "discount": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "label"],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["none", "exempt", "proof", "age"]
+                  },
+                  "label": {
+                    "type": "string",
+                    "description": "Name of the discount, or the reason of an exemption; empty without discount"
+                  }
+                }
               },
               "payment_url": {
                 "type": "string",

@@ -986,7 +986,7 @@ def website(stack: Stack) -> str:
            == (members["paid"], refs["paid"], "Paula", "Bezahlt", "", "Beitragspflichtig", "active"), f"paid member: {paid}")
     expect(paid["member_since"] == dates["paid_since"] and paid["paid_until"] == dates["paid_until"] and paid["currency"] == "EUR",
            f"paid member since {paid['member_since']} until {paid['paid_until']}, expected {dates['paid_since']} to {dates['paid_until']}")
-    expect(paid["fee"] == {"required": True, "status": "paid", "next_due": day_after(dates["paid_until"]), "amount": 50, "payment_url": ""},
+    expect(paid["fee"] == {"required": True, "status": "paid", "next_due": day_after(dates["paid_until"]), "amount": 50, "discount": {"kind": "none", "label": ""}, "payment_url": ""},
            f"fee of the paid member: {paid['fee']}")
     expect(paid["open_invoices"] == [{"id": invoices["open"]["id"], "ref": invoices["open"]["ref"], "type": "standard",
                                       "date": dates["open_invoice"], "due_date": dates["open_invoice"], "total": 60, "remaining": 50,
@@ -999,11 +999,11 @@ def website(stack: Stack) -> str:
            f"expired member: {expired}")
     unpaid = answers["unpaid"]
     expect(unpaid["paid_until"] == "" and unpaid["member_since"] == dates["today"]
-           and unpaid["fee"] == {"required": True, "status": "due", "next_due": dates["today"], "amount": 50, "payment_url": ""},
+           and unpaid["fee"] == {"required": True, "status": "due", "next_due": dates["today"], "amount": 50, "discount": {"kind": "none", "label": ""}, "payment_url": ""},
            f"member who never paid: {unpaid}")
     free = answers["free"]
     expect(free["type"]["label"] == "Ordentliches Mitglied"
-           and free["fee"] == {"required": False, "status": "not_required", "next_due": "", "amount": None, "payment_url": ""},
+           and free["fee"] == {"required": False, "status": "not_required", "next_due": "", "amount": None, "discount": {"kind": "none", "label": ""}, "payment_url": ""},
            f"member type without fee: {free}")
     terminated = answers["terminated"]
     expect(terminated["status"] == "terminated" and terminated["fee"]["status"] == "inactive" and terminated["fee"]["next_due"] == "",
@@ -1411,6 +1411,87 @@ def feerun(stack: Stack) -> str:
             "website API marks the fee invoice, shows invoiced until it is paid and paid until 31 December afterwards")
 
 
+def discounts(stack: Stack) -> str:
+    """Discount rules by age and with proof, and exemptions, reach the fee run and the website summary."""
+    site = stack.notes["website"]
+    key, today = site["key"], site["dates"]["today"]
+    month = int(today.split("-")[1])
+
+    def prorate(amount: float) -> float:
+        return amount if month == 1 else round(amount * (13 - month) / 12, 2)
+
+    browser = stack.browser()
+    setup = page_ok(browser.get("/custom/vereine/admin/fees.php"), "fee setup with discounts")
+    expect('data-discounts-howto="1"' in setup.text and 'name="vereinediscount"' in setup.text, "the fee setup offers no discounts")
+    refused = page_ok(browser.submit(setup.form(name="vereinediscount"), {"label": "Ohne Alter", "kind": "age", "age_from": "", "age_to": "",
+                                                                          "type_id": "0", "mode": "free", "value": "", "active": "1"}),
+                      "a discount by age without age")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_fee_discount") == "0" and "mindestens ein Alter" in html.unescape(refused.text),
+           "a discount by age without age was stored or not explained")
+    for fields in ({"label": "Jugend", "kind": "age", "age_from": "", "age_to": "17", "type_id": "0", "mode": "percent", "value": "50", "active": "1"},
+                   {"label": "Studierende", "kind": "proof", "age_from": "", "age_to": "", "type_id": "0", "mode": "amount", "value": "30", "active": "1"}):
+        page = page_ok(browser.get("/custom/vereine/admin/fees.php"), "fee setup")
+        page_ok(browser.submit(page.form(name="vereinediscount"), fields), f"store discount {fields['label']}")
+    stored = stack.sql("SELECT label, kind, age_from, age_to, mode, value FROM llx_vereine_fee_discount ORDER BY position")
+    expect([[row[0], row[1], row[2], row[3], row[4], float(row[5])] for row in stored]
+           == [["Jugend", "age", "NULL", "17", "percent", 50.0], ["Studierende", "proof", "NULL", "NULL", "amount", 30.0]],
+           f"stored discounts: {stored}")
+    student_rule = stack.value("SELECT rowid FROM llx_vereine_fee_discount WHERE label = 'Studierende'")
+
+    members = stack.php_fixture("discountmembers", RT_STUDENT_RULE=student_rule)["members"]
+    card = page_ok(browser.get(f"/adherents/card.php?rowid={members['honorary']}"), "member card with the exemption")
+    card_text = html.unescape(card.text)
+    expect("Vom Beitrag befreit" in card_text and "Ehrenmitglied" in card_text and "Nachweis gültig bis" in card_text,
+           "Dolibarr's member card does not show exemption and proof fields")
+
+    preview = page_ok(browser.get(f"/custom/vereine/fees_run.php?dueuntil={today}"), "fee run with discounts")
+    rows = {}
+    for match in re.finditer(r'<tr class="oddeven" data-fee-row="([^"]+)" data-status="([a-z_]+)" data-total="([^"]*)">(.*?)</tr>', preview.text, re.S):
+        rows[match.group(1)] = (match.group(2), match.group(3), html.unescape(match.group(4)))
+    expected = {"child": prorate(25.0) + 20, "student": prorate(30.0) + 20, "expired": prorate(50.0) + 20, "honorary": 0.0}
+    for person, total in expected.items():
+        row = rows.get(f"{members[person]}:{today}")
+        expect(row is not None and row[0] == "ready" and abs(float(row[1] or -1) - round(total, 2)) < 0.005,
+               f"fee of {person} in the preview: {row[:2] if row else None}, expected ready {round(total, 2)}")
+    expect('data-discount-kind="age"' in rows[f"{members['child']}:{today}"][2] and "Jugend" in rows[f"{members['child']}:{today}"][2],
+           "the child's row does not name the youth discount")
+    expect('data-discount-kind="proof"' in rows[f"{members['student']}:{today}"][2], "the student's row does not name the proof discount")
+    expect("Nachweis ist abgelaufen" in rows[f"{members['expired']}:{today}"][2] and "data-discount-kind" not in rows[f"{members['expired']}:{today}"][2],
+           "the expired proof is not reported or still discounted")
+    expect('data-discount-kind="exempt"' in rows[f"{members['honorary']}:{today}"][2], "the honorary member is not shown as exempt")
+
+    fields = [("token", token_of(preview)), ("action", "run"), ("dueuntil", today), ("typeid", "0")]
+    fields += [("fees[]", f"{members[person]}:{today}") for person in expected]
+    result = page_ok(browser.post("/custom/vereine/fees_run.php", fields), "run the discounted fees")
+    outcomes = dict((row, outcome) for outcome, row in re.findall(r'data-fee-outcome="([a-z]+)" data-fee-key="([^"]+)"', result.text))
+    expect(sorted(outcomes.values()) == ["created"] * 4 and "Beitragsperiode ohne Rechnung angelegt" in html.unescape(result.text),
+           f"outcome of the discounted run: {outcomes}")
+    honorary_periods = stack.sql(f"SELECT s.subscription, COUNT(ee.rowid) FROM llx_subscription as s LEFT JOIN llx_element_element as ee "
+                                 f"ON ee.fk_source = s.rowid AND ee.sourcetype = 'subscription' WHERE s.fk_adherent = {members['honorary']} GROUP BY s.rowid")
+    expect(len(honorary_periods) == 1 and float(honorary_periods[0][0]) == 0 and honorary_periods[0][1] == "0",
+           f"the honorary member's period: {honorary_periods}, expected one period of 0 without invoice")
+    for person in ("child", "student", "expired"):
+        total = stack.value(f"SELECT f.total_ttc FROM llx_subscription as s INNER JOIN llx_element_element as ee ON ee.fk_source = s.rowid "
+                            f"AND ee.sourcetype = 'subscription' AND ee.targettype = 'facture' INNER JOIN llx_facture as f ON f.rowid = ee.fk_target "
+                            f"WHERE s.fk_adherent = {members[person]}")
+        expect(total is not None and abs(float(total) - round(expected[person], 2)) < 0.005, f"invoice of {person}: {total}, expected {round(expected[person], 2)}")
+    label = stack.value(f"SELECT d.description FROM llx_facturedet as d INNER JOIN llx_element_element as ee ON ee.fk_target = d.fk_facture "
+                        f"AND ee.sourcetype = 'subscription' AND ee.targettype = 'facture' INNER JOIN llx_subscription as s ON s.rowid = ee.fk_source "
+                        f"WHERE s.fk_adherent = {members['child']} AND d.subprice > 0 ORDER BY d.rang LIMIT 1")
+    expect(label is not None and "Ermäßigung: Jugend" in label, f"the child's invoice line does not name the discount: {label!r}")
+
+    status, honorary = stack.api(f"vereine/members/{members['honorary']}/summary", key)
+    expect(status == 200 and honorary["fee"]["status"] == "paid" and honorary["fee"]["amount"] == 0
+           and honorary["fee"]["discount"] == {"kind": "exempt", "label": "Ehrenmitglied"},
+           f"honorary member through the website API: {honorary.get('fee')}")
+    status, child = stack.api(f"vereine/members/{members['child']}/summary", key)
+    expect(status == 200 and child["fee"]["amount"] == 25 and child["fee"]["discount"] == {"kind": "age", "label": "Jugend"}
+           and child["fee"]["status"] == "invoiced", f"child through the website API: {child.get('fee')}")
+    return (f"age rule without age refused; youth 50 % and student 30 € stored; preview and invoices: child {round(expected['child'], 2)}, "
+            f"student {round(expected['student'], 2)}, expired proof {round(expected['expired'], 2)} with note, honorary member period without invoice; "
+            "discount named on the invoice line and in the website summary")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -1486,7 +1567,8 @@ SCENARIOS = (
     ("websiteevents", "Webhooks tell a website which member changed, without personal data", websiteevents, ("websitesync",)),
     ("fees", "Fee model on the member type, the fee setup page and the membership fees API", fees, ("websiteevents",)),
     ("feerun", "Fee run: preview, subscription period and linked invoice once, nothing on a second run", feerun, ("fees",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("feerun",)),
+    ("discounts", "Discounts by age, with proof and exemptions in the fee run and the website summary", discounts, ("feerun",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("discounts",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

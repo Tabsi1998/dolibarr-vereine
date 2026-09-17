@@ -36,6 +36,8 @@ legal source, not in code, so a changed threshold is a data update.
 | `class/vereinetaxrules.class.php` | Spheres, VAT treatments, tax profile checks and suggestions, plain PHP |
 | `class/vereinetaxprofiles.class.php`, `admin/taxprofiles.php` | Tax profiles in `llx_vereine_taxprofile` and their setup tab |
 | `class/vereinefeerules.class.php` | Next fee period and amount of a member: fee year, proration, admission fee, plain PHP |
+| `class/vereinefeediscounts.class.php` | Which discount a member gets on a fee, plain PHP |
+| `class/vereinefeediscountstore.class.php` | Discount rules in `llx_vereine_fee_discount` and the member fields for exemption and proof |
 | `class/vereinefeerun.class.php`, `fees_run.php` | Fee run: preview of the fees due, subscription period and linked invoice per fee, recent fee invoices |
 | `class/vereinefeemodel.class.php`, `admin/fees.php` | Fee model as extra fields of Dolibarr's member type (`vereine_fee_start_month`, `vereine_fee_proration`, `vereine_admission_fee`, `vereine_fee_product`; the checkbox `vereine_fee_prorated` of 0.3.4 and 0.3.5 becomes `month` on activation) and its setup tab |
 | `class/vereinetaxassign.class.php` | Extra field `vereine_taxprofile` on products and invoice lines, product VAT, line profiles, deviations |
@@ -118,6 +120,14 @@ the module updates or deletes a row.
 - `llx_subscription` has a unique key on member and start day, and a period
   already created is not due any more: a second run for the same day creates
   nothing.
+
+- Discounts are rules in `llx_vereine_fee_discount` (by age on the first day of
+  a period, or with a proof) and member fields (`vereine_fee_exempt`,
+  `vereine_fee_exempt_reason`, `vereine_fee_proof`, `vereine_fee_proof_until`).
+  `VereineFeeDiscounts` picks at most one per fee: exemption, valid proof, age.
+  The discount lowers the member type's amount before proration; an exemption
+  also drops the admission fee. A fee of 0 records the period without invoice,
+  which the member summary counts as paid.
 
 ### Recognising fee invoices
 

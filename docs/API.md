@@ -298,6 +298,7 @@ in Dolibarr (the number in the address of the member card).
     "status": "paid",
     "next_due": "2027-01-01",
     "amount": 50,
+    "discount": { "kind": "none", "label": "" },
     "payment_url": ""
   },
   "open_invoices": [
@@ -329,7 +330,8 @@ in Dolibarr (the number in the address of the member card).
 | `fee.required` | Whether the member type needs a subscription |
 | `fee.status` | `paid` (a paid period covers today), `invoiced` (the period covering today has a fee invoice that is not paid yet, see `open_invoices`), `due` (never paid, or the last period has ended), `not_required` (member type without subscription), `inactive` (draft, terminated or excluded) |
 | `fee.next_due` | The day after `paid_until`; the validation date when the member never paid; empty for `not_required` and `inactive` |
-| `fee.amount` | Amount of the member type; `null` when the type sets none or needs no subscription |
+| `fee.amount` | Amount of a whole period for this member: the member type's amount after the member's discount on `next_due`; `null` when the type sets none or needs no subscription |
+| `fee.discount` | `kind` `none`, `exempt` (label is the reason), `proof` or `age` (label is the name of the discount) |
 | `fee.payment_url` | Dolibarr's online payment page for the fee, only while the fee is `due` and an online payment service (Stripe, PayPal or one added by a module) is set up; otherwise empty. An `invoiced` fee is paid through the payment link of its invoice |
 | `open_invoices` | Validated, unpaid invoices of the member's third party, oldest first, at most 50: standard, replacement and deposit invoices. Empty when the member has no third party. Each invoice as in [`members/{id}/invoices`](#get-vereinemembersidinvoices) |
 | `updated_at` | When something in the summary last changed, in UTC; see [`GET /vereine/members`](#get-vereinemembers) for what counts |

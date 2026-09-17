@@ -36,6 +36,41 @@ function vereineFormatDay($date)
 }
 
 /**
+ * The ages of a discount rule in plain words.
+ *
+ * @param array<string,mixed> $rule Discount rule
+ * @return string
+ */
+function vereineDiscountAges(array $rule)
+{
+	global $langs;
+
+	if ($rule['age_from'] !== '' && $rule['age_to'] !== '') {
+		return $langs->trans('VereineDiscountAgesBetween', $rule['age_from'], $rule['age_to']);
+	}
+	return $rule['age_from'] !== '' ? $langs->trans('VereineDiscountAgesFrom', $rule['age_from']) : $langs->trans('VereineDiscountAgesUpTo', $rule['age_to']);
+}
+
+/**
+ * What a discount rule does to the fee, in plain words.
+ *
+ * @param array<string,mixed> $rule Discount rule
+ * @return string
+ */
+function vereineDiscountValue(array $rule)
+{
+	global $langs, $conf;
+
+	if ($rule['mode'] === VereineFeeDiscounts::MODE_FREE) {
+		return $langs->trans('VereineDiscountMode_free');
+	}
+	if ($rule['mode'] === VereineFeeDiscounts::MODE_PERCENT) {
+		return $langs->trans('VereineDiscountPercentOff', price2num($rule['value']));
+	}
+	return $langs->trans('VereineDiscountFixedAmount', price($rule['value'], 0, $langs, 1, -1, -1, $conf->currency));
+}
+
+/**
  * Why a fee has its amount, in plain words, or empty for a whole period.
  *
  * @param array<string,mixed> $fee Fee of VereineFeeRules::nextFee()
