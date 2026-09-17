@@ -64,6 +64,10 @@ class VereineLog
 	const MEETING_STATUS = 'meeting_status';
 	const MEETING_ATTENDANCE = 'meeting_attendance';
 	const MEETING_VOTE = 'meeting_vote';
+	const SIGNATURE_RULES = 'signature_rules';
+	const SIGNATURE_STARTED = 'signature_started';
+	const SIGNATURE_SIGNED = 'signature_signed';
+	const SIGNATURE_DONE = 'signature_done';
 
 	/**
 	 * Append one entry.

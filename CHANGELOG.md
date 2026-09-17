@@ -7,6 +7,21 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Neu
+
+- **Unterschriften** (#119): Einrichtungsreiter *Unterschriften* legt je Art von
+  Dokument fest, welche Funktionen unterschreiben und wie viele Unterschriften
+  nötig sind – vorbelegt wie in den Musterstatuten (schriftliche Ausfertigungen:
+  Obmann/Obfrau und Schriftführung; Prüfbericht: die Rechnungsprüfer).
+- **Zwei Wege**, wie im Grundsatz: das PDF ausdrucken, unterschreiben und den
+  Scan hochladen – oder in Dolibarr mit dem eigenen Passwort unterschreiben.
+  Festgehalten werden Person, Funktion, Zeitpunkt, Weg und die Prüfsumme des
+  Dokuments; ein neu erzeugtes Dokument verlangt neue Unterschriften.
+- **Unterschriftenblatt** als PDF mit Dokument, Prüfsumme, allen Unterschriften
+  und einem ehrlichen Hinweis zur Rechtswirkung.
+- Angewandt auf die **Schreiben an die Vereinsbehörde**: Ein geschriebenes
+  Schreiben startet seinen Unterschriftslauf, die Liste zeigt den Stand.
+
 ## [0.5.8-beta] - 2026-09-17
 
 Vereine ist jetzt ein Modul nur für österreichische Vereine, ganz auf Deutsch,

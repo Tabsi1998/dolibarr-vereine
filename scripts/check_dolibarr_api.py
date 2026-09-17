@@ -37,6 +37,8 @@ CONTRACTS = (
     ("htdocs/core/modules/DolibarrModules.class.php", "'/README-'.$langs->defaultlang.'.md'", "module description: README-<lang>.md, else the German README.md"),
     ("htdocs/core/modules/modAdherent.class.php", "class modAdherent", "the Members module the descriptor depends on"),
     ("htdocs/core/lib/admin.lib.php", "function dolibarr_set_const(", "setup page stores association data"),
+    ("htdocs/core/lib/security.lib.php", "function dol_verifyHash(", "signing in Dolibarr confirms the user's password"),
+    ("htdocs/user/class/user.class.php", "public $fk_member", "the member behind a Dolibarr user is the one who signs"),
     ("htdocs/core/lib/admin.lib.php", "function activateModule(", "runtime fixtures"),
     ("htdocs/core/lib/functions.lib.php", "function getDolGlobalString(", "reading settings"),
     ("htdocs/core/lib/functions.lib.php", "function isModEnabled(", "module state"),
