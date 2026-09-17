@@ -1,43 +1,45 @@
-# Compatibility
+# Kompatibilität
 
-## Supported versions
+## Unterstützte Versionen
 
-| Dolibarr | Status | Checked by |
+| Dolibarr | Status | Geprüft durch |
 | --- | --- | --- |
-| 24.x | Supported | API contract against branch 24.0, runtime tests on 24.0.1 |
-| 23.x | Supported | API contract against branch 23.0, runtime tests on 23.0.4 |
-| 22.x | Supported | API contract against branch 22.0, runtime tests on 22.0.5 |
-| 21.x and older | Not supported | The descriptor refuses activation |
+| 24.x | Unterstützt | API-Vertrag gegen Zweig 24.0, Laufzeit-Tests auf 24.0.1 |
+| 23.x | Unterstützt | API-Vertrag gegen Zweig 23.0, Laufzeit-Tests auf 23.0.4 |
+| 22.x | Unterstützt | API-Vertrag gegen Zweig 22.0, Laufzeit-Tests auf 22.0.5 |
+| 21.x und älter | Nicht unterstützt | Der Deskriptor verweigert die Aktivierung |
 
-Dolibarr publishes security fixes for the last two major versions only
-(currently 23 and 24). The module keeps running on 22, but installations should
-move on.
+Dolibarr veröffentlicht Sicherheitskorrekturen nur für die letzten zwei
+Hauptversionen (derzeit 23 und 24). Das Modul läuft weiter auf 22, Installationen
+sollten aber aktualisieren.
 
-PHP 7.4 is the minimum syntax target; every file is linted on 7.4, 8.1, 8.2,
-8.3 and 8.4, and the unit tests run on each of them.
+PHP 7.4 ist das Syntax-Minimum; jede Datei wird auf 7.4, 8.1, 8.2, 8.3 und 8.4
+geprüft, und die Unit-Tests laufen auf jeder dieser Versionen.
 
-## Keeping the versions in step
+## Versionen im Gleichschritt halten
 
-The supported range appears in several places that the release check compares:
+Der unterstützte Bereich steht an mehreren Stellen, die die Release-Prüfung
+vergleicht:
 
-- `need_dolibarr_version` and `phpmin` in `core/modules/modVereine.class.php`
-- `DOLIBARR_VERSIONS`, `PHP_VERSIONS` and `RUNTIME_IMAGES` in `scripts/local_check.py`
+- `need_dolibarr_version` und `phpmin` in `core/modules/modVereine.class.php`
+- `DOLIBARR_VERSIONS`, `PHP_VERSIONS` und `RUNTIME_IMAGES` in `scripts/local_check.py`
 - `SUPPORTED` in `scripts/check_dolibarr_api.py`
-- the matrices in `.github/workflows/ci.yml`
-- the tables in `README.md`, `README-de.md` and this file
+- die Matrizen in `.github/workflows/ci.yml`
+- die Tabellen in `README.md` und in dieser Datei
 
-Raising the minimum changes all of them in one pull request.
+Das Minimum anzuheben ändert alle in einem Pull Request.
 
-## Dolibarr details the module relies on
+## Was das Modul von Dolibarr voraussetzt
 
-- The API entry point dispatches `/vereine/...` to a class named `Vereine` in
-  `class/api_vereine.class.php`. The alternative name `VereineApi` is only
-  dispatched from Dolibarr 24 on (Dolibarr #37282).
-- *Deploy an external module* accepts only file names ending in `-x.y.z.zip`,
-  so a beta is packaged as `module_vereine-0.1.0.zip`.
-- The German module description is read from `README-de.md`
-  (`README-<lang>.md`, then `README-<language>.md`, then `README.md`).
-- `SOCIETE_FISCAL_MONTH_START` from the company settings is the first month of
-  the fiscal year.
+- Der API-Einstieg leitet `/vereine/...` an eine Klasse namens `Vereine` in
+  `class/api_vereine.class.php` weiter. Der alternative Name `VereineApi` wird
+  erst ab Dolibarr 24 weitergeleitet (Dolibarr #37282).
+- *Externes Modul bereitstellen* nimmt nur Dateinamen an, die auf `-x.y.z.zip`
+  enden; eine Beta wird also als `module_vereine-0.5.8.zip` verpackt.
+- Die Modulbeschreibung liest Dolibarr aus `README-<sprache>.md`, dann
+  `README.md`; das Modul hat nur `README.md`, auf Deutsch, für jede Sprache.
+- `SOCIETE_FISCAL_MONTH_START` aus den Unternehmensdaten ist der erste Monat des
+  Rechnungsjahres.
 
-`scripts/check_dolibarr_api.py` checks each of these in the Dolibarr source.
+`scripts/check_dolibarr_api.py` prüft jeden dieser Punkte im Quellcode von
+Dolibarr.

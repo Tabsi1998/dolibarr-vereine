@@ -182,23 +182,30 @@ class VereineWebsiteEvents
 	}
 
 	/**
-	 * Add the event to Dolibarr's list of events, so a webhook target can choose it.
+	 * Add the event to Dolibarr's list of events, so a webhook target can choose it; an event added
+	 * by an earlier version gets the current label.
 	 *
 	 * @param DoliDB $db Database handler
 	 * @return int 1 when added, 0 when already there, -1 on error
 	 */
 	public static function ensureTriggerCode($db)
 	{
-		$resql = $db->query("SELECT rowid FROM ".MAIN_DB_PREFIX."c_action_trigger WHERE code = '".$db->escape(self::TRIGGER_CODE)."'");
+		$label = 'Vereine: Mitglieds-Zusammenfassung geändert (für Website-Webhooks)';
+		$description = 'Nur Mitglieds-ID und Ursache werden gesendet; die Zusammenfassung über die API lesen';
+		$resql = $db->query("SELECT rowid, label FROM ".MAIN_DB_PREFIX."c_action_trigger WHERE code = '".$db->escape(self::TRIGGER_CODE)."'");
 		if (!$resql) {
 			return -1;
 		}
-		if ($db->fetch_object($resql)) {
-			return 0;
+		$obj = $db->fetch_object($resql);
+		if ($obj) {
+			if ((string) $obj->label === $label) {
+				return 0;
+			}
+			$sql = "UPDATE ".MAIN_DB_PREFIX."c_action_trigger SET label = '".$db->escape($label)."', description = '".$db->escape($description)."' WHERE rowid = ".((int) $obj->rowid);
+			return $db->query($sql) ? 0 : -1;
 		}
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX."c_action_trigger (elementtype, code, label, description, rang)";
-		$sql .= " VALUES ('member', '".$db->escape(self::TRIGGER_CODE)."', 'Vereine: member summary changed (for website webhooks)',";
-		$sql .= " 'Only the member id and the cause are sent; read the summary through the API', 9900)";
+		$sql .= " VALUES ('member', '".$db->escape(self::TRIGGER_CODE)."', '".$db->escape($label)."', '".$db->escape($description)."', 9900)";
 		return $db->query($sql) ? 1 : -1;
 	}
 

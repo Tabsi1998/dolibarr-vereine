@@ -1,49 +1,55 @@
-# Contributing
+# Mitarbeit
 
-Contributions are welcome - code, translations, legal corrections and bug
-reports. Never use real member, donor or bank data, credentials or database
-dumps in issues, tests or screenshots.
+Beiträge sind willkommen – Code, Korrekturen an Texten und Rechtsregeln,
+Fehlermeldungen. Nie echte Mitglieds-, Spender- oder Bankdaten, Zugangsdaten
+oder Datenbankauszüge in Issues, Tests oder Screenshots verwenden.
 
-## How work is organised
+## Wie die Arbeit organisiert ist
 
-- Every change starts with an issue, labelled with its type (`bug`,
-  `enhancement`, `documentation`, `ci`, `release`, `security`), its area
-  (`bereich: ...`) and, where it applies, its country (`land: AT`, `land: DE`),
-  and assigned to a milestone.
-- One branch per issue: `feat/<issue>-<topic>`, `fix/<issue>-<topic>`,
-  `docs/<issue>-<topic>`, `ci/<issue>-<topic>`.
-- Pull requests close their issues (`Closes #12`) and nothing is pushed to
-  `main` directly. Commits follow the conventional style: `feat:`, `fix:`,
-  `docs:`, `ci:`, `chore:`, `release:`.
+- Jede Änderung beginnt mit einem Issue, beschriftet mit seiner Art (`bug`,
+  `enhancement`, `documentation`, `ci`, `release`, `security`) und seinem Bereich
+  (`bereich: ...`), zugeordnet zu einem Meilenstein.
+- Ein Branch je Issue: `feat/<issue>-<thema>`, `fix/<issue>-<thema>`,
+  `docs/<issue>-<thema>`, `ci/<issue>-<thema>`.
+- Pull Requests schließen ihre Issues (`Closes #12`), nichts wird direkt auf
+  `main` gepusht. Commits im üblichen Stil: `feat:`, `fix:`, `docs:`, `ci:`,
+  `chore:`, `release:`.
+- Mehrere Pull Requests werden gesammelt veröffentlicht; ein Pull Request erhöht
+  die Version nicht (siehe [docs/RELEASES.md](docs/RELEASES.md)).
 
-## Checks
+## Prüfungen
 
-Run the local checks before opening a pull request; GitHub runs a subset again
-as a second confirmation.
+Vor einem Pull Request die lokalen Prüfungen laufen lassen; GitHub führt einen
+Teil davon als zweite Bestätigung erneut aus.
 
 ```bash
-python scripts/local_check.py            # everything GitHub runs plus the runtime tests
-python scripts/local_check.py --all      # plus the extra gates
-python scripts/local_check.py --list     # the steps without running them
+python scripts/local_check.py            # alles, was GitHub prüft, plus die Laufzeit-Tests
+python scripts/local_check.py --all      # dazu die zusätzlichen Prüfungen
+python scripts/local_check.py --list     # die Schritte, ohne sie auszuführen
 ```
 
-They need Docker, Git and Python 3.10 or newer; see `CLAUDE.md` for details.
+Sie brauchen Docker, Git und Python 3.10 oder neuer; Details in `CLAUDE.md`.
 
-## Rules for code
+## Regeln für Code
 
-- PHP 7.4 syntax is the minimum; Dolibarr's coding standard applies (tabs,
-  English comments, doc blocks).
-- Never change Dolibarr's files; use hooks, triggers and the module's own
-  classes.
-- Read input with `GETPOST()`, escape output, check rights on every page and
-  endpoint, put the CSRF token in every form.
-- Logic that can run without Dolibarr goes into plain PHP classes with tests in
+- PHP-7.4-Syntax ist das Minimum; es gilt Dolibarrs Code-Standard (Tabulatoren,
+  englische Kommentare ohne Umlaute, Doc-Blöcke). Namen und Kommentare im Code
+  bleiben Englisch.
+- Nie Dateien von Dolibarr ändern; Hooks, Trigger und die eigenen Klassen des
+  Moduls verwenden.
+- Eingaben mit `GETPOST()` lesen, Ausgaben maskieren, auf jeder Seite und jeder
+  Schnittstelle Rechte prüfen, in jedes Formular das CSRF-Token.
+- Logik, die ohne Dolibarr läuft, gehört in Klassen aus reinem PHP mit Tests in
   `tests/run.php`.
-- German and English texts change together; English is always complete.
-- A legal amount or deadline names its source in `docs/LEGAL-SOURCES.md`.
-- User-visible changes get a `CHANGELOG.md` entry under `Unreleased`.
+- Texte stehen in `langs/de_DE/vereine.lang`; danach
+  `python scripts/sync_langs.py`, damit `langs/en_US/vereine.lang` die genaue
+  Kopie bleibt.
+- Ein gesetzlicher Betrag oder eine Frist nennt seine Quelle in
+  `docs/LEGAL-SOURCES.md`.
+- Sichtbare Änderungen bekommen einen Eintrag in `CHANGELOG.md` unter
+  `Unreleased`, auf Deutsch.
 
-## Licence
+## Lizenz
 
-By contributing you agree that your contribution is published under the GNU
-General Public License v3.0 or later.
+Mit einem Beitrag stimmst du zu, dass er unter der GNU General Public License
+v3.0 oder später veröffentlicht wird.

@@ -46,7 +46,7 @@ class InterfaceVereineTriggers extends DolibarrTriggers
 	{
 		parent::__construct($db);
 		$this->family = 'hr';
-		$this->description = 'Vereine: keeps members and their third parties consistent, applies tax profiles and tells website webhooks which member changed.';
+		$this->description = 'Vereine: hält Mitglieder und ihre Geschäftspartner in Ordnung, wendet Steuerprofile an und meldet Website-Webhooks, welches Mitglied sich geändert hat.';
 		$this->version = self::VERSIONS['prod'];
 		$this->picto = 'fa-landmark';
 	}

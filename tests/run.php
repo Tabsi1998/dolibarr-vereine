@@ -1120,9 +1120,13 @@ same(array('vereine:website:read', 'facture:lire'), array(VereineApiRules::right
 
 // ------------------------------------------------------------ language files
 
+// The module speaks German; en_US is an exact copy so an English interface shows German, not keys.
+expect(file_get_contents($root.'/langs/en_US/vereine.lang') === file_get_contents($root.'/langs/de_DE/vereine.lang'), 'langs/en_US/vereine.lang is an exact copy of de_DE; run python scripts/sync_langs.py');
 $english = langEntries($root.'/langs/en_US/vereine.lang');
 $languages = glob($root.'/langs/*/vereine.lang');
-expect(count($languages) >= 2, 'at least English and German language files exist');
+same(array('de_DE', 'en_US'), array_map(function ($file) {
+	return basename(dirname($file));
+}, $languages), 'German and its English copy are the only language files');
 foreach ($languages as $file) {
 	$language = basename(dirname($file));
 	$entries = langEntries($file);

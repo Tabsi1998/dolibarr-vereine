@@ -110,7 +110,7 @@ def support_matrix() -> list[str]:
         "ci.yml php matrix": (first_list_entry(r"php: \['([^']+)'", ci, "the php matrix in ci.yml"), php),
         "ci.yml dolibarr matrix": (first_list_entry(r"dolibarr: \['([^']+)'", ci, "the dolibarr matrix in ci.yml"), dolibarr),
     }
-    for readme in ("README.md", "README-de.md"):
+    for readme in ("README.md",):
         text = (ROOT / readme).read_text(encoding="utf-8")
         found[f"{readme} Dolibarr minimum"] = (first_list_entry(r"^\| Dolibarr \| ([0-9.]+) \|", text, f"the Dolibarr row in {readme}"), dolibarr)
         found[f"{readme} PHP minimum"] = (first_list_entry(r"^\| PHP \| ([0-9.]+) \|", text, f"the PHP row in {readme}"), php)

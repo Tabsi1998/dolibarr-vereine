@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Sicherheitsproblem / Security problem
+  - name: Sicherheitsproblem
     url: https://github.com/Tabsi1998/dolibarr-vereine/security/advisories/new
-    about: Privat melden, nicht öffentlich. / Report privately, not in public.
+    about: Privat melden, nicht öffentlich.
