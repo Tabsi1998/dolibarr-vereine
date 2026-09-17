@@ -59,7 +59,8 @@ Vereinswebsite mit.
 - **Registrierkassen-Check** je Bereich und der fehlende **13-%-Satz** für
   Österreich auf Knopfdruck (0.2.8).
 - **Beitragsmodell je Mitgliedsart** (0.3.4): Beginn des Beitragsjahres,
-  anteiliger erster Beitrag, Aufnahmegebühr und Beitragsleistung mit
+  anteiliger erster Beitrag (seit 0.3.6 monatsweise, vierteljährlich oder
+  halbjährlich), Aufnahmegebühr und Beitragsleistung mit
   Steuerprofil, direkt an Dolibarrs Mitgliedsart; der Reiter *Beiträge* zeigt,
   was ein Eintritt heute kostet.
 - **Beitragslauf** (0.3.5) unter *Mitglieder > Verein*: Vorschau der fälligen

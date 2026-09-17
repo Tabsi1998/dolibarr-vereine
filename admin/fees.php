@@ -94,7 +94,7 @@ print dol_get_fiche_head($head, 'fees', $title, -1, 'fa-landmark');
 
 print '<span class="opacitymedium">'.$langs->trans('VereineFeesIntro').'</span><br><br>';
 print '<div class="info" data-fees-howto="1"><strong>'.$langs->trans('VereineFeesHowToTitle').'</strong><ul>';
-foreach (array('VereineFeesHowToAmount', 'VereineFeesHowToStartMonth', 'VereineFeesHowToProrated', 'VereineFeesHowToAdmission', 'VereineFeesHowToProduct') as $line) {
+foreach (array('VereineFeesHowToAmount', 'VereineFeesHowToStartMonth', 'VereineFeesHowToProration', 'VereineFeesHowToAdmission', 'VereineFeesHowToProduct') as $line) {
 	print '<li>'.$langs->trans($line).'</li>';
 }
 print '</ul>'.$langs->trans('VereineFeesHowToWhere', '<a href="'.DOL_URL_ROOT.'/adherents/type.php">'.$langs->trans('VereineFeesMemberTypes').'</a>').'</div>';
@@ -106,7 +106,7 @@ if ($typesError !== '') {
 
 print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
 print '<tr class="liste_titre"><td>'.$langs->trans('MemberType').'</td><td class="right">'.$langs->trans('VereineFeesAmount').'</td>';
-print '<td>'.$langs->trans('Duration').'</td><td>'.$langs->trans('VereineFeeStartMonth').'</td><td class="center">'.$langs->trans('VereineFeeProrated').'</td>';
+print '<td>'.$langs->trans('Duration').'</td><td>'.$langs->trans('VereineFeeStartMonth').'</td><td>'.$langs->trans('VereineFeeProration').'</td>';
 print '<td class="right">'.$langs->trans('VereineFeeAdmission').'</td><td>'.$langs->trans('VereineFeeProduct').'</td>';
 print '<td>'.$langs->trans('VereineFeesExample', vereineFormatDay($today)).'</td><td></td></tr>';
 if (!$types && $typesError === '') {
@@ -127,7 +127,7 @@ foreach ($types as $type) {
 		print '<td class="right nowraponall">'.($model['amount'] === null ? '<span class="warning">'.$langs->trans('VereineFeesNoAmount').'</span>' : price($model['amount'], 0, $langs, 1, -1, -1, $conf->currency)).'</td>';
 		print '<td class="nowraponall">'.$model['duration_value'].' '.$langs->trans($units[$model['duration_unit']]).'</td>';
 		print '<td>'.($model['start_month'] > 0 ? $langs->trans(VereineFeeModel::MONTHS[$model['start_month']]) : $langs->trans('VereineFeeStartsWithJoining')).'</td>';
-		print '<td class="center">'.yn($model['prorated']).'</td>';
+		print '<td data-fee-proration="'.$model['proration'].'">'.$langs->trans(VereineFeeModel::PRORATIONS[$model['proration']]).'</td>';
 		print '<td class="right nowraponall">'.($model['admission_fee'] > 0 ? price($model['admission_fee'], 0, $langs, 1, -1, -1, $conf->currency) : '').'</td>';
 		print '<td>';
 		if ($type['product_id'] > 0 && isset($products[$type['product_id']])) {
@@ -146,10 +146,9 @@ foreach ($types as $type) {
 		if ($fee['amount'] !== null) {
 			print ': <strong>'.price($fee['amount'], 0, $langs, 1, -1, -1, $conf->currency).'</strong>';
 		}
-		if ($fee['reason'] === VereineFeeRules::REASON_PRORATED) {
-			print ' <span class="opacitymedium">('.$langs->trans('VereineFeeReasonProrated', $fee['months'], $fee['period_months']).')</span>';
-		} elseif ($fee['reason'] === VereineFeeRules::REASON_REST_FULL) {
-			print ' <span class="opacitymedium">('.$langs->trans('VereineFeeReasonRestFull', $fee['months']).')</span>';
+		$reason = vereineFeeReason($fee);
+		if ($reason !== '') {
+			print ' <span class="opacitymedium">('.$reason.')</span>';
 		}
 		if ($fee['admission_fee'] > 0) {
 			print '<br>'.$langs->trans('VereineFeesPlusAdmission', price($fee['admission_fee'], 0, $langs, 1, -1, -1, $conf->currency));

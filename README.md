@@ -55,8 +55,9 @@ with a REST API for the association's website.
 - **Cash register check** per sphere and the missing **13 % VAT rate** for Austria
   added on request (0.2.8).
 - **Fee model per member type** (0.3.4): when the fee year starts, prorated first
-  fee, admission fee and fee product with tax profile, on Dolibarr's member type
-  card; setup tab *Fees* shows what joining today costs.
+  fee (by month, quarter or half-year since 0.3.6), admission fee and fee product
+  with tax profile, on Dolibarr's member type card; setup tab *Fees* shows what
+  joining today costs.
 - **Fee run** (0.3.5) under *Members > Association*: preview of the fees due,
   then subscription period and linked invoice per member, once per period.
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third

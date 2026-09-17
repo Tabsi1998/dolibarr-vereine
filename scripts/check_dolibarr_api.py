@@ -281,6 +281,9 @@ CONTRACTS = (
     ("htdocs/compta/facture/class/facture.class.php", "public function validate($user, $force_number = '', $idwarehouse = 0, $notrigger = 0, $batch_rule = 0)", "fee invoices are validated"),
     ("htdocs/core/modules/modAdherent.class.php", "$this->rights[$r][4] = 'cotisation';", "right to record subscriptions"),
     ("htdocs/core/modules/modFacture.class.php", "$this->rights[$r][4] = 'invoice_advance';", "separate right to validate invoices with advanced permissions"),
+    # Proration by month, quarter or half-year (issue #68)
+    ("htdocs/core/class/extrafields.class.php", "public function fetch_name_optionals_label($elementtype, $forceload = false", "whether the old prorated checkbox still exists"),
+    ("htdocs/core/class/extrafields.class.php", "public function delete($attrname, $elementtype = '')", "the old prorated checkbox is removed after moving its values"),
 )
 
 LANG_KEYS = {

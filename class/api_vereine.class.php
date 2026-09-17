@@ -218,6 +218,7 @@ class Vereine extends DolibarrApi
 				'duration' => array('value' => $model['duration_value'], 'unit' => $model['duration_unit']),
 				'year_starts_month' => $model['start_month'],
 				'prorated' => $model['prorated'],
+				'proration' => $model['proration'],
 				'admission_fee' => $type['subscription'] ? $model['admission_fee'] : 0.0,
 				'currency' => (string) $conf->currency,
 			);

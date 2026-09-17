@@ -7,6 +7,28 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.3.6-beta] - 2026-09-17
+
+Membership fees: prorating by month, quarter or half-year (issue #68).
+
+### Changed
+
+- *Prorated when joining* on the member type is a choice instead of a checkbox:
+  not prorated, by month, by quarter or by half-year. By half-year, joining in
+  the first half of the fee year pays the full amount and in the second half
+  the half; by quarter the remaining quarters. Parts are counted from the start
+  of the fee year, the part of joining in full. A fee period that does not
+  divide into quarters or half-years is prorated by month.
+- A ticked checkbox of 0.3.4 and 0.3.5 becomes "by month" when the module is
+  enabled; the old field is then removed.
+- The setup tab *Fees*, the fee run and `GET /vereine/membershipfees` show the
+  kind of proration (`proration`); `prorated` stays for existing websites.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that replaces the checkbox by the choice and keeps the setting.
+
 ## [0.3.5-beta] - 2026-09-17
 
 Membership fees, part 2 (issues #61 and #14): the fee run.
@@ -440,7 +462,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.5-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.6-beta...HEAD
+[0.3.6-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.6-beta
 [0.3.5-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.5-beta
 [0.3.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.4-beta
 [0.3.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.3-beta

@@ -259,6 +259,13 @@ def upgrade(stack: Stack) -> str:
     page_ok(browser.submit(form, {"VEREINE_REGISTER_NUMBER": "987654321", "VEREINE_AUTHORITY": "BH Innsbruck"}),
             f"setup of {old}")
     expect(stack.const("VEREINE_REGISTER_NUMBER") == "987654321", f"{old} did not store the ZVR number")
+    # A member type whose fee was prorated with the checkbox of 0.3.4 and 0.3.5.
+    old_checkbox = bool(stack.sql("SHOW COLUMNS FROM llx_adherent_type_extrafields LIKE 'vereine_fee_prorated'"))
+    if old_checkbox:
+        stack.sql("INSERT INTO llx_adherent_type (entity, statut, libelle, morphy, duration, subscription, amount) "
+                  "VALUES (1, 1, 'RT Upgrade', '', '1y', '1', 12)")
+        upgrade_type = int(stack.value("SELECT rowid FROM llx_adherent_type WHERE libelle = 'RT Upgrade'"))
+        stack.sql(f"INSERT INTO llx_adherent_type_extrafields (fk_object, vereine_fee_prorated) VALUES ({upgrade_type}, 1)")
 
     upload(stack, stack.package)
     switch_module(stack, "reset")
@@ -274,11 +281,20 @@ def upgrade(stack: Stack) -> str:
     expect(all(value.isdigit() and int(value) > 0 for value in categories), f"categories after the upgrade: {categories}")
     profiles = stack.value("SELECT COUNT(*) FROM llx_vereine_taxprofile WHERE entity = 1 AND standard = 1")
     expect(profiles == str(len(STANDARD_TAX_PROFILES)), f"the upgrade brought {profiles} standard tax profiles, expected {len(STANDARD_TAX_PROFILES)}")
+    if old_checkbox:
+        proration = stack.value(f"SELECT vereine_fee_proration FROM llx_adherent_type_extrafields WHERE fk_object = {upgrade_type}")
+        leftover = stack.sql("SHOW COLUMNS FROM llx_adherent_type_extrafields LIKE 'vereine_fee_prorated'")
+        definition = stack.value("SELECT COUNT(*) FROM llx_extrafields WHERE elementtype = 'adherent_type' AND name = 'vereine_fee_prorated'")
+        expect(proration == "month" and not leftover and definition == "0",
+               f"the old checkbox became {proration!r}, column left {leftover}, definitions left {definition}")
+        stack.sql(f"DELETE FROM llx_adherent_type_extrafields WHERE fk_object = {upgrade_type}")
+        stack.sql(f"DELETE FROM llx_adherent_type WHERE rowid = {upgrade_type}")
 
     stack.php_fixture("reset")
     expect(stack.const("MAIN_MODULE_VEREINE") is None and stack.const("VEREINE_REGISTER_NUMBER") is None,
            "the reset after the upgrade test left module state behind")
-    return f"{old} -> {stack.module_version}: association data kept; tables, website right and categories in place"
+    return (f"{old} -> {stack.module_version}: association data kept; tables, website right and categories in place"
+            + ("; old prorated checkbox became by month" if old_checkbox else ""))
 
 
 def deploy(stack: Stack) -> str:
@@ -1253,27 +1269,42 @@ def fees(stack: Stack) -> str:
     expect(edit is not None, f"the fee setup offers no edit link for member type {fee_type}: {links}")
     card = page_ok(browser.get(edit), "Dolibarr's member type card in edit mode")
     form = card.form(action_part=f"rowid={fee_type}")
-    for name in ("options_vereine_fee_start_month", "options_vereine_admission_fee", "options_vereine_fee_product"):
+    for name in ("options_vereine_fee_start_month", "options_vereine_fee_proration", "options_vereine_admission_fee", "options_vereine_fee_product"):
         expect(form.has(name), f"Dolibarr's member type card does not offer {name}")
-    page_ok(browser.submit(form, {"duration_value": "1", "duration_unit": "y", "options_vereine_fee_start_month": "1",
-                                  "options_vereine_fee_prorated": "1", "options_vereine_admission_fee": "20",
-                                  "options_vereine_fee_product": product}), "save the fee model on the member type card")
-    stored = stack.sql(f"SELECT vereine_fee_start_month, vereine_fee_prorated, vereine_admission_fee, vereine_fee_product "
-                       f"FROM llx_adherent_type_extrafields WHERE fk_object = {fee_type}")
-    expect(stored and stored[0][0] == "1" and stored[0][1] == "1" and float(stored[0][2]) == 20 and stored[0][3] == product,
-           f"fee model stored on the member type: {stored}")
-
     year, month, day = (int(part) for part in today.split("-"))
+
+    def save_and_example(proration: str) -> tuple[dict, str]:
+        card = page_ok(browser.get(edit), f"member type card for {proration}")
+        page_ok(browser.submit(card.form(action_part=f"rowid={fee_type}"),
+                               {"duration_value": "1", "duration_unit": "y", "options_vereine_fee_start_month": "1",
+                                "options_vereine_fee_proration": proration, "options_vereine_admission_fee": "20",
+                                "options_vereine_fee_product": product}), f"save the fee model by {proration}")
+        stored = stack.sql(f"SELECT vereine_fee_start_month, vereine_fee_proration, vereine_admission_fee, vereine_fee_product "
+                           f"FROM llx_adherent_type_extrafields WHERE fk_object = {fee_type}")
+        expect(stored and stored[0][0] == "1" and stored[0][1] == proration and float(stored[0][2]) == 20 and stored[0][3] == product,
+               f"fee model stored on the member type: {stored}")
+        page = page_ok(browser.get("/custom/vereine/admin/fees.php"), f"fee setup by {proration}")
+        found = re.search(rf'<tr class="oddeven" data-fee-type="{fee_type}">(.*?)</tr>', page.text, re.S)
+        expect(found is not None, f"the fee setup shows no row for member type {fee_type}")
+        values = dict(re.findall(r'data-fee-(example|start|end|amount|admission|proration)="([^"]*)"', found.group(1)))
+        expect(values.get("proration") == proration, f"the fee setup shows proration {values.get('proration')!r}, expected {proration}")
+        return values, found.group(1)
+
+    # By half-year: joining in the first half pays in full, in the second half the half.
+    example, _ = save_and_example("half_year")
+    half_reason, half_amount = ("first_part_full", 50.0) if month <= 6 else ("prorated", 25.0)
+    if (month, day) == (1, 1):
+        half_reason = "full"
+    expect(example.get("example") == half_reason and float(example.get("amount") or -1) == half_amount,
+           f"joining today by half-year costs {example}, expected {half_reason} {half_amount}")
+
     months = 13 - month
-    reason, amount = ("full", 50.0) if (month, day) == (1, 1) else ("prorated", round(50 * months / 12, 2))
-    setup = page_ok(browser.get("/custom/vereine/admin/fees.php"), "fee setup after saving")
-    row = re.search(rf'<tr class="oddeven" data-fee-type="{fee_type}">(.*?)</tr>', setup.text, re.S)
-    expect(row is not None, f"the fee setup shows no row for member type {fee_type}")
-    example = dict(re.findall(r'data-fee-(example|start|end|amount|admission)="([^"]*)"', row.group(1)))
+    reason, amount = ("full", 50.0) if (month, day) == (1, 1) else (("first_part_full", 50.0) if month == 1 else ("prorated", round(50 * months / 12, 2)))
+    example, row_html = save_and_example("month")
     expect(example.get("example") == reason and example.get("start") == today and example.get("end") == f"{year}-12-31"
            and float(example.get("amount") or -1) == amount and float(example.get("admission") or -1) == 20,
            f"joining today costs {example}, expected {reason} {amount} until {year}-12-31 plus 20")
-    text = html.unescape(row.group(1))
+    text = html.unescape(row_html)
     expect("RT-BEITRAG" in text and "Steuerprofil" in text, "the fee setup does not show the fee product and its tax profile")
     expect(f'data-fee-type="{free_type}"' in setup.text and 'data-fee-example="none"' in setup.text,
            "the member type without fee is not shown as such")
@@ -1283,15 +1314,16 @@ def fees(stack: Stack) -> str:
     expect(status == 200 and isinstance(body, list), f"GET vereine/membershipfees answered HTTP {status}: {body}")
     found = {entry["id"]: entry for entry in body}
     paying, free = found.get(fee_type, {}), found.get(free_type, {})
-    expect({k: paying.get(k) for k in ("amount", "duration", "year_starts_month", "prorated", "admission_fee", "subscription_required", "currency")}
-           == {"amount": 50, "duration": {"value": 1, "unit": "y"}, "year_starts_month": 1, "prorated": True, "admission_fee": 20,
+    expect({k: paying.get(k) for k in ("amount", "duration", "year_starts_month", "prorated", "proration", "admission_fee", "subscription_required", "currency")}
+           == {"amount": 50, "duration": {"value": 1, "unit": "y"}, "year_starts_month": 1, "prorated": True, "proration": "month", "admission_fee": 20,
                "subscription_required": True, "currency": "EUR"}, f"fee of the paying member type: {paying}")
     expect(free.get("subscription_required") is False and free.get("amount") is None and free.get("admission_fee") == 0,
            f"member type without fee: {free}")
     for who, name in ((stack.reader_key, "a user without the website right"), (stack.nobody_key, "a user without rights")):
         status, _ = stack.api("vereine/membershipfees", who)
         expect(status == 403, f"{name} got HTTP {status} for the membership fees, expected 403")
-    return (f"fee model saved on Dolibarr's member type card; joining today: {reason} {amount} € until 31 December plus 20 € admission, "
+    return (f"fee model saved on Dolibarr's member type card; joining today by half-year {half_amount} €, by month {reason} {amount} € "
+            "until 31 December plus 20 € admission, "
             "fee product with tax profile shown; API for the website; non-administrators and users without right refused")
 
 
