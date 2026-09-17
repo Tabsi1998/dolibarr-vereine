@@ -104,10 +104,11 @@ class VereineMemberReport
 
 		$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
 		$status = VereineMemberSummary::status($row->statut);
-		$paidUntil = VereineMemberSummary::dayOf($row->datefin);
+		$ends = $this->periodEnds((int) $row->rowid, VereineMemberSummary::dayOf($row->datefin));
+		$paidUntil = $ends['paid_until'];
 		$validatedOn = VereineMemberSummary::datePart($row->datevalid);
 		$required = (int) $row->subscription === 1;
-		$fee = VereineMemberSummary::fee($status, $required, $paidUntil, $validatedOn, $today);
+		$fee = VereineMemberSummary::fee($status, $required, $paidUntil, $ends['invoiced_until'], $validatedOn, $today);
 		$amount = ($row->amount === null || $row->amount === '') ? null : (float) $row->amount;
 		$online = $this->onlinePayment();
 
@@ -133,6 +134,32 @@ class VereineMemberReport
 			'open_invoices' => (int) $row->fk_soc > 0 ? $this->invoices((int) $row->fk_soc, $today, $online, true, self::MAX_OPEN_INVOICES, 0) : array(),
 			'updated_at' => VereineMemberSummary::isoMoment(current($this->changes((int) $row->rowid))),
 		);
+	}
+
+	/**
+	 * Paid and invoiced ends of a member's subscription periods, see VereineMemberSummary::periodEnds().
+	 *
+	 * @param int    $memberId  Member id
+	 * @param string $memberEnd Dolibarr's end date of the member, used when it has no subscription periods (imported data)
+	 * @return array{paid_until:string,invoiced_until:string}
+	 */
+	private function periodEnds($memberId, $memberEnd)
+	{
+		$sql = "SELECT s.datef, f.fk_statut FROM ".MAIN_DB_PREFIX."subscription as s";
+		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."element_element as ee ON ee.fk_source = s.rowid AND ee.sourcetype = 'subscription' AND ee.targettype = 'facture'";
+		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."facture as f ON f.rowid = ee.fk_target";
+		$sql .= " WHERE s.fk_adherent = ".((int) $memberId);
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			dol_syslog(__METHOD__.' '.$this->db->lasterror(), LOG_ERR);
+			return array('paid_until' => $memberEnd, 'invoiced_until' => '');
+		}
+		$periods = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$periods[] = array('end' => VereineMemberSummary::dayOf($obj->datef), 'invoice_status' => $obj->fk_statut === null ? null : (int) $obj->fk_statut);
+		}
+		$this->db->free($resql);
+		return $periods ? VereineMemberSummary::periodEnds($periods) : array('paid_until' => $memberEnd, 'invoiced_until' => '');
 	}
 
 	/**
@@ -358,6 +385,9 @@ class VereineMemberReport
 		}
 		$this->db->free($resql);
 
+		$fees = $this->feeInvoiceIds(array_map(function ($obj) {
+			return (int) $obj->rowid;
+		}, $rows));
 		$invoices = array();
 		foreach ($rows as $obj) {
 			$invoice = new Facture($this->db);
@@ -379,9 +409,37 @@ class VereineMemberReport
 				'status' => $status,
 				'overdue' => $status === VereineMemberSummary::INVOICE_OVERDUE,
 				'payment_url' => ($online && $open && $type !== 'credit_note') ? getOnlinePaymentUrl(0, 'invoice', (string) $invoice->ref) : '',
+				'fee' => isset($fees[(int) $invoice->id]),
 			);
 		}
 		return $invoices;
+	}
+
+	/**
+	 * Invoices linked to a subscription period, as Dolibarr links a fee invoice.
+	 *
+	 * @param int[] $invoiceIds Invoice ids
+	 * @return array<int,bool> Fee invoice ids as keys
+	 */
+	private function feeInvoiceIds(array $invoiceIds)
+	{
+		$invoiceIds = array_values(array_filter(array_map('intval', $invoiceIds)));
+		if (!$invoiceIds) {
+			return array();
+		}
+		$sql = "SELECT DISTINCT ee.fk_target FROM ".MAIN_DB_PREFIX."element_element as ee";
+		$sql .= " WHERE ee.sourcetype = 'subscription' AND ee.targettype = 'facture' AND ee.fk_target IN (".implode(', ', $invoiceIds).")";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			dol_syslog(__METHOD__.' '.$this->db->lasterror(), LOG_ERR);
+			return array();
+		}
+		$ids = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$ids[(int) $obj->fk_target] = true;
+		}
+		$this->db->free($resql);
+		return $ids;
 	}
 
 	/**

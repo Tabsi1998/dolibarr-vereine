@@ -309,7 +309,8 @@ in Dolibarr (the number in the address of the member card).
       "remaining": 50,
       "status": "overdue",
       "overdue": true,
-      "payment_url": "https://erp.example.org/public/payment/newpayment.php?source=invoice&ref=FA2608-0003&securekey=..."
+      "payment_url": "https://erp.example.org/public/payment/newpayment.php?source=invoice&ref=FA2608-0003&securekey=...",
+      "fee": true
     }
   ],
   "updated_at": "2026-09-17T06:12:40Z"
@@ -322,12 +323,12 @@ in Dolibarr (the number in the address of the member card).
 | `company` | Name of a legal entity; empty for natural persons |
 | `status` | `draft` (not yet validated), `active`, `terminated` (resiliated in Dolibarr), `excluded` |
 | `member_since` | Start of the first subscription period or the validation date, whichever is earlier; empty for drafts |
-| `paid_until` | End of the last subscription period, the whole day included; empty when the member never paid |
+| `paid_until` | End of the last paid subscription period, the whole day included: a period without fee invoice (recorded as paid on the member card) or with its fee invoice paid. Empty when the member never paid |
 | `fee.required` | Whether the member type needs a subscription |
-| `fee.status` | `paid` (a period covers today), `due` (never paid, or the last period has ended), `not_required` (member type without subscription), `inactive` (draft, terminated or excluded) |
+| `fee.status` | `paid` (a paid period covers today), `invoiced` (the period covering today has a fee invoice that is not paid yet, see `open_invoices`), `due` (never paid, or the last period has ended), `not_required` (member type without subscription), `inactive` (draft, terminated or excluded) |
 | `fee.next_due` | The day after `paid_until`; the validation date when the member never paid; empty for `not_required` and `inactive` |
 | `fee.amount` | Amount of the member type; `null` when the type sets none or needs no subscription |
-| `fee.payment_url` | Dolibarr's online payment page for the fee, only while the fee is `due` and an online payment service (Stripe, PayPal or one added by a module) is set up; otherwise empty |
+| `fee.payment_url` | Dolibarr's online payment page for the fee, only while the fee is `due` and an online payment service (Stripe, PayPal or one added by a module) is set up; otherwise empty. An `invoiced` fee is paid through the payment link of its invoice |
 | `open_invoices` | Validated, unpaid invoices of the member's third party, oldest first, at most 50: standard, replacement and deposit invoices. Empty when the member has no third party. Each invoice as in [`members/{id}/invoices`](#get-vereinemembersidinvoices) |
 | `updated_at` | When something in the summary last changed, in UTC; see [`GET /vereine/members`](#get-vereinemembers) for what counts |
 
@@ -373,7 +374,8 @@ them; a page after the last one is an empty list.
     "remaining": 50,
     "status": "overdue",
     "overdue": true,
-    "payment_url": ""
+    "payment_url": "",
+    "fee": true
   }
 ]
 ```
@@ -386,6 +388,7 @@ them; a page after the last one is an empty list.
 | `remaining` | What is still to pay after payments, credit notes and deposits; 0 for paid and abandoned invoices |
 | `status` | `open`, `overdue` (due date passed), `paid`, `abandoned` |
 | `overdue` | `true` exactly when `status` is `overdue` |
+| `fee` | A membership fee invoice: linked to a subscription period, whether it came from a fee run or from the member card |
 | `payment_url` | Dolibarr's online payment page for an open or overdue invoice other than a credit note, only with an online payment service; otherwise empty |
 
 Answers 400 for a limit or page out of range and 404 when there is no member

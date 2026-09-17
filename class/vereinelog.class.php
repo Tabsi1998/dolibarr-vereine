@@ -36,6 +36,9 @@ class VereineLog
 	const PARTNER_UPDATED = 'partner_updated';
 	const PARTNER_ERROR = 'partner_error';
 	const PARTNER_UNLINKED = 'partner_unlinked';
+	const FEE_INVOICE = 'fee_invoice';
+	const FEE_RUN = 'fee_run';
+	const FEE_ERROR = 'fee_error';
 
 	/**
 	 * Append one entry.

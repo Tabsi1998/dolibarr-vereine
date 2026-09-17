@@ -450,13 +450,27 @@ same('2026-01-10', VereineMemberSummary::memberSince('active', '', '2026-01-10')
 same('', VereineMemberSummary::memberSince('draft', '2026-01-01', ''), 'a draft is no member yet');
 
 $today = '2026-09-17';
-same(array('status' => 'paid', 'next_due' => '2027-01-01'), VereineMemberSummary::fee('active', true, '2026-12-31', '2026-01-10', $today), 'a period covering today is paid, the next fee is due the day after');
-same(array('status' => 'paid', 'next_due' => '2026-09-18'), VereineMemberSummary::fee('active', true, '2026-09-17', '2026-01-10', $today), 'the last day of a period is still paid');
-same(array('status' => 'due', 'next_due' => '2026-09-17'), VereineMemberSummary::fee('active', true, '2026-09-16', '2026-01-10', $today), 'the day after a period the fee is due');
-same(array('status' => 'due', 'next_due' => '2026-01-10'), VereineMemberSummary::fee('active', true, '', '2026-01-10', $today), 'a member who never paid owes the fee since the validation');
-same(array('status' => 'not_required', 'next_due' => ''), VereineMemberSummary::fee('active', false, '', '2026-01-10', $today), 'a member type without subscription');
-same(array('status' => 'inactive', 'next_due' => ''), VereineMemberSummary::fee('terminated', true, '2026-12-31', '2026-01-10', $today), 'a former member owes no further fee');
-same(array('status' => 'inactive', 'next_due' => ''), VereineMemberSummary::fee('draft', true, '', '', $today), 'a draft owes no fee yet');
+same(array('status' => 'paid', 'next_due' => '2027-01-01'), VereineMemberSummary::fee('active', true, '2026-12-31', '', '2026-01-10', $today), 'a period covering today is paid, the next fee is due the day after');
+same(array('status' => 'paid', 'next_due' => '2026-09-18'), VereineMemberSummary::fee('active', true, '2026-09-17', '', '2026-01-10', $today), 'the last day of a period is still paid');
+same(array('status' => 'due', 'next_due' => '2026-09-17'), VereineMemberSummary::fee('active', true, '2026-09-16', '', '2026-01-10', $today), 'the day after a period the fee is due');
+same(array('status' => 'due', 'next_due' => '2026-01-10'), VereineMemberSummary::fee('active', true, '', '', '2026-01-10', $today), 'a member who never paid owes the fee since the validation');
+same(array('status' => 'not_required', 'next_due' => ''), VereineMemberSummary::fee('active', false, '', '', '2026-01-10', $today), 'a member type without subscription');
+same(array('status' => 'inactive', 'next_due' => ''), VereineMemberSummary::fee('terminated', true, '2026-12-31', '', '2026-01-10', $today), 'a former member owes no further fee');
+same(array('status' => 'inactive', 'next_due' => ''), VereineMemberSummary::fee('draft', true, '', '', '', $today), 'a draft owes no fee yet');
+same(array('status' => 'invoiced', 'next_due' => '2026-09-17'), VereineMemberSummary::fee('active', true, '2026-09-16', '2026-12-31', '2026-01-10', $today),
+	'a fee run billed the current period, the invoice is not paid yet: invoiced, not paid');
+same(array('status' => 'invoiced', 'next_due' => '2026-01-10'), VereineMemberSummary::fee('active', true, '', '2026-12-31', '2026-01-10', $today), 'a first fee invoiced but not paid');
+same(array('status' => 'due', 'next_due' => '2025-01-01'), VereineMemberSummary::fee('active', true, '2024-12-31', '2025-12-31', '2024-01-10', $today),
+	'an unpaid invoice of last year does not cover this year: due');
+same(array('status' => 'paid', 'next_due' => '2027-01-01'), VereineMemberSummary::fee('active', true, '2026-12-31', '2027-12-31', '2026-01-10', $today), 'paid this year, next year already invoiced');
+same(array('paid_until' => '2025-12-31', 'invoiced_until' => '2026-12-31'),
+	VereineMemberSummary::periodEnds(array(array('end' => '2025-12-31', 'invoice_status' => null), array('end' => '2026-12-31', 'invoice_status' => 1))),
+	'a period without fee invoice counts as paid, one with an open fee invoice as invoiced');
+same(array('paid_until' => '2026-12-31', 'invoiced_until' => ''),
+	VereineMemberSummary::periodEnds(array(array('end' => '2025-12-31', 'invoice_status' => 2), array('end' => '2026-12-31', 'invoice_status' => 2))), 'paid fee invoices');
+same(array('paid_until' => '2025-12-31', 'invoiced_until' => ''),
+	VereineMemberSummary::periodEnds(array(array('end' => '2025-12-31', 'invoice_status' => null), array('end' => '2026-12-31', 'invoice_status' => 3), array('end' => '2027-12-31', 'invoice_status' => 0))),
+	'an abandoned or draft fee invoice pays nothing');
 
 expect(VereineMemberSummary::overdue('2026-09-16', $today), 'an invoice due yesterday is overdue');
 expect(!VereineMemberSummary::overdue('2026-09-17', $today), 'an invoice due today is not overdue');
@@ -634,7 +648,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error'),
 	'VereineSetting_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT_NATURAL', 'VEREINE_PARTNER_TYPENT_LEGAL', 'VEREINE_CATEGORY_MEMBER', 'VEREINE_CATEGORY_FORMER', 'VEREINE_CATEGORY_GUARDIAN'),
 	'VereineSettingHelp_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT'),
 	'VereineSphere_' => array_keys(VereineTaxRules::spheres()),
@@ -649,6 +663,9 @@ $prefixes = array(
 	'VereineCashStatus_' => array('not_relevant', 'exempt', 'exempt_festival', 'ok', 'near', 'required'),
 	'VereineCashText_' => array('not_relevant', 'exempt', 'exempt_festival', 'ok', 'near', 'required'),
 	'VereineTreatmentHelp_' => array_keys(VereineTaxRules::treatments()),
+	'VereineFeeRunStatus_' => array('ready', 'no_partner', 'no_amount', 'no_start'),
+	'VereineFeeRunSkip_' => array('earlier_period', 'no_partner', 'no_amount', 'no_start'),
+	'VereineInvoiceStatus_' => array('draft', 'open', 'overdue', 'paid', 'abandoned'),
 );
 foreach (array_keys($used) as $key) {
 	if (isset($prefixes[$key])) {

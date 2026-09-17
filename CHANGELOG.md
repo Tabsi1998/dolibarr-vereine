@@ -7,6 +7,45 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.3.5-beta] - 2026-09-17
+
+Membership fees, part 2 (issues #61 and #14): the fee run.
+
+### Added
+
+- *Members > Association > Fee run*: a preview of every fee due up to a day,
+  per member type or for all, with period, amount, admission fee and the reason
+  in plain words ("prorated, 4 of 12 months", "first fee"). Members without
+  third party, member types without amount and a backlog of several periods are
+  marked.
+- Creating the chosen fees makes, per member and period, what Dolibarr's member
+  card makes for "New subscription - Create invoice": a subscription period and
+  a validated invoice linked to it, with the fee product of the member type and
+  its tax profile. Missing third parties can be created in the same step. A
+  second run for the same period creates nothing; a later period is only
+  created when the earlier ones are.
+- The page lists the latest fee invoices with their state today, including
+  those created on the member card, and the module's log records every fee
+  invoice and run.
+- Fee invoices are recognisable for other modules through Dolibarr's own link
+  of invoice and subscription period, described in `docs/ARCHITECTURE.md`; the
+  website API marks them with `fee` on every invoice.
+- Creating needs Dolibarr's rights to record subscriptions and to create and
+  validate invoices.
+
+### Changed
+
+- The member summary counts a subscription period as paid only when it has no
+  fee invoice or its fee invoice is paid. Dolibarr treats a period as paid as
+  soon as it is recorded, so after a fee run the website would have shown
+  "paid until 31 December" for an unpaid invoice; the fee status is now
+  `invoiced` until the invoice is paid.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that adds the menu entry *Fee run*.
+
 ## [0.3.4-beta] - 2026-09-17
 
 Membership fees, part 1 (issue #60): the fee model of a member type.
@@ -401,7 +440,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.4-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.5-beta...HEAD
+[0.3.5-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.5-beta
 [0.3.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.4-beta
 [0.3.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.3-beta
 [0.3.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.2-beta

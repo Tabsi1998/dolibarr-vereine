@@ -386,3 +386,47 @@ VereineFeeProductNoTaxProfile=The product has no tax profile.
 VereineFeeNoProduct=No product: the invoice line would have no tax profile.
 VereineFeeReasonProrated=prorated, %s of %s months
 VereineFeeReasonRestFull=full amount for the remaining %s months
+
+#
+# Fee run
+#
+VereineMenuFeeRun=Fee run
+VereineFeeRunTitle=Fee run
+VereineFeeRunIntro=Creates the subscription period and a validated invoice for every fee due, the same as "New subscription - Create invoice" on the member card. Check the preview first, then create the rows you want. A second run creates nothing for the same period.
+VereineFeeRunDueUntil=Fees due until
+VereineFeeRunAllTypes=All member types
+VereineFeeRunPreview=Preview
+VereineFeeRunNothingDue=No fee is due until this day.
+VereineFeeRunPeriod=Period
+VereineFeeRunTotal=Total
+VereineFeeRunNote=Note
+VereineFeeRunCreate=Create the selected fee invoices
+VereineFeeRunCreatePartners=Create missing third parties as well
+VereineFeeRunNoRight=Creating needs the rights to record subscriptions and to create and validate invoices.
+VereineFeeRunStatus_ready=ready
+VereineFeeRunStatus_no_partner=no third party: created only with "Create missing third parties as well"
+VereineFeeRunStatus_no_amount=the member type sets no amount
+VereineFeeRunStatus_no_start=neither a subscription period nor a validation date to count from
+VereineFeeRunBacklog=%s periods open, oldest first
+VereineFeeRunFirstFee=first fee
+VereineFeeRunCreated=%s fee invoices created, %s in total.
+VereineFeeRunNothingCreated=No fee invoice was created.
+VereineFeeRunSkipped=%s selected fees skipped.
+VereineFeeRunFailed=%s fees could not be created; nothing was created for these members.
+VereineFeeRunSkip_earlier_period=an earlier period of this member was not created
+VereineFeeRunSkip_no_partner=no third party
+VereineFeeRunSkip_no_amount=no amount
+VereineFeeRunSkip_no_start=no start date
+VereineFeeRunResult=Result
+VereineFeeRunRecent=Fee invoices created lately
+VereineFeeRunRecentHelp=Every invoice linked to a subscription period, also those created on the member card, with its state today. A cancelled fee invoice shows here as abandoned.
+VereineFeeRunLine=Membership fee %s, %s to %s
+VereineFeeRunAdmissionLine=Admission fee %s
+VereineInvoiceStatus_draft=draft
+VereineInvoiceStatus_open=open
+VereineInvoiceStatus_overdue=overdue
+VereineInvoiceStatus_paid=paid
+VereineInvoiceStatus_abandoned=abandoned
+VereineLog_fee_invoice=Fee invoice created
+VereineLog_fee_run=Fee run done
+VereineLog_fee_error=Fee could not be created

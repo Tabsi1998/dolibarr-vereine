@@ -57,6 +57,8 @@ with a REST API for the association's website.
 - **Fee model per member type** (0.3.4): when the fee year starts, prorated first
   fee, admission fee and fee product with tax profile, on Dolibarr's member type
   card; setup tab *Fees* shows what joining today costs.
+- **Fee run** (0.3.5) under *Members > Association*: preview of the fees due,
+  then subscription period and linked invoice per member, once per period.
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 
