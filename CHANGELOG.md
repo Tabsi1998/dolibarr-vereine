@@ -7,6 +7,32 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.3.7-beta] - 2026-09-17
+
+Membership fees, part 3a (issue #62): discounts by age, with proof, and
+exemptions.
+
+### Added
+
+- Setup tab *Fees*, section *Discounts*: rules by age on the first day of a fee
+  period (for example "youth up to 17: 50 % less") or with a proof such as a
+  student card, as percent less, a fixed lower amount per period or free of
+  fees, for all or one member type. Rules can be changed and switched off.
+- Dolibarr's member card gets *Exempt from fees* with a reason (for example
+  honorary members), and *Discount with proof* with the day the proof is valid
+  until.
+- The fee run applies at most one discount per fee - exemption, then a valid
+  proof, then age - names it in the preview and on the invoice line, and
+  reports an expired proof or a missing birth date. An exempt member gets the
+  subscription period without invoice and without admission fee.
+- The member summary of the website API shows the member's amount after the
+  discount and the discount (`fee.discount`).
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that creates the discount table and the member fields.
+
 ## [0.3.6-beta] - 2026-09-17
 
 Membership fees: prorating by month, quarter or half-year (issue #68).
@@ -462,7 +488,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.6-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.7-beta...HEAD
+[0.3.7-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.7-beta
 [0.3.6-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.6-beta
 [0.3.5-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.5-beta
 [0.3.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.4-beta

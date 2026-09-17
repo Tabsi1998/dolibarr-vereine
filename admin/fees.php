@@ -63,6 +63,7 @@ if (!$res) {
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once __DIR__.'/../lib/vereine.lib.php';
 require_once __DIR__.'/../class/vereinefeemodel.class.php';
+require_once __DIR__.'/../class/vereinefeediscountstore.class.php';
 
 $langs->loadLangs(array('admin', 'members', 'vereine@vereine'));
 
@@ -71,6 +72,66 @@ if (!isModEnabled('vereine')) {
 }
 if (empty($user->admin)) {
 	accessforbidden();
+}
+
+$action = GETPOST('action', 'aZ09');
+$id = GETPOSTINT('id');
+$discountStore = new VereineFeeDiscountStore($db);
+$modes = array(
+	VereineFeeDiscounts::MODE_PERCENT => $langs->trans('VereineDiscountMode_percent'),
+	VereineFeeDiscounts::MODE_AMOUNT => $langs->trans('VereineDiscountMode_amount'),
+	VereineFeeDiscounts::MODE_FREE => $langs->trans('VereineDiscountMode_free'),
+);
+$kinds = array(
+	VereineFeeDiscounts::KIND_AGE => $langs->trans('VereineDiscountKind_age'),
+	VereineFeeDiscounts::KIND_PROOF => $langs->trans('VereineDiscountKind_proof'),
+);
+// What the form shows: the submitted values after a refused save, else the rule being edited.
+$edit = array('id' => 0, 'label' => '', 'kind' => VereineFeeDiscounts::KIND_AGE, 'type_id' => 0, 'age_from' => '', 'age_to' => '', 'mode' => VereineFeeDiscounts::MODE_PERCENT, 'value' => '', 'active' => true);
+
+
+/*
+ * Actions
+ */
+
+if ($action === 'savediscount') {
+	$data = array(
+		'label' => GETPOST('label', 'alphanohtml'),
+		'kind' => GETPOST('kind', 'aZ09'),
+		'type_id' => GETPOSTINT('type_id'),
+		'age_from' => GETPOST('age_from', 'alpha'),
+		'age_to' => GETPOST('age_to', 'alpha'),
+		'mode' => GETPOST('mode', 'aZ09'),
+		'value' => price2num(GETPOST('value', 'alpha')),
+		'active' => GETPOSTINT('active') ? 1 : 0,
+	);
+	$result = $discountStore->save($id, $data, $user);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineDiscountSaved'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereinediscounts');
+		exit;
+	}
+	if ($result < 0) {
+		setEventMessages($discountStore->error, null, 'errors');
+	} else {
+		setEventMessages(null, array_map(array($langs, 'trans'), array_unique($discountStore->errors)), 'errors');
+	}
+	$edit = array_merge($data, array('id' => $id, 'active' => !empty($data['active'])));
+} elseif ($action === 'togglediscount' && $id > 0) {
+	$current = $discountStore->fetch($id);
+	if ($current) {
+		$current['active'] = !$current['active'];
+		if ($discountStore->save($id, $current, $user) <= 0) {
+			setEventMessages($discountStore->error, array_map(array($langs, 'trans'), $discountStore->errors), 'errors');
+		}
+	}
+	header('Location: '.$_SERVER['PHP_SELF'].'#vereinediscounts');
+	exit;
+} elseif ($action === 'editdiscount' && $id > 0) {
+	$current = $discountStore->fetch($id);
+	if ($current) {
+		$edit = $current;
+	}
 }
 
 $feeModel = new VereineFeeModel($db);
@@ -158,7 +219,74 @@ foreach ($types as $type) {
 	print '<td class="right"><a class="editfielda" href="'.DOL_URL_ROOT.'/adherents/type.php?rowid='.((int) $type['id']).'&amp;action=edit&amp;token='.newToken().'" title="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Modify')).'">'.img_edit().'</a></td>';
 	print '</tr>';
 }
-print '</table></div>';
+print '</table></div><br>';
+
+// Discounts: by age on the first day of a period or with a proof; exemptions are set on the member.
+print load_fiche_titre($langs->trans('VereineDiscountsTitle'), '', '', 0, 'vereinediscounts');
+print '<div class="info" data-discounts-howto="1"><ul>';
+foreach (array('VereineDiscountsHowToOrder', 'VereineDiscountsHowToAge', 'VereineDiscountsHowToProof', 'VereineDiscountsHowToExempt') as $line) {
+	print '<li>'.$langs->trans($line).'</li>';
+}
+print '</ul></div>';
+$typeNames = array(0 => $langs->trans('VereineDiscountAllTypes'));
+foreach ($types as $type) {
+	$typeNames[$type['id']] = $type['label'];
+}
+$rules = $discountStore->fetchAll();
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+print '<tr class="liste_titre"><td>'.$langs->trans('VereineDiscountLabel').'</td><td>'.$langs->trans('VereineDiscountKind').'</td><td>'.$langs->trans('MemberType').'</td>';
+print '<td>'.$langs->trans('VereineDiscountValue').'</td><td class="center">'.$langs->trans('Status').'</td><td></td></tr>';
+if (!$rules) {
+	print '<tr class="oddeven"><td colspan="6"><span class="opacitymedium">'.$langs->trans('VereineDiscountsNone').'</span></td></tr>';
+}
+foreach ($rules as $rule) {
+	print '<tr class="oddeven" data-discount="'.((int) $rule['id']).'" data-active="'.($rule['active'] ? 1 : 0).'">';
+	print '<td>'.dol_escape_htmltag($rule['label']).'</td><td>'.$kinds[$rule['kind']];
+	if ($rule['kind'] === VereineFeeDiscounts::KIND_AGE) {
+		print '<br><span class="opacitymedium small">'.vereineDiscountAges($rule).'</span>';
+	}
+	print '</td><td>'.dol_escape_htmltag(isset($typeNames[$rule['type_id']]) ? $typeNames[$rule['type_id']] : '#'.$rule['type_id']).'</td>';
+	print '<td class="nowraponall">'.vereineDiscountValue($rule).'</td>';
+	print '<td class="center">'.dolGetBadge($langs->trans($rule['active'] ? 'Enabled' : 'Disabled'), '', $rule['active'] ? 'success' : 'secondary').'</td>';
+	print '<td class="right nowraponall">';
+	print '<a class="editfielda paddingright" href="'.$_SERVER['PHP_SELF'].'?action=editdiscount&amp;id='.((int) $rule['id']).'&amp;token='.newToken().'#vereinediscount" title="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Modify')).'">'.img_edit().'</a>';
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" class="inline-block" name="vereinediscounttoggle">';
+	print '<input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="action" value="togglediscount">';
+	print '<input type="hidden" name="id" value="'.((int) $rule['id']).'">';
+	print '<button type="submit" class="button small">'.$langs->trans($rule['active'] ? 'VereineTaxDeactivate' : 'VereineTaxActivate').'</button>';
+	print '</form></td></tr>';
+}
+print '</table></div><br>';
+
+print load_fiche_titre($langs->trans($edit['id'] > 0 ? 'VereineDiscountEdit' : 'VereineDiscountNew'), '', '');
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereinediscount" id="vereinediscount">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="savediscount">';
+print '<input type="hidden" name="id" value="'.((int) $edit['id']).'">';
+print '<table class="border centpercent">';
+print '<tr><td class="titlefieldcreate fieldrequired"><label for="label">'.$langs->trans('VereineDiscountLabel').'</label></td>';
+print '<td><input type="text" id="label" name="label" class="minwidth300" maxlength="'.VereineFeeDiscounts::LABEL_MAX.'" value="'.dol_escape_htmltag($edit['label']).'"></td></tr>';
+print '<tr><td class="fieldrequired"><label for="kind">'.$langs->trans('VereineDiscountKind').'</label></td>';
+print '<td>'.Form::selectarray('kind', $kinds, $edit['kind'], 0, 0, 0, '', 0, 0, 0, '', 'minwidth200').'</td></tr>';
+print '<tr><td><label for="age_from">'.$langs->trans('VereineDiscountAges').'</label></td><td>';
+print '<input type="number" min="0" max="150" id="age_from" name="age_from" class="width50" value="'.dol_escape_htmltag((string) $edit['age_from']).'"> - ';
+print '<input type="number" min="0" max="150" id="age_to" name="age_to" class="width50" value="'.dol_escape_htmltag((string) $edit['age_to']).'">';
+print ' <span class="opacitymedium small">'.$langs->trans('VereineDiscountAgesHelp').'</span></td></tr>';
+print '<tr><td><label for="type_id">'.$langs->trans('MemberType').'</label></td>';
+print '<td>'.Form::selectarray('type_id', $typeNames, $edit['type_id'], 0, 0, 0, '', 0, 0, 0, '', 'minwidth200').'</td></tr>';
+print '<tr><td class="fieldrequired"><label for="mode">'.$langs->trans('VereineDiscountMode').'</label></td>';
+print '<td>'.Form::selectarray('mode', $modes, $edit['mode'], 0, 0, 0, '', 0, 0, 0, '', 'minwidth200');
+print ' <input type="text" id="value" name="value" class="width75" value="'.dol_escape_htmltag($edit['value'] === '' ? '' : price2num($edit['value'])).'">';
+print ' <span class="opacitymedium small">'.$langs->trans('VereineDiscountValueHelp').'</span></td></tr>';
+print '<tr><td><label for="active">'.$langs->trans('Enabled').'</label></td>';
+print '<td><input type="checkbox" id="active" name="active" value="1"'.(!empty($edit['active']) ? ' checked' : '').'></td></tr>';
+print '</table>';
+print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'">';
+if ($edit['id'] > 0) {
+	print ' <a class="button button-cancel" href="'.$_SERVER['PHP_SELF'].'#vereinediscounts">'.$langs->trans('Cancel').'</a>';
+}
+print '</div></form>';
 
 print dol_get_fiche_end();
 

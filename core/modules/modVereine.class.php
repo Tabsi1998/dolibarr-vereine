@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '0.3.6-beta';
+		$this->version = '0.3.7-beta';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -252,6 +252,13 @@ class modVereine extends DolibarrModules
 		if ($feeModel->ensureFields() < 0) {
 			$this->error = $feeModel->error;
 			dol_syslog('modVereine::init '.$feeModel->error, LOG_ERR);
+		}
+		// Member fields for fee exemption and proof of a discount; kept when the module is disabled.
+		dol_include_once('/vereine/class/vereinefeediscountstore.class.php');
+		$discountStore = new VereineFeeDiscountStore($this->db);
+		if ($discountStore->ensureFields() < 0) {
+			$this->error = $discountStore->error;
+			dol_syslog('modVereine::init '.$discountStore->error, LOG_ERR);
 		}
 		// The slim event for website webhooks, so a webhook target can choose it.
 		dol_include_once('/vereine/class/vereinewebsiteevents.class.php');

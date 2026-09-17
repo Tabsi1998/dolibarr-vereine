@@ -22,6 +22,7 @@
  */
 
 require_once __DIR__.'/vereinemembersummary.class.php';
+require_once __DIR__.'/vereinefeediscountstore.class.php';
 
 /**
  * Reads what a website may show about a member.
@@ -110,6 +111,15 @@ class VereineMemberReport
 		$required = (int) $row->subscription === 1;
 		$fee = VereineMemberSummary::fee($status, $required, $paidUntil, $ends['invoiced_until'], $validatedOn, $today);
 		$amount = ($row->amount === null || $row->amount === '') ? null : (float) $row->amount;
+		$discount = array('kind' => 'none', 'reason' => '');
+		if ($required && $status === VereineMemberSummary::STATUS_ACTIVE) {
+			$discountStore = new VereineFeeDiscountStore($this->db);
+			$memberData = $discountStore->memberData(array((int) $row->rowid));
+			$discount = VereineFeeDiscounts::choose($discountStore->fetchAll(true),
+				(isset($memberData[(int) $row->rowid]) ? $memberData[(int) $row->rowid] : array()) + array('type_id' => (int) $row->type_id),
+				$fee['next_due'] !== '' ? $fee['next_due'] : $today);
+			$amount = VereineFeeDiscounts::apply($amount, $discount);
+		}
 		$online = $this->onlinePayment();
 
 		return array(
@@ -128,7 +138,8 @@ class VereineMemberReport
 				'status' => $fee['status'],
 				'next_due' => $fee['next_due'],
 				'amount' => $required ? $amount : null,
-				'payment_url' => ($online && $fee['status'] === VereineMemberSummary::FEE_DUE && (string) $row->ref !== '')
+				'discount' => array('kind' => $discount['kind'], 'label' => $discount['reason']),
+				'payment_url' => ($online && $fee['status'] === VereineMemberSummary::FEE_DUE && (string) $row->ref !== '' && $amount !== 0.0)
 					? getOnlinePaymentUrl(0, 'member', (string) $row->ref, $amount === null ? 0 : $amount) : '',
 			),
 			'open_invoices' => (int) $row->fk_soc > 0 ? $this->invoices((int) $row->fk_soc, $today, $online, true, self::MAX_OPEN_INVOICES, 0) : array(),

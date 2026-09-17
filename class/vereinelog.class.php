@@ -39,6 +39,7 @@ class VereineLog
 	const FEE_INVOICE = 'fee_invoice';
 	const FEE_RUN = 'fee_run';
 	const FEE_ERROR = 'fee_error';
+	const FEE_PERIOD = 'fee_period';
 
 	/**
 	 * Append one entry.

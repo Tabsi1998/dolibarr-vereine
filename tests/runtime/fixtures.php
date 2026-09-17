@@ -37,6 +37,7 @@
  * php fixtures.php webhookdown  a blocking target that cannot be reached, and a member update
  * php fixtures.php feerunmember  a member with fee and third party, validated today
  * php fixtures.php payinvoice  pay the rest of an invoice, closing it as paid
+ * php fixtures.php discountmembers  a child, two students and an honorary member for the discounts
  *
  * Prints one JSON object. Passwords and API keys come from the environment only.
  */
@@ -686,6 +687,45 @@ if ($stage === 'feerunmember') {
 	exit(0);
 }
 
+// Members with third party, validated today, for the discounts: a child, two students (proof valid and expired), an honorary member.
+if ($stage === 'discountmembers') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+	$typeId = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."adherent_type WHERE libelle = 'Beitragspflichtig'");
+	$studentRule = (int) rt_env('RT_STUDENT_RULE');
+	$today = dol_mktime(12, 0, 0, (int) dol_print_date(dol_now(), '%m'), (int) dol_print_date(dol_now(), '%d'), (int) dol_print_date(dol_now(), '%Y'));
+	$people = array(
+		'child' => array('Jonas', 'Jung', dol_mktime(12, 0, 0, 5, 5, 2015), array()),
+		'student' => array('Stella', 'Studentin', dol_mktime(12, 0, 0, 1, 1, 2000), array('options_vereine_fee_proof' => $studentRule, 'options_vereine_fee_proof_until' => dol_time_plus_duree($today, 100, 'd'))),
+		'expired' => array('Erik', 'Ehemals', dol_mktime(12, 0, 0, 1, 1, 2001), array('options_vereine_fee_proof' => $studentRule, 'options_vereine_fee_proof_until' => dol_time_plus_duree($today, -1, 'd'))),
+		'honorary' => array('Hanna', 'Ehren', dol_mktime(12, 0, 0, 3, 3, 1950), array('options_vereine_fee_exempt' => 1, 'options_vereine_fee_exempt_reason' => 'Ehrenmitglied')),
+	);
+	$members = array();
+	foreach ($people as $key => $data) {
+		$member = new Adherent($db);
+		$member->typeid = $typeId;
+		$member->morphy = 'phy';
+		$member->firstname = $data[0];
+		$member->lastname = $data[1];
+		$member->birth = $data[2];
+		$member->email = $key.'.discount@runtime-verein.test';
+		$member->country_id = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+		$member->public = 0;
+		$member->array_options = $data[3];
+		if ($member->create($admin) <= 0 || $member->validate($admin) <= 0) {
+			rt_fail('member '.$key.': '.$member->error.' '.implode(' | ', (array) $member->errors));
+		}
+		$member->fetch($member->id);
+		$partner = new Societe($db);
+		if ((int) $member->fk_soc <= 0 && $partner->create_from_member($member) <= 0) {
+			rt_fail('third party of '.$key.': '.$partner->error);
+		}
+		$members[$key] = (int) $member->id;
+	}
+	print json_encode(array('members' => $members))."\n";
+	exit(0);
+}
+
 // Pay what is left of an invoice by bank transfer, closing it as paid.
 if ($stage === 'payinvoice') {
 	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
@@ -794,7 +834,11 @@ if ($stage === 'reset') {
 		$extrafields = new ExtraFields($db);
 		$extrafields->delete($name, 'adherent_type');
 	}
-	foreach (array('vereine_log', 'vereine_taxprofile') as $table) {
+	foreach (array('vereine_fee_exempt', 'vereine_fee_exempt_reason', 'vereine_fee_proof', 'vereine_fee_proof_until') as $name) {
+		$extrafields = new ExtraFields($db);
+		$extrafields->delete($name, 'adherent');
+	}
+	foreach (array('vereine_log', 'vereine_taxprofile', 'vereine_fee_discount') as $table) {
 		if (!$db->query("DROP TABLE IF EXISTS ".MAIN_DB_PREFIX.$table)) {
 			rt_fail('drop table '.$table.': '.$db->lasterror());
 		}
@@ -803,4 +847,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, resiliate, guardian or reset');

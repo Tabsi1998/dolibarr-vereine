@@ -42,6 +42,7 @@ require_once $root.'/class/vereinecashregister.class.php';
 require_once $root.'/class/vereinemembersummary.class.php';
 require_once $root.'/class/vereinewebsiteevents.class.php';
 require_once $root.'/class/vereinefeerules.class.php';
+require_once $root.'/class/vereinefeediscounts.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -593,6 +594,53 @@ $fee = VereineFeeRules::nextFee(array('amount' => 60, 'duration_value' => 1, 'du
 same(array(60.0, 'first_part_full'), array($fee['amount'], $fee['reason']), 'by month: joining in January, the first month, pays in full');
 same('2024-02-29', VereineFeeRules::addDays('2024-02-28', 1), 'leap day');
 
+// ---------------------------------------------------------- fee discounts
+
+same(17, VereineFeeDiscounts::age('2008-01-15', '2026-01-14'), 'the day before the 18th birthday is still 17');
+same(18, VereineFeeDiscounts::age('2008-01-01', '2026-01-01'), 'on the 18th birthday the age is 18');
+same(null, VereineFeeDiscounts::age('', '2026-01-01'), 'no age without birth date');
+same(null, VereineFeeDiscounts::age('2027-01-01', '2026-01-01'), 'no age before birth');
+
+$youth = array('id' => 1, 'label' => 'Jugend', 'kind' => 'age', 'type_id' => 0, 'age_from' => '', 'age_to' => '17', 'mode' => 'percent', 'value' => 50.0);
+$seniors = array('id' => 2, 'label' => 'Senioren', 'kind' => 'age', 'type_id' => 0, 'age_from' => '65', 'age_to' => '', 'mode' => 'amount', 'value' => 40.0);
+$students = array('id' => 3, 'label' => 'Studierende', 'kind' => 'proof', 'type_id' => 0, 'age_from' => '', 'age_to' => '', 'mode' => 'amount', 'value' => 30.0);
+$otherType = array('id' => 4, 'label' => 'Nur Aktive', 'kind' => 'age', 'type_id' => 9, 'age_from' => '', 'age_to' => '99', 'mode' => 'free', 'value' => 0.0);
+$rules = array($youth, $seniors, $students, $otherType);
+$member = array('type_id' => 5, 'exempt' => false, 'exempt_reason' => '', 'proof_rule' => 0, 'proof_until' => '', 'birth' => '2015-05-05');
+
+$discount = VereineFeeDiscounts::choose($rules, $member, '2026-01-01');
+same(array('age', 1, 'Jugend'), array($discount['kind'], $discount['rule']['id'], $discount['reason']), 'a child of 10 gets the youth discount');
+same(30.0, VereineFeeDiscounts::apply(60.0, $discount), 'youth pays half');
+$discount = VereineFeeDiscounts::choose($rules, array('birth' => '1950-02-01') + $member, '2026-01-01');
+same(array('age', 40.0), array($discount['kind'], VereineFeeDiscounts::apply(60.0, $discount)), 'a senior pays the fixed lower amount');
+same(20.0, VereineFeeDiscounts::apply(20.0, $discount), 'a fixed amount never raises a smaller fee');
+$discount = VereineFeeDiscounts::choose($rules, array('birth' => '1990-02-01') + $member, '2026-01-01');
+same(array('none', 60.0, array()), array($discount['kind'], VereineFeeDiscounts::apply(60.0, $discount), $discount['notes']), 'an adult of 35 gets no discount');
+$discount = VereineFeeDiscounts::choose($rules, array('birth' => '') + $member, '2026-01-01');
+same(array('none', array('VereineDiscountNoteNoBirth')), array($discount['kind'], $discount['notes']), 'without birth date the age rules are noted, not guessed');
+
+$discount = VereineFeeDiscounts::choose($rules, array('proof_rule' => 3, 'proof_until' => '2026-03-31', 'birth' => '2000-01-01') + $member, '2026-01-01');
+same(array('proof', 30.0), array($discount['kind'], VereineFeeDiscounts::apply(60.0, $discount)), 'a student with a valid proof pays the student amount');
+$discount = VereineFeeDiscounts::choose($rules, array('proof_rule' => 3, 'proof_until' => '2025-12-31', 'birth' => '2000-01-01') + $member, '2026-01-01');
+same(array('none', array('VereineDiscountNoteProofExpired')), array($discount['kind'], $discount['notes']), 'an expired proof gives no discount and is noted');
+$discount = VereineFeeDiscounts::choose($rules, array('proof_rule' => 3, 'proof_until' => '2025-12-31', 'birth' => '2012-01-01') + $member, '2026-01-01');
+same(array('age', array('VereineDiscountNoteProofExpired')), array($discount['kind'], $discount['notes']), 'an expired proof of a child falls back to the youth discount, noted');
+$discount = VereineFeeDiscounts::choose($rules, array('proof_rule' => 3, 'proof_until' => '2026-03-31', 'birth' => '2012-01-01') + $member, '2026-01-01');
+same('proof', $discount['kind'], 'a valid proof comes before the age');
+
+$discount = VereineFeeDiscounts::choose($rules, array('exempt' => true, 'exempt_reason' => 'Ehrenmitglied', 'proof_rule' => 3, 'proof_until' => '2026-03-31') + $member, '2026-01-01');
+same(array('exempt', 'Ehrenmitglied', 0.0), array($discount['kind'], $discount['reason'], VereineFeeDiscounts::apply(60.0, $discount)), 'an exemption comes first and costs nothing');
+$discount = VereineFeeDiscounts::choose($rules, array('type_id' => 9, 'birth' => '1990-01-01') + $member, '2026-01-01');
+same(array(4, 0.0), array($discount['rule']['id'], VereineFeeDiscounts::apply(60.0, $discount)), 'a rule for one member type applies to it');
+same(null, VereineFeeDiscounts::apply(null, VereineFeeDiscounts::choose($rules, $member, '2026-01-01')), 'no amount stays no amount');
+
+same(array(), VereineFeeDiscounts::validate(array('label' => 'Jugend', 'kind' => 'age', 'age_from' => '', 'age_to' => '17', 'mode' => 'percent', 'value' => '50')), 'a valid age rule');
+same(array('VereineDiscountErrorAge'), VereineFeeDiscounts::validate(array('label' => 'Alle', 'kind' => 'age', 'age_from' => '', 'age_to' => '', 'mode' => 'free', 'value' => '')), 'an age rule needs an age');
+same(array('VereineDiscountErrorAge'), VereineFeeDiscounts::validate(array('label' => 'Falsch', 'kind' => 'age', 'age_from' => '30', 'age_to' => '20', 'mode' => 'free', 'value' => '')), 'from must not be above to');
+same(array('VereineDiscountErrorPercent'), VereineFeeDiscounts::validate(array('label' => 'Alles', 'kind' => 'proof', 'mode' => 'percent', 'value' => '100')), '100 % is free, not a percentage');
+same(array('VereineDiscountErrorLabel', 'VereineDiscountErrorKind', 'VereineDiscountErrorMode'), VereineFeeDiscounts::validate(array('label' => ' ', 'kind' => 'x', 'mode' => 'y')), 'label, kind and mode are required');
+same(false, VereineFeeDiscounts::optionalAge('-1'), 'a negative age is invalid');
+
 // ------------------------------------------------------------------- openapi
 
 // Every endpoint of the API class is in docs/openapi.json, and the description lists no other.
@@ -672,7 +720,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period'),
 	'VereineSetting_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT_NATURAL', 'VEREINE_PARTNER_TYPENT_LEGAL', 'VEREINE_CATEGORY_MEMBER', 'VEREINE_CATEGORY_FORMER', 'VEREINE_CATEGORY_GUARDIAN'),
 	'VereineSettingHelp_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT'),
 	'VereineSphere_' => array_keys(VereineTaxRules::spheres()),
@@ -692,6 +740,8 @@ $prefixes = array(
 	'VereineInvoiceStatus_' => array('draft', 'open', 'overdue', 'paid', 'abandoned'),
 	'VereineFeeReasonProrated_' => array('month', 'quarter', 'half_year'),
 	'VereineFeeReasonFirstPartFull_' => array('month', 'quarter', 'half_year'),
+	'VereineDiscountKind_' => array('age', 'proof'),
+	'VereineDiscountMode_' => array('percent', 'amount', 'free'),
 );
 foreach (array_keys($used) as $key) {
 	if (isset($prefixes[$key])) {

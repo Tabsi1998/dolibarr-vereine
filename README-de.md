@@ -66,6 +66,8 @@ Vereinswebsite mit.
 - **Beitragslauf** (0.3.5) unter *Mitglieder > Verein*: Vorschau der fälligen
   Beiträge, dann Beitragsperiode und verknüpfte Rechnung je Mitglied, einmal je
   Periode.
+- **Ermäßigungen** (0.3.7): nach Alter, mit Nachweis (zum Beispiel Studierende)
+  und Befreiungen (zum Beispiel Ehrenmitglieder), angewandt im Beitragslauf.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

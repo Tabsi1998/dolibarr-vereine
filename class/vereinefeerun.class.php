@@ -27,6 +27,7 @@
  */
 
 require_once __DIR__.'/vereinefeemodel.class.php';
+require_once __DIR__.'/vereinefeediscountstore.class.php';
 require_once __DIR__.'/vereinemembersummary.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 
@@ -95,12 +96,26 @@ class VereineFeeRun
 			$this->error = $this->db->lasterror();
 			return array();
 		}
-		$rows = array();
+		$members = array();
 		while ($obj = $this->db->fetch_object($resql)) {
+			$members[] = $obj;
+		}
+		$this->db->free($resql);
+
+		// Discount rules exist only after the module was enabled with 0.3.7; without them nobody gets one.
+		$discountStore = new VereineFeeDiscountStore($this->db);
+		$rules = $discountStore->fetchAll(true);
+		$discountData = $discountStore->memberData(array_map(function ($obj) {
+			return (int) $obj->rowid;
+		}, $members));
+
+		$rows = array();
+		foreach ($members as $obj) {
 			$type = isset($types[(int) $obj->fk_adherent_type]) ? $types[(int) $obj->fk_adherent_type] : null;
 			if ($type === null || !$type['subscription']) {
 				continue;
 			}
+			$memberDiscount = (isset($discountData[(int) $obj->rowid]) ? $discountData[(int) $obj->rowid] : array()) + array('type_id' => $type['id']);
 			$base = array(
 				'member_id' => (int) $obj->rowid,
 				'member_ref' => (string) $obj->ref,
@@ -114,25 +129,40 @@ class VereineFeeRun
 			$joinedOn = VereineMemberSummary::datePart($obj->datevalid);
 			$fee = VereineFeeRules::nextFee($type['model'], $joinedOn, $paidUntil);
 			if ($fee === null) {
-				$rows[] = $base + array('key' => $obj->rowid.':', 'status' => self::NO_START, 'fee' => null, 'backlog' => 0);
+				$rows[] = $base + array('key' => $obj->rowid.':', 'status' => self::NO_START, 'fee' => null, 'backlog' => 0,
+					'discount' => array('kind' => 'none', 'rule' => null, 'reason' => '', 'notes' => array()));
 				continue;
 			}
 			$periods = array();
+			$previousEnd = $paidUntil;
 			while ($fee !== null && $fee['start'] <= $dueUntil && count($periods) < self::MAX_PERIODS) {
-				$periods[] = $fee;
+				$discount = VereineFeeDiscounts::choose($rules, $memberDiscount, $fee['start']);
+				if ($discount['kind'] !== 'none') {
+					$model = $type['model'];
+					$model['amount'] = VereineFeeDiscounts::apply($model['amount'], $discount);
+					if ($discount['kind'] === 'exempt') {
+						$model['admission_fee'] = 0.0;
+					}
+					$discounted = VereineFeeRules::nextFee($model, $joinedOn, $previousEnd);
+					$discounted['full_total'] = $fee['total'];
+					$fee = $discounted;
+				}
+				$periods[] = array('fee' => $fee, 'discount' => $discount);
+				$previousEnd = $fee['end'];
 				$fee = VereineFeeRules::nextFee($type['model'], $joinedOn, $fee['end']);
 			}
-			foreach ($periods as $fee) {
+			foreach ($periods as $period) {
+				$fee = $period['fee'];
 				$status = self::READY;
 				if ($fee['amount'] === null) {
 					$status = self::NO_AMOUNT;
-				} elseif ((int) $obj->fk_soc <= 0) {
+				} elseif ((int) $obj->fk_soc <= 0 && $fee['total'] > 0) {
 					$status = self::NO_PARTNER;
 				}
-				$rows[] = $base + array('key' => $obj->rowid.':'.$fee['start'], 'status' => $status, 'fee' => $fee, 'backlog' => count($periods));
+				$rows[] = $base + array('key' => $obj->rowid.':'.$fee['start'], 'status' => $status, 'fee' => $fee, 'backlog' => count($periods),
+					'discount' => $period['discount']);
 			}
 		}
-		$this->db->free($resql);
 		return $rows;
 	}
 
@@ -173,6 +203,16 @@ class VereineFeeRun
 			if ($member->fetch($memberId) <= 0) {
 				$stopped[$memberId] = true;
 				$result['failed'][] = $row + array('error' => $member->error);
+				continue;
+			}
+			if ($row['fee']['total'] <= 0) {
+				// Nothing to invoice, such as an exempt member: the period alone, recorded as paid.
+				if ($this->createPeriod($member, $row, $user) <= 0) {
+					$stopped[$memberId] = true;
+					$result['failed'][] = $row + array('error' => $this->error);
+					continue;
+				}
+				$result['created'][] = $row + array('invoice_id' => 0, 'invoice_ref' => '');
 				continue;
 			}
 			if ((int) $member->fk_soc <= 0) {
@@ -280,6 +320,9 @@ class VereineFeeRun
 		$start = $this->moment($fee['start']);
 		$end = $this->moment($fee['end']);
 		$label = $langs->transnoentities('VereineFeeRunLine', $row['type_label'], dol_print_date($start, 'day'), dol_print_date($end, 'day'));
+		if ($row['discount']['reason'] !== '') {
+			$label .= ' ('.$langs->transnoentities('VereineDiscountOnInvoice', $row['discount']['reason']).')';
+		}
 
 		$this->db->begin();
 		$subscriptionId = $member->subscription($start, $fee['amount'], 0, '', $label, '', '', '', $end);
@@ -332,6 +375,33 @@ class VereineFeeRun
 		VereineLog::add($this->db, $user, VereineLog::FEE_INVOICE, (int) $member->id, (int) $customer->id,
 			$invoice->ref.' / '.$fee['start'].' - '.$fee['end'].' / '.price2num($fee['total'], 'MT'));
 		return $invoice;
+	}
+
+	/**
+	 * A subscription period without invoice, for a fee of 0.
+	 *
+	 * @param Adherent            $member Member
+	 * @param array<string,mixed> $row    Row of the preview
+	 * @param User                $user   User
+	 * @return int 1 if created, <0 on error, see $error
+	 */
+	private function createPeriod($member, array $row, $user)
+	{
+		global $langs;
+
+		$fee = $row['fee'];
+		$start = $this->moment($fee['start']);
+		$end = $this->moment($fee['end']);
+		$label = $langs->transnoentities('VereineFeeRunLine', $row['type_label'], dol_print_date($start, 'day'), dol_print_date($end, 'day'));
+		if ($row['discount']['reason'] !== '') {
+			$label .= ' ('.$row['discount']['reason'].')';
+		}
+		if ($member->subscription($start, 0, 0, '', $label, '', '', '', $end) <= 0) {
+			$this->error = trim('subscription: '.$member->error.' '.implode(' | ', (array) $member->errors));
+			return -1;
+		}
+		VereineLog::add($this->db, $user, VereineLog::FEE_PERIOD, (int) $member->id, (int) $member->fk_soc, $fee['start'].' - '.$fee['end'].' / '.$row['discount']['reason']);
+		return 1;
 	}
 
 	/**

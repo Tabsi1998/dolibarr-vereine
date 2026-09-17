@@ -166,7 +166,9 @@ if ($result !== null && ($result['created'] || $result['skipped'] || $result['fa
 			print '<tr class="oddeven" data-fee-outcome="'.$kind.'" data-fee-key="'.dol_escape_htmltag($entry['key']).'">';
 			print '<td>'.dol_escape_htmltag($entry['name']).'</td>';
 			print '<td>'.($entry['fee'] ? vereineFormatDay($entry['fee']['start']).' - '.vereineFormatDay($entry['fee']['end']) : '').'</td><td>';
-			if ($kind === 'created') {
+			if ($kind === 'created' && $entry['invoice_id'] <= 0) {
+				print $langs->trans('VereineFeeRunPeriodOnly');
+			} elseif ($kind === 'created') {
 				print '<a href="'.DOL_URL_ROOT.'/compta/facture/card.php?facid='.((int) $entry['invoice_id']).'">'.dol_escape_htmltag($entry['invoice_ref']).'</a>';
 			} elseif ($kind === 'skipped') {
 				print $langs->trans('VereineFeeRunSkip_'.$entry['reason']);
@@ -217,6 +219,15 @@ foreach ($rows as $row) {
 		$notes[] = '<span class="warning">'.$langs->trans('VereineFeeRunStatus_'.$row['status']).'</span>';
 	}
 	if ($fee !== null) {
+		$discount = $row['discount'];
+		if ($discount['kind'] === 'exempt') {
+			$notes[] = '<span data-discount-kind="exempt">'.$langs->trans('VereineDiscountExemptNote', dol_escape_htmltag($discount['reason'])).'</span>';
+		} elseif ($discount['kind'] !== 'none' && isset($fee['full_total']) && $fee['full_total'] !== null) {
+			$notes[] = '<span data-discount-kind="'.$discount['kind'].'">'.$langs->trans('VereineDiscountApplied', dol_escape_htmltag($discount['reason']), price($fee['full_total'], 0, $langs, 1, -1, -1, $conf->currency)).'</span>';
+		}
+		foreach ($discount['notes'] as $note) {
+			$notes[] = '<span class="warning">'.$langs->trans($note).'</span>';
+		}
 		$reason = vereineFeeReason($fee);
 		if ($reason !== '') {
 			$notes[] = $reason;

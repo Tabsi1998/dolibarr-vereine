@@ -60,6 +60,8 @@ with a REST API for the association's website.
   joining today costs.
 - **Fee run** (0.3.5) under *Members > Association*: preview of the fees due,
   then subscription period and linked invoice per member, once per period.
+- **Discounts** (0.3.7): by age, with proof (for example students) and
+  exemptions (for example honorary members), applied by the fee run.
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 
