@@ -2578,7 +2578,7 @@ def minutestexts(stack: Stack) -> str:
     expect(form.value("kind") == "board", f"the board template chose the kind {form.value('kind')!r}")
     expect(agenda[0].startswith("Begrüßung") and agenda[-1] == "Kassabericht" and len(agenda) == 6, f"agenda from the board template: {agenda}")
     day = stack.notes["website"]["dates"]["today"]
-    created = page_ok(browser.submit(form, {"day": day, "title": "Vorstandssitzung aus Vorlage"}), "store the meeting from the template")
+    created = page_ok(browser.submit(form, {"day": day, "time": "19:00", "place": "Vereinsheim", "title": "Vorstandssitzung aus Vorlage"}), "store the meeting from the template")
     new_id = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting")
     expect('data-missing-items' not in created.text, "a meeting from the template reports missing required items")
     notes = created.form(name="vereinemeetingnotes")
