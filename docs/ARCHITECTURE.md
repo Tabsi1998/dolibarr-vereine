@@ -38,6 +38,9 @@ legal source, not in code, so a changed threshold is a data update.
 | `class/vereinetaxassign.class.php` | Extra field `vereine_taxprofile` on products and invoice lines, product VAT, line profiles, deviations |
 | `class/vereinethresholds.class.php` | Dated threshold table and traffic light, plain PHP |
 | `class/vereinecashregister.class.php` | Cash register duty per sphere and sharing cash out over spheres, plain PHP |
+| `class/vereinemembersummary.class.php` | Membership status, fee status and dates of a member summary, plain PHP |
+| `class/vereinememberreport.class.php` | Reads a member summary and its open invoices; finds members by number or e-mail |
+| `docs/openapi.json` | OpenAPI 3.0 description of every endpoint; `tests/run.php` compares it with the API class, `tests/runtime/openapi.py` with the answers |
 | `class/vereinethresholdreport.class.php`, `core/boxes/box_vereine_thresholds.php` | Income per tax profile from invoices; home page box |
 | `js/partners.js` | Select all and the row dialog of the reconciliation page |
 | `sql/` | Tables, created on activation and kept on deactivation |

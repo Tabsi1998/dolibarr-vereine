@@ -7,6 +7,34 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.3.0-beta] - 2026-09-17
+
+Website API, part 1 (issues #49 and #16): member summaries for the association's
+website.
+
+### Added
+
+- `GET /vereine/members/{id}/summary`: member number, name, member type, status,
+  member since, paid until, the fee (paid or due, next due date, amount of the
+  member type, payment link) and the open invoices of the member's third party
+  with remaining amount, due date and payment link. Payment links appear only
+  when Dolibarr has an online payment service such as Stripe or PayPal.
+- `GET /vereine/members/lookup?ref=` or `?email=`: the same summary, found by
+  member number or e-mail address (ignoring case); 404 when nobody matches, 409
+  when several members share the e-mail address.
+- New right *Read member summaries for a website*. A website user with only this
+  right and *Read the association overview and its data* reads the summaries,
+  but not Dolibarr's own member, third party or invoice endpoints. The summary
+  never contains birth date, address, phone, e-mail, notes or bank data.
+- `docs/openapi.json` describes every endpoint of the module; the runtime checks
+  compare every answer with it. `docs/API.md` explains step by step how to set up
+  the website user.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that registers the new right.
+
 ## [0.2.8-beta] - 2026-09-17
 
 Cash register check and the 13 % VAT rate, part 5 of 5 (issue #3).
@@ -282,7 +310,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.8-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.0-beta...HEAD
+[0.3.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.0-beta
 [0.2.8-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.8-beta
 [0.2.7-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.7-beta
 [0.2.6-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.6-beta

@@ -1,0 +1,695 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vereine API",
+    "version": "1",
+    "description": "Endpoints of the Dolibarr module Vereine below Dolibarr's REST API. Call them from a server with the API key of a Dolibarr user; see docs/API.md. Clients should ignore fields they do not know; info.version is the api_version and rises when a field changes meaning or disappears.",
+    "license": {
+      "name": "GPL-3.0-or-later",
+      "url": "https://www.gnu.org/licenses/gpl-3.0.html"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://{dolibarr}/api/index.php",
+      "variables": {
+        "dolibarr": {
+          "default": "erp.example.org",
+          "description": "Host and path of the Dolibarr installation"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "DolibarrApiKey": []
+    }
+  ],
+  "paths": {
+    "/vereine/status": {
+      "get": {
+        "operationId": "getStatus",
+        "summary": "Module version, API version and country profile",
+        "description": "Needs the right to read the association.",
+        "responses": {
+          "200": {
+            "description": "Status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/vereine/organization": {
+      "get": {
+        "operationId": "getOrganization",
+        "summary": "The association, for example for a website imprint",
+        "description": "Needs the right to read the association.",
+        "responses": {
+          "200": {
+            "description": "The association",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Organization"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/vereine/taxprofiles": {
+      "get": {
+        "operationId": "getTaxprofiles",
+        "summary": "The association's tax profiles (Austria)",
+        "description": "Needs the right to read the association.",
+        "responses": {
+          "200": {
+            "description": "Tax profiles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaxProfile"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/vereine/thresholds": {
+      "get": {
+        "operationId": "getThresholds",
+        "summary": "Thresholds and cash register duty of a calendar year",
+        "description": "Needs the right to read the association and the right to read invoices.",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "description": "Calendar year, the current one when left out",
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thresholds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Thresholds"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/vereine/members/{id}/summary": {
+      "get": {
+        "operationId": "getMemberSummary",
+        "summary": "What a website shows a member about the membership",
+        "description": "Needs the right to read the association and the right to read member summaries for a website. Never contains birth date, address, phone, notes or bank data.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Member id",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Summary of the member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/vereine/members/lookup": {
+      "get": {
+        "operationId": "getMemberLookup",
+        "summary": "Find a member by member number or e-mail address",
+        "description": "Returns the summary of the member. Give either ref or email; e-mail addresses match ignoring upper and lower case. Needs the same rights as the summary.",
+        "parameters": [
+          {
+            "name": "ref",
+            "in": "query",
+            "required": false,
+            "description": "Member number",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "email",
+            "in": "query",
+            "required": false,
+            "description": "E-mail address without surrounding spaces; Dolibarr's API answers 400 for an invalid address",
+            "schema": {
+              "type": "string",
+              "format": "email"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Summary of the member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "DolibarrApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "DOLAPIKEY"
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Dolibarr's error answer",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Date": {
+        "type": "string",
+        "description": "YYYY-MM-DD, or empty when unknown",
+        "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$"
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Status": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["module_version", "api_version", "country_profile", "country_profile_complete"],
+        "properties": {
+          "module_version": {
+            "type": "string"
+          },
+          "api_version": {
+            "type": "integer"
+          },
+          "country_profile": {
+            "type": "string",
+            "enum": ["AT", "DE", ""]
+          },
+          "country_profile_complete": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Organization": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["country_profile", "country_profile_complete", "name", "register", "authority", "address", "email", "phone", "url", "founded", "nonprofit", "purpose", "fiscal_year_start_month"],
+        "properties": {
+          "country_profile": {
+            "type": "string",
+            "enum": ["AT", "DE", ""]
+          },
+          "country_profile_complete": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "register": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "number", "court"],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "description": "ZVR in Austria, VR in Germany"
+              },
+              "number": {
+                "type": "string"
+              },
+              "court": {
+                "type": "string",
+                "description": "German register court; always empty in Austria"
+              }
+            }
+          },
+          "authority": {
+            "type": "string",
+            "description": "Austrian association authority; always empty in Germany"
+          },
+          "address": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["street", "zip", "town", "country_code"],
+            "properties": {
+              "street": {
+                "type": "string"
+              },
+              "zip": {
+                "type": "string"
+              },
+              "town": {
+                "type": "string"
+              },
+              "country_code": {
+                "type": "string"
+              }
+            }
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "founded": {
+            "$ref": "#/components/schemas/Date"
+          },
+          "nonprofit": {
+            "type": "boolean"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "fiscal_year_start_month": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12
+          }
+        }
+      },
+      "TaxProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "code", "label", "sphere", "sphere_basis", "treatment", "treatment_basis", "rate", "note", "active", "standard"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Value of the extra field vereine_taxprofile on products and invoice lines"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z0-9_]+$"
+          },
+          "label": {
+            "type": "string"
+          },
+          "sphere": {
+            "$ref": "#/components/schemas/Sphere"
+          },
+          "sphere_basis": {
+            "type": "string"
+          },
+          "treatment": {
+            "type": "string",
+            "enum": ["nonbusiness", "hobby", "small_business", "sport", "reduced10", "reduced13", "standard20"]
+          },
+          "treatment_basis": {
+            "type": "string"
+          },
+          "rate": {
+            "type": "number"
+          },
+          "note": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "standard": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Sphere": {
+        "type": "string",
+        "enum": ["ideal", "assets", "essential", "auxiliary", "festival", "harmful"]
+      },
+      "Thresholds": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["year", "thresholds", "unassigned", "cash_register"],
+        "properties": {
+          "year": {
+            "type": "integer"
+          },
+          "thresholds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Threshold"
+            }
+          },
+          "unassigned": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["net", "gross", "lines"],
+            "properties": {
+              "net": {
+                "type": "number"
+              },
+              "gross": {
+                "type": "number"
+              },
+              "lines": {
+                "type": "integer"
+              }
+            }
+          },
+          "cash_register": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["turnover_limit", "cash_limit", "small_canteen_limit", "small_canteen_days", "spheres", "unassigned_cash"],
+            "properties": {
+              "turnover_limit": {
+                "type": "number"
+              },
+              "cash_limit": {
+                "type": "number"
+              },
+              "small_canteen_limit": {
+                "type": "number"
+              },
+              "small_canteen_days": {
+                "type": "integer"
+              },
+              "spheres": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["sphere", "turnover", "cash", "status"],
+                  "properties": {
+                    "sphere": {
+                      "$ref": "#/components/schemas/Sphere"
+                    },
+                    "turnover": {
+                      "type": "number"
+                    },
+                    "cash": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["not_relevant", "exempt", "exempt_festival", "ok", "near", "required"]
+                    }
+                  }
+                }
+              },
+              "unassigned_cash": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "Threshold": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "year", "limit", "gross", "tolerance", "amount", "remaining", "ratio", "status", "basis", "source", "previous_exceeded"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": ["small_business", "harmful_business"]
+          },
+          "year": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "gross": {
+            "type": "boolean"
+          },
+          "tolerance": {
+            "type": "number",
+            "description": "Tolerance in percent above the limit"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "remaining": {
+            "type": "number"
+          },
+          "ratio": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ok", "near", "tolerance", "exceeded"]
+          },
+          "basis": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "pattern": "^https://"
+          },
+          "previous_exceeded": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MemberSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "ref", "firstname", "lastname", "company", "type", "status", "member_since", "paid_until", "currency", "fee", "open_invoices"],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "ref": {
+            "type": "string",
+            "description": "Member number"
+          },
+          "firstname": {
+            "type": "string"
+          },
+          "lastname": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string",
+            "description": "Name of a legal entity; empty for natural persons"
+          },
+          "type": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label"],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "label": {
+                "type": "string"
+              }
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": ["draft", "active", "terminated", "excluded"]
+          },
+          "member_since": {
+            "$ref": "#/components/schemas/Date"
+          },
+          "paid_until": {
+            "$ref": "#/components/schemas/Date"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency of all amounts, such as EUR"
+          },
+          "fee": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["required", "status", "next_due", "amount", "payment_url"],
+            "properties": {
+              "required": {
+                "type": "boolean",
+                "description": "Whether the member type needs a subscription"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["paid", "due", "not_required", "inactive"]
+              },
+              "next_due": {
+                "$ref": "#/components/schemas/Date"
+              },
+              "amount": {
+                "type": "number",
+                "nullable": true,
+                "description": "Amount of the member type; null when the type sets none or needs no subscription"
+              },
+              "payment_url": {
+                "type": "string",
+                "description": "Dolibarr's online payment page for the fee; empty unless the fee is due and an online payment service is set up"
+              }
+            }
+          },
+          "open_invoices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpenInvoice"
+            }
+          }
+        }
+      },
+      "OpenInvoice": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref", "date", "due_date", "total", "remaining", "overdue", "payment_url"],
+        "properties": {
+          "ref": {
+            "type": "string"
+          },
+          "date": {
+            "$ref": "#/components/schemas/Date"
+          },
+          "due_date": {
+            "$ref": "#/components/schemas/Date"
+          },
+          "total": {
+            "type": "number",
+            "description": "Amount including VAT"
+          },
+          "remaining": {
+            "type": "number",
+            "description": "Amount still to pay"
+          },
+          "overdue": {
+            "type": "boolean"
+          },
+          "payment_url": {
+            "type": "string",
+            "description": "Dolibarr's online payment page for the invoice; empty unless an online payment service is set up"
+          }
+        }
+      }
+    }
+  }
+}

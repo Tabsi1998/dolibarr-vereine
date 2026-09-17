@@ -9,12 +9,15 @@ upload, the module list, the pages, the REST API - and the database to verify.
 
 from __future__ import annotations
 
+import datetime
 import html
 import json
 import re
+import secrets
 import subprocess
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from dataclasses import dataclass, field
@@ -22,8 +25,10 @@ from pathlib import Path
 from typing import Callable
 
 from dolibarr_http import Browser, Page, token_of
+from openapi import OpenApi
 
 MODULE_DIR = "/var/www/html/custom/vereine"
+OPENAPI = Path(__file__).resolve().parents[2] / "docs" / "openapi.json"
 PHP_PROBLEM = re.compile(r"PHP (Fatal error|Parse error|Warning|Notice|Deprecated|Recoverable fatal error):"
                          r"\s*(.+?) in (/var/www/html/custom/vereine/\S+) on line \d+")
 # An uncaught error thrown in Dolibarr's own code while module code called it: the module is in the stack trace.
@@ -61,6 +66,7 @@ class Stack:
     fixtures: dict = field(default_factory=dict)
     notes: dict = field(default_factory=dict)
     previous_package: Path | None = None
+    openapi: OpenApi = field(default_factory=lambda: OpenApi(OPENAPI))
 
     @property
     def url(self) -> str:
@@ -110,18 +116,23 @@ class Stack:
     def shell(self, command: str) -> subprocess.CompletedProcess:
         return self.run(self.docker, "exec", "-u", "www-data", self.web, "sh", "-c", command, check=False, timeout=120)
 
-    def api(self, path: str, key: str | None) -> tuple[int, object]:
+    def api(self, path: str, key: str | None, check: bool = True) -> tuple[int, object]:
+        """GET an API path. Answers of the Vereine API must match docs/openapi.json unless check is off."""
         request = urllib.request.Request(f"{self.url}/api/index.php/{path.lstrip('/')}", method="GET",
                                          headers={"Accept": "application/json", **({"DOLAPIKEY": key} if key else {})})
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
-                status, body = response.status, response.read()
+                status, raw = response.status, response.read()
         except urllib.error.HTTPError as error:
-            status, body = error.code, error.read()
+            status, raw = error.code, error.read()
         try:
-            return status, json.loads(body.decode("utf-8") or "null")
+            body = json.loads(raw.decode("utf-8") or "null")
         except ValueError:
-            return status, body.decode("utf-8", errors="replace")
+            body = raw.decode("utf-8", errors="replace")
+        if check and path.lstrip("/").startswith("vereine/"):
+            problems = self.openapi.check("GET", path, status, body)
+            expect(not problems, "the answer differs from docs/openapi.json:\n" + "\n".join(problems[:10]))
+        return status, body
 
     def log(self) -> str:
         completed = self.run(self.docker, "logs", self.web, check=False, timeout=120)
@@ -256,7 +267,7 @@ def upgrade(stack: Stack) -> str:
            "the upgrade lost the association data")
     expect(stack.sql("SHOW TABLES LIKE 'llx_vereine_log'") == [["llx_vereine_log"]], "the upgrade did not create the log table")
     rights = {row[0] for row in stack.sql("SELECT id FROM llx_rights_def WHERE module = 'vereine' AND entity = 1")}
-    expect("49210002" in rights, f"the upgrade did not add the partner right: {rights}")
+    expect("49210003" in rights, f"the upgrade did not add the website right: {rights}")
     categories = [stack.const(name) or "" for name in CATEGORY_CONSTANTS]
     expect(all(value.isdigit() and int(value) > 0 for value in categories), f"categories after the upgrade: {categories}")
     profiles = stack.value("SELECT COUNT(*) FROM llx_vereine_taxprofile WHERE entity = 1 AND standard = 1")
@@ -265,7 +276,7 @@ def upgrade(stack: Stack) -> str:
     stack.php_fixture("reset")
     expect(stack.const("MAIN_MODULE_VEREINE") is None and stack.const("VEREINE_REGISTER_NUMBER") is None,
            "the reset after the upgrade test left module state behind")
-    return f"{old} -> {stack.module_version}: association data kept; log table, partner right and categories added"
+    return f"{old} -> {stack.module_version}: association data kept; tables, website right and categories in place"
 
 
 def deploy(stack: Stack) -> str:
@@ -288,7 +299,8 @@ def enable(stack: Stack) -> str:
     expect(stack.const("VEREINE_COUNTRY_PROFILE") == "AT",
            f"an Austrian company should start with profile AT, found {stack.const('VEREINE_COUNTRY_PROFILE')!r}")
     rights = stack.sql("SELECT id, perms, subperms FROM llx_rights_def WHERE module = 'vereine' AND entity = 1 ORDER BY id")
-    expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"]], f"rights after enabling: {rights}")
+    expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"], ["49210003", "website", "read"]],
+           f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_partners", "/vereine/partners.php"],
                     ["members", "vereine_partnersetup", "/vereine/admin/partners.php"]],
@@ -305,7 +317,7 @@ def enable(stack: Stack) -> str:
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
     return (f"module {stack.module_version} on with Members, third parties and categories; profile AT; "
-            "2 rights, 3 menu entries, log table, 3 categories")
+            "3 rights, 3 menu entries, log table, 3 categories")
 
 
 def pages(stack: Stack) -> str:
@@ -927,6 +939,100 @@ def cashregister(stack: Stack) -> str:
     return "canteen needs a cash register (cash shared out per sphere, transfer left out), fees no topic, 13 % added exactly once"
 
 
+def day_after(date: str) -> str:
+    return (datetime.date.fromisoformat(date) + datetime.timedelta(days=1)).isoformat()
+
+
+def website(stack: Stack) -> str:
+    """A website user with two rights reads member summaries and finds members, but nothing else of Dolibarr."""
+    key = secrets.token_hex(20)
+    data = stack.php_fixture("website", RT_WEBSITE_KEY=key)
+    members, refs, dates, invoices = data["members"], data["refs"], data["dates"], data["invoices"]
+
+    def summary(member: str, who: str = key) -> dict:
+        status, body = stack.api(f"vereine/members/{members[member]}/summary", who)
+        expect(status == 200 and isinstance(body, dict), f"summary of {member} answered HTTP {status}: {body}")
+        return body
+
+    answers = {member: summary(member) for member in members}
+    paid = answers["paid"]
+    expect((paid["id"], paid["ref"], paid["firstname"], paid["lastname"], paid["company"], paid["type"]["label"], paid["status"])
+           == (members["paid"], refs["paid"], "Paula", "Bezahlt", "", "Beitragspflichtig", "active"), f"paid member: {paid}")
+    expect(paid["member_since"] == dates["paid_since"] and paid["paid_until"] == dates["paid_until"] and paid["currency"] == "EUR",
+           f"paid member since {paid['member_since']} until {paid['paid_until']}, expected {dates['paid_since']} to {dates['paid_until']}")
+    expect(paid["fee"] == {"required": True, "status": "paid", "next_due": day_after(dates["paid_until"]), "amount": 50, "payment_url": ""},
+           f"fee of the paid member: {paid['fee']}")
+    expect(paid["open_invoices"] == [{"ref": invoices["open"]["ref"], "date": dates["open_invoice"], "due_date": dates["open_invoice"],
+                                      "total": 60, "remaining": 50, "overdue": True, "payment_url": ""}],
+           f"only the validated unpaid invoice with its part payment is open: {paid['open_invoices']}")
+
+    expired = answers["expired"]
+    expect(expired["status"] == "active" and expired["paid_until"] == dates["expired_until"] and expired["member_since"] == dates["expired_since"]
+           and expired["fee"]["status"] == "due" and expired["fee"]["next_due"] == day_after(dates["expired_until"]),
+           f"expired member: {expired}")
+    unpaid = answers["unpaid"]
+    expect(unpaid["paid_until"] == "" and unpaid["member_since"] == dates["today"]
+           and unpaid["fee"] == {"required": True, "status": "due", "next_due": dates["today"], "amount": 50, "payment_url": ""},
+           f"member who never paid: {unpaid}")
+    free = answers["free"]
+    expect(free["type"]["label"] == "Ordentliches Mitglied"
+           and free["fee"] == {"required": False, "status": "not_required", "next_due": "", "amount": None, "payment_url": ""},
+           f"member type without fee: {free}")
+    terminated = answers["terminated"]
+    expect(terminated["status"] == "terminated" and terminated["fee"]["status"] == "inactive" and terminated["fee"]["next_due"] == "",
+           f"terminated member: {terminated}")
+    text = json.dumps(answers, ensure_ascii=False)
+    leaked = [secret for secret in ("Geheim", "1990", "999999", "@runtime-verein.test", "Innsbruck") if secret in text]
+    expect(not leaked, f"member summaries contain private data: {leaked}")
+
+    def lookup(query: dict, expected: int) -> object:
+        status, body = stack.api("vereine/members/lookup?" + urllib.parse.urlencode(query), key)
+        expect(status == expected, f"lookup {query} answered HTTP {status}, expected {expected}: {body}")
+        return body
+
+    expect(lookup({"ref": refs["paid"]}, 200)["id"] == members["paid"], "lookup by member number found someone else")
+    expect(lookup({"email": "paula.bezahlt@RUNTIME-verein.test"}, 200)["id"] == members["paid"],
+           "lookup by e-mail does not ignore upper and lower case")
+    # Dolibarr's API layer checks a parameter named email itself, before the module's code runs.
+    lookup({"email": " paula.bezahlt@runtime-verein.test "}, 400)
+    lookup({"email": "keine-adresse"}, 400)
+    lookup({"email": "familie@runtime-verein.test"}, 409)
+    lookup({"email": "niemand@runtime-verein.test"}, 404)
+    lookup({"ref": "RT-GIBT-ES-NICHT"}, 404)
+    lookup({}, 400)
+    lookup({"ref": refs["paid"], "email": "paula.bezahlt@runtime-verein.test"}, 400)
+    status, _ = stack.api("vereine/members/999999/summary", key)
+    expect(status == 404, f"an unknown member answered HTTP {status}, expected 404")
+
+    for path in ("members", "invoices", "thirdparties"):
+        status, _ = stack.api(path, key)
+        expect(status == 403, f"the website user reads Dolibarr's {path} with HTTP {status}, expected 403")
+    for who, name in ((stack.reader_key, "a user who may read members and invoices but lacks the website right"),
+                      (stack.nobody_key, "a user without rights")):
+        status, _ = stack.api(f"vereine/members/{members['paid']}/summary", who)
+        expect(status == 403, f"{name} got HTTP {status} for a summary, expected 403")
+        status, _ = stack.api("vereine/members/lookup?ref=" + urllib.parse.quote(refs["paid"]), who)
+        expect(status == 403, f"{name} got HTTP {status} for a lookup, expected 403")
+
+    stack.php_fixture("onlinepayment", RT_ONLINE="1")
+    try:
+        unpaid, paid = summary("unpaid"), summary("paid")
+    finally:
+        stack.php_fixture("onlinepayment", RT_ONLINE="0")
+    fee_link = unpaid["fee"]["payment_url"]
+    expect("/public/payment/newpayment.php?source=member" in fee_link and "amount=50" in fee_link
+           and f"ref={urllib.parse.quote(refs['unpaid'])}" in fee_link, f"payment link for the due fee: {fee_link!r}")
+    invoice_link = paid["open_invoices"][0]["payment_url"]
+    expect(f"/public/payment/newpayment.php?source=invoice&ref={urllib.parse.quote(invoices['open']['ref'])}" in invoice_link
+           and paid["fee"]["payment_url"] == "", f"payment links of the paid member: fee {paid['fee']['payment_url']!r}, invoice {invoice_link!r}")
+
+    missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
+                     if status == "200" and (method, path, status) not in stack.openapi.checked)
+    expect(not missing, f"no runtime check compared a successful answer with docs/openapi.json for: {missing}")
+    return (f"paid, expired, never paid, no fee, terminated; lookup by number and e-mail (409, 404, 400); payment links with Stripe; "
+            f"website user refused by Dolibarr's own API; {len(stack.openapi.checked)} answer kinds match docs/openapi.json")
+
+
 def action_link_for(page: Page, action: str, row_id: str | None) -> str:
     """The link a setup list offers for an action on one row."""
     for href in re.findall(r'href="([^"]*[?&](?:amp;)?action=' + re.escape(action) + r'(?:&[^"]*)?)"', page.text):
@@ -943,7 +1049,8 @@ def disable(stack: Stack) -> str:
     expect(stack.const("MAIN_MODULE_VEREINE") is None, "MAIN_MODULE_VEREINE is still set after disabling")
     expect(stack.value("SELECT COUNT(*) FROM llx_menu WHERE module = 'vereine'") == "0", "menu entries survived disabling")
     expect(denied(browser.get("/custom/vereine/vereineindex.php")), "the overview opens while the module is disabled")
-    status, _ = stack.api("vereine/organization", stack.reader_key)
+    # Dolibarr answers for a disabled module before the module's code runs; the description does not cover that.
+    status, _ = stack.api("vereine/organization", stack.reader_key, check=False)
     expect(status != 200, "the API answers while the module is disabled")
     stack.notes["disabled_api_status"] = status
 
@@ -986,6 +1093,7 @@ SCENARIOS = (
     ("invoicepdf", "The invoice PDF shows tax profile notes and the ZVR number", invoicepdf, ("taxassign",)),
     ("thresholds", "Thresholds of a calendar year as traffic light on overview, home page and API", thresholds, ("invoicepdf",)),
     ("cashregister", "Cash register duty per sphere and the missing 13 % VAT rate", cashregister, ("thresholds",)),
+    ("website", "Member summaries for a website: fee status, open invoices, lookup, rights and docs/openapi.json", website, ("cashregister",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

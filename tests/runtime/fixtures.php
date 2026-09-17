@@ -27,6 +27,8 @@
  * php fixtures.php invoicing  products, a customer and a supplier invoice with tax profiles
  * php fixtures.php turnover  validated invoices at the turn of 2025 to 2026; the reader may read invoices
  * php fixtures.php cashpayments  cash and bank payments on the invoice of 2026
+ * php fixtures.php website  a website user with two rights and members in every fee situation
+ * php fixtures.php onlinepayment  Stripe on (RT_ONLINE=1) or off, for payment links
  *
  * Prints one JSON object. Passwords and API keys come from the environment only.
  */
@@ -400,6 +402,157 @@ if ($stage === 'cashpayments') {
 	exit(0);
 }
 
+// A website user with exactly the two documented rights, and one member per fee situation.
+if ($stage === 'website') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent_type.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/paiement/class/paiement.class.php';
+
+	$website = new User($db);
+	$website->login = 'rtwebsite';
+	$website->lastname = 'Website';
+	$website->firstname = 'Runtime';
+	$website->admin = 0;
+	$website->entity = 1;
+	if ($website->create($admin) <= 0) {
+		rt_fail('user rtwebsite: '.$website->error);
+	}
+	$website->fetch($website->id);
+	$website->api_key = rt_env('RT_WEBSITE_KEY');
+	if ($website->update($admin) <= 0) {
+		rt_fail('API key for rtwebsite: '.$website->error);
+	}
+	foreach (array('association', 'website') as $perms) {
+		$rightId = (int) rt_value($db, "SELECT id FROM ".MAIN_DB_PREFIX."rights_def WHERE module = 'vereine' AND perms = '".$perms."' AND subperms = 'read' AND entity = 1");
+		if ($rightId <= 0 || $website->addrights($rightId) < 0) {
+			rt_fail('granting vereine/'.$perms.'/read to rtwebsite: '.$website->error);
+		}
+	}
+
+	$feeType = new AdherentType($db);
+	$feeType->label = 'Beitragspflichtig';
+	$feeType->morphy = '';
+	$feeType->subscription = 1;
+	$feeType->amount = 50;
+	$feeTypeId = $feeType->create($admin);
+	if ($feeTypeId <= 0) {
+		rt_fail('member type with fee: '.$feeType->error);
+	}
+	$freeTypeId = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."adherent_type WHERE libelle = 'Ordentliches Mitglied'");
+	$countryId = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+	$today = dol_mktime(0, 0, 0, (int) dol_print_date(dol_now(), '%m'), (int) dol_print_date(dol_now(), '%d'), (int) dol_print_date(dol_now(), '%Y'));
+	$day = function ($offset) use ($today) {
+		return dol_time_plus_duree($today, $offset, 'd');
+	};
+	$ymd = function ($time) {
+		return dol_print_date($time, '%Y-%m-%d');
+	};
+
+	// Key => type, first name, last name, e-mail, period start and end as days from today (or null), resiliate.
+	$people = array(
+		'paid' => array($feeTypeId, 'Paula', 'Bezahlt', 'Paula.Bezahlt@Runtime-Verein.test', array(-30, 334), false),
+		'expired' => array($feeTypeId, 'Emil', 'Abgelaufen', 'emil@runtime-verein.test', array(-400, -35), false),
+		'unpaid' => array($feeTypeId, 'Nina', 'Neu', 'nina@runtime-verein.test', null, false),
+		'free' => array($freeTypeId, 'Otto', 'Ohnebeitrag', 'familie@runtime-verein.test', null, false),
+		'terminated' => array($feeTypeId, 'Tom', 'Ausgetreten', 'familie@runtime-verein.test', array(-200, 165), true),
+	);
+	$members = array();
+	$refs = array();
+	foreach ($people as $key => $data) {
+		$member = new Adherent($db);
+		$member->typeid = $data[0];
+		$member->morphy = 'phy';
+		$member->firstname = $data[1];
+		$member->lastname = $data[2];
+		$member->email = $data[3];
+		$member->address = 'Geheimgasse 7';
+		$member->zip = '6020';
+		$member->town = 'Innsbruck';
+		$member->country_id = $countryId;
+		$member->phone = '+43 512 999999';
+		$member->birth = dol_mktime(12, 0, 0, 7, 14, 1990);
+		$member->note_private = 'Geheimnotiz '.$key;
+		$member->public = 0;
+		if ($member->create($admin) <= 0 || $member->validate($admin) <= 0) {
+			rt_fail('member '.$key.': '.$member->error.' '.implode(' | ', (array) $member->errors));
+		}
+		if ($data[4] !== null && $member->subscription($day($data[4][0]), 50, 0, '', 'Beitrag', '', '', '', $day($data[4][1])) <= 0) {
+			rt_fail('subscription of '.$key.': '.$member->error.' '.implode(' | ', (array) $member->errors));
+		}
+		if ($data[5] && $member->resiliate($admin) <= 0) {
+			rt_fail('resiliate '.$key.': '.$member->error);
+		}
+		$members[$key] = (int) $member->id;
+		$refs[$key] = (string) rt_value($db, "SELECT ref FROM ".MAIN_DB_PREFIX."adherent WHERE rowid = ".((int) $member->id));
+	}
+
+	// Paula's third party gets an open invoice with a part payment, a paid one and a draft.
+	$paula = new Adherent($db);
+	$paula->fetch($members['paid']);
+	$partner = new Societe($db);
+	if ($partner->create_from_member($paula) <= 0) {
+		rt_fail('third party of Paula: '.$partner->error.' '.implode(' | ', (array) $partner->errors));
+	}
+	$invoices = array();
+	foreach (array('open' => array(60, -40, 10), 'paid' => array(30, -20, 30), 'draft' => array(99, -1, 0)) as $key => $data) {
+		$invoice = new Facture($db);
+		$invoice->socid = (int) $partner->id;
+		$invoice->type = Facture::TYPE_STANDARD;
+		$invoice->date = $day($data[1]);
+		if ($invoice->create($admin) <= 0 || $invoice->addline('Mitgliedsbeitrag', $data[0], 1, 0) <= 0) {
+			rt_fail('invoice '.$key.' of Paula: '.$invoice->error);
+		}
+		if ($key !== 'draft' && $invoice->validate($admin) <= 0) {
+			rt_fail('validate invoice '.$key.' of Paula: '.$invoice->error.' '.implode(' | ', (array) $invoice->errors));
+		}
+		if ($data[2] > 0) {
+			$payment = new Paiement($db);
+			$payment->datepaye = $day(-5);
+			$payment->date = $payment->datepaye;
+			$payment->amounts = array((int) $invoice->id => $data[2]);
+			$payment->paiementid = (int) rt_value($db, "SELECT id FROM ".MAIN_DB_PREFIX."c_paiement WHERE code = 'VIR' AND entity IN (0, 1) ORDER BY entity DESC");
+			$payment->paiementcode = 'VIR';
+			if ($payment->create($admin, $key === 'paid' ? 1 : 0) <= 0) {
+				rt_fail('payment on invoice '.$key.': '.$payment->error.' '.implode(' | ', (array) $payment->errors));
+			}
+		}
+		$invoice->fetch($invoice->id);
+		$invoices[$key] = array('id' => (int) $invoice->id, 'ref' => (string) $invoice->ref);
+	}
+
+	print json_encode(array(
+		'user' => (int) $website->id,
+		'members' => $members,
+		'refs' => $refs,
+		'invoices' => $invoices,
+		'dates' => array(
+			'today' => $ymd($today),
+			'paid_until' => $ymd($day(334)),
+			'paid_since' => $ymd($day(-30)),
+			'expired_until' => $ymd($day(-35)),
+			'expired_since' => $ymd($day(-400)),
+			'open_invoice' => $ymd($day(-40)),
+		),
+	))."\n";
+	exit(0);
+}
+
+// Online payment through Stripe on (RT_ONLINE=1) or off, so Dolibarr offers payment links or not.
+if ($stage === 'onlinepayment') {
+	if (rt_env('RT_ONLINE') === '1') {
+		$result = activateModule('modStripe');
+		if (!empty($result['errors'])) {
+			rt_fail('activating modStripe failed: '.implode(' | ', (array) $result['errors']));
+		}
+	} elseif (unActivateModule('modStripe') !== '') {
+		rt_fail('disabling modStripe failed');
+	}
+	print json_encode(array('stripe' => rt_env('RT_ONLINE') === '1' ? 1 : 0))."\n";
+	exit(0);
+}
+
 if ($stage === 'resiliate') {
 	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
 	$member = new Adherent($db);
@@ -457,4 +610,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, resiliate, guardian or reset');

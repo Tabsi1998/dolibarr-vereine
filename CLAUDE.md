@@ -71,6 +71,9 @@ steps.
 - A new page (`*.php` in the root or `admin/`) must be added to `pages` in
   `scripts/check-module.sh`, which enforces the access checks.
 - A new API method must call `$this->checkAccess()`; the contract counts them.
+  It also needs its path, parameters and answer in `docs/openapi.json`:
+  `tests/run.php` compares the paths with the `@url` lines, and the runtime
+  checks validate every answer of `vereine/...` against it (`Stack.api`).
 - `build_release.py` packs everything except `EXCLUDED_TOP`. A new developer-only
   file or folder at the top level needs an entry there.
 - German and English language files change together; `tests/run.php` checks
