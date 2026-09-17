@@ -986,7 +986,7 @@ def website(stack: Stack) -> str:
            == (members["paid"], refs["paid"], "Paula", "Bezahlt", "", "Beitragspflichtig", "active"), f"paid member: {paid}")
     expect(paid["member_since"] == dates["paid_since"] and paid["paid_until"] == dates["paid_until"] and paid["currency"] == "EUR",
            f"paid member since {paid['member_since']} until {paid['paid_until']}, expected {dates['paid_since']} to {dates['paid_until']}")
-    expect(paid["fee"] == {"required": True, "status": "paid", "next_due": day_after(dates["paid_until"]), "amount": 50, "payment_url": ""},
+    expect(paid["fee"] == {"required": True, "status": "paid", "next_due": day_after(dates["paid_until"]), "amount": 50, "discount": {"kind": "none", "label": ""}, "payment_url": ""},
            f"fee of the paid member: {paid['fee']}")
     expect(paid["open_invoices"] == [{"id": invoices["open"]["id"], "ref": invoices["open"]["ref"], "type": "standard",
                                       "date": dates["open_invoice"], "due_date": dates["open_invoice"], "total": 60, "remaining": 50,
@@ -999,11 +999,11 @@ def website(stack: Stack) -> str:
            f"expired member: {expired}")
     unpaid = answers["unpaid"]
     expect(unpaid["paid_until"] == "" and unpaid["member_since"] == dates["today"]
-           and unpaid["fee"] == {"required": True, "status": "due", "next_due": dates["today"], "amount": 50, "payment_url": ""},
+           and unpaid["fee"] == {"required": True, "status": "due", "next_due": dates["today"], "amount": 50, "discount": {"kind": "none", "label": ""}, "payment_url": ""},
            f"member who never paid: {unpaid}")
     free = answers["free"]
     expect(free["type"]["label"] == "Ordentliches Mitglied"
-           and free["fee"] == {"required": False, "status": "not_required", "next_due": "", "amount": None, "payment_url": ""},
+           and free["fee"] == {"required": False, "status": "not_required", "next_due": "", "amount": None, "discount": {"kind": "none", "label": ""}, "payment_url": ""},
            f"member type without fee: {free}")
     terminated = answers["terminated"]
     expect(terminated["status"] == "terminated" and terminated["fee"]["status"] == "inactive" and terminated["fee"]["next_due"] == "",
