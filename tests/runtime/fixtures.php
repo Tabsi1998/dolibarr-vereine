@@ -35,6 +35,7 @@
  * php fixtures.php webhook  Dolibarr's webhook module with a target for VEREINE_MEMBER_CHANGED
  * php fixtures.php webhookchanges  payments, a subscription period and a resignation in one request
  * php fixtures.php webhookdown  a blocking target that cannot be reached, and a member update
+ * php fixtures.php feerunmember  a member with fee and third party, validated today
  *
  * Prints one JSON object. Passwords and API keys come from the environment only.
  */
@@ -660,6 +661,30 @@ if ($stage === 'webhookdown') {
 	exit(0);
 }
 
+// A member of the member type with fee, validated today, with third party: a first fee with admission fee.
+if ($stage === 'feerunmember') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+	$member = new Adherent($db);
+	$member->typeid = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."adherent_type WHERE libelle = 'Beitragspflichtig'");
+	$member->morphy = 'phy';
+	$member->firstname = 'Fiona';
+	$member->lastname = 'Frisch';
+	$member->email = 'fiona@runtime-verein.test';
+	$member->country_id = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+	$member->public = 0;
+	if ($member->create($admin) <= 0 || $member->validate($admin) <= 0) {
+		rt_fail('member Fiona: '.$member->error.' '.implode(' | ', (array) $member->errors));
+	}
+	$member->fetch($member->id);
+	$partner = new Societe($db);
+	if ((int) $member->fk_soc <= 0 && $partner->create_from_member($member) <= 0) {
+		rt_fail('third party of Fiona: '.$partner->error);
+	}
+	print json_encode(array('member' => (int) $member->id))."\n";
+	exit(0);
+}
+
 // An abandoned invoice for the third party of a member.
 if ($stage === 'websiteinvoices') {
 	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
@@ -756,4 +781,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, resiliate, guardian or reset');

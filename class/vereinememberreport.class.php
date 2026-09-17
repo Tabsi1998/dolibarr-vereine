@@ -358,6 +358,9 @@ class VereineMemberReport
 		}
 		$this->db->free($resql);
 
+		$fees = $this->feeInvoiceIds(array_map(function ($obj) {
+			return (int) $obj->rowid;
+		}, $rows));
 		$invoices = array();
 		foreach ($rows as $obj) {
 			$invoice = new Facture($this->db);
@@ -379,9 +382,37 @@ class VereineMemberReport
 				'status' => $status,
 				'overdue' => $status === VereineMemberSummary::INVOICE_OVERDUE,
 				'payment_url' => ($online && $open && $type !== 'credit_note') ? getOnlinePaymentUrl(0, 'invoice', (string) $invoice->ref) : '',
+				'fee' => isset($fees[(int) $invoice->id]),
 			);
 		}
 		return $invoices;
+	}
+
+	/**
+	 * Invoices linked to a subscription period, as Dolibarr links a fee invoice.
+	 *
+	 * @param int[] $invoiceIds Invoice ids
+	 * @return array<int,bool> Fee invoice ids as keys
+	 */
+	private function feeInvoiceIds(array $invoiceIds)
+	{
+		$invoiceIds = array_values(array_filter(array_map('intval', $invoiceIds)));
+		if (!$invoiceIds) {
+			return array();
+		}
+		$sql = "SELECT DISTINCT ee.fk_target FROM ".MAIN_DB_PREFIX."element_element as ee";
+		$sql .= " WHERE ee.sourcetype = 'subscription' AND ee.targettype = 'facture' AND ee.fk_target IN (".implode(', ', $invoiceIds).")";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			dol_syslog(__METHOD__.' '.$this->db->lasterror(), LOG_ERR);
+			return array();
+		}
+		$ids = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$ids[(int) $obj->fk_target] = true;
+		}
+		$this->db->free($resql);
+		return $ids;
 	}
 
 	/**

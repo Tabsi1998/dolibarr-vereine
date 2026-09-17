@@ -304,8 +304,8 @@ def enable(stack: Stack) -> str:
     expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"], ["49210003", "website", "read"]],
            f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
-    expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_partners", "/vereine/partners.php"],
-                    ["members", "vereine_partnersetup", "/vereine/admin/partners.php"]],
+    expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_feerun", "/vereine/fees_run.php"],
+                    ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"]],
            f"menu entries after enabling: {menu}")
     expect(stack.sql("SHOW TABLES LIKE 'llx_vereine_log'") == [["llx_vereine_log"]], "the log table was not created")
     categories = {name: stack.const(name) or "0" for name in CATEGORY_CONSTANTS}
@@ -319,7 +319,7 @@ def enable(stack: Stack) -> str:
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
     return (f"module {stack.module_version} on with Members, third parties and categories; profile AT; "
-            "3 rights, 3 menu entries, log table, 3 categories")
+            "3 rights, 4 menu entries, log table, 3 categories")
 
 
 def pages(stack: Stack) -> str:
@@ -974,7 +974,7 @@ def website(stack: Stack) -> str:
            f"fee of the paid member: {paid['fee']}")
     expect(paid["open_invoices"] == [{"id": invoices["open"]["id"], "ref": invoices["open"]["ref"], "type": "standard",
                                       "date": dates["open_invoice"], "due_date": dates["open_invoice"], "total": 60, "remaining": 50,
-                                      "status": "overdue", "overdue": True, "payment_url": ""}],
+                                      "status": "overdue", "overdue": True, "payment_url": "", "fee": False}],
            f"only the validated unpaid invoice with its part payment is open: {paid['open_invoices']}")
 
     expired = answers["expired"]
@@ -1047,11 +1047,11 @@ def websiteinvoices(stack: Stack) -> str:
     abandoned = stack.php_fixture("websiteinvoices", RT_MEMBER_ID=str(members["paid"]))["abandoned"]
     listed = [
         {"id": abandoned["id"], "ref": abandoned["ref"], "type": "standard", "date": abandoned["date"], "due_date": abandoned["date"],
-         "total": 20, "remaining": 0, "status": "abandoned", "overdue": False, "payment_url": ""},
+         "total": 20, "remaining": 0, "status": "abandoned", "overdue": False, "payment_url": "", "fee": False},
         {"id": invoices["paid"]["id"], "ref": invoices["paid"]["ref"], "type": "standard", "date": dates["paid_invoice"],
-         "due_date": dates["paid_invoice"], "total": 30, "remaining": 0, "status": "paid", "overdue": False, "payment_url": ""},
+         "due_date": dates["paid_invoice"], "total": 30, "remaining": 0, "status": "paid", "overdue": False, "payment_url": "", "fee": False},
         {"id": invoices["open"]["id"], "ref": invoices["open"]["ref"], "type": "standard", "date": dates["open_invoice"],
-         "due_date": dates["open_invoice"], "total": 60, "remaining": 50, "status": "overdue", "overdue": True, "payment_url": ""},
+         "due_date": dates["open_invoice"], "total": 60, "remaining": 50, "status": "overdue", "overdue": True, "payment_url": "", "fee": False},
     ]
     base = f"vereine/members/{members['paid']}/invoices"
     status, body = stack.api(base, key)
@@ -1295,6 +1295,81 @@ def fees(stack: Stack) -> str:
             "fee product with tax profile shown; API for the website; non-administrators and users without right refused")
 
 
+def feerun(stack: Stack) -> str:
+    """A fee run previews the fees due, creates subscription period and linked invoice once, and nothing on a second run."""
+    site = stack.notes["website"]
+    key, members, today = site["key"], site["members"], site["dates"]["today"]
+    fiona = int(stack.php_fixture("feerunmember")["member"])
+    nina = int(members["unpaid"])
+    year, month, day = (int(part) for part in today.split("-"))
+    fee = 50.0 if (month, day) == (1, 1) else round(50 * (13 - month) / 12, 2)
+    fiona_key, nina_key = f"{fiona}:{today}", f"{nina}:{today}"
+
+    def fee_invoices() -> list[list[str]]:
+        return stack.sql("SELECT f.rowid, f.total_ttc, f.fk_statut, s.fk_adherent, DATE(s.dateadh), DATE(s.datef) "
+                         "FROM llx_element_element as ee INNER JOIN llx_facture as f ON f.rowid = ee.fk_target "
+                         "INNER JOIN llx_subscription as s ON s.rowid = ee.fk_source "
+                         "WHERE ee.sourcetype = 'subscription' AND ee.targettype = 'facture' ORDER BY s.fk_adherent")
+
+    browser = stack.browser()
+    menu = page_ok(browser.get("/adherents/index.php?mainmenu=members&leftmenu="), "Members home")
+    expect("/custom/vereine/fees_run.php" in menu.text, "the Members menu has no entry Fee run")
+    preview = page_ok(browser.get(f"/custom/vereine/fees_run.php?dueuntil={today}"), "fee run preview")
+    rows = {row: (status, total) for row, status, total in
+            re.findall(r'data-fee-row="([^"]+)" data-status="([a-z_]+)" data-total="([^"]*)"', preview.text)}
+    expect({row.split(":")[0] for row in rows} == {str(fiona), str(nina)},
+           f"only Fiona (first fee) and Nina (period ended yesterday) are due today, preview lists {sorted(rows)}")
+    expect(rows.get(fiona_key, ("", ""))[0] == "ready" and float(rows[fiona_key][1]) == round(fee + 20, 2),
+           f"Fiona's first fee: {rows.get(fiona_key)}, expected ready {fee} plus 20 admission")
+    expect(rows.get(nina_key, ("", ""))[0] == "no_partner" and float(rows[nina_key][1]) == fee,
+           f"Nina's fee without third party: {rows.get(nina_key)}, expected no_partner {fee}")
+    expect(fee_invoices() == [], "fee invoices exist before the run, the test proves nothing")
+
+    reader = stack.browser("rtreader")
+    reader_page = page_ok(reader.get(f"/custom/vereine/fees_run.php?dueuntil={today}"), "fee run preview for a reader")
+    expect('name="fees[]"' not in reader_page.text, "a user without the rights to create invoices is offered the fee run")
+    refused = reader.post("/custom/vereine/fees_run.php", [("token", token_of(reader_page)), ("action", "run"), ("dueuntil", today),
+                                                           ("typeid", "0"), ("fees[]", fiona_key)])
+    expect(denied(refused) and fee_invoices() == [], "a user without the rights to create invoices ran the fee run")
+
+    fields = [("token", token_of(preview)), ("action", "run"), ("dueuntil", today), ("typeid", "0"),
+              ("fees[]", fiona_key), ("fees[]", nina_key), ("createpartners", "1")]
+    result = page_ok(browser.post("/custom/vereine/fees_run.php", fields), "run the fees")
+    outcomes = dict((row, outcome) for outcome, row in re.findall(r'data-fee-outcome="([a-z]+)" data-fee-key="([^"]+)"', result.text))
+    expect(outcomes == {fiona_key: "created", nina_key: "created"}, f"outcome of the fee run: {outcomes}")
+    created = fee_invoices()
+    by_member = {int(row[3]): row for row in created}
+    expect(len(created) == 2 and all(row[2] == "1" and row[4] == today and row[5] == f"{year}-12-31" for row in created),
+           f"two validated invoices linked to periods from today to 31 December: {created}")
+    expect(float(by_member[fiona][1]) == round(fee + 20, 2) and float(by_member[nina][1]) == fee,
+           f"invoice totals: Fiona {by_member[fiona][1]}, Nina {by_member[nina][1]}")
+    ids = ", ".join(row[0] for row in created)
+    profiled = stack.value(f"SELECT COUNT(*) FROM llx_facturedet as d INNER JOIN llx_facturedet_extrafields as e ON e.fk_object = d.rowid "
+                           f"INNER JOIN llx_vereine_taxprofile as p ON p.rowid = e.vereine_taxprofile "
+                           f"WHERE d.fk_facture IN ({ids}) AND p.code = 'MITGLIEDSBEITRAG'")
+    expect(profiled == "3", f"{profiled} invoice lines carry the tax profile of the fee product, expected 3 (fee and admission for Fiona, fee for Nina)")
+    expect(stack.value(f"SELECT fk_soc FROM llx_adherent WHERE rowid = {nina}") not in (None, "", "NULL", "0"),
+           "Nina got no third party although it was asked for")
+    logged = dict(stack.sql("SELECT action, COUNT(*) FROM llx_vereine_log WHERE action LIKE 'fee%' GROUP BY action"))
+    expect(logged == {"fee_invoice": "2", "fee_run": "1"}, f"fee run log: {logged}")
+
+    again = page_ok(browser.post("/custom/vereine/fees_run.php", fields), "run the same fees again")
+    expect('data-fee-outcome="created"' not in again.text and len(fee_invoices()) == 2, "a second run created fee invoices again")
+    expect(fiona_key not in again.text.split('data-fee-preview="1"', 1)[-1].split('data-fee-recent="1"', 1)[0],
+           "Fiona's paid period is still offered after the run")
+    recent = dict(re.findall(r'data-fee-invoice="([^"]+)" data-status="([a-z]+)"', again.text))
+    expect(len(recent) == 2 and set(recent.values()) <= {"open", "overdue"}, f"fee invoices listed with their state: {recent}")
+
+    status, invoices = stack.api(f"vereine/members/{fiona}/invoices", key)
+    expect(status == 200 and len(invoices) == 1 and invoices[0]["fee"] is True, f"Fiona's invoice through the website API: {invoices}")
+    status, summary = stack.api(f"vereine/members/{fiona}/summary", key)
+    expect(status == 200 and summary["paid_until"] == f"{year}-12-31" and summary["fee"]["status"] == "paid",
+           f"Fiona after the fee run: paid until {summary.get('paid_until')}, fee {summary.get('fee')}")
+    return (f"preview: Fiona {fee} + 20 admission ready, Nina {fee} without third party; reader refused; run created both with "
+            "linked periods to 31 December, fee product tax profile on 3 lines, third party for Nina, log; second run created nothing; "
+            "website API marks the fee invoice")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -1369,7 +1444,8 @@ SCENARIOS = (
     ("websitesync", "A website sync gets all members and then only the changed ones", websitesync, ("websiteinvoices",)),
     ("websiteevents", "Webhooks tell a website which member changed, without personal data", websiteevents, ("websitesync",)),
     ("fees", "Fee model on the member type, the fee setup page and the membership fees API", fees, ("websiteevents",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("fees",)),
+    ("feerun", "Fee run: preview, subscription period and linked invoice once, nothing on a second run", feerun, ("fees",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("feerun",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

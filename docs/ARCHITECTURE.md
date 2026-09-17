@@ -36,6 +36,7 @@ legal source, not in code, so a changed threshold is a data update.
 | `class/vereinetaxrules.class.php` | Spheres, VAT treatments, tax profile checks and suggestions, plain PHP |
 | `class/vereinetaxprofiles.class.php`, `admin/taxprofiles.php` | Tax profiles in `llx_vereine_taxprofile` and their setup tab |
 | `class/vereinefeerules.class.php` | Next fee period and amount of a member: fee year, proration, admission fee, plain PHP |
+| `class/vereinefeerun.class.php`, `fees_run.php` | Fee run: preview of the fees due, subscription period and linked invoice per fee, recent fee invoices |
 | `class/vereinefeemodel.class.php`, `admin/fees.php` | Fee model as extra fields of Dolibarr's member type (`vereine_fee_start_month`, `vereine_fee_prorated`, `vereine_admission_fee`, `vereine_fee_product`) and its setup tab |
 | `class/vereinetaxassign.class.php` | Extra field `vereine_taxprofile` on products and invoice lines, product VAT, line profiles, deviations |
 | `class/vereinethresholds.class.php` | Dated threshold table and traffic light, plain PHP |
@@ -100,6 +101,41 @@ the module updates or deletes a row.
   (with CSRF token) after its main form, because forms cannot nest;
   `js/partners.js` only shows them in a jQuery UI dialog and ticks *select all*.
   The runtime tests submit those forms exactly as a browser would.
+
+## Membership fees
+
+- The fee model is four extra fields of Dolibarr's member type (see Layout);
+  amount and duration stay Dolibarr's own. `VereineFeeRules` works out period
+  and amount, plain PHP.
+- A fee run creates, per member and period, what Dolibarr's member card creates
+  for *New subscription* with *Create invoice*
+  (`Adherent::subscriptionComplementaryActions`): a subscription period with
+  `Adherent::subscription()` and a validated invoice whose `linked_objects`
+  hold the subscription. Period and invoice are created in one transaction.
+  The invoice line is the fee product of the member type (Dolibarr's
+  `ADHERENT_PRODUCT_ID_FOR_SUBSCRIPTIONS` when the type has none) with the
+  gross amount, so the product's tax profile reaches the line.
+- `llx_subscription` has a unique key on member and start day, and a period
+  already created is not due any more: a second run for the same day creates
+  nothing.
+
+### Recognising fee invoices
+
+A customer invoice is a membership fee invoice when `llx_element_element` links
+it to a subscription period:
+
+```sql
+SELECT ee.fk_target AS invoice_id, s.fk_adherent AS member_id, s.dateadh, s.datef
+FROM llx_element_element AS ee
+INNER JOIN llx_subscription AS s ON s.rowid = ee.fk_source
+WHERE ee.sourcetype = 'subscription' AND ee.targettype = 'facture'
+```
+
+Dolibarr writes this link itself when a fee invoice is created on the member
+card, and the fee run writes it the same way, so other modules - such as a
+dunning module that treats membership fees differently from sales - need
+nothing from this module to read it. The website API shows it as `fee` on every
+invoice.
 
 ## Rules for every change
 

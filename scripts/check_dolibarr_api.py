@@ -269,6 +269,18 @@ CONTRACTS = (
     ("htdocs/core/lib/date.lib.php", "function dol_time_plus_duree(", "periods of subscriptions, compared with the fee rules"),
     ("htdocs/adherents/subscription.php", "MEMBER_SUBSCRIPTION_START_FIRST_DAY_OF", "Dolibarr's own period suggestion on the member card"),
     ("htdocs/core/lib/functions.lib.php", "function yn(", "prorated yes/no on the fee setup"),
+    # Fee run (issue #61)
+    ("htdocs/adherents/class/adherent.class.php", "$invoice->linked_objects['subscription'] = $subscriptionid;", "the member card links a fee invoice to its subscription period the same way"),
+    ("htdocs/adherents/class/adherent.class.php", "$result = $invoice->addline($label, 0, 1, $vattouse, 0, 0, $idprodsubscription, 0, $datesubscription, '', 0, 0, 0, 'TTC', $amount, 1);", "fee line with gross amount as on the member card"),
+    ("htdocs/compta/facture/class/facture.class.php", "$ret = $this->add_object_linked($origin, $origin_id);", "linked_objects become element_element rows on create"),
+    ("htdocs/core/class/commonobject.class.php", "public function add_object_linked($origin = null, $origin_id = null, $f_user = null, $notrigger = 0)", "link of fee invoice and subscription period"),
+    ("htdocs/install/mysql/tables/llx_element_element.sql", "sourcetype", "fee invoices are found by source type subscription"),
+    ("htdocs/install/mysql/tables/llx_subscription.key.sql", "ADD UNIQUE INDEX uk_subscription (fk_adherent", "one subscription period per member and start day, a second run cannot duplicate it"),
+    ("htdocs/compta/facture/class/paymentterm.class.php", "public function getDefaultId()", "payment term of a fee invoice without the customer's own"),
+    ("htdocs/core/lib/functions.lib.php", "function get_default_tva(Societe $thirdparty_seller, Societe $thirdparty_buyer, $idprod = 0, $idprodfournprice = 0)", "VAT rate of the fee product"),
+    ("htdocs/compta/facture/class/facture.class.php", "public function validate($user, $force_number = '', $idwarehouse = 0, $notrigger = 0, $batch_rule = 0)", "fee invoices are validated"),
+    ("htdocs/core/modules/modAdherent.class.php", "$this->rights[$r][4] = 'cotisation';", "right to record subscriptions"),
+    ("htdocs/core/modules/modFacture.class.php", "$this->rights[$r][4] = 'invoice_advance';", "separate right to validate invoices with advanced permissions"),
 )
 
 LANG_KEYS = {

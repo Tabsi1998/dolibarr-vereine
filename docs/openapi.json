@@ -988,7 +988,7 @@
       "Invoice": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "ref", "type", "date", "due_date", "total", "remaining", "status", "overdue", "payment_url"],
+        "required": ["id", "ref", "type", "date", "due_date", "total", "remaining", "status", "overdue", "payment_url", "fee"],
         "properties": {
           "id": {
             "type": "integer",
@@ -1025,6 +1025,10 @@
           "payment_url": {
             "type": "string",
             "description": "Dolibarr's online payment page for an open or overdue invoice other than a credit note; empty unless an online payment service is set up"
+          },
+          "fee": {
+            "type": "boolean",
+            "description": "A membership fee invoice: linked to a subscription period, from a fee run or from the member card"
           }
         }
       }

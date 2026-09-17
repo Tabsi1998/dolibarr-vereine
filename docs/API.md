@@ -309,7 +309,8 @@ in Dolibarr (the number in the address of the member card).
       "remaining": 50,
       "status": "overdue",
       "overdue": true,
-      "payment_url": "https://erp.example.org/public/payment/newpayment.php?source=invoice&ref=FA2608-0003&securekey=..."
+      "payment_url": "https://erp.example.org/public/payment/newpayment.php?source=invoice&ref=FA2608-0003&securekey=...",
+      "fee": true
     }
   ],
   "updated_at": "2026-09-17T06:12:40Z"
@@ -373,7 +374,8 @@ them; a page after the last one is an empty list.
     "remaining": 50,
     "status": "overdue",
     "overdue": true,
-    "payment_url": ""
+    "payment_url": "",
+    "fee": true
   }
 ]
 ```
@@ -386,6 +388,7 @@ them; a page after the last one is an empty list.
 | `remaining` | What is still to pay after payments, credit notes and deposits; 0 for paid and abandoned invoices |
 | `status` | `open`, `overdue` (due date passed), `paid`, `abandoned` |
 | `overdue` | `true` exactly when `status` is `overdue` |
+| `fee` | A membership fee invoice: linked to a subscription period, whether it came from a fee run or from the member card |
 | `payment_url` | Dolibarr's online payment page for an open or overdue invoice other than a credit note, only with an online payment service; otherwise empty |
 
 Answers 400 for a limit or page out of range and 404 when there is no member

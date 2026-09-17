@@ -62,6 +62,9 @@ Vereinswebsite mit.
   anteiliger erster Beitrag, Aufnahmegebühr und Beitragsleistung mit
   Steuerprofil, direkt an Dolibarrs Mitgliedsart; der Reiter *Beiträge* zeigt,
   was ein Eintritt heute kostet.
+- **Beitragslauf** (0.3.5) unter *Mitglieder > Verein*: Vorschau der fälligen
+  Beiträge, dann Beitragsperiode und verknüpfte Rechnung je Mitglied, einmal je
+  Periode.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

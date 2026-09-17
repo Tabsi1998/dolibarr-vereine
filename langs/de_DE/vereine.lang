@@ -386,3 +386,47 @@ VereineFeeProductNoTaxProfile=Das Produkt hat kein Steuerprofil.
 VereineFeeNoProduct=Kein Produkt: Die Rechnungszeile hätte kein Steuerprofil.
 VereineFeeReasonProrated=anteilig, %s von %s Monaten
 VereineFeeReasonRestFull=voller Betrag für die restlichen %s Monate
+
+#
+# Beitragslauf
+#
+VereineMenuFeeRun=Beitragslauf
+VereineFeeRunTitle=Beitragslauf
+VereineFeeRunIntro=Erstellt für alle fälligen Beiträge die Beitragsperiode und eine freigegebene Rechnung, genauso wie „Beitrag erfassen – Rechnung erstellen“ auf der Mitgliedskarte. Zuerst die Vorschau prüfen, dann die gewünschten Zeilen erstellen. Ein zweiter Lauf erzeugt für dieselbe Periode nichts mehr.
+VereineFeeRunDueUntil=Beiträge fällig bis
+VereineFeeRunAllTypes=Alle Mitgliedsarten
+VereineFeeRunPreview=Vorschau
+VereineFeeRunNothingDue=Bis zu diesem Tag ist kein Beitrag fällig.
+VereineFeeRunPeriod=Zeitraum
+VereineFeeRunTotal=Summe
+VereineFeeRunNote=Hinweis
+VereineFeeRunCreate=Ausgewählte Beitragsrechnungen erstellen
+VereineFeeRunCreatePartners=Fehlende Geschäftspartner dabei anlegen
+VereineFeeRunNoRight=Zum Erstellen braucht man die Rechte, Beiträge zu erfassen und Rechnungen anzulegen und freizugeben.
+VereineFeeRunStatus_ready=bereit
+VereineFeeRunStatus_no_partner=kein Geschäftspartner: wird nur mit „Fehlende Geschäftspartner dabei anlegen“ erstellt
+VereineFeeRunStatus_no_amount=die Mitgliedsart hat keinen Betrag
+VereineFeeRunStatus_no_start=weder Beitragsperiode noch Freigabedatum, ab dem gerechnet werden kann
+VereineFeeRunBacklog=%s Perioden offen, ältere zuerst
+VereineFeeRunFirstFee=erster Beitrag
+VereineFeeRunCreated=%s Beitragsrechnungen erstellt, zusammen %s.
+VereineFeeRunNothingCreated=Es wurde keine Beitragsrechnung erstellt.
+VereineFeeRunSkipped=%s ausgewählte Beiträge übersprungen.
+VereineFeeRunFailed=%s Beiträge konnten nicht erstellt werden; es wurde für diese Mitglieder nichts angelegt.
+VereineFeeRunSkip_earlier_period=eine frühere Periode dieses Mitglieds wurde nicht erstellt
+VereineFeeRunSkip_no_partner=kein Geschäftspartner
+VereineFeeRunSkip_no_amount=kein Betrag
+VereineFeeRunSkip_no_start=kein Startdatum
+VereineFeeRunResult=Ergebnis
+VereineFeeRunRecent=Zuletzt erstellte Beitragsrechnungen
+VereineFeeRunRecentHelp=Alle Rechnungen, die mit einer Beitragsperiode verknüpft sind, auch die auf der Mitgliedskarte erstellten, mit ihrem heutigen Stand. Eine stornierte Beitragsrechnung erscheint hier als aufgegeben.
+VereineFeeRunLine=Mitgliedsbeitrag %s, %s bis %s
+VereineFeeRunAdmissionLine=Aufnahmegebühr %s
+VereineInvoiceStatus_draft=Entwurf
+VereineInvoiceStatus_open=offen
+VereineInvoiceStatus_overdue=überfällig
+VereineInvoiceStatus_paid=bezahlt
+VereineInvoiceStatus_abandoned=aufgegeben
+VereineLog_fee_invoice=Beitragsrechnung erstellt
+VereineLog_fee_run=Beitragslauf ausgeführt
+VereineLog_fee_error=Beitrag konnte nicht erstellt werden
