@@ -58,6 +58,10 @@ Vereinswebsite mit.
   in der API.
 - **Registrierkassen-Check** je Bereich und der fehlende **13-%-Satz** für
   Österreich auf Knopfdruck (0.2.8).
+- **Beitragsmodell je Mitgliedsart** (0.3.4): Beginn des Beitragsjahres,
+  anteiliger erster Beitrag, Aufnahmegebühr und Beitragsleistung mit
+  Steuerprofil, direkt an Dolibarrs Mitgliedsart; der Reiter *Beiträge* zeigt,
+  was ein Eintritt heute kostet.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

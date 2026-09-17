@@ -178,6 +178,54 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Membership fees
+	 *
+	 * The member types in use with their fee: amount, duration, the month the fee year starts,
+	 * proration when joining, admission fee and the public description - for "become a member"
+	 * on a website. Needs the right to read member summaries for a website.
+	 *
+	 * @return array List of member types as documented in docs/API.md
+	 *
+	 * @url GET membershipfees
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 500 The member types could not be read
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMembershipfees()
+	{
+		global $conf;
+
+		$this->checkAccess();
+		$this->checkWebsiteRight();
+		dol_include_once('/vereine/class/vereinefeemodel.class.php');
+		$feeModel = new VereineFeeModel($this->db);
+		$types = $feeModel->memberTypes(true);
+		if ($feeModel->error !== '') {
+			throw new RestException(500, 'The member types could not be read');
+		}
+		$result = array();
+		foreach ($types as $type) {
+			$model = $type['model'];
+			$result[] = array(
+				'id' => $type['id'],
+				'label' => $type['label'],
+				'description' => dol_string_nohtmltag($type['note'], 1),
+				'for' => $type['morphy'] === 'phy' ? 'natural' : ($type['morphy'] === 'mor' ? 'legal' : 'both'),
+				'subscription_required' => $type['subscription'],
+				'amount' => $type['subscription'] ? $model['amount'] : null,
+				'amount_editable' => $type['amount_editable'],
+				'duration' => array('value' => $model['duration_value'], 'unit' => $model['duration_unit']),
+				'year_starts_month' => $model['start_month'],
+				'prorated' => $model['prorated'],
+				'admission_fee' => $type['subscription'] ? $model['admission_fee'] : 0.0,
+				'currency' => (string) $conf->currency,
+			);
+		}
+		return $result;
+	}
+
+	/**
 	 * Members for a website sync
 	 *
 	 * Summaries of the members, by id. With changed_since only the members whose summary

@@ -7,6 +7,30 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.3.4-beta] - 2026-09-17
+
+Membership fees, part 1 (issue #60): the fee model of a member type.
+
+### Added
+
+- Dolibarr's member type card gets four fields: the month the fee year starts
+  (empty for "from joining", January for the calendar year, September for a
+  season), whether a first fee during the fee year is prorated by month, an
+  admission fee, and the fee product whose tax profile decides VAT and invoice
+  note (Dolibarr's subscription product when empty).
+- Setup tab *Fees*: every member type with its fee, a plain-language
+  explanation of each setting and what joining today would cost, for example
+  "17 September to 31 December: 20.00 € (prorated, 4 of 12 months), plus
+  admission fee 20.00 €". It warns about member types without amount and fee
+  products without tax profile.
+- `GET /vereine/membershipfees` for "become a member" on a website.
+- The calculation is plain PHP with unit tests; the fee run (#61) uses it.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that adds the fields to the member type card.
+
 ## [0.3.3-beta] - 2026-09-17
 
 Website API, part 4 of 4 (issues #52 and #16): notifications without personal
@@ -377,7 +401,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.3-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.4-beta...HEAD
+[0.3.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.4-beta
 [0.3.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.3-beta
 [0.3.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.2-beta
 [0.3.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.1-beta

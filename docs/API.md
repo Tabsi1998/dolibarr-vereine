@@ -201,6 +201,44 @@ Whoever has the key can read the summary of every member and find members by
 e-mail address. Treat it like a password: never in the browser, never in a
 repository.
 
+## GET /vereine/membershipfees
+
+The member types in use with their fee, for "become a member" on a website.
+Needs the website right.
+
+```json
+[
+  {
+    "id": 2,
+    "label": "Ordentliches Mitglied",
+    "description": "Für alle, die mitspielen.",
+    "for": "both",
+    "subscription_required": true,
+    "amount": 60,
+    "amount_editable": false,
+    "duration": { "value": 1, "unit": "y" },
+    "year_starts_month": 1,
+    "prorated": true,
+    "admission_fee": 20,
+    "currency": "EUR"
+  }
+]
+```
+
+| Field | Content |
+| --- | --- |
+| `description` | Public description of the member type, as plain text |
+| `for` | `natural` (persons), `legal` (companies and associations) or `both` |
+| `amount` | Fee per period; `null` when the type sets none or needs no subscription |
+| `amount_editable` | The member may pay a different amount |
+| `duration` | Length of a period: `unit` `y` years, `m` months, `w` weeks, `d` days |
+| `year_starts_month` | Month the fee year starts, `0` when every member pays from joining |
+| `prorated` | Joining during the fee year pays the remaining months only; the month of joining counts in full |
+| `admission_fee` | Once, with the first fee; `0` when there is none |
+
+Example: `amount` 60, a year from January, prorated, joining on 15 March - the
+first fee covers March to December, 10 of 12 months, 50 plus the admission fee.
+
 ## GET /vereine/members
 
 Summaries of all members, by id, for a website that keeps its own copy.

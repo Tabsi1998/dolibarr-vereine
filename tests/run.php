@@ -41,6 +41,7 @@ require_once $root.'/class/vereinethresholds.class.php';
 require_once $root.'/class/vereinecashregister.class.php';
 require_once $root.'/class/vereinemembersummary.class.php';
 require_once $root.'/class/vereinewebsiteevents.class.php';
+require_once $root.'/class/vereinefeerules.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -513,6 +514,46 @@ same(array(14), VereineWebsiteEvents::notYetAnnounced(array(13, 14, 0)), 'a memb
 $eventVars = array_keys(get_object_vars(new VereineMemberEvent()));
 sort($eventVars);
 same(array('cause', 'context', 'element', 'id', 'member_id', 'occurred_at'), $eventVars, 'a webhook receives the member id, the cause and the moment, nothing personal');
+
+// ---------------------------------------------------------------- fee rules
+
+$calendarYear = array('amount' => 60, 'duration_value' => 1, 'duration_unit' => 'y', 'start_month' => 1, 'prorated' => true, 'admission_fee' => 20);
+$fee = VereineFeeRules::nextFee($calendarYear, '2026-03-15', '');
+same(array('start' => '2026-03-15', 'end' => '2026-12-31', 'amount' => 50.0, 'admission_fee' => 20.0, 'total' => 70.0, 'reason' => 'prorated', 'months' => 10, 'period_months' => 12),
+	$fee, 'joining on 15 March in a calendar fee year pays March to December, 10 of 12 months, plus the admission fee');
+$fee = VereineFeeRules::nextFee($calendarYear, '2026-03-15', '2026-12-31');
+same(array('2027-01-01', '2027-12-31', 60.0, 0.0, 'full'), array($fee['start'], $fee['end'], $fee['amount'], $fee['admission_fee'], $fee['reason']),
+	'the year after is the full calendar year, without admission fee');
+$fee = VereineFeeRules::nextFee($calendarYear, '2026-01-01', '');
+same(array('2026-12-31', 60.0, 80.0, 'full', 0), array($fee['end'], $fee['amount'], $fee['total'], $fee['reason'], $fee['months']), 'joining on 1 January pays the full year');
+$fee = VereineFeeRules::nextFee($calendarYear, '2026-01-10', '2026-05-31');
+same(array('2026-06-01', '2026-12-31', 35.0, 0.0, 'prorated'), array($fee['start'], $fee['end'], $fee['amount'], $fee['admission_fee'], $fee['reason']),
+	'a period that ended in May from before the model is brought in line with the calendar year');
+
+$season = array('amount' => 60, 'duration_value' => 1, 'duration_unit' => 'y', 'start_month' => 9, 'prorated' => false, 'admission_fee' => 0);
+$fee = VereineFeeRules::nextFee($season, '2026-03-15', '');
+same(array('2026-03-15', '2026-08-31', 60.0, 'rest_full', 6), array($fee['start'], $fee['end'], $fee['amount'], $fee['reason'], $fee['months']),
+	'joining in March in a season from September pays the rest of the season in full when nothing is prorated');
+$fee = VereineFeeRules::nextFee($season, '2026-03-15', '2026-08-31');
+same(array('2026-09-01', '2027-08-31', 'full'), array($fee['start'], $fee['end'], $fee['reason']), 'the next season runs September to August');
+
+$halfYear = array('amount' => 60, 'duration_value' => 6, 'duration_unit' => 'm', 'start_month' => 1, 'prorated' => true);
+$fee = VereineFeeRules::nextFee($halfYear, '2026-08-10', '');
+same(array('2026-12-31', 50.0, 5, 6), array($fee['end'], $fee['amount'], $fee['months'], $fee['period_months']), 'half years from January: joining in August pays August to December, 5 of 6 months');
+
+$monthly = array('amount' => 5, 'duration_value' => 1, 'duration_unit' => 'm');
+$fee = VereineFeeRules::nextFee($monthly, '2026-04-10', '');
+same(array('2026-04-10', '2026-05-09', 5.0, 'full'), array($fee['start'], $fee['end'], $fee['amount'], $fee['reason']), 'a monthly fee from the day of joining');
+same('2026-03-02', VereineFeeRules::nextFee($monthly, '2026-01-31', '')['end'], 'a month from 31 January ends like PHP and Dolibarr count, on 2 March');
+same('2026-03-17', VereineFeeRules::nextFee(array('amount' => 5, 'duration_value' => 2, 'duration_unit' => 'w', 'start_month' => 3), '2026-03-04', '')['end'],
+	'weeks ignore a start month');
+
+$fee = VereineFeeRules::nextFee(array('amount' => '', 'duration_value' => 1, 'duration_unit' => 'y'), '2026-03-15', '');
+same(array(null, null), array($fee['amount'], $fee['total']), 'a member type without amount has no amount to charge');
+same(null, VereineFeeRules::nextFee($calendarYear, '', ''), 'no fee without a day to start from');
+same(array('amount' => null, 'duration_value' => 1, 'duration_unit' => 'y', 'start_month' => 0, 'prorated' => false, 'admission_fee' => 0.0),
+	VereineFeeRules::normalize(array('duration_unit' => 'x', 'start_month' => 13, 'duration_value' => 0, 'admission_fee' => -5)), 'unknown values fall back to safe defaults');
+same('2024-02-29', VereineFeeRules::addDays('2024-02-28', 1), 'leap day');
 
 // ------------------------------------------------------------------- openapi
 
