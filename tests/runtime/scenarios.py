@@ -986,7 +986,7 @@ def website(stack: Stack) -> str:
            == (members["paid"], refs["paid"], "Paula", "Bezahlt", "", "Beitragspflichtig", "active"), f"paid member: {paid}")
     expect(paid["member_since"] == dates["paid_since"] and paid["paid_until"] == dates["paid_until"] and paid["currency"] == "EUR",
            f"paid member since {paid['member_since']} until {paid['paid_until']}, expected {dates['paid_since']} to {dates['paid_until']}")
-    expect(paid["fee"] == {"required": True, "status": "paid", "next_due": day_after(dates["paid_until"]), "amount": 50, "discount": {"kind": "none", "label": ""}, "payment_url": ""},
+    expect(paid["fee"] == {"required": True, "status": "paid", "next_due": day_after(dates["paid_until"]), "amount": 50, "discount": {"kind": "none", "label": ""}, "payer": "self", "payment_url": ""},
            f"fee of the paid member: {paid['fee']}")
     expect(paid["open_invoices"] == [{"id": invoices["open"]["id"], "ref": invoices["open"]["ref"], "type": "standard",
                                       "date": dates["open_invoice"], "due_date": dates["open_invoice"], "total": 60, "remaining": 50,
@@ -999,11 +999,11 @@ def website(stack: Stack) -> str:
            f"expired member: {expired}")
     unpaid = answers["unpaid"]
     expect(unpaid["paid_until"] == "" and unpaid["member_since"] == dates["today"]
-           and unpaid["fee"] == {"required": True, "status": "due", "next_due": dates["today"], "amount": 50, "discount": {"kind": "none", "label": ""}, "payment_url": ""},
+           and unpaid["fee"] == {"required": True, "status": "due", "next_due": dates["today"], "amount": 50, "discount": {"kind": "none", "label": ""}, "payer": "self", "payment_url": ""},
            f"member who never paid: {unpaid}")
     free = answers["free"]
     expect(free["type"]["label"] == "Ordentliches Mitglied"
-           and free["fee"] == {"required": False, "status": "not_required", "next_due": "", "amount": None, "discount": {"kind": "none", "label": ""}, "payment_url": ""},
+           and free["fee"] == {"required": False, "status": "not_required", "next_due": "", "amount": None, "discount": {"kind": "none", "label": ""}, "payer": "self", "payment_url": ""},
            f"member type without fee: {free}")
     terminated = answers["terminated"]
     expect(terminated["status"] == "terminated" and terminated["fee"]["status"] == "inactive" and terminated["fee"]["next_due"] == "",
@@ -1179,6 +1179,7 @@ def websitesync(stack: Stack) -> str:
     flip = stack.php_fixture("websiteflip", RT_MEMBER_ID=str(nina))
     stack.sql(f"UPDATE llx_adherent SET tms = '{flip['backdate']}' WHERE rowid = {int(nina)}")
     stack.sql(f"UPDATE llx_subscription SET tms = '{flip['backdate']}' WHERE fk_adherent = {int(nina)}")
+    stack.sql(f"UPDATE llx_adherent_extrafields SET tms = '{flip['backdate']}' WHERE fk_object = {int(nina)}")
     stack.sql(f"UPDATE llx_adherent_type SET tms = '{flip['backdate']}' WHERE rowid = {int(stack.value(f'SELECT fk_adherent_type FROM llx_adherent WHERE rowid = {int(nina)}'))}")
     status, summary = stack.api(f"vereine/members/{nina}/summary", key)
     expect(status == 200 and summary["updated_at"] == flip["moment"] and summary["paid_until"] == flip["paid_until"]
@@ -1492,6 +1493,125 @@ def discounts(stack: Stack) -> str:
             "discount named on the invoice line and in the website summary")
 
 
+def families(stack: Stack) -> str:
+    """Members with one payer share an invoice to the payer, with a discount per further member or a cap per fee year."""
+    site = stack.notes["website"]
+    key, today = site["key"], site["dates"]["today"]
+    year = today.split("-")[0]
+    field = stack.value("SELECT COUNT(*) FROM llx_extrafields WHERE elementtype = 'adherent' AND name = 'vereine_fee_payer' AND type = 'link'")
+    expect(field == "1", f"{field} payer fields of type link on members, expected 1")
+
+    browser = stack.browser()
+    setup = page_ok(browser.get("/custom/vereine/admin/fees.php"), "fee setup with families")
+    expect('data-families-howto="1"' in setup.text and 'name="vereinefamily"' in setup.text, "the fee setup offers no family rule")
+    refused = page_ok(browser.submit(setup.form(name="vereinefamily"), {"family_mode": "percent", "family_value": "100"}), "a family discount of 100 %")
+    expect(stack.const("VEREINE_FEE_FAMILY_MODE") is None and "Prozent zwischen 0 und 100 eintragen." in html.unescape(refused.text),
+           "a family discount of 100 % was stored or not explained")
+    page = page_ok(browser.get("/custom/vereine/admin/fees.php"), "fee setup")
+    page_ok(browser.submit(page.form(name="vereinefamily"), {"family_mode": "percent", "family_value": "20"}), "store a family discount of 20 %")
+    stored = (stack.const("VEREINE_FEE_FAMILY_MODE"), stack.const("VEREINE_FEE_FAMILY_VALUE"))
+    expect(stored == ("percent", "20"), f"stored family rule: {stored}")
+
+    family = stack.php_fixture("familymembers")
+    members, payer, type_id = family["members"], int(family["payer"]), int(family["type"])
+    listed = page_ok(browser.get("/custom/vereine/admin/fees.php"), "fee setup with a family")
+    count = re.search(rf'data-family="{payer}" data-members="(\d+)"', listed.text)
+    expect(count is not None and count.group(1) == "3", f"Petra's family is not listed with 3 members: {count.group(1) if count else None}")
+    card = page_ok(browser.get(f"/adherents/card.php?rowid={members['paul']}"), "Paul's member card")
+    expect("Beiträge zahlt" in html.unescape(card.text) and re.search(rf"socid={payer}(&|\")", card.text) is not None,
+           "Dolibarr's member card does not show who pays Paul's fees")
+
+    def key_of(person: str) -> str:
+        return f"{members[person]}:{today}"
+
+    def preview_rows() -> tuple[Page, dict]:
+        page = page_ok(browser.get(f"/custom/vereine/fees_run.php?dueuntil={today}&typeid={type_id}"), "fee run for the family type")
+        rows = {}
+        for match in re.finditer(r'<tr class="oddeven" data-fee-row="([^"]+)" data-status="([a-z_]+)" data-total="([^"]*)">(.*?)</tr>', page.text, re.S):
+            rows[match.group(1)] = (match.group(2), match.group(3), html.unescape(match.group(4)))
+        return page, rows
+
+    def run(page: Page, keys: list[str]) -> dict:
+        fields = [("token", token_of(page)), ("action", "run"), ("dueuntil", today), ("typeid", str(type_id))] + [("fees[]", row) for row in keys]
+        result = page_ok(browser.post("/custom/vereine/fees_run.php", fields), "run the family fees")
+        return dict((row, outcome) for outcome, row in re.findall(r'data-fee-outcome="([a-z]+)" data-fee-key="([^"]+)"', result.text))
+
+    def fee_invoice(member: int) -> list[str] | None:
+        rows = stack.sql(f"SELECT f.rowid, f.fk_soc, f.total_ttc, f.fk_statut FROM llx_subscription as s INNER JOIN llx_element_element as ee "
+                         f"ON ee.fk_source = s.rowid AND ee.sourcetype = 'subscription' AND ee.targettype = 'facture' "
+                         f"INNER JOIN llx_facture as f ON f.rowid = ee.fk_target WHERE s.fk_adherent = {int(member)}")
+        return rows[0] if len(rows) == 1 else None
+
+    # Petra pays in full; Pia 20 % less; Paul first his youth discount of 50 %, then 20 % less.
+    preview, rows = preview_rows()
+    expected = {"petra": 60.0, "pia": 48.0, "paul": 24.0}
+    for person, total in expected.items():
+        row = rows.get(key_of(person))
+        expect(row is not None and row[0] == "ready" and abs(float(row[1] or -1) - total) < 0.005,
+               f"fee of {person} in the family preview: {row[:2] if row else None}, expected ready {total}")
+    expect("data-family-kind" not in rows[key_of("petra")][2] and "data-payer" not in rows[key_of("petra")][2],
+           "Petra, who pays the highest fee for herself, is shown with a family discount or a payer")
+    for person in ("pia", "paul"):
+        expect('data-family-kind="percent"' in rows[key_of(person)][2] and f'data-payer="{payer}"' in rows[key_of(person)][2]
+               and "Rechnung an" in rows[key_of(person)][2], f"{person}'s row does not name the family discount and the payer")
+    expect('data-discount-kind="age"' in rows[key_of("paul")][2], "Paul's youth discount is not named")
+    nora = rows.get(key_of("nora"))
+    expect(nora is not None and nora[0] == "no_payer" and f'value="{key_of("nora")}"' not in preview.text,
+           f"Nora with a deleted payer: {nora[:2] if nora else None}, expected no_payer without checkbox")
+
+    outcomes = run(preview, [key_of(person) for person in expected] + [key_of("nora")])
+    expect(outcomes == {key_of("petra"): "created", key_of("pia"): "created", key_of("paul"): "created", key_of("nora"): "skipped"},
+           f"outcome of the family run: {outcomes}")
+    invoices = {person: fee_invoice(members[person]) for person in expected}
+    expect(all(invoices.values()) and len({row[0] for row in invoices.values()}) == 1, f"the family's periods are not linked to one invoice: {invoices}")
+    invoice = invoices["petra"]
+    expect(invoice[1] == str(payer) and float(invoice[2]) == 132 and invoice[3] == "1",
+           f"family invoice: third party {invoice[1]}, total {invoice[2]}, status {invoice[3]}; expected {payer}, 132, validated")
+    lines = stack.sql(f"SELECT description, total_ttc FROM llx_facturedet WHERE fk_facture = {int(invoice[0])} ORDER BY rang")
+    paul_line = next((line[0] for line in lines if line[0].startswith("Paul Familie:")), "")
+    expect(sorted(float(line[1]) for line in lines) == [24.0, 48.0, 60.0] and "Ermäßigung: Jugend" in paul_line and "Familienermäßigung 20 %" in paul_line,
+           f"lines of the family invoice: {lines}")
+
+    status, paul = stack.api(f"vereine/members/{members['paul']}/summary", key)
+    expect(status == 200 and paul["fee"]["payer"] == "other" and paul["fee"]["status"] == "invoiced" and paul["fee"]["payment_url"] == ""
+           and paul["open_invoices"] == [], f"Paul through the website API: {paul.get('fee')}, open invoices {paul.get('open_invoices')}")
+    status, petra = stack.api(f"vereine/members/{members['petra']}/summary", key)
+    expect(status == 200 and petra["fee"]["payer"] == "self"
+           and [(entry["id"], entry["total"], entry["fee"]) for entry in petra["open_invoices"]] == [(int(invoice[0]), 132, True)],
+           f"Petra through the website API: {petra.get('fee')}, open invoices {petra.get('open_invoices')}")
+    status, listed_invoices = stack.api(f"vereine/members/{members['paul']}/invoices", key)
+    expect(status == 200 and listed_invoices == [], f"the payer's invoice is listed for Paul: {listed_invoices}")
+
+    status, info = stack.api("vereine/status", key)
+    expect(status == 200, f"GET vereine/status answered HTTP {status}")
+    stack.php_fixture("payinvoice", RT_INVOICE_ID=invoice[0])
+    status, changed = stack.api("vereine/members?changed_since=" + urllib.parse.quote(info["server_time"]), key)
+    changed_ids = {entry["id"] for entry in changed} if status == 200 else set()
+    expect({members["petra"], members["pia"], members["paul"]} <= changed_ids,
+           f"after paying the family invoice the sync lists {sorted(changed_ids)}, expected Petra, Pia and Paul among them")
+    status, paul = stack.api(f"vereine/members/{members['paul']}/summary", key)
+    expect(status == 200 and paul["fee"]["status"] == "paid" and paul["paid_until"] == f"{year}-12-31",
+           f"Paul after the payer paid: {paul.get('fee')}, paid until {paul.get('paid_until')}")
+
+    # Cap of 150 per fee year: 132 are charged already, so Finn, joining today, pays the 18 left.
+    page = page_ok(browser.get("/custom/vereine/admin/fees.php"), "fee setup")
+    page_ok(browser.submit(page.form(name="vereinefamily"), {"family_mode": "cap", "family_value": "150"}), "store a family cap of 150")
+    members["finn"] = int(stack.php_fixture("familychild", RT_PAYER=str(payer))["member"])
+    preview, rows = preview_rows()
+    finn = rows.get(key_of("finn"))
+    expect(finn is not None and finn[0] == "ready" and abs(float(finn[1] or -1) - 18) < 0.005 and 'data-family-kind="cap"' in finn[2],
+           f"Finn under the family cap: {finn[:2] if finn else None}, expected ready 18 with the cap named")
+    outcomes = run(preview, [key_of("finn")])
+    finn_invoice = fee_invoice(members["finn"])
+    expect(outcomes == {key_of("finn"): "created"} and finn_invoice is not None and finn_invoice[1] == str(payer) and float(finn_invoice[2]) == 18,
+           f"Finn's fee under the cap: {outcomes}, invoice {finn_invoice}")
+    finn_line = stack.value(f"SELECT description FROM llx_facturedet WHERE fk_facture = {int(finn_invoice[0])} ORDER BY rang LIMIT 1") or ""
+    expect(finn_line.startswith("Finn Familie:") and "Familienhöchstbetrag" in finn_line, f"Finn's invoice line: {finn_line!r}")
+    return ("family rule 100 % refused, 20 % stored; family of 3 listed and payer on Dolibarr's member card; one invoice of 132 to the payer "
+            "(60 in full, 48, and 24 after youth discount) linked to 3 periods, deleted payer reported and skipped; website API: payer other, "
+            "no payment link, invoice only for the payer, payment lists all three and marks them paid; cap 150: a child joining later pays 18")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -1568,7 +1688,8 @@ SCENARIOS = (
     ("fees", "Fee model on the member type, the fee setup page and the membership fees API", fees, ("websiteevents",)),
     ("feerun", "Fee run: preview, subscription period and linked invoice once, nothing on a second run", feerun, ("fees",)),
     ("discounts", "Discounts by age, with proof and exemptions in the fee run and the website summary", discounts, ("feerun",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("discounts",)),
+    ("families", "Families with one payer: shared invoice, discount per further member and cap per fee year", families, ("discounts",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("families",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

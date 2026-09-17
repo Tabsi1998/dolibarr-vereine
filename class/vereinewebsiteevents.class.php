@@ -57,9 +57,9 @@ class VereineWebsiteEvents
 	const MEMBER_EVENTS = array('MEMBER_CREATE', 'MEMBER_VALIDATE', 'MEMBER_MODIFY', 'MEMBER_RESILIATE', 'MEMBER_EXCLUDE', 'MEMBER_DELETE');
 	/** Events whose object is a subscription period of the member. */
 	const SUBSCRIPTION_EVENTS = array('MEMBER_SUBSCRIPTION_CREATE', 'MEMBER_SUBSCRIPTION_MODIFY', 'MEMBER_SUBSCRIPTION_DELETE');
-	/** Events whose object is a customer invoice of the member's third party. */
+	/** Events whose object is a customer invoice of the member's third party or linked to its subscription periods. */
 	const INVOICE_EVENTS = array('BILL_VALIDATE', 'BILL_UNVALIDATE', 'BILL_MODIFY', 'BILL_PAYED', 'BILL_UNPAYED', 'BILL_CANCEL', 'BILL_DELETE');
-	/** Events whose object is a customer payment on invoices of the member's third party. */
+	/** Events whose object is a customer payment on such invoices. */
 	const PAYMENT_EVENTS = array('PAYMENT_CUSTOMER_CREATE', 'PAYMENT_CUSTOMER_DELETE');
 
 	/**
@@ -203,17 +203,23 @@ class VereineWebsiteEvents
 	}
 
 	/**
-	 * Members whose third party has the invoices matching a condition.
+	 * Members whose third party has the invoices matching a condition, and members whose
+	 * subscription periods these invoices are linked to, such as the children on a payer's invoice.
 	 *
 	 * @param string $condition SQL condition on the invoice table f
 	 * @return int[]
 	 */
 	private function membersOf($condition)
 	{
-		$sql = "SELECT DISTINCT d.rowid FROM ".MAIN_DB_PREFIX."facture as f";
+		$sql = "SELECT d.rowid as member_id FROM ".MAIN_DB_PREFIX."facture as f";
 		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."adherent as d ON d.fk_soc = f.fk_soc";
 		$sql .= " WHERE ".$condition." AND d.entity IN (".getEntity('adherent').")";
-		$sql .= " ORDER BY d.rowid";
+		$sql .= " UNION SELECT d.rowid as member_id FROM ".MAIN_DB_PREFIX."facture as f";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."element_element as ee ON ee.fk_target = f.rowid AND ee.sourcetype = 'subscription' AND ee.targettype = 'facture'";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."subscription as s ON s.rowid = ee.fk_source";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."adherent as d ON d.rowid = s.fk_adherent";
+		$sql .= " WHERE ".$condition." AND d.entity IN (".getEntity('adherent').")";
+		$sql .= " ORDER BY member_id";
 		$resql = $this->db->query($sql);
 		if (!$resql) {
 			dol_syslog(__METHOD__.' '.$this->db->lasterror(), LOG_ERR);
@@ -221,7 +227,7 @@ class VereineWebsiteEvents
 		}
 		$ids = array();
 		while ($obj = $this->db->fetch_object($resql)) {
-			$ids[] = (int) $obj->rowid;
+			$ids[] = (int) $obj->member_id;
 		}
 		$this->db->free($resql);
 		return $ids;

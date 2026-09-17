@@ -290,6 +290,13 @@ CONTRACTS = (
     ("htdocs/adherents/card.php", "$extrafields->fetch_name_optionals_label($object->table_element);", "the member card shows exemption and proof"),
     ("htdocs/core/lib/functions.lib.php", "function load_fiche_titre($title, $morehtmlright = '', $picto = 'generic', $pictoisfullpath = 0, $id = ''", "anchor of the discounts on the fee setup"),
     ("htdocs/adherents/class/adherent.class.php", "public function subscription($date, $amount, $accountid = 0, $operation = '', $label = ''", "a period of 0 for an exempt member"),
+    # Families with one payer (issue #62)
+    ("htdocs/compta/facture/class/facture.class.php", "if (is_array($tmp_origin_id)) {", "one family invoice is linked to the subscription periods of several members"),
+    ("htdocs/core/class/extrafields.class.php", "} elseif ($type == 'link') {", "the payer is an extra field that links a third party"),
+    ("htdocs/core/class/extrafields.class.php", "$param_list = array_keys($param['options']); // $param_list='ObjectName:classPath'", "the link names Societe and its class path"),
+    ("htdocs/install/mysql/tables/llx_adherent_extrafields.sql", "tms              timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP", "a changed payer, exemption or proof counts for the website sync"),
+    ("htdocs/install/mysql/tables/llx_subscription.sql", "subscription", "what a family was already charged in a fee year"),
+    ("htdocs/core/lib/functions.lib.php", "function getEntity($element, $shared = 1, $currentobject = null)", "third parties of the payer are read per entity"),
 )
 
 LANG_KEYS = {

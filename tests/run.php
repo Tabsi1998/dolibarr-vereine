@@ -43,6 +43,7 @@ require_once $root.'/class/vereinemembersummary.class.php';
 require_once $root.'/class/vereinewebsiteevents.class.php';
 require_once $root.'/class/vereinefeerules.class.php';
 require_once $root.'/class/vereinefeediscounts.class.php';
+require_once $root.'/class/vereinefeefamilies.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -641,6 +642,44 @@ same(array('VereineDiscountErrorPercent'), VereineFeeDiscounts::validate(array('
 same(array('VereineDiscountErrorLabel', 'VereineDiscountErrorKind', 'VereineDiscountErrorMode'), VereineFeeDiscounts::validate(array('label' => ' ', 'kind' => 'x', 'mode' => 'y')), 'label, kind and mode are required');
 same(false, VereineFeeDiscounts::optionalAge('-1'), 'a negative age is invalid');
 
+// ---------------------------------------------------------------- families
+
+same(array('mode' => 'percent', 'value' => 20.0), VereineFeeFamilies::normalize('percent', '20'), 'a family discount of 20 %');
+same(array('mode' => 'cap', 'value' => 120.0), VereineFeeFamilies::normalize('cap', '120'), 'a family cap of 120');
+same(array('mode' => 'none', 'value' => 0.0), VereineFeeFamilies::normalize('percent', '100'), '100 % is no family discount that can be used');
+same(array('mode' => 'none', 'value' => 0.0), VereineFeeFamilies::normalize('', ''), 'without setting there is no family rule');
+same(array(), VereineFeeFamilies::validate('none', ''), 'no family discount needs no value');
+same(array('VereineFamilyErrorPercent'), VereineFeeFamilies::validate('percent', '0'), 'a family discount of 0 % is refused');
+same(array('VereineFamilyErrorCap'), VereineFeeFamilies::validate('cap', '0'), 'a family cap of 0 is refused');
+same(array('VereineFamilyErrorMode'), VereineFeeFamilies::validate('other', '5'), 'an unknown family rule is refused');
+
+same(12, VereineFeeFamilies::payerOf(12, 0), 'without payer the member\'s own third party gets the invoice');
+same(30, VereineFeeFamilies::payerOf(12, 30), 'a payer gets the invoice instead of the member\'s own third party');
+same(30, VereineFeeFamilies::payerOf(0, 30), 'a payer gets the invoice of a member without third party');
+same(0, VereineFeeFamilies::payerOf(0, -1), 'without payer and third party nobody can be invoiced');
+same(array(false, true, false), array(VereineFeeFamilies::paidByOther(12, 0), VereineFeeFamilies::paidByOther(0, 30), VereineFeeFamilies::paidByOther(30, 30)),
+	'only a payer other than the own third party pays for someone else');
+
+same(60.0, VereineFeeFamilies::yearlyAmount(60.0, 12), 'a yearly fee per year');
+same(60.0, VereineFeeFamilies::yearlyAmount(5.0, 1), 'a monthly fee of 5 is 60 per year');
+same(null, VereineFeeFamilies::yearlyAmount(null, 12), 'no amount stays no amount');
+same(8, VereineFeeFamilies::head(array(3 => 30.0, 5 => 60.0, 8 => 90.0)), 'the highest fee pays in full');
+same(5, VereineFeeFamilies::head(array(3 => 30.0, 5 => 60.0, 7 => 60.0)), 'with equal fees the first member pays in full');
+same(null, VereineFeeFamilies::head(array(3 => 0.0)), 'nobody pays in full without a fee');
+same(48.0, VereineFeeFamilies::percentOff(60.0, 20.0), 'a further member pays 20 % less');
+
+same(array('a' => 60.0, 'b' => 60.0, 'c' => 30.0), VereineFeeFamilies::share(array('a' => 60.0, 'b' => 60.0, 'c' => 30.0), 150), 'a family at the cap pays as it is');
+same(array('a' => 48.0, 'b' => 48.0, 'c' => 24.0), VereineFeeFamilies::share(array('a' => 60.0, 'b' => 60.0, 'c' => 30.0), 120), 'above the cap every fee is lowered in proportion');
+$capped = VereineFeeFamilies::share(array('a' => 10.0, 'b' => 10.0, 'c' => 10.0), 20);
+same(array('a' => 6.66, 'b' => 6.66, 'c' => 6.68), $capped, 'fees are rounded down to the cent, the last takes the rest');
+same(20.0, round(array_sum($capped), 2), 'so the family pays exactly the cap');
+same(array('a' => 0.0, 'b' => 0.0), VereineFeeFamilies::share(array('a' => 60.0, 'b' => 30.0), -12), 'a family already above the cap pays nothing more');
+same(array('a' => 18.0, 'b' => 0.0), VereineFeeFamilies::share(array('a' => 60.0, 'b' => 0.0), 18), 'the rest goes to the last fee above 0');
+
+same('2026-01-01', VereineFeeFamilies::feeYear('2026-09-17', 0), 'without start month the fee year is the calendar year');
+same('2026-09-01', VereineFeeFamilies::feeYear('2026-09-17', 9), 'a season starting in September');
+same('2025-09-01', VereineFeeFamilies::feeYear('2026-08-31', 9), 'the last day of the season belongs to the year before');
+
 // ------------------------------------------------------------------- openapi
 
 // Every endpoint of the API class is in docs/openapi.json, and the description lists no other.
@@ -735,8 +774,9 @@ $prefixes = array(
 	'VereineCashStatus_' => array('not_relevant', 'exempt', 'exempt_festival', 'ok', 'near', 'required'),
 	'VereineCashText_' => array('not_relevant', 'exempt', 'exempt_festival', 'ok', 'near', 'required'),
 	'VereineTreatmentHelp_' => array_keys(VereineTaxRules::treatments()),
-	'VereineFeeRunStatus_' => array('ready', 'no_partner', 'no_amount', 'no_start'),
-	'VereineFeeRunSkip_' => array('earlier_period', 'no_partner', 'no_amount', 'no_start'),
+	'VereineFeeRunStatus_' => array('ready', 'no_partner', 'no_payer', 'no_amount', 'no_start'),
+	'VereineFeeRunSkip_' => array('earlier_period', 'no_partner', 'no_payer', 'no_amount', 'no_start'),
+	'VereineFamilyMode_' => array('none', 'percent', 'cap'),
 	'VereineInvoiceStatus_' => array('draft', 'open', 'overdue', 'paid', 'abandoned'),
 	'VereineFeeReasonProrated_' => array('month', 'quarter', 'half_year'),
 	'VereineFeeReasonFirstPartFull_' => array('month', 'quarter', 'half_year'),

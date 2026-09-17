@@ -64,6 +64,7 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once __DIR__.'/../lib/vereine.lib.php';
 require_once __DIR__.'/../class/vereinefeemodel.class.php';
 require_once __DIR__.'/../class/vereinefeediscountstore.class.php';
+require_once __DIR__.'/../class/vereinefeefamilystore.class.php';
 
 $langs->loadLangs(array('admin', 'members', 'vereine@vereine'));
 
@@ -77,6 +78,13 @@ if (empty($user->admin)) {
 $action = GETPOST('action', 'aZ09');
 $id = GETPOSTINT('id');
 $discountStore = new VereineFeeDiscountStore($db);
+$familyStore = new VereineFeeFamilyStore($db);
+$familyModes = array(
+	VereineFeeFamilies::MODE_NONE => $langs->trans('VereineFamilyMode_none'),
+	VereineFeeFamilies::MODE_PERCENT => $langs->trans('VereineFamilyMode_percent'),
+	VereineFeeFamilies::MODE_CAP => $langs->trans('VereineFamilyMode_cap'),
+);
+$familyEdit = $familyStore->setting();
 $modes = array(
 	VereineFeeDiscounts::MODE_PERCENT => $langs->trans('VereineDiscountMode_percent'),
 	VereineFeeDiscounts::MODE_AMOUNT => $langs->trans('VereineDiscountMode_amount'),
@@ -132,6 +140,21 @@ if ($action === 'savediscount') {
 	if ($current) {
 		$edit = $current;
 	}
+} elseif ($action === 'savefamily') {
+	$familyMode = GETPOST('family_mode', 'aZ09');
+	$familyValue = price2num(GETPOST('family_value', 'alpha'));
+	$result = $familyStore->save($familyMode, $familyValue);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineFamilySaved'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereinefamilies');
+		exit;
+	}
+	if ($result < 0) {
+		setEventMessages($familyStore->error, null, 'errors');
+	} else {
+		setEventMessages(null, array_map(array($langs, 'trans'), $familyStore->errors), 'errors');
+	}
+	$familyEdit = array('mode' => $familyMode, 'value' => $familyValue);
 }
 
 $feeModel = new VereineFeeModel($db);
@@ -286,7 +309,48 @@ print '<div class="center"><input type="submit" class="button button-save" value
 if ($edit['id'] > 0) {
 	print ' <a class="button button-cancel" href="'.$_SERVER['PHP_SELF'].'#vereinediscounts">'.$langs->trans('Cancel').'</a>';
 }
-print '</div></form>';
+print '</div></form><br>';
+
+// Families: members with the same payer, one invoice to the payer, and the family rule.
+print load_fiche_titre($langs->trans('VereineFamilyTitle'), '', '', 0, 'vereinefamilies');
+print '<div class="info" data-families-howto="1"><ul>';
+foreach (array('VereineFamilyHowToPayer', 'VereineFamilyHowToInvoice', 'VereineFamilyHowToPercent', 'VereineFamilyHowToCap', 'VereineFamilyHowToOrder') as $line) {
+	print '<li>'.$langs->trans($line).'</li>';
+}
+print '</ul></div>';
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereinefamily" id="vereinefamily">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="savefamily">';
+print '<table class="border centpercent">';
+print '<tr><td class="titlefieldcreate"><label for="family_mode">'.$langs->trans('VereineFamilyMode').'</label></td>';
+print '<td>'.Form::selectarray('family_mode', $familyModes, $familyEdit['mode'], 0, 0, 0, '', 0, 0, 0, '', 'minwidth300');
+print ' <input type="text" id="family_value" name="family_value" class="width75" value="'.dol_escape_htmltag($familyEdit['mode'] === VereineFeeFamilies::MODE_NONE ? '' : price2num($familyEdit['value'])).'">';
+print ' <span class="opacitymedium small">'.$langs->trans('VereineFamilyValueHelp').'</span></td></tr>';
+print '</table>';
+print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'"></div>';
+print '</form><br>';
+
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-families="1">';
+print '<tr class="liste_titre"><td>'.$langs->trans('VereineFamilyPayer').'</td><td>'.$langs->trans('VereineFamilyMembers').'</td></tr>';
+$families = $familyStore->families();
+if (!$families) {
+	print '<tr class="oddeven"><td colspan="2"><span class="opacitymedium">'.$langs->trans('VereineFamilyNone').'</span></td></tr>';
+}
+foreach ($families as $family) {
+	print '<tr class="oddeven" data-family="'.((int) $family['socid']).'" data-members="'.count($family['members']).'"><td>';
+	if ($family['exists']) {
+		print '<a href="'.DOL_URL_ROOT.'/societe/card.php?socid='.((int) $family['socid']).'">'.dol_escape_htmltag($family['name']).'</a>';
+	} else {
+		print '<span class="warning">'.$langs->trans('VereineFamilyPayerMissing').'</span>';
+	}
+	print '</td><td>';
+	$links = array();
+	foreach ($family['members'] as $member) {
+		$links[] = '<a href="'.DOL_URL_ROOT.'/adherents/card.php?rowid='.((int) $member['id']).'">'.dol_escape_htmltag($member['name']).'</a>';
+	}
+	print implode(', ', $links).'</td></tr>';
+}
+print '</table></div>';
 
 print dol_get_fiche_end();
 

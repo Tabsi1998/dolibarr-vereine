@@ -38,7 +38,9 @@ legal source, not in code, so a changed threshold is a data update.
 | `class/vereinefeerules.class.php` | Next fee period and amount of a member: fee year, proration, admission fee, plain PHP |
 | `class/vereinefeediscounts.class.php` | Which discount a member gets on a fee, plain PHP |
 | `class/vereinefeediscountstore.class.php` | Discount rules in `llx_vereine_fee_discount` and the member fields for exemption and proof |
-| `class/vereinefeerun.class.php`, `fees_run.php` | Fee run: preview of the fees due, subscription period and linked invoice per fee, recent fee invoices |
+| `class/vereinefeefamilies.class.php` | Payer, family rule (discount per further member, cap per fee year) and sharing a cap, plain PHP |
+| `class/vereinefeefamilystore.class.php` | Member field `vereine_fee_payer`, the family rule constants, families and what they were charged |
+| `class/vereinefeerun.class.php`, `fees_run.php` | Fee run: preview of the fees due, subscription periods and linked invoices, one per payer and start day, recent fee invoices |
 | `class/vereinefeemodel.class.php`, `admin/fees.php` | Fee model as extra fields of Dolibarr's member type (`vereine_fee_start_month`, `vereine_fee_proration`, `vereine_admission_fee`, `vereine_fee_product`; the checkbox `vereine_fee_prorated` of 0.3.4 and 0.3.5 becomes `month` on activation) and its setup tab |
 | `class/vereinetaxassign.class.php` | Extra field `vereine_taxprofile` on products and invoice lines, product VAT, line profiles, deviations |
 | `class/vereinethresholds.class.php` | Dated threshold table and traffic light, plain PHP |
@@ -76,7 +78,8 @@ the module updates or deletes a row.
 - Dolibarr links one member to one third party (`llx_adherent.fk_soc`;
   `Adherent::setThirdPartyId` unlinks any other member). A family paying for
   several members therefore cannot share one third party through this link;
-  fee runs (issue #4) handle the payer separately.
+  the member field `vereine_fee_payer` names the payer instead (see Membership
+  fees).
 - Third parties are created with Dolibarr's `Societe::create_from_member` and
   linked with `Adherent::setThirdPartyId`; single fields change through
   `CommonObject::setValueFrom`, categories through `Categorie::add_type`.
@@ -128,6 +131,23 @@ the module updates or deletes a row.
   The discount lowers the member type's amount before proration; an exemption
   also drops the admission fee. A fee of 0 records the period without invoice,
   which the member summary counts as paid.
+- Families: the member field `vereine_fee_payer` (an extra field of type link to
+  a third party) names who gets the member's fee invoices; without it the
+  member's own third party does. Active members with the same payer are a
+  family. The family rule (`VEREINE_FEE_FAMILY_MODE`, `VEREINE_FEE_FAMILY_VALUE`)
+  comes after the member's own discount and counts only members that pay a fee:
+  - `percent`: the member with the highest yearly fee after its own discount on
+    the period's first day pays in full (equal fees: the lowest member id), every
+    other one the percentage less, before proration;
+  - `cap`: the fees of a family whose periods start in the same fee year (from
+    the start month of the member type) share what is left of the cap after the
+    subscription periods already recorded in that year, except those with an
+    abandoned fee invoice.
+- Fees for the same payer starting on the same day are one transaction: every
+  subscription period, then one invoice with `linked_objects['subscription']`
+  holding all of them (Dolibarr 22 to 24 accept a list there) and one line per
+  member, named when the invoice is for several members or a payer. Periods run
+  oldest first, so a failed invoice stops the later periods of its members.
 
 ### Recognising fee invoices
 

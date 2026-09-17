@@ -68,6 +68,9 @@ Vereinswebsite mit.
   Periode.
 - **Ermäßigungen** (0.3.7): nach Alter, mit Nachweis (zum Beispiel Studierende)
   und Befreiungen (zum Beispiel Ehrenmitglieder), angewandt im Beitragslauf.
+- **Familien** (0.3.8): Mitglieder mit demselben Zahler, etwa einem Elternteil,
+  bekommen eine gemeinsame Rechnung an den Zahler, mit Rabatt je weiterem
+  Mitglied oder Höchstbetrag je Beitragsjahr.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

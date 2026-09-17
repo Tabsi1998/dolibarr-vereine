@@ -726,6 +726,81 @@ if ($stage === 'discountmembers') {
 	exit(0);
 }
 
+// A member type of 60 per calendar year, not prorated, and a family: Petra pays for Paul (10, youth discount) and Pia (20).
+// Nora names a payer that was deleted; Dolibarr refuses to store a link to a missing third party, so it is written directly.
+if ($stage === 'familymembers') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent_type.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+	$type = new AdherentType($db);
+	$type->label = 'Familienbeitrag';
+	$type->morphy = '';
+	$type->status = 1;
+	$type->subscription = 1;
+	$type->amount = 60;
+	$type->duration_value = 1;
+	$type->duration_unit = 'y';
+	$type->array_options = array('options_vereine_fee_start_month' => 1, 'options_vereine_fee_proration' => 'none', 'options_vereine_admission_fee' => 0,
+		'options_vereine_fee_product' => (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."product WHERE ref = 'RT-BEITRAG'"));
+	if ($type->create($admin) <= 0) {
+		rt_fail('member type Familienbeitrag: '.$type->error.' '.implode(' | ', (array) $type->errors));
+	}
+	$today = dol_mktime(12, 0, 0, (int) dol_print_date(dol_now(), '%m'), (int) dol_print_date(dol_now(), '%d'), (int) dol_print_date(dol_now(), '%Y'));
+	$create = function ($firstname, $birth, $options) use ($db, $admin, $type) {
+		$member = new Adherent($db);
+		$member->typeid = (int) $type->id;
+		$member->morphy = 'phy';
+		$member->firstname = $firstname;
+		$member->lastname = 'Familie';
+		$member->birth = $birth;
+		$member->email = strtolower($firstname).'.familie@runtime-verein.test';
+		$member->country_id = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+		$member->public = 0;
+		$member->array_options = $options;
+		if ($member->create($admin) <= 0 || $member->validate($admin) <= 0) {
+			rt_fail('member '.$firstname.': '.$member->error.' '.implode(' | ', (array) $member->errors));
+		}
+		$member->fetch($member->id);
+		return $member;
+	};
+	$petra = $create('Petra', dol_mktime(12, 0, 0, 4, 4, 1985), array());
+	$partner = new Societe($db);
+	if ((int) $petra->fk_soc <= 0 && $partner->create_from_member($petra) <= 0) {
+		rt_fail('third party of Petra: '.$partner->error);
+	}
+	$payer = (int) rt_value($db, "SELECT fk_soc FROM ".MAIN_DB_PREFIX."adherent WHERE rowid = ".((int) $petra->id));
+	$paul = $create('Paul', dol_time_plus_duree($today, -10, 'y'), array('options_vereine_fee_payer' => $payer));
+	$pia = $create('Pia', dol_time_plus_duree($today, -20, 'y'), array('options_vereine_fee_payer' => $payer));
+	$nora = $create('Nora', dol_mktime(12, 0, 0, 6, 6, 1990), array());
+	if (!$db->query("DELETE FROM ".MAIN_DB_PREFIX."adherent_extrafields WHERE fk_object = ".((int) $nora->id))
+		|| !$db->query("INSERT INTO ".MAIN_DB_PREFIX."adherent_extrafields (fk_object, vereine_fee_payer) VALUES (".((int) $nora->id).", 999999)")) {
+		rt_fail('deleted payer of Nora: '.$db->lasterror());
+	}
+	print json_encode(array('type' => (int) $type->id, 'payer' => $payer,
+		'members' => array('petra' => (int) $petra->id, 'paul' => (int) $paul->id, 'pia' => (int) $pia->id, 'nora' => (int) $nora->id)))."\n";
+	exit(0);
+}
+
+// A child joining a family later: Finn, whose fees Petra's third party pays too.
+if ($stage === 'familychild') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	$member = new Adherent($db);
+	$member->typeid = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."adherent_type WHERE libelle = 'Familienbeitrag'");
+	$member->morphy = 'phy';
+	$member->firstname = 'Finn';
+	$member->lastname = 'Familie';
+	$member->birth = dol_mktime(12, 0, 0, 1, 1, 1995);
+	$member->email = 'finn.familie@runtime-verein.test';
+	$member->country_id = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+	$member->public = 0;
+	$member->array_options = array('options_vereine_fee_payer' => (int) rt_env('RT_PAYER'));
+	if ($member->create($admin) <= 0 || $member->validate($admin) <= 0) {
+		rt_fail('member Finn: '.$member->error.' '.implode(' | ', (array) $member->errors));
+	}
+	print json_encode(array('member' => (int) $member->id))."\n";
+	exit(0);
+}
+
 // Pay what is left of an invoice by bank transfer, closing it as paid.
 if ($stage === 'payinvoice') {
 	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
@@ -834,7 +909,7 @@ if ($stage === 'reset') {
 		$extrafields = new ExtraFields($db);
 		$extrafields->delete($name, 'adherent_type');
 	}
-	foreach (array('vereine_fee_exempt', 'vereine_fee_exempt_reason', 'vereine_fee_proof', 'vereine_fee_proof_until') as $name) {
+	foreach (array('vereine_fee_exempt', 'vereine_fee_exempt_reason', 'vereine_fee_proof', 'vereine_fee_proof_until', 'vereine_fee_payer') as $name) {
 		$extrafields = new ExtraFields($db);
 		$extrafields->delete($name, 'adherent');
 	}
@@ -847,4 +922,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, resiliate, guardian or reset');

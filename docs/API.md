@@ -255,8 +255,11 @@ A summary counts as changed - and its `updated_at` moves - when
 - the member changes: status, member type, third party, name, number, paid until;
 - its member type changes, for example the fee amount;
 - a subscription period of the member is added or changed;
-- an invoice of its third party is validated, changed, paid or abandoned;
-- a payment on an invoice of its third party is added or changed;
+- an invoice of its third party, or a fee invoice linked to one of its
+  subscription periods (a payer's family invoice), is validated, changed, paid
+  or abandoned;
+- a payment on such an invoice is added or changed;
+- the member's fee fields change: exemption, proof, payer (*Fees paid by*);
 - a fee becomes due or an invoice overdue by the date alone: the summary changes
   at midnight (server time) of the day after the period or the due date.
 
@@ -265,6 +268,8 @@ night:
 
 - deleted members, subscription periods, invoices or payments;
 - a credit note or deposit used on an invoice that stays unpaid;
+- discount rules and the family rule in the fee setup, which change the amount
+  for many members at once;
 - switching an online payment service on or off (the payment links).
 
 A sync that loses nothing:
@@ -299,6 +304,7 @@ in Dolibarr (the number in the address of the member card).
     "next_due": "2027-01-01",
     "amount": 50,
     "discount": { "kind": "none", "label": "" },
+    "payer": "self",
     "payment_url": ""
   },
   "open_invoices": [
@@ -330,10 +336,11 @@ in Dolibarr (the number in the address of the member card).
 | `fee.required` | Whether the member type needs a subscription |
 | `fee.status` | `paid` (a paid period covers today), `invoiced` (the period covering today has a fee invoice that is not paid yet, see `open_invoices`), `due` (never paid, or the last period has ended), `not_required` (member type without subscription), `inactive` (draft, terminated or excluded) |
 | `fee.next_due` | The day after `paid_until`; the validation date when the member never paid; empty for `not_required` and `inactive` |
-| `fee.amount` | Amount of a whole period for this member: the member type's amount after the member's discount on `next_due`; `null` when the type sets none or needs no subscription |
+| `fee.amount` | Amount of a whole period for this member: the member type's amount after the member's discount on `next_due`, before a family discount; `null` when the type sets none or needs no subscription |
 | `fee.discount` | `kind` `none`, `exempt` (label is the reason), `proof` or `age` (label is the name of the discount) |
-| `fee.payment_url` | Dolibarr's online payment page for the fee, only while the fee is `due` and an online payment service (Stripe, PayPal or one added by a module) is set up; otherwise empty. An `invoiced` fee is paid through the payment link of its invoice |
-| `open_invoices` | Validated, unpaid invoices of the member's third party, oldest first, at most 50: standard, replacement and deposit invoices. Empty when the member has no third party. Each invoice as in [`members/{id}/invoices`](#get-vereinemembersidinvoices) |
+| `fee.payer` | `self` when the member's own third party gets the fee invoices; `other` when another third party is named as payer, such as a parent paying for a family. The payer's invoices are not listed for the member, and `fee.status` still follows them: `invoiced` until the payer has paid |
+| `fee.payment_url` | Dolibarr's online payment page for the fee, only while the fee is `due`, `fee.payer` is `self` and an online payment service (Stripe, PayPal or one added by a module) is set up; otherwise empty. An `invoiced` fee is paid through the payment link of its invoice |
+| `open_invoices` | Validated, unpaid invoices of the member's third party, oldest first, at most 50: standard, replacement and deposit invoices. Empty when the member has no third party. A family invoice appears for the member whose third party is the payer. Each invoice as in [`members/{id}/invoices`](#get-vereinemembersidinvoices) |
 | `updated_at` | When something in the summary last changed, in UTC; see [`GET /vereine/members`](#get-vereinemembers) for what counts |
 
 Dates are `YYYY-MM-DD` or empty, amounts are numbers in `currency`. The summary
@@ -466,7 +473,7 @@ On the website:
 | --- | --- |
 | `MEMBER_CREATE`, `MEMBER_VALIDATE`, `MEMBER_MODIFY`, `MEMBER_RESILIATE`, `MEMBER_EXCLUDE`, `MEMBER_DELETE` | The member |
 | `MEMBER_SUBSCRIPTION_CREATE`, `MEMBER_SUBSCRIPTION_MODIFY`, `MEMBER_SUBSCRIPTION_DELETE` | A subscription period of the member |
-| `BILL_VALIDATE`, `BILL_UNVALIDATE`, `BILL_MODIFY`, `BILL_PAYED`, `BILL_UNPAYED`, `BILL_CANCEL`, `BILL_DELETE` | A customer invoice of the member's third party (drafts only when they became one again) |
+| `BILL_VALIDATE`, `BILL_UNVALIDATE`, `BILL_MODIFY`, `BILL_PAYED`, `BILL_UNPAYED`, `BILL_CANCEL`, `BILL_DELETE` | A customer invoice of the member's third party, or a fee invoice linked to the member's subscription period - so paying a family invoice announces every member on it (drafts only when they became one again) |
 | `PAYMENT_CUSTOMER_CREATE`, `PAYMENT_CUSTOMER_DELETE` | A payment on such an invoice |
 
 One action raises one event per member, even when Dolibarr reports several

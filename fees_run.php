@@ -228,6 +228,18 @@ foreach ($rows as $row) {
 		foreach ($discount['notes'] as $note) {
 			$notes[] = '<span class="warning">'.$langs->trans($note).'</span>';
 		}
+		$family = $row['family'];
+		if ($family['kind'] === VereineFeeFamilies::MODE_PERCENT) {
+			$notes[] = '<span data-family-kind="percent">'.$langs->trans('VereineFamilyPercentNote', $family['size'], price2num($family['value']),
+				price($family['before'], 0, $langs, 1, -1, -1, $conf->currency)).'</span>';
+		} elseif ($family['kind'] === VereineFeeFamilies::MODE_CAP) {
+			$notes[] = '<span data-family-kind="cap">'.$langs->trans('VereineFamilyCapNote', price($family['value'], 0, $langs, 1, -1, -1, $conf->currency),
+				vereineFormatDay($family['year_start']), price($family['charged'], 0, $langs, 1, -1, -1, $conf->currency),
+				price($family['before'], 0, $langs, 1, -1, -1, $conf->currency)).'</span>';
+		}
+		if ($row['payer_name'] !== '') {
+			$notes[] = '<span data-payer="'.((int) $row['payer_socid']).'">'.$langs->trans('VereineFamilyInvoiceTo', dol_escape_htmltag($row['payer_name'])).'</span>';
+		}
 		$reason = vereineFeeReason($fee);
 		if ($reason !== '') {
 			$notes[] = $reason;

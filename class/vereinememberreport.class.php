@@ -23,6 +23,7 @@
 
 require_once __DIR__.'/vereinemembersummary.class.php';
 require_once __DIR__.'/vereinefeediscountstore.class.php';
+require_once __DIR__.'/vereinefeefamilystore.class.php';
 
 /**
  * Reads what a website may show about a member.
@@ -121,6 +122,9 @@ class VereineMemberReport
 			$amount = VereineFeeDiscounts::apply($amount, $discount);
 		}
 		$online = $this->onlinePayment();
+		// A payer gets the fee invoices; paying the member's fee online would bypass them.
+		$familyStore = new VereineFeeFamilyStore($this->db);
+		$paidByOther = VereineFeeFamilies::paidByOther((int) $row->fk_soc, $familyStore->payerOfMember((int) $row->rowid));
 
 		return array(
 			'id' => (int) $row->rowid,
@@ -139,7 +143,8 @@ class VereineMemberReport
 				'next_due' => $fee['next_due'],
 				'amount' => $required ? $amount : null,
 				'discount' => array('kind' => $discount['kind'], 'label' => $discount['reason']),
-				'payment_url' => ($online && $fee['status'] === VereineMemberSummary::FEE_DUE && (string) $row->ref !== '' && $amount !== 0.0)
+				'payer' => $paidByOther ? 'other' : 'self',
+				'payment_url' => ($online && !$paidByOther && $fee['status'] === VereineMemberSummary::FEE_DUE && (string) $row->ref !== '' && $amount !== 0.0)
 					? getOnlinePaymentUrl(0, 'member', (string) $row->ref, $amount === null ? 0 : $amount) : '',
 			),
 			'open_invoices' => (int) $row->fk_soc > 0 ? $this->invoices((int) $row->fk_soc, $today, $online, true, self::MAX_OPEN_INVOICES, 0) : array(),
@@ -207,9 +212,10 @@ class VereineMemberReport
 	/**
 	 * When the summaries of members last changed.
 	 *
-	 * Counts changes of the member, its member type, its subscription periods, the invoices
-	 * of its third party and payments on them, and the days on which a fee becomes due or an
-	 * open invoice overdue by the date alone.
+	 * Counts changes of the member and its extra fields, its member type, its subscription periods, the invoices
+	 * of its third party and payments on them, the fee invoices linked to its periods and
+	 * payments on them (a payer's invoice for a family), and the days on which a fee becomes
+	 * due or an open invoice overdue by the date alone.
 	 *
 	 * @param int $id One member, or 0 for every member of this entity
 	 * @return array<int,int> Unix timestamp per member id, ordered by id
@@ -225,6 +231,8 @@ class VereineMemberReport
 		$open .= " AND f.type IN (".((int) Facture::TYPE_STANDARD).", ".((int) Facture::TYPE_REPLACEMENT).", ".((int) Facture::TYPE_DEPOSIT).")";
 
 		$sql = "SELECT d.rowid, d.statut, d.datefin, d.tms, t.subscription, t.tms as type_tms,";
+		// The extra fields row has its own tms: it tells when exemption, proof or payer changed.
+		$sql .= " (SELECT MAX(e.tms) FROM ".MAIN_DB_PREFIX."adherent_extrafields as e WHERE e.fk_object = d.rowid) as fields_tms,";
 		$sql .= " (SELECT MAX(s.tms) FROM ".MAIN_DB_PREFIX."subscription as s WHERE s.fk_adherent = d.rowid) as subscription_tms,";
 		$sql .= " (SELECT MAX(f.tms) FROM ".MAIN_DB_PREFIX."facture as f WHERE f.fk_soc = d.fk_soc AND f.entity IN (".$entities.")";
 		$sql .= " AND f.fk_statut <> ".((int) Facture::STATUS_DRAFT).") as invoice_tms,";
@@ -232,6 +240,11 @@ class VereineMemberReport
 		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."paiement_facture as pf ON pf.fk_paiement = p.rowid";
 		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."facture as f ON f.rowid = pf.fk_facture";
 		$sql .= " WHERE f.fk_soc = d.fk_soc AND f.entity IN (".$entities.")) as payment_tms,";
+		$fees = " FROM ".MAIN_DB_PREFIX."subscription as s";
+		$fees .= " INNER JOIN ".MAIN_DB_PREFIX."element_element as ee ON ee.fk_source = s.rowid AND ee.sourcetype = 'subscription' AND ee.targettype = 'facture'";
+		$sql .= " (SELECT MAX(f.tms)".$fees." INNER JOIN ".MAIN_DB_PREFIX."facture as f ON f.rowid = ee.fk_target WHERE s.fk_adherent = d.rowid) as fee_invoice_tms,";
+		$sql .= " (SELECT MAX(p.tms)".$fees." INNER JOIN ".MAIN_DB_PREFIX."paiement_facture as pf ON pf.fk_facture = ee.fk_target";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."paiement as p ON p.rowid = pf.fk_paiement WHERE s.fk_adherent = d.rowid) as fee_payment_tms,";
 		$sql .= " (SELECT MAX(f.date_lim_reglement) FROM ".MAIN_DB_PREFIX."facture as f WHERE f.fk_soc = d.fk_soc AND f.entity IN (".$entities.")";
 		$sql .= " AND ".$open." AND f.date_lim_reglement < '".$this->db->escape($today)."') as last_due";
 		$sql .= " FROM ".MAIN_DB_PREFIX."adherent as d";
@@ -256,7 +269,7 @@ class VereineMemberReport
 		$changes = array();
 		foreach ($rows as $obj) {
 			$moments = array();
-			foreach (array('tms', 'type_tms', 'subscription_tms', 'invoice_tms', 'payment_tms') as $field) {
+			foreach (array('tms', 'fields_tms', 'type_tms', 'subscription_tms', 'invoice_tms', 'payment_tms', 'fee_invoice_tms', 'fee_payment_tms') as $field) {
 				$moments[] = $obj->$field ? (int) $this->db->jdate($obj->$field) - $offset : 0;
 			}
 			$days = VereineMemberSummary::changeDays(VereineMemberSummary::status($obj->statut), (int) $obj->subscription === 1,
