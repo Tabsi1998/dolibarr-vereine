@@ -106,7 +106,9 @@ Vereinswebsite mit.
   die Einladung, und erstellt die Anzeige an die Behörde (0.5.3).
 - **Sitzungen** (0.5.4): Vorstandssitzungen und Generalversammlungen mit
   Tagesordnung; genau der Vorstand oder alle Mitglieder per E-Mail oder Brief
-  eingeladen, mit den Fristen der Statuten und Nachweis je Person.
+  eingeladen, mit den Fristen der Statuten und Nachweis je Person. Anwesenheit
+  mit Vollmachten, wie es die Statuten erlauben, und Beschlussfähigkeit zu jeder
+  Uhrzeit (0.5.5).
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

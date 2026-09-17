@@ -2417,6 +2417,70 @@ def meetings(stack: Stack) -> str:
             "note for members without vote, agenda event, held; reader cannot create; log")
 
 
+def attendance(stack: Stack) -> str:
+    """Attendance: proxies only as the statutes allow and never on the board, quorum at any time of the meeting."""
+    browser = stack.browser()
+    base = "/custom/vereine/meetings.php"
+    general_id = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting WHERE kind = 'general'")
+    board_id = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting WHERE kind = 'board'")
+
+    def card(meeting: str, at: str = "") -> Page:
+        return page_ok(browser.get(f"{base}?id={meeting}" + (f"&at={at}" if at else "")), f"meeting {meeting} at {at}")
+
+    def save(meeting: str, rows: dict) -> Page:
+        page = card(meeting)
+        fields = [("token", token_of(page)), ("action", "saveattendance")]
+        for member, row in rows.items():
+            fields += [(f"attendance[{member}][{key}]", value) for key, value in row.items()]
+        return page_ok(browser.post(f"{base}?id={meeting}", fields), f"store attendance of meeting {meeting}")
+
+    def quorum(page: Page) -> dict:
+        match = re.search(r'data-quorum-reached="(\d)" data-votes="(\d+)" data-present="(\d+)" data-represented="(\d+)" data-eligible="(\d+)" data-required="(\d+)"', page.text)
+        expect(match is not None, "the meeting shows no quorum")
+        return dict(zip(("reached", "votes", "present", "represented", "eligible", "required"), (int(value) for value in match.groups())))
+
+    page = card(general_id)
+    rows = re.findall(r'data-attendance="(\d+)" data-state="([a-z]+)" data-voting="(\d)"', page.text)
+    voters = [member for member, _, voting in rows if voting == "1"]
+    others = [member for member, _, voting in rows if voting == "0"]
+    expect(len(voters) >= 4 and others and quorum(page)["reached"] == 0, f"attendance of the general assembly before anyone is recorded: {len(voters)} voting, {len(others)} not")
+    count = "SELECT COUNT(*) FROM llx_vereine_meeting_attendance"
+    refused = save(general_id, {voters[0]: {"state": "present"}, voters[1]: {"state": "represented", "holder": voters[0]}})
+    expect("keine Stimmrechtsübertragung" in html.unescape(refused.text) and stack.value(count) == "0", "a proxy was stored although the statutes do not allow it")
+
+    setup = page_ok(browser.get("/custom/vereine/admin/statutes.php"), "statute setup")
+    page_ok(browser.submit(setup.form(name="vereinestatutes"), {"proxy": "1", "general_quorum": "50"}), "allow proxies and ask for half of the voting members")
+    required = -(-len(voters) // 2)
+    present = voters[:required - 1]
+    plan = {member: {"state": "present", "arrived": "18:30"} for member in present}
+    plan[present[0]]["left"] = "20:00"
+    plan[voters[required - 1]] = {"state": "represented", "holder": present[0]}
+    for member, text in ((others[0], "stimmberechtigten Mitglied"), (voters[-1], "muss anwesend sein")):
+        holder = present[0] if member == others[0] else voters[-2]
+        refused = save(general_id, {**plan, member: {"state": "represented", "holder": holder}})
+        expect(text in html.unescape(refused.text) and stack.value(count) == "0", f"a proxy of {member} to {holder} was stored")
+    save(general_id, plan)
+    expect(stack.value(count) == str(len(rows)), "not every invited member has an attendance row")
+    at_seven = quorum(card(general_id, "19:00"))
+    expect(at_seven == {"reached": 1, "votes": required, "present": required - 1, "represented": 1, "eligible": len(voters), "required": required},
+           f"quorum at 19:00: {at_seven}, expected {required} of {len(voters)}")
+    later = quorum(card(general_id, "20:30"))
+    expect(later["reached"] == 0 and later["represented"] == 0 and later["present"] == required - 2,
+           f"after the proxy holder left at 20:00 the quorum should be gone: {later}")
+
+    board_rows = re.findall(r'data-attendance="(\d+)" data-state="[a-z]+" data-voting="1"', card(board_id).text)
+    refused = save(board_id, {board_rows[0]: {"state": "present"}, board_rows[1]: {"state": "represented", "holder": board_rows[0]}})
+    expect("keine Vollmacht" in html.unescape(refused.text), "a proxy on the board was accepted")
+    half = -(-len(board_rows) // 2)
+    save(board_id, {member: {"state": "present"} for member in board_rows[:half]})
+    board = quorum(card(board_id))
+    expect(board["reached"] == 1 and board["present"] == half and board["represented"] == 0, f"board quorum with half present: {board}")
+    logged = stack.value("SELECT COUNT(*) FROM llx_vereine_log WHERE action = 'meeting_attendance'")
+    expect(logged == "2", f"{logged} attendance saves logged, expected 2")
+    return (f"general assembly with {len(voters)} voting members: proxy refused without the statutes, from a member without vote and to an absent holder; "
+            f"with proxies and half needed: {required} votes at 19:00 reach the quorum, gone after the holder left; board: no proxy, half present reaches the quorum; log")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -2507,7 +2571,8 @@ SCENARIOS = (
     ("statutetext", "Statutes as text: fields, check, preview, uploaded and generated versions", statutetext, ("letters",)),
     ("statutechange", "Change of the statutes: comparison, PDF, new version with notice to the authority", statutechange, ("statutetext",)),
     ("meetings", "Meetings: exactly the board or every member invited by e-mail or letter, with deadline and proof", meetings, ("statutechange",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("meetings",)),
+    ("attendance", "Attendance: proxies as the statutes allow, never on the board, quorum at any time", attendance, ("meetings",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("attendance",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

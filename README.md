@@ -97,7 +97,8 @@ with a REST API for the association's website.
   for the invitation, and writes the notice to the authority (0.5.3).
 - **Meetings** (0.5.4): board meetings and general assemblies with agenda; the
   board or every member invited by e-mail or letter, with the deadlines of the
-  statutes and proof per person.
+  statutes and proof per person. Attendance with proxies as the statutes allow
+  and the quorum at any time of the meeting (0.5.5).
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 

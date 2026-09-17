@@ -62,6 +62,7 @@ class VereineLog
 	const MEETING_CREATED = 'meeting_created';
 	const MEETING_INVITED = 'meeting_invited';
 	const MEETING_STATUS = 'meeting_status';
+	const MEETING_ATTENDANCE = 'meeting_attendance';
 
 	/**
 	 * Append one entry.

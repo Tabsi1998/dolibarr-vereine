@@ -22,6 +22,7 @@
  */
 
 require_once __DIR__.'/vereinemeetingrules.class.php';
+require_once __DIR__.'/vereineattendancerules.class.php';
 require_once __DIR__.'/vereinestatutes.class.php';
 require_once __DIR__.'/vereinefunctions.class.php';
 require_once __DIR__.'/vereinelog.class.php';
@@ -45,6 +46,11 @@ class VereineMeetings
 	 * @var string[] Language keys of the last refused input
 	 */
 	public $errors = array();
+
+	/**
+	 * @var array<int,string[]> Language keys of the last refused attendance, by member id
+	 */
+	public $rowErrors = array();
 
 	/**
 	 * Constructor.
@@ -354,6 +360,84 @@ class VereineMeetings
 			}
 		}
 		return $last;
+	}
+
+	/**
+	 * Attendance of the invited members and their voting right.
+	 *
+	 * @param int $id Meeting
+	 * @return array{rows:array<int,array<string,mixed>>,voting:array<int,bool>,names:array<int,string>}
+	 */
+	public function attendance($id)
+	{
+		global $conf;
+
+		$invited = array();
+		$voting = array();
+		$names = array();
+		foreach ($this->invitations($id) as $invitation) {
+			$invited[] = $invitation['member_id'];
+			$voting[$invitation['member_id']] = $invitation['voting'];
+			$names[$invitation['member_id']] = $invitation['name'];
+		}
+		$stored = array();
+		$sql = "SELECT fk_adherent, state, fk_holder, arrived, left_at FROM ".MAIN_DB_PREFIX."vereine_meeting_attendance";
+		$sql .= " WHERE fk_meeting = ".((int) $id)." AND entity = ".((int) $conf->entity);
+		$resql = $this->db->query($sql);
+		while ($resql && ($obj = $this->db->fetch_object($resql))) {
+			$stored[(int) $obj->fk_adherent] = array('state' => (string) $obj->state, 'holder' => (int) $obj->fk_holder, 'arrived' => (string) $obj->arrived, 'left' => (string) $obj->left_at);
+		}
+		return array('rows' => VereineAttendanceRules::normalize($stored, $invited), 'voting' => $voting, 'names' => $names);
+	}
+
+	/**
+	 * Store the attendance of a meeting that was invited to.
+	 *
+	 * @param int                 $id      Meeting
+	 * @param array<mixed,mixed>  $entered Entered rows by member id
+	 * @param User                $user    Who stores
+	 * @return int 1 when stored, 0 when refused (see errors and rowErrors), -1 on error
+	 */
+	public function saveAttendance($id, array $entered, $user)
+	{
+		global $conf;
+
+		$this->errors = array();
+		$this->rowErrors = array();
+		$meeting = $this->fetch($id);
+		if ($meeting === null || !in_array($meeting['status'], array(VereineMeetingRules::STATUS_INVITED, VereineMeetingRules::STATUS_HELD), true)) {
+			$this->errors = array('VereineMeetingErrorNotInvited');
+			return 0;
+		}
+		$current = $this->attendance($id);
+		$rows = VereineAttendanceRules::normalize($entered, array_keys($current['rows']));
+		$statutes = new VereineStatutes($this->db);
+		$this->rowErrors = VereineAttendanceRules::validate($meeting['kind'], $rows, $current['voting'], $statutes->rules());
+		if ($this->rowErrors) {
+			return 0;
+		}
+		$this->db->begin();
+		if (!$this->db->query("DELETE FROM ".MAIN_DB_PREFIX."vereine_meeting_attendance WHERE fk_meeting = ".((int) $id)." AND entity = ".((int) $conf->entity))) {
+			$this->error = $this->db->lasterror();
+			$this->db->rollback();
+			return -1;
+		}
+		foreach ($rows as $memberId => $row) {
+			$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_meeting_attendance (entity, fk_meeting, fk_adherent, state, fk_holder, arrived, left_at, fk_user_modif)";
+			$sql .= " VALUES (".((int) $conf->entity).", ".((int) $id).", ".((int) $memberId).", '".$this->db->escape($row['state'])."', ".((int) $row['holder']).",";
+			$sql .= " ".($row['arrived'] !== '' ? "'".$this->db->escape($row['arrived'])."'" : "NULL").", ".($row['left'] !== '' ? "'".$this->db->escape($row['left'])."'" : "NULL").", ".((int) $user->id).")";
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
+				$this->db->rollback();
+				return -1;
+			}
+		}
+		$this->db->commit();
+		$present = count(array_filter($rows, function ($row) {
+			return $row['state'] === VereineAttendanceRules::STATE_PRESENT;
+		}));
+		VereineLog::add($this->db, $user, VereineLog::MEETING_ATTENDANCE, 0, 0, $meeting['title'].': '.$present.' present');
+		return 1;
 	}
 
 	/**
