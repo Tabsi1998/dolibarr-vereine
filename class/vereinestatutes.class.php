@@ -360,7 +360,7 @@ class VereineStatutes
 			$pdf->Ln(1);
 			$pdf->SetFont($font, '', 10);
 			foreach ($section['paragraphs'] as $paragraph) {
-				$pdf->MultiCell(0, 5, $paragraph, 0, 'J');
+				$this->pdfParagraph($pdf, $paragraph);
 				$pdf->Ln(1.5);
 			}
 			$pdf->Ln(3);
@@ -372,6 +372,39 @@ class VereineStatutes
 		}
 		dolChmod($file);
 		return true;
+	}
+
+	/**
+	 * Write a paragraph of the statutes: its number hanging on the left, list items indented with their letter hanging.
+	 *
+	 * @param TCPDF  $pdf       PDF being written
+	 * @param string $paragraph Paragraph of VereineStatuteText::sections()
+	 * @return void
+	 */
+	private function pdfParagraph($pdf, $paragraph)
+	{
+		$margins = $pdf->getMargins();
+		$width = $pdf->getPageWidth() - $margins['left'] - $margins['right'];
+		$lines = explode("\n", (string) $paragraph);
+		$first = array_shift($lines);
+		$indent = 0;
+		if (preg_match('/^(\(\d+\)) (.*)$/s', $first, $parts)) {
+			$indent = 9;
+			$pdf->SetX($margins['left']);
+			$pdf->Cell($indent, 5, $parts[1], 0, 0, 'L');
+			$first = $parts[2];
+		}
+		$pdf->SetX($margins['left'] + $indent);
+		$pdf->MultiCell($width - $indent, 5, $first, 0, 'J');
+		foreach ($lines as $line) {
+			$pdf->SetX($margins['left'] + $indent + 4);
+			if (preg_match('/^([a-z]\)) (.*)$/s', $line, $parts)) {
+				$pdf->Cell(7, 5, $parts[1], 0, 0, 'L');
+				$pdf->MultiCell($width - $indent - 11, 5, $parts[2], 0, 'L');
+			} else {
+				$pdf->MultiCell($width - $indent - 4, 5, $line, 0, 'L');
+			}
+		}
 	}
 
 	/**
@@ -442,8 +475,8 @@ class VereineStatutes
 		$html = '<table border="1" cellpadding="4"><tr><th width="50%"><b>'.dol_escape_htmltag($langs->transnoentities('VereineStatuteChangeOld')).'</b></th>';
 		$html .= '<th width="50%"><b>'.dol_escape_htmltag($langs->transnoentities('VereineStatuteChangeNew')).'</b></th></tr>';
 		foreach ($comparison['changes'] as $change) {
-			$html .= '<tr><td>'.($change['old_number'] > 0 ? '<b>§ '.$change['old_number'].': '.dol_escape_htmltag($change['title']).'</b><br>'.nl2br(dol_escape_htmltag(implode("\n", $change['old']))) : '-').'</td>';
-			$html .= '<td>'.($change['new_number'] > 0 ? '<b>§ '.$change['new_number'].': '.dol_escape_htmltag($change['title']).'</b><br>'.nl2br(dol_escape_htmltag(implode("\n", $change['new']))) : '-').'</td></tr>';
+			$html .= '<tr><td>'.($change['old_number'] > 0 ? '<b>§ '.$change['old_number'].': '.dol_escape_htmltag($change['title']).'</b><br>'.self::comparisonHtml($change['old']) : '-').'</td>';
+			$html .= '<td>'.($change['new_number'] > 0 ? '<b>§ '.$change['new_number'].': '.dol_escape_htmltag($change['title']).'</b><br>'.self::comparisonHtml($change['new']) : '-').'</td></tr>';
 		}
 		$html .= '</table>';
 		$pdf->SetFont($font, '', 8);
@@ -454,6 +487,25 @@ class VereineStatutes
 			return false;
 		}
 		return true;
+	}
+
+	/**
+	 * Paragraphs for a table cell of the comparison PDF: line breaks kept, list items indented.
+	 *
+	 * @param string[] $paragraphs Paragraphs
+	 * @return string HTML for TCPDF
+	 */
+	private static function comparisonHtml(array $paragraphs)
+	{
+		$html = array();
+		foreach ($paragraphs as $paragraph) {
+			$lines = array();
+			foreach (explode("\n", $paragraph) as $index => $line) {
+				$lines[] = ($index > 0 ? '&nbsp;&nbsp;&nbsp;&nbsp;' : '').dol_escape_htmltag($line, 0, 1);
+			}
+			$html[] = implode('<br>', $lines);
+		}
+		return implode('<br><br>', $html);
 	}
 
 	/**

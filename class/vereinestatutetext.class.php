@@ -107,7 +107,7 @@ class VereineStatuteText
 		if (!is_array($data)) {
 			return $text;
 		}
-		foreach (array('area' => 255, 'admission' => 255, 'asset_purpose' => 255, 'asset_recipient' => 255) as $key => $max) {
+		foreach (array('area' => 255, 'admission' => 255, 'asset_purpose' => 1000, 'asset_recipient' => 500) as $key => $max) {
 			if (isset($data[$key]) && is_scalar($data[$key])) {
 				$text[$key] = mb_substr(trim(preg_replace('/\s+/u', ' ', (string) $data[$key])), 0, $max, 'UTF-8');
 			}

@@ -2260,6 +2260,9 @@ def statutetext(stack: Stack) -> str:
     for words in ("Turniere und Ligaspiele", "Förderung des Jugendsports", "alle zwei Jahre", "18. Lebensjahr", "länger als drei Monate"):
         expect(words in text, f"the preview lacks {words!r}")
     expect('data-section-number="17"' in preview.text, "the preview of a tax-privileged association has no § 17 on the assets")
+    shown = preview.text[preview.text.index('data-statute-preview="1"'):]
+    expect("\\n" not in html.unescape(shown[:shown.index("vereinestatutedraft")]) and shown.count('data-statute-item="1"') >= 4,
+           "the preview shows line breaks as \\n or lists not one item per line")
 
     count = "SELECT COUNT(*) FROM llx_vereine_statute"
     upload = preview.form(name="vereinestatuteupload")

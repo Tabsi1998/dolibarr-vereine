@@ -9,7 +9,8 @@ The section of a version is the text of its GitHub release.
 
 ## [0.5.5-beta] - 2026-09-17
 
-Attendance, proxies and quorum (issue #95, second part of #9).
+Attendance, proxies and quorum (issue #95, second part of #9), and the layout of
+the statutes (issue #101).
 
 ### Added
 
@@ -24,6 +25,14 @@ Attendance, proxies and quorum (issue #95, second part of #9).
   (or regardless of the number present), for the board the members present
   against the share of the statutes. When a proxy holder leaves, the proxy no
   longer counts.
+
+### Fixed
+
+- The preview of the statutes and the comparison of a change showed the lists
+  in one line with a written `\n`. Lists are one item per line now, indented,
+  and paragraph numbers hang in front of their text, in the PDF too.
+- The purpose the assets go to on dissolution takes up to 1000 characters in a
+  larger field, the recipient up to 500.
 
 ### Upgrade
 

@@ -126,8 +126,8 @@ if ($action === 'saverules') {
 
 if ($action === 'savetext') {
 	$wording = explode(':', GETPOST('wording', 'alphanohtml').':');
-	$shownText = array('area' => GETPOST('area', 'alphanohtml'), 'admission' => GETPOST('admission', 'alphanohtml'), 'asset_purpose' => GETPOST('asset_purpose', 'alphanohtml'),
-		'asset_recipient' => GETPOST('asset_recipient', 'alphanohtml'), 'activities' => GETPOST('activities', 'restricthtml'), 'funds' => GETPOST('funds', 'restricthtml'),
+	$shownText = array('area' => GETPOST('area', 'alphanohtml'), 'admission' => GETPOST('admission', 'alphanohtml'), 'asset_purpose' => GETPOST('asset_purpose', 'restricthtml'),
+		'asset_recipient' => GETPOST('asset_recipient', 'restricthtml'), 'activities' => GETPOST('activities', 'restricthtml'), 'funds' => GETPOST('funds', 'restricthtml'),
 		'branches' => GETPOSTISSET('branches') ? 1 : 0, 'legal_persons' => GETPOSTISSET('legal_persons') ? 1 : 0, 'arrears_months' => GETPOST('arrears_months', 'alphanohtml'),
 		'tax' => $wording[0], 'asset' => $wording[1]);
 	$result = $statutes->saveText($shownText, $user);
@@ -367,10 +367,10 @@ foreach (VereineStatuteText::ASSETS as $tax => $assets) {
 	print '</optgroup>';
 }
 print '</select><div class="opacitymedium small">'.$langs->trans('VereineStatuteTextWordingHelp').'</div></td></tr>';
-print '<tr><td><label for="asset_purpose">'.$langs->trans('VereineStatuteTextAssetPurpose').'</label></td>';
-print '<td><input type="text" id="asset_purpose" name="asset_purpose" class="minwidth300" maxlength="255" value="'.dol_escape_htmltag($shownText['asset_purpose']).'"></td></tr>';
-print '<tr><td><label for="asset_recipient">'.$langs->trans('VereineStatuteTextAssetRecipient').'</label></td>';
-print '<td><input type="text" id="asset_recipient" name="asset_recipient" class="minwidth300" maxlength="255" value="'.dol_escape_htmltag($shownText['asset_recipient']).'"></td></tr>';
+print '<tr><td class="tdtop"><label for="asset_purpose">'.$langs->trans('VereineStatuteTextAssetPurpose').'</label></td>';
+print '<td><textarea id="asset_purpose" name="asset_purpose" rows="3" class="centpercent" maxlength="1000">'.dol_escape_htmltag($shownText['asset_purpose'], 0, 1).'</textarea></td></tr>';
+print '<tr><td class="tdtop"><label for="asset_recipient">'.$langs->trans('VereineStatuteTextAssetRecipient').'</label></td>';
+print '<td><textarea id="asset_recipient" name="asset_recipient" rows="2" class="centpercent" maxlength="500">'.dol_escape_htmltag($shownText['asset_recipient'], 0, 1).'</textarea></td></tr>';
 print '</table>';
 print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'"></div>';
 print '</form><br>';
@@ -394,7 +394,7 @@ print '<h3 class="center">'.dol_escape_htmltag('Statuten des Vereins „'.$conte
 foreach (VereineStatuteText::sections($rules, $text, $context) as $section) {
 	print '<h4 data-section-number="'.$section['number'].'">§ '.$section['number'].': '.dol_escape_htmltag($section['title']).'</h4>';
 	foreach ($section['paragraphs'] as $paragraph) {
-		print '<p>'.nl2br(dol_escape_htmltag($paragraph)).'</p>';
+		print vereineStatuteParagraphHtml($paragraph);
 	}
 }
 print '</div>';
@@ -423,8 +423,8 @@ if ($comparison['state'] === 'none') {
 	foreach ($comparison['changes'] as $change) {
 		print '<tr class="oddeven tdtop" data-changed-section="'.dol_escape_htmltag($change['title']).'">';
 		foreach (array('old' => 'old_number', 'new' => 'new_number') as $side => $number) {
-			print '<td class="tdtop">'.($change[$number] > 0 ? '<strong>§ '.$change[$number].': '.dol_escape_htmltag($change['title']).'</strong><br>'
-				.nl2br(dol_escape_htmltag(implode("\n", $change[$side]))) : '<span class="opacitymedium">-</span>').'</td>';
+			print '<td class="tdtop">'.($change[$number] > 0 ? '<strong>§ '.$change[$number].': '.dol_escape_htmltag($change['title']).'</strong>'
+				.implode('', array_map('vereineStatuteParagraphHtml', $change[$side])) : '<span class="opacitymedium">-</span>').'</td>';
 		}
 		print '</tr>';
 	}

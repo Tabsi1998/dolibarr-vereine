@@ -874,6 +874,8 @@ $statuteText = VereineStatuteText::normalize(array('activities' => "Turniere\n\n
 same(array(array('Turniere', 'Training'), array('Mitgliedsbeiträge'), 'bao', 'base', 3, true, false), array($statuteText['activities'], $statuteText['funds'], $statuteText['tax'],
 	$statuteText['asset'], $statuteText['arrears_months'], $statuteText['branches'], isset($statuteText['unknown'])), 'lists one entry per line, once; an unknown wording is the first of its kind');
 same(VereineStatuteText::defaults(), VereineStatuteText::normalize(array('tax' => array('bao'))), 'a tax kind is a text');
+same(array(1000, 500), array(mb_strlen(VereineStatuteText::normalize(array('asset_purpose' => str_repeat('Förderung ', 150)))['asset_purpose'], 'UTF-8'),
+	mb_strlen(VereineStatuteText::normalize(array('asset_recipient' => str_repeat('Verein ', 100)))['asset_recipient'], 'UTF-8')), 'a purpose of the assets up to 1000 characters, a recipient up to 500');
 same(array(), VereineStatuteText::validate(array('arrears_months' => '6', 'tax' => 'donation', 'asset' => '3')), 'valid text fields');
 same(array('VereineStatuteTextErrorArrears', 'VereineStatuteTextErrorAsset'), VereineStatuteText::validate(array('arrears_months' => '0', 'tax' => 'none', 'asset' => 'a')),
 	'no exclusion without months, and a tax wording without tax privilege');
