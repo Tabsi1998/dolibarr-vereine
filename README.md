@@ -70,6 +70,9 @@ with a REST API for the association's website.
 - **SEPA direct debit** (0.3.10): the fee run checks mandates, reports expired
   ones and requests the direct debit with pre-notification through Dolibarr's
   own module.
+- **Consents and applications** (0.3.11): consent texts with versions, consents
+  and withdrawals on the member, and membership applications from a website
+  through the API as members in draft.
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 

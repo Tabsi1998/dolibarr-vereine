@@ -887,6 +887,32 @@ if ($stage === 'sepamembers') {
 	exit(0);
 }
 
+// A user for the website's membership form: may read the association and send applications, nothing else.
+if ($stage === 'applicationuser') {
+	$form = new User($db);
+	$form->login = 'rtapplications';
+	$form->lastname = 'Beitrittsformular';
+	$form->firstname = 'Runtime';
+	$form->admin = 0;
+	$form->entity = 1;
+	if ($form->create($admin) <= 0) {
+		rt_fail('user rtapplications: '.$form->error);
+	}
+	$form->fetch($form->id);
+	$form->api_key = rt_env('RT_APPLICATION_KEY');
+	if ($form->update($admin) <= 0) {
+		rt_fail('API key for rtapplications: '.$form->error);
+	}
+	foreach (array(array('association', 'read'), array('application', 'write')) as $right) {
+		$rightId = (int) rt_value($db, "SELECT id FROM ".MAIN_DB_PREFIX."rights_def WHERE module = 'vereine' AND perms = '".$right[0]."' AND subperms = '".$right[1]."' AND entity = 1");
+		if ($rightId <= 0 || $form->addrights($rightId) < 0) {
+			rt_fail('granting vereine/'.$right[0].'/'.$right[1].' to rtapplications: '.$form->error);
+		}
+	}
+	print json_encode(array('user' => (int) $form->id))."\n";
+	exit(0);
+}
+
 // Dolibarr's scheduled job for exits, as the cron runner calls it.
 if ($stage === 'runexits') {
 	dol_include_once('/vereine/class/vereineexits.class.php');
@@ -1009,7 +1035,7 @@ if ($stage === 'reset') {
 		$extrafields = new ExtraFields($db);
 		$extrafields->delete($name, 'adherent');
 	}
-	foreach (array('vereine_log', 'vereine_taxprofile', 'vereine_fee_discount', 'vereine_member_exit') as $table) {
+	foreach (array('vereine_log', 'vereine_taxprofile', 'vereine_fee_discount', 'vereine_member_exit', 'vereine_consent_text', 'vereine_consent', 'vereine_application') as $table) {
 		if (!$db->query("DROP TABLE IF EXISTS ".MAIN_DB_PREFIX.$table)) {
 			rt_fail('drop table '.$table.': '.$db->lasterror());
 		}
@@ -1018,4 +1044,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, resiliate, guardian or reset');

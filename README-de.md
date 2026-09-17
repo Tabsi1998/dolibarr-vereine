@@ -77,6 +77,9 @@ Vereinswebsite mit.
 - **SEPA-Lastschrift** (0.3.10): Der Beitragslauf prüft Mandate, meldet
   abgelaufene und fordert die Lastschrift mit Vorankündigung über Dolibarrs
   eigenes Modul an.
+- **Einwilligungen und Beitrittsanträge** (0.3.11): Einwilligungstexte mit
+  Version, Einwilligung und Widerruf am Mitglied, Beitrittsanträge von der
+  Website über die API als Mitglied im Entwurf.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

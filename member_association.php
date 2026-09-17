@@ -67,6 +67,7 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/member.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
 require_once __DIR__.'/class/vereinepartnerservice.class.php';
 require_once __DIR__.'/class/vereineexits.class.php';
+require_once __DIR__.'/class/vereineconsents.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('companies', 'members', 'bills', 'categories', 'vereine@vereine'));
@@ -132,6 +133,24 @@ if ($action === 'planexit' && $canExit) {
 		setEventMessages(null, array_map(array($langs, 'trans'), $exits->errors), 'errors');
 	}
 	header('Location: '.$exitBack);
+	exit;
+}
+$consents = new VereineConsents($db);
+if (($action === 'recordconsent' || $action === 'withdrawconsent') && $canExit) {
+	$code = GETPOST('consent_code', 'aZ09');
+	$history = VereineConsentRules::current($consents->history((int) $object->id));
+	$texts = $consents->currentTexts();
+	$source = GETPOST('consent_source', 'aZ09') === 'member_card' ? 'member_card' : 'paper';
+	$result = 0;
+	if ($action === 'recordconsent' && isset($texts[$code])) {
+		$result = $consents->record((int) $object->id, $code, $texts[$code]['version'], true, $source, GETPOST('consent_note', 'alphanohtml'), $user);
+	} elseif ($action === 'withdrawconsent' && isset($history[$code]) && $history[$code]['given']) {
+		$result = $consents->record((int) $object->id, $code, $history[$code]['version'], false, $source, GETPOST('consent_note', 'alphanohtml'), $user);
+	}
+	if ($result < 0) {
+		setEventMessages($consents->error, null, 'errors');
+	}
+	header('Location: '.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereineconsents');
 	exit;
 }
 if (($action === 'cancelexit' || $action === 'carryoutexit') && $canExit) {
@@ -273,6 +292,56 @@ if ($planned) {
 foreach ($exits->fetchAll(array((int) $object->id)) as $past) {
 	if ($past['status'] !== VereineExits::STATUS_PLANNED) {
 		print '<div class="opacitymedium small" data-exit="'.dol_escape_htmltag($past['status']).'">'.$langs->trans('VereineExitPast_'.$past['status'], $langs->trans('VereineExitReason_'.$past['reason']), vereineFormatDay($past['last_day'])).'</div>';
+	}
+}
+print '<br>';
+
+// Consents: the current state per purpose with the version agreed to, and every change.
+print load_fiche_titre($langs->trans('VereineConsentTitle'), '', '', 0, 'vereineconsents');
+$consentTexts = $consents->texts();
+$labels = array();
+foreach ($consentTexts as $text) {
+	$labels[$text['code'].':'.$text['version']] = $text['label'];
+	if (!isset($labels[$text['code']])) {
+		$labels[$text['code']] = $text['label'];
+	}
+}
+$consentHistory = $consents->history((int) $object->id);
+$currentConsents = VereineConsentRules::current($consentHistory);
+$offered = $consents->currentTexts();
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+print '<tr class="liste_titre"><td>'.$langs->trans('VereineConsentLabel').'</td><td>'.$langs->trans('Status').'</td><td class="center">'.$langs->trans('VereineConsentVersion').'</td>';
+print '<td>'.$langs->trans('Date').'</td><td>'.$langs->trans('VereineConsentSource').'</td><td></td></tr>';
+if (!$currentConsents && !$offered) {
+	print '<tr class="oddeven"><td colspan="6"><span class="opacitymedium">'.$langs->trans('VereineConsentNoTexts').'</span></td></tr>';
+}
+foreach (array_unique(array_merge(array_keys($currentConsents), array_keys($offered))) as $code) {
+	$event = isset($currentConsents[$code]) ? $currentConsents[$code] : null;
+	$state = $event === null ? 'none' : ($event['given'] ? 'given' : 'withdrawn');
+	print '<tr class="oddeven" data-member-consent="'.dol_escape_htmltag($code).'" data-state="'.$state.'" data-version="'.($event ? $event['version'] : '').'">';
+	print '<td>'.dol_escape_htmltag($event && isset($labels[$code.':'.$event['version']]) ? $labels[$code.':'.$event['version']] : (isset($labels[$code]) ? $labels[$code] : $code)).'</td>';
+	print '<td>'.$langs->trans('VereineConsentState_'.$state).'</td>';
+	print '<td class="center">'.($event ? $event['version'] : '').'</td>';
+	print '<td class="nowraponall">'.($event ? dol_print_date($event['moment'], 'dayhour') : '').'</td>';
+	print '<td>'.($event ? $langs->trans('VereineConsentSource_'.$event['source']) : '').'</td><td class="right">';
+	if ($canExit && ($state === 'given' || isset($offered[$code]))) {
+		$consentAction = $state === 'given' ? 'withdrawconsent' : 'recordconsent';
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'" name="vereine'.$consentAction.'" class="inline-block">';
+		print '<input type="hidden" name="token" value="'.newToken().'">';
+		print '<input type="hidden" name="action" value="'.$consentAction.'">';
+		print '<input type="hidden" name="consent_code" value="'.dol_escape_htmltag($code).'">';
+		print '<input type="hidden" name="consent_source" value="paper">';
+		print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv($state === 'given' ? 'VereineConsentWithdraw' : 'VereineConsentRecordPaper')).'">';
+		print '</form>';
+	}
+	print '</td></tr>';
+}
+print '</table></div>';
+if (count($consentHistory) > count($currentConsents)) {
+	foreach ($consentHistory as $event) {
+		print '<div class="opacitymedium small" data-consent-event="'.dol_escape_htmltag($event['code']).'">'.dol_print_date($event['moment'], 'dayhour').': ';
+		print $langs->trans($event['given'] ? 'VereineConsentEventGiven' : 'VereineConsentEventWithdrawn', dol_escape_htmltag(isset($labels[$event['code']]) ? $labels[$event['code']] : $event['code']), $event['version'],
+			$langs->trans('VereineConsentSource_'.$event['source'])).'</div>';
 	}
 }
 print '<br>';

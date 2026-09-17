@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '0.3.10-beta';
+		$this->version = '0.3.11-beta';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -144,6 +144,11 @@ class modVereine extends DolibarrModules
 		$this->rights[$r][1] = 'Read member summaries for a website through the API: membership, fee and open invoices';
 		$this->rights[$r][4] = 'website';
 		$this->rights[$r][5] = 'read';
+		$r++;
+		$this->rights[$r][0] = $this->numero.'04';
+		$this->rights[$r][1] = 'Send membership applications through the API: members in draft with consents';
+		$this->rights[$r][4] = 'application';
+		$this->rights[$r][5] = 'write';
 		$r++;
 
 		$this->menu = array();

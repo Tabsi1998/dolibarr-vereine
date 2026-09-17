@@ -604,3 +604,42 @@ VereineSepaRequested=Lastschrift angefordert
 VereineSepaRequestFailed=Lastschrift nicht angefordert: %s
 VereineSepaPreNotification=Der Betrag von %s wird frühestens am %s per SEPA-Lastschrift eingezogen. Mandatsreferenz: %s, Gläubiger-ID: %s.
 VereineLog_fee_direct_debit=Lastschrift angefordert
+
+#
+# Einwilligungen und Beitrittsanträge
+#
+Permission49210004=Beitrittsanträge über die API anlegen: Mitglied im Entwurf mit Einwilligungen
+VereineSetupTabConsents=Einwilligungen
+VereineConsentHowToWhy=<strong>Wofür:</strong> Für manches braucht der Verein eine Einwilligung, zum Beispiel für Fotos auf der Website oder den Newsletter. Der Verein muss nachweisen können, dass und wozu jemand eingewilligt hat (Art. 7 Abs. 1 DSGVO).
+VereineConsentHowToVersion=<strong>Version:</strong> Jeder Text hat eine Version. Wer Text oder Bezeichnung ändert, legt eine neue Version an. Frühere Einwilligungen behalten die Version, der zugestimmt wurde.
+VereineConsentHowToWithdraw=<strong>Widerruf:</strong> Eine Einwilligung kann jederzeit widerrufen werden, so einfach, wie sie erteilt wurde (Art. 7 Abs. 3 DSGVO). Am Mitglied, Reiter <em>Verein</em>, bleibt der ganze Verlauf sichtbar.
+VereineConsentHowToWebsite=<strong>Website:</strong> Sie holt die Texte über <code>GET /vereine/consents</code> und schickt einen Beitrittsantrag mit den erteilten Einwilligungen an <code>POST /vereine/applications</code>. Daraus entsteht ein Mitglied im Entwurf, das der Verein prüft und freigibt.
+VereineConsentHowToChildren=<strong>Kinder:</strong> Bei Online-Angeboten, die sich direkt an Kinder richten, kann ein Kind in Österreich erst ab 14 Jahren selbst einwilligen (§ 4 Abs. 4 DSG). Für Jüngere braucht es die Eltern.
+VereineConsentNone=Noch kein Einwilligungstext angelegt.
+VereineConsentNew=Neuer Einwilligungstext
+VereineConsentEdit=Einwilligungstext ändern (neue Version)
+VereineConsentCode=Kennung
+VereineConsentCodeHelp=Kleinbuchstaben, Ziffern und _, zum Beispiel fotos oder newsletter; bleibt über alle Versionen gleich
+VereineConsentLabel=Bezeichnung
+VereineConsentText=Text
+VereineConsentVersion=Version
+VereineConsentSaved=Einwilligungstext gespeichert, Version %s.
+VereineConsentErrorCode=Die Kennung besteht aus 2 bis 32 Kleinbuchstaben, Ziffern und _ und beginnt mit einem Buchstaben.
+VereineConsentErrorLabel=Die Bezeichnung fehlt oder ist länger als 128 Zeichen.
+VereineConsentErrorText=Der Text fehlt oder ist zu lang.
+VereineConsentTitle=Einwilligungen
+VereineConsentNoTexts=Keine Einwilligungstexte angelegt, siehe Einrichtung > Vereine > Einwilligungen.
+VereineConsentSource=Quelle
+VereineConsentSource_website=Website
+VereineConsentSource_paper=Papier
+VereineConsentSource_member_card=Mitgliedskarte
+VereineConsentState_none=keine Einwilligung
+VereineConsentState_given=erteilt
+VereineConsentState_withdrawn=widerrufen
+VereineConsentWithdraw=Widerruf festhalten
+VereineConsentRecordPaper=Einwilligung auf Papier festhalten
+VereineConsentEventGiven=%s: erteilt, Version %s (%s)
+VereineConsentEventWithdrawn=%s: widerrufen, Version %s (%s)
+VereineLog_consent_given=Einwilligung erteilt
+VereineLog_consent_withdrawn=Einwilligung widerrufen
+VereineLog_application_received=Beitrittsantrag über die Website eingegangen

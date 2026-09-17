@@ -604,3 +604,42 @@ VereineSepaRequested=direct debit requested
 VereineSepaRequestFailed=direct debit not requested: %s
 VereineSepaPreNotification=The amount of %s will be collected by SEPA direct debit on %s at the earliest. Mandate reference: %s, creditor identifier: %s.
 VereineLog_fee_direct_debit=Direct debit requested
+
+#
+# Consents and membership applications
+#
+Permission49210004=Send membership applications through the API: members in draft with consents
+VereineSetupTabConsents=Consents
+VereineConsentHowToWhy=<strong>What for:</strong> some things need a consent, for example photos on the website or the newsletter. The association must be able to show that someone agreed and to what (Art. 7 (1) GDPR).
+VereineConsentHowToVersion=<strong>Version:</strong> every text has a version. Changing text or label creates a new version; earlier consents keep the version agreed to.
+VereineConsentHowToWithdraw=<strong>Withdrawal:</strong> a consent can be withdrawn at any time, as easily as it was given (Art. 7 (3) GDPR). The member's tab <em>Association</em> keeps the whole history.
+VereineConsentHowToWebsite=<strong>Website:</strong> it reads the texts with <code>GET /vereine/consents</code> and sends a membership application with the consents given to <code>POST /vereine/applications</code>. That creates a member in draft, which the association checks and validates.
+VereineConsentHowToChildren=<strong>Children:</strong> for online services offered directly to children, a child in Austria can consent itself from the age of 14 (§ 4 (4) DSG); younger children need their parents.
+VereineConsentNone=No consent text yet.
+VereineConsentNew=New consent text
+VereineConsentEdit=Change consent text (new version)
+VereineConsentCode=Code
+VereineConsentCodeHelp=lower case letters, digits and _, for example photos or newsletter; stays the same over all versions
+VereineConsentLabel=Label
+VereineConsentText=Text
+VereineConsentVersion=Version
+VereineConsentSaved=Consent text saved, version %s.
+VereineConsentErrorCode=The code has 2 to 32 lower case letters, digits and _ and starts with a letter.
+VereineConsentErrorLabel=The label is missing or longer than 128 characters.
+VereineConsentErrorText=The text is missing or too long.
+VereineConsentTitle=Consents
+VereineConsentNoTexts=No consent texts yet, see Setup > Vereine > Consents.
+VereineConsentSource=Source
+VereineConsentSource_website=Website
+VereineConsentSource_paper=Paper
+VereineConsentSource_member_card=Member card
+VereineConsentState_none=no consent
+VereineConsentState_given=given
+VereineConsentState_withdrawn=withdrawn
+VereineConsentWithdraw=Record withdrawal
+VereineConsentRecordPaper=Record consent on paper
+VereineConsentEventGiven=%s: given, version %s (%s)
+VereineConsentEventWithdrawn=%s: withdrawn, version %s (%s)
+VereineLog_consent_given=Consent given
+VereineLog_consent_withdrawn=Consent withdrawn
+VereineLog_application_received=Membership application received from the website

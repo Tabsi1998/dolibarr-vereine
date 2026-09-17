@@ -40,6 +40,8 @@ legal source, not in code, so a changed threshold is a data update.
 | `class/vereinefeediscountstore.class.php` | Discount rules in `llx_vereine_fee_discount` and the member fields for exemption and proof |
 | `class/vereinefeefamilies.class.php` | Payer, family rule (discount per further member, cap per fee year) and sharing a cap, plain PHP |
 | `class/vereinefeefamilystore.class.php` | Member field `vereine_fee_payer`, the family rule constants, families and what they were charged |
+| `class/vereineconsentrules.class.php` | Consent texts, current consent per purpose, checks of a membership application, plain PHP |
+| `class/vereineconsents.class.php`, `admin/consents.php` | Consent texts with versions (`llx_vereine_consent_text`), consents and withdrawals (`llx_vereine_consent`, append only), applications by external id (`llx_vereine_application`) |
 | `class/vereinesepa.class.php`, `class/vereinesepastore.class.php` | Mandate state and pre-notification (plain PHP); mandates and last collections from Dolibarr |
 | `class/vereineexitrules.class.php` | Exit reasons and the last day after notice by the statutes' rule, plain PHP |
 | `class/vereineexits.class.php` | Exits in `llx_vereine_member_exit`, the notice rule constants, the scheduled job `runDue` |

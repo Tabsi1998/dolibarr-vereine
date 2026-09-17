@@ -45,6 +45,9 @@ class VereineLog
 	const EXIT_DONE = 'exit_done';
 	const EXIT_CANCELLED = 'exit_cancelled';
 	const EXIT_ERROR = 'exit_error';
+	const CONSENT_GIVEN = 'consent_given';
+	const CONSENT_WITHDRAWN = 'consent_withdrawn';
+	const APPLICATION_RECEIVED = 'application_received';
 
 	/**
 	 * Append one entry.

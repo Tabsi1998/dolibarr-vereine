@@ -46,6 +46,7 @@ require_once $root.'/class/vereinefeediscounts.class.php';
 require_once $root.'/class/vereinefeefamilies.class.php';
 require_once $root.'/class/vereineexitrules.class.php';
 require_once $root.'/class/vereinesepa.class.php';
+require_once $root.'/class/vereineconsentrules.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -719,6 +720,39 @@ same(array('none', 'none'), array(VereineSepa::mandateStatus('', '2026-01-01', '
 same(array(14, 5, 14, 14), array(VereineSepa::noticeDays(''), VereineSepa::noticeDays('5'), VereineSepa::noticeDays('0'), VereineSepa::noticeDays('61')), 'days of pre-notification from 1 to 60, 14 otherwise');
 same('2026-10-01', VereineSepa::collectionDay('2026-09-17', 14), 'collection 14 days after the invoice');
 
+// ---------------------------------------------------------------- consents
+
+same(array(true, false, false), array(VereineConsentRules::isCode('fotos_web'), VereineConsentRules::isCode('Fotos'), VereineConsentRules::isCode('1newsletter')), 'codes are lower case and start with a letter');
+same(array(), VereineConsentRules::validateText(array('code' => 'newsletter', 'label' => 'Newsletter', 'text' => 'Ich möchte den Newsletter bekommen.')), 'a valid consent text');
+same(array('VereineConsentErrorCode', 'VereineConsentErrorLabel', 'VereineConsentErrorText'), VereineConsentRules::validateText(array('code' => 'x', 'label' => '', 'text' => ' ')),
+	'code, label and text are checked');
+$events = array(
+	array('id' => 1, 'code' => 'fotos', 'version' => 1, 'given' => true, 'date' => '2026-01-01 10:00:00'),
+	array('id' => 3, 'code' => 'fotos', 'version' => 1, 'given' => false, 'date' => '2026-03-01 10:00:00'),
+	array('id' => 2, 'code' => 'newsletter', 'version' => 2, 'given' => true, 'date' => '2026-02-01 10:00:00'),
+);
+$current = VereineConsentRules::current($events);
+same(array('fotos' => false, 'newsletter' => true), array_map(function ($event) {
+	return $event['given'];
+}, $current), 'the latest event per purpose counts: photos withdrawn, newsletter given');
+
+$types = array(5 => array('morphy' => ''), 6 => array('morphy' => 'mor'));
+$texts = array('fotos' => 2, 'newsletter' => 1);
+$valid = array('external_id' => 'web-42', 'firstname' => 'Anna', 'lastname' => 'Antrag', 'email' => 'anna@example.org', 'birth' => '2001-04-30',
+	'country_code' => 'at', 'type_id' => '5', 'consents' => array(array('code' => 'fotos', 'version' => 2)));
+$checked = VereineConsentRules::application($valid, $types, $texts);
+same(array(), $checked['errors'], 'a complete application');
+same(array('AT', 5, array('fotos' => 2), 'phy'), array($checked['application']['country_code'], $checked['application']['type_id'], $checked['application']['consents'], $checked['application']['morphy']),
+	'the application is normalised');
+$checked = VereineConsentRules::application(array('consents' => array(array('code' => 'fotos', 'version' => 1), array('code' => 'werbung', 'version' => 1))) + $valid, $types, $texts);
+same(array('consent fotos was given to version 1, the current version is 2', 'consent werbung is no active consent text, see GET /vereine/consents'), $checked['errors'],
+	'an outdated version and an unknown purpose are refused');
+$checked = VereineConsentRules::application(array('email' => 'anna at example', 'lastname' => '', 'type_id' => 6, 'birth' => '2001-02-30', 'external_id' => 'web 42') + $valid, $types, $texts);
+same(array('external_id may only contain letters, digits and . _ : -', 'firstname and lastname are required', 'email must be a valid e-mail address',
+	'birth must be a date YYYY-MM-DD', 'the member type is not open to this kind of person (morphy)'), $checked['errors'], 'bad input is explained');
+same(array('body' => array('type_id must be an active member type, see GET /vereine/membershipfees')),
+	array('body' => array_values(array_filter(VereineConsentRules::application(array('type_id' => 99) + $valid, $types, $texts)['errors']))), 'an unknown member type is refused');
+
 // ------------------------------------------------------------------- openapi
 
 // Every endpoint of the API class is in docs/openapi.json, and the description lists no other.
@@ -798,7 +832,9 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received'),
+	'VereineConsentSource_' => VereineConsentRules::SOURCES,
+	'VereineConsentState_' => array('none', 'given', 'withdrawn'),
 	'VereineSetting_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT_NATURAL', 'VEREINE_PARTNER_TYPENT_LEGAL', 'VEREINE_CATEGORY_MEMBER', 'VEREINE_CATEGORY_FORMER', 'VEREINE_CATEGORY_GUARDIAN'),
 	'VereineSettingHelp_' => array('VEREINE_PARTNER_AUTOCREATE', 'VEREINE_PARTNER_CATEGORIES', 'VEREINE_PARTNER_CATEGORY_PER_TYPE', 'VEREINE_PARTNER_TYPENT'),
 	'VereineSphere_' => array_keys(VereineTaxRules::spheres()),
