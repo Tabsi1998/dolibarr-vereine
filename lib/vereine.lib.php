@@ -22,6 +22,20 @@
  */
 
 /**
+ * A date YYYY-MM-DD in the user's date format.
+ *
+ * @param string $date Date
+ * @return string Empty for an empty date
+ */
+function vereineFormatDay($date)
+{
+	if ((string) $date === '') {
+		return '';
+	}
+	return dol_print_date(dol_mktime(12, 0, 0, (int) substr($date, 5, 2), (int) substr($date, 8, 2), (int) substr($date, 0, 4)), 'day');
+}
+
+/**
  * Tabs of the module's setup pages.
  *
  * @return array<int,array<int,string>>
@@ -48,6 +62,11 @@ function vereineAdminPrepareHead()
 	$head[$h][0] = dol_buildpath('/vereine/admin/taxprofiles.php', 1);
 	$head[$h][1] = $langs->trans('VereineSetupTabTaxProfiles');
 	$head[$h][2] = 'taxprofiles';
+	$h++;
+
+	$head[$h][0] = dol_buildpath('/vereine/admin/fees.php', 1);
+	$head[$h][1] = $langs->trans('VereineSetupTabFees');
+	$head[$h][2] = 'fees';
 	$h++;
 
 	$head[$h][0] = dol_buildpath('/vereine/admin/about.php', 1);

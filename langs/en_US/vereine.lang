@@ -348,3 +348,41 @@ VereineVat13Missing=Dolibarr knows only 0, 10 and 20 %% VAT for Austria. The red
 VereineVat13Add=Add 13 %%
 VereineVat13Added=The VAT rate of 13 %% is now available for Austria.
 VereineVat13Present=The VAT rate of 13 %% was there already; nothing was changed.
+
+#
+# Fees
+#
+VereineSetupTabFees=Fees
+VereineFeesIntro=How high the membership fee is and which period it covers. The settings are part of Dolibarr's member types; this page shows them for every type at a glance, with an example.
+VereineFeesHowToTitle=What the settings do
+VereineFeesHowToAmount=<strong>Amount and duration</strong> come from Dolibarr's member type, for example 60 € for 1 year or 5 € for 1 month.
+VereineFeesHowToStartMonth=<strong>Fee year starts:</strong> leave it empty when every member pays from joining. Choose a month when everybody pays at the same time: January for the calendar year, September for a season. With half-yearly or quarterly fees the periods start from this month.
+VereineFeesHowToProrated=<strong>Prorated when joining:</strong> whoever joins during the fee year pays only the remaining months. The month of joining counts in full. Example: 60 € a calendar year, joining on 15 March, so 10 of 12 months, makes 50 €. Unticked, the full amount is due for the rest of the fee year.
+VereineFeesHowToAdmission=<strong>Admission fee:</strong> once, in addition to the first fee.
+VereineFeesHowToProduct=<strong>Fee product:</strong> the product of the invoice line. Its tax profile decides VAT and invoice note. Empty means the product of Dolibarr's member settings.
+VereineFeesHowToWhere=Change it under %s: open a member type, "Modify", the fields are at the bottom.
+VereineFeesMemberTypes=Member types
+VereineFeesDolibarrCard=These settings apply to the fee run and the website API. Dolibarr's own form "New subscription" on the member card keeps suggesting periods from its own settings.
+VereineFeesReadError=The member types could not be read. After an update, disable and enable the module once.
+VereineFeesAmount=Fee
+VereineFeesExample=Joining on %s
+VereineFeesNoTypes=No member type yet.
+VereineFeesNoSubscription=This member type pays no fee.
+VereineFeesNoAmount=no amount
+VereineFeesPeriod=%s to %s
+VereineFeesPlusAdmission=plus admission fee %s
+VereineFeeStartMonth=Fee year starts
+VereineFeeStartMonthHelp=Empty: from each member's joining. A month: everybody pays from this month, for example January for the calendar year or September for a season.
+VereineFeeStartsWithJoining=with joining
+VereineFeeProrated=Prorated when joining
+VereineFeeProratedHelp=Whoever joins during the fee year pays only the remaining months; the month of joining counts in full. Works only when the fee year starts in a fixed month.
+VereineFeeAdmission=Admission fee
+VereineFeeAdmissionHelp=Once, in addition to the first fee.
+VereineFeeProduct=Fee product
+VereineFeeProductHelp=Product of the fee's invoice line; its tax profile decides VAT and invoice note. Empty: the product of Dolibarr's member settings.
+VereineFeeProductDefault=from the member settings
+VereineFeeProductTaxProfile=Tax profile: %s
+VereineFeeProductNoTaxProfile=The product has no tax profile.
+VereineFeeNoProduct=No product: the invoice line would have no tax profile.
+VereineFeeReasonProrated=prorated, %s of %s months
+VereineFeeReasonRestFull=full amount for the remaining %s months

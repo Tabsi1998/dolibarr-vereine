@@ -1236,6 +1236,65 @@ def websiteevents(stack: Stack) -> str:
             "only member id, cause and moment are sent" + history + "; an unreachable blocking webhook does not stop a member update")
 
 
+def fees(stack: Stack) -> str:
+    """The fee model is set on Dolibarr's member type card; the setup page and the API show what joining today costs."""
+    site = stack.notes["website"]
+    key, today = site["key"], site["dates"]["today"]
+    fields = stack.value("SELECT COUNT(*) FROM llx_extrafields WHERE elementtype = 'adherent_type' AND name LIKE 'vereine%'")
+    expect(fields == "4", f"{fields} fee fields on member types, expected 4")
+    fee_type = int(stack.value("SELECT rowid FROM llx_adherent_type WHERE libelle = 'Beitragspflichtig'"))
+    free_type = int(stack.value("SELECT rowid FROM llx_adherent_type WHERE libelle = 'Ordentliches Mitglied'"))
+    product = stack.value("SELECT rowid FROM llx_product WHERE ref = 'RT-BEITRAG'")
+
+    browser = stack.browser()
+    setup = page_ok(browser.get("/custom/vereine/admin/fees.php"), "fee setup")
+    links = [html.unescape(href) for href in re.findall(r'href="([^"]*/adherents/type\.php\?[^"]*)"', setup.text)]
+    edit = next((link for link in links if re.search(rf"[?&]rowid={fee_type}(&|$)", link) and "action=edit" in link), None)
+    expect(edit is not None, f"the fee setup offers no edit link for member type {fee_type}: {links}")
+    card = page_ok(browser.get(edit), "Dolibarr's member type card in edit mode")
+    form = card.form(action_part=f"rowid={fee_type}")
+    for name in ("options_vereine_fee_start_month", "options_vereine_admission_fee", "options_vereine_fee_product"):
+        expect(form.has(name), f"Dolibarr's member type card does not offer {name}")
+    page_ok(browser.submit(form, {"duration_value": "1", "duration_unit": "y", "options_vereine_fee_start_month": "1",
+                                  "options_vereine_fee_prorated": "1", "options_vereine_admission_fee": "20",
+                                  "options_vereine_fee_product": product}), "save the fee model on the member type card")
+    stored = stack.sql(f"SELECT vereine_fee_start_month, vereine_fee_prorated, vereine_admission_fee, vereine_fee_product "
+                       f"FROM llx_adherent_type_extrafields WHERE fk_object = {fee_type}")
+    expect(stored and stored[0][0] == "1" and stored[0][1] == "1" and float(stored[0][2]) == 20 and stored[0][3] == product,
+           f"fee model stored on the member type: {stored}")
+
+    year, month, day = (int(part) for part in today.split("-"))
+    months = 13 - month
+    reason, amount = ("full", 50.0) if (month, day) == (1, 1) else ("prorated", round(50 * months / 12, 2))
+    setup = page_ok(browser.get("/custom/vereine/admin/fees.php"), "fee setup after saving")
+    row = re.search(rf'<tr class="oddeven" data-fee-type="{fee_type}">(.*?)</tr>', setup.text, re.S)
+    expect(row is not None, f"the fee setup shows no row for member type {fee_type}")
+    example = dict(re.findall(r'data-fee-(example|start|end|amount|admission)="([^"]*)"', row.group(1)))
+    expect(example.get("example") == reason and example.get("start") == today and example.get("end") == f"{year}-12-31"
+           and float(example.get("amount") or -1) == amount and float(example.get("admission") or -1) == 20,
+           f"joining today costs {example}, expected {reason} {amount} until {year}-12-31 plus 20")
+    text = html.unescape(row.group(1))
+    expect("RT-BEITRAG" in text and "Steuerprofil" in text, "the fee setup does not show the fee product and its tax profile")
+    expect(f'data-fee-type="{free_type}"' in setup.text and 'data-fee-example="none"' in setup.text,
+           "the member type without fee is not shown as such")
+    expect(denied(stack.browser("rtreader").get("/custom/vereine/admin/fees.php")), "a non-administrator opens the fee setup")
+
+    status, body = stack.api("vereine/membershipfees", key)
+    expect(status == 200 and isinstance(body, list), f"GET vereine/membershipfees answered HTTP {status}: {body}")
+    found = {entry["id"]: entry for entry in body}
+    paying, free = found.get(fee_type, {}), found.get(free_type, {})
+    expect({k: paying.get(k) for k in ("amount", "duration", "year_starts_month", "prorated", "admission_fee", "subscription_required", "currency")}
+           == {"amount": 50, "duration": {"value": 1, "unit": "y"}, "year_starts_month": 1, "prorated": True, "admission_fee": 20,
+               "subscription_required": True, "currency": "EUR"}, f"fee of the paying member type: {paying}")
+    expect(free.get("subscription_required") is False and free.get("amount") is None and free.get("admission_fee") == 0,
+           f"member type without fee: {free}")
+    for who, name in ((stack.reader_key, "a user without the website right"), (stack.nobody_key, "a user without rights")):
+        status, _ = stack.api("vereine/membershipfees", who)
+        expect(status == 403, f"{name} got HTTP {status} for the membership fees, expected 403")
+    return (f"fee model saved on Dolibarr's member type card; joining today: {reason} {amount} € until 31 December plus 20 € admission, "
+            "fee product with tax profile shown; API for the website; non-administrators and users without right refused")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -1309,7 +1368,8 @@ SCENARIOS = (
     ("websiteinvoices", "A member's invoices and PDFs for a website", websiteinvoices, ("website",)),
     ("websitesync", "A website sync gets all members and then only the changed ones", websitesync, ("websiteinvoices",)),
     ("websiteevents", "Webhooks tell a website which member changed, without personal data", websiteevents, ("websitesync",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("websiteevents",)),
+    ("fees", "Fee model on the member type, the fee setup page and the membership fees API", fees, ("websiteevents",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("fees",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

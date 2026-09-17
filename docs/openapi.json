@@ -26,6 +26,40 @@
     }
   ],
   "paths": {
+    "/vereine/membershipfees": {
+      "get": {
+        "operationId": "getMembershipfees",
+        "summary": "Member types in use with their fee, for becoming a member",
+        "description": "Needs the right to read the association and the right to read member summaries for a website.",
+        "responses": {
+          "200": {
+            "description": "Member types",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MembershipFee"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/vereine/members": {
       "get": {
         "operationId": "getMembers",
@@ -860,6 +894,71 @@
           },
           "updated_at": {
             "$ref": "#/components/schemas/Moment"
+          }
+        }
+      },
+      "MembershipFee": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "description", "for", "subscription_required", "amount", "amount_editable", "duration", "year_starts_month", "prorated", "admission_fee", "currency"],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "description": "Public description of the member type, plain text"
+          },
+          "for": {
+            "type": "string",
+            "enum": ["natural", "legal", "both"]
+          },
+          "subscription_required": {
+            "type": "boolean"
+          },
+          "amount": {
+            "type": "number",
+            "nullable": true,
+            "description": "Fee per period; null when the type sets none or needs no subscription"
+          },
+          "amount_editable": {
+            "type": "boolean",
+            "description": "The member may pay a different amount"
+          },
+          "duration": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["value", "unit"],
+            "properties": {
+              "value": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "unit": {
+                "type": "string",
+                "enum": ["y", "m", "w", "d"]
+              }
+            }
+          },
+          "year_starts_month": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 12,
+            "description": "Month the fee year starts, 0 when every member pays from joining"
+          },
+          "prorated": {
+            "type": "boolean",
+            "description": "Joining during the fee year pays the remaining months only"
+          },
+          "admission_fee": {
+            "type": "number",
+            "description": "Once, with the first fee"
+          },
+          "currency": {
+            "type": "string"
           }
         }
       },

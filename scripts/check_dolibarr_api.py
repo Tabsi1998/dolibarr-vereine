@@ -256,6 +256,19 @@ CONTRACTS = (
     ("htdocs/compta/facture/class/facture.class.php", "call_trigger('BILL_MODIFY'", "a changed invoice"),
     ("htdocs/compta/paiement/class/paiement.class.php", "call_trigger('PAYMENT_CUSTOMER_CREATE'", "a new payment"),
     ("htdocs/compta/paiement/class/paiement.class.php", "call_trigger('PAYMENT_CUSTOMER_DELETE'", "a deleted payment, raised while it is still linked to its invoices"),
+    # Fee model on the member type (issue #60)
+    ("htdocs/install/mysql/tables/llx_adherent_type_extrafields.sql", "fk_object", "extra fields of member types"),
+    ("htdocs/adherents/type.php", "$extrafields->fetch_name_optionals_label($object->table_element);", "the member type card shows the fee fields"),
+    ("htdocs/adherents/type.php", "$ret = $extrafields->setOptionalsFromPost(null, $object, '@GETPOSTISSET');", "the member type card stores the fee fields"),
+    ("htdocs/adherents/type.php", "WHERE d.entity IN (\".getEntity('member_type').\")", "member types of the current entity"),
+    ("htdocs/adherents/class/adherent_type.class.php", "public $table_element = 'adherent_type';", "extra fields element of member types"),
+    ("htdocs/adherents/class/adherent_type.class.php", "d.duration", "duration of a member type such as 1y"),
+    ("htdocs/install/mysql/tables/llx_adherent_type.sql", "duration", "duration of a member type"),
+    ("htdocs/install/mysql/tables/llx_adherent_type.sql", "note", "public description of a member type"),
+    ("htdocs/install/mysql/tables/llx_adherent_type.sql", "caneditamount", "a member may pay another amount"),
+    ("htdocs/core/lib/date.lib.php", "function dol_time_plus_duree(", "periods of subscriptions, compared with the fee rules"),
+    ("htdocs/adherents/subscription.php", "MEMBER_SUBSCRIPTION_START_FIRST_DAY_OF", "Dolibarr's own period suggestion on the member card"),
+    ("htdocs/core/lib/functions.lib.php", "function yn(", "prorated yes/no on the fee setup"),
 )
 
 LANG_KEYS = {
@@ -265,9 +278,10 @@ LANG_KEYS = {
                                      "August", "September", "October", "November", "December",
                                      "Type", "Categories", "BackToList", "DateDue", "AmountTTC", "Ref",
                                      "None", "Date", "Action", "Description", "Confirm", "Cancel", "Email",
-                                     "Enabled", "Disabled", "Modify", "ReadPermissionNotAllowed"),
+                                     "Enabled", "Disabled", "Modify", "ReadPermissionNotAllowed",
+                                     "Year", "Month", "Week", "Day", "Duration"),
     # Loaded by partners.php and partner_membership.php.
-    "htdocs/langs/en_US/members.lang": ("MemberRef", "Member"),
+    "htdocs/langs/en_US/members.lang": ("MemberRef", "Member", "MemberType"),
     # Loaded by admin/setup.php and admin/about.php.
     "htdocs/langs/en_US/admin.lang": ("Version", "Publisher", "BackToModuleList", "SetupSaved"),
     # Loaded by vereineindex.php.

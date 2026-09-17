@@ -348,3 +348,41 @@ VereineVat13Missing=Dolibarr kennt für Österreich nur 0, 10 und 20 %% Umsatzst
 VereineVat13Add=13 %% ergänzen
 VereineVat13Added=Der Umsatzsteuersatz 13 %% ist jetzt für Österreich verfügbar.
 VereineVat13Present=Der Umsatzsteuersatz 13 %% war schon vorhanden, es wurde nichts geändert.
+
+#
+# Beiträge
+#
+VereineSetupTabFees=Beiträge
+VereineFeesIntro=Wie hoch der Mitgliedsbeitrag ist und für welchen Zeitraum er gilt. Die Einstellungen stehen direkt an Dolibarrs Mitgliedsarten; hier sieht man sie für alle Arten auf einen Blick, mit einem Rechenbeispiel.
+VereineFeesHowToTitle=Was die Einstellungen bewirken
+VereineFeesHowToAmount=<strong>Betrag und Dauer</strong> kommen aus Dolibarrs Mitgliedsart, zum Beispiel 60 € für 1 Jahr oder 5 € für 1 Monat.
+VereineFeesHowToStartMonth=<strong>Beitragsjahr beginnt:</strong> leer lassen, wenn jedes Mitglied ab seinem Eintritt zahlt. Einen Monat wählen, wenn alle zum selben Zeitpunkt zahlen: Jänner für das Kalenderjahr, September für eine Saison. Bei halbjährlichem oder vierteljährlichem Beitrag beginnen die Perioden ab diesem Monat.
+VereineFeesHowToProrated=<strong>Anteilig bei Eintritt:</strong> Wer im laufenden Beitragsjahr eintritt, zahlt nur die restlichen Monate. Der Eintrittsmonat zählt ganz. Beispiel: 60 € im Kalenderjahr, Eintritt am 15. März, also 10 von 12 Monaten, ergibt 50 €. Ohne Häkchen zahlt man den vollen Betrag für den Rest des Beitragsjahres.
+VereineFeesHowToAdmission=<strong>Aufnahmegebühr:</strong> einmal zusätzlich zum ersten Beitrag.
+VereineFeesHowToProduct=<strong>Beitragsleistung:</strong> das Produkt für die Rechnungszeile. Sein Steuerprofil bestimmt Umsatzsteuer und Rechnungshinweis. Leer bedeutet: das Produkt aus Dolibarrs Mitglieder-Einstellungen.
+VereineFeesHowToWhere=Ändern kann man das in den %s: Mitgliedsart öffnen, „Ändern“, die Felder stehen unten.
+VereineFeesMemberTypes=Mitgliedsarten
+VereineFeesDolibarrCard=Diese Einstellungen gelten für den Beitragslauf und die Website-API. Dolibarrs eigenes Formular „Beitrag erfassen“ auf der Mitgliedskarte schlägt Zeiträume weiter nach seinen eigenen Einstellungen vor.
+VereineFeesReadError=Die Mitgliedsarten konnten nicht gelesen werden. Nach einem Update das Modul einmal deaktivieren und wieder aktivieren.
+VereineFeesAmount=Beitrag
+VereineFeesExample=Eintritt am %s
+VereineFeesNoTypes=Noch keine Mitgliedsart angelegt.
+VereineFeesNoSubscription=Diese Mitgliedsart zahlt keinen Beitrag.
+VereineFeesNoAmount=kein Betrag
+VereineFeesPeriod=%s bis %s
+VereineFeesPlusAdmission=dazu Aufnahmegebühr %s
+VereineFeeStartMonth=Beitragsjahr beginnt
+VereineFeeStartMonthHelp=Leer: ab dem Eintritt jedes Mitglieds. Ein Monat: alle zahlen ab diesem Monat, zum Beispiel Jänner für das Kalenderjahr oder September für eine Saison.
+VereineFeeStartsWithJoining=mit dem Eintritt
+VereineFeeProrated=Anteilig bei Eintritt
+VereineFeeProratedHelp=Wer im laufenden Beitragsjahr eintritt, zahlt nur die restlichen Monate; der Eintrittsmonat zählt ganz. Wirkt nur, wenn das Beitragsjahr in einem festen Monat beginnt.
+VereineFeeAdmission=Aufnahmegebühr
+VereineFeeAdmissionHelp=Einmal zusätzlich zum ersten Beitrag.
+VereineFeeProduct=Beitragsleistung
+VereineFeeProductHelp=Produkt für die Rechnungszeile des Beitrags; sein Steuerprofil bestimmt Umsatzsteuer und Rechnungshinweis. Leer: das Produkt aus Dolibarrs Mitglieder-Einstellungen.
+VereineFeeProductDefault=aus den Mitglieder-Einstellungen
+VereineFeeProductTaxProfile=Steuerprofil: %s
+VereineFeeProductNoTaxProfile=Das Produkt hat kein Steuerprofil.
+VereineFeeNoProduct=Kein Produkt: Die Rechnungszeile hätte kein Steuerprofil.
+VereineFeeReasonProrated=anteilig, %s von %s Monaten
+VereineFeeReasonRestFull=voller Betrag für die restlichen %s Monate
