@@ -42,6 +42,8 @@ class VereineMemberSummary
 	const FEE_PAID = 'paid';
 	/** No subscription period yet, or the last one has ended. */
 	const FEE_DUE = 'due';
+	/** The current period has a fee invoice that is not paid yet. */
+	const FEE_INVOICED = 'invoiced';
 	/** The member type needs no subscription. */
 	const FEE_NOT_REQUIRED = 'not_required';
 	/** The membership is not active, so no fee is expected. */
@@ -101,14 +103,15 @@ class VereineMemberSummary
 	/**
 	 * Fee status and the day the next fee is due.
 	 *
-	 * @param string $status      One of the STATUS constants
-	 * @param bool   $required    Whether the member type needs a subscription
-	 * @param string $paidUntil   End of the last subscription period
-	 * @param string $validatedOn Validation date, due date of a first fee
-	 * @param string $today       Today
+	 * @param string $status        One of the STATUS constants
+	 * @param bool   $required      Whether the member type needs a subscription
+	 * @param string $paidUntil     End of the last paid subscription period
+	 * @param string $invoicedUntil End of the last subscription period whose fee invoice is still open
+	 * @param string $validatedOn   Validation date, due date of a first fee
+	 * @param string $today         Today
 	 * @return array{status:string,next_due:string}
 	 */
-	public static function fee($status, $required, $paidUntil, $validatedOn, $today)
+	public static function fee($status, $required, $paidUntil, $invoicedUntil, $validatedOn, $today)
 	{
 		if ($status !== self::STATUS_ACTIVE) {
 			return array('status' => self::FEE_INACTIVE, 'next_due' => '');
@@ -116,13 +119,43 @@ class VereineMemberSummary
 		if (!$required) {
 			return array('status' => self::FEE_NOT_REQUIRED, 'next_due' => '');
 		}
-		if ((string) $paidUntil === '') {
-			return array('status' => self::FEE_DUE, 'next_due' => (string) $validatedOn);
+		$nextDue = (string) $paidUntil === '' ? (string) $validatedOn : self::dayAfter($paidUntil);
+		if ((string) $paidUntil !== '' && $paidUntil >= $today) {
+			return array('status' => self::FEE_PAID, 'next_due' => $nextDue);
 		}
-		return array(
-			'status' => $paidUntil >= $today ? self::FEE_PAID : self::FEE_DUE,
-			'next_due' => self::dayAfter($paidUntil),
-		);
+		if ((string) $invoicedUntil !== '' && $invoicedUntil >= $today) {
+			return array('status' => self::FEE_INVOICED, 'next_due' => $nextDue);
+		}
+		return array('status' => self::FEE_DUE, 'next_due' => $nextDue);
+	}
+
+	/**
+	 * Paid and invoiced ends of subscription periods.
+	 *
+	 * A period counts as paid when it has no fee invoice (recorded as paid on the member card)
+	 * or its fee invoice is paid. A period with a validated fee invoice not yet paid counts as
+	 * invoiced; a draft or abandoned fee invoice pays nothing.
+	 *
+	 * @param array<int,array{end:string,invoice_status:int|null}> $periods Periods with the status of their fee invoice, null without one
+	 * @return array{paid_until:string,invoiced_until:string}
+	 */
+	public static function periodEnds(array $periods)
+	{
+		$paid = '';
+		$invoiced = '';
+		foreach ($periods as $period) {
+			$end = (string) $period['end'];
+			if ($end === '') {
+				continue;
+			}
+			$invoice = $period['invoice_status'];
+			if ($invoice === null || (int) $invoice === 2) {
+				$paid = max($paid, $end);
+			} elseif ((int) $invoice === 1) {
+				$invoiced = max($invoiced, $end);
+			}
+		}
+		return array('paid_until' => $paid, 'invoiced_until' => $invoiced);
 	}
 
 	/**

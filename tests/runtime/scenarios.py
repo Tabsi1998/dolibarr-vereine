@@ -1362,12 +1362,21 @@ def feerun(stack: Stack) -> str:
 
     status, invoices = stack.api(f"vereine/members/{fiona}/invoices", key)
     expect(status == 200 and len(invoices) == 1 and invoices[0]["fee"] is True, f"Fiona's invoice through the website API: {invoices}")
+    # Dolibarr counts the period as paid once recorded; the summary waits for the invoice.
     status, summary = stack.api(f"vereine/members/{fiona}/summary", key)
-    expect(status == 200 and summary["paid_until"] == f"{year}-12-31" and summary["fee"]["status"] == "paid",
-           f"Fiona after the fee run: paid until {summary.get('paid_until')}, fee {summary.get('fee')}")
+    expect(status == 200 and summary["paid_until"] == "" and summary["fee"]["status"] == "invoiced" and summary["fee"]["payment_url"] == ""
+           and [invoice["fee"] for invoice in summary["open_invoices"]] == [True],
+           f"Fiona with an unpaid fee invoice: paid until {summary.get('paid_until')!r}, fee {summary.get('fee')}")
+    status, nina_summary = stack.api(f"vereine/members/{nina}/summary", key)
+    expect(status == 200 and nina_summary["paid_until"] < today and nina_summary["fee"]["status"] == "invoiced",
+           f"Nina with an unpaid fee invoice keeps her last paid period: {nina_summary.get('paid_until')}, {nina_summary.get('fee')}")
+    stack.php_fixture("payinvoice", RT_INVOICE_ID=by_member[fiona][0])
+    status, summary = stack.api(f"vereine/members/{fiona}/summary", key)
+    expect(status == 200 and summary["paid_until"] == f"{year}-12-31" and summary["fee"]["status"] == "paid" and summary["open_invoices"] == [],
+           f"Fiona after paying the fee invoice: paid until {summary.get('paid_until')}, fee {summary.get('fee')}")
     return (f"preview: Fiona {fee} + 20 admission ready, Nina {fee} without third party; reader refused; run created both with "
             "linked periods to 31 December, fee product tax profile on 3 lines, third party for Nina, log; second run created nothing; "
-            "website API marks the fee invoice")
+            "website API marks the fee invoice, shows invoiced until it is paid and paid until 31 December afterwards")
 
 
 def openapi(stack: Stack) -> str:

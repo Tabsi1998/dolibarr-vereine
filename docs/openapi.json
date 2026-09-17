@@ -869,7 +869,7 @@
               },
               "status": {
                 "type": "string",
-                "enum": ["paid", "due", "not_required", "inactive"]
+                "enum": ["paid", "invoiced", "due", "not_required", "inactive"]
               },
               "next_due": {
                 "$ref": "#/components/schemas/Date"

@@ -33,6 +33,14 @@ Membership fees, part 2 (issues #61 and #14): the fee run.
 - Creating needs Dolibarr's rights to record subscriptions and to create and
   validate invoices.
 
+### Changed
+
+- The member summary counts a subscription period as paid only when it has no
+  fee invoice or its fee invoice is paid. Dolibarr treats a period as paid as
+  soon as it is recorded, so after a fee run the website would have shown
+  "paid until 31 December" for an unpaid invoice; the fee status is now
+  `invoiced` until the invoice is paid.
+
 ### Upgrade
 
 Deploy the new ZIP, then disable and enable the module once in the module list:

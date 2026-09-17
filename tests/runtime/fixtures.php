@@ -36,6 +36,7 @@
  * php fixtures.php webhookchanges  payments, a subscription period and a resignation in one request
  * php fixtures.php webhookdown  a blocking target that cannot be reached, and a member update
  * php fixtures.php feerunmember  a member with fee and third party, validated today
+ * php fixtures.php payinvoice  pay the rest of an invoice, closing it as paid
  *
  * Prints one JSON object. Passwords and API keys come from the environment only.
  */
@@ -685,6 +686,27 @@ if ($stage === 'feerunmember') {
 	exit(0);
 }
 
+// Pay what is left of an invoice by bank transfer, closing it as paid.
+if ($stage === 'payinvoice') {
+	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/paiement/class/paiement.class.php';
+	$invoice = new Facture($db);
+	if ($invoice->fetch((int) rt_env('RT_INVOICE_ID')) <= 0) {
+		rt_fail('invoice to pay: '.$invoice->error);
+	}
+	$payment = new Paiement($db);
+	$payment->datepaye = dol_now();
+	$payment->date = $payment->datepaye;
+	$payment->amounts = array((int) $invoice->id => (float) $invoice->getRemainToPay(0));
+	$payment->paiementid = (int) rt_value($db, "SELECT id FROM ".MAIN_DB_PREFIX."c_paiement WHERE code = 'VIR' AND entity IN (0, 1) ORDER BY entity DESC");
+	$payment->paiementcode = 'VIR';
+	if ($payment->create($admin, 1) <= 0) {
+		rt_fail('pay invoice: '.$payment->error.' '.implode(' | ', (array) $payment->errors));
+	}
+	print json_encode(array('payment' => (int) $payment->id))."\n";
+	exit(0);
+}
+
 // An abandoned invoice for the third party of a member.
 if ($stage === 'websiteinvoices') {
 	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
@@ -781,4 +803,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, resiliate, guardian or reset');

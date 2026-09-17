@@ -104,10 +104,11 @@ class VereineMemberReport
 
 		$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
 		$status = VereineMemberSummary::status($row->statut);
-		$paidUntil = VereineMemberSummary::dayOf($row->datefin);
+		$ends = $this->periodEnds((int) $row->rowid, VereineMemberSummary::dayOf($row->datefin));
+		$paidUntil = $ends['paid_until'];
 		$validatedOn = VereineMemberSummary::datePart($row->datevalid);
 		$required = (int) $row->subscription === 1;
-		$fee = VereineMemberSummary::fee($status, $required, $paidUntil, $validatedOn, $today);
+		$fee = VereineMemberSummary::fee($status, $required, $paidUntil, $ends['invoiced_until'], $validatedOn, $today);
 		$amount = ($row->amount === null || $row->amount === '') ? null : (float) $row->amount;
 		$online = $this->onlinePayment();
 
@@ -133,6 +134,32 @@ class VereineMemberReport
 			'open_invoices' => (int) $row->fk_soc > 0 ? $this->invoices((int) $row->fk_soc, $today, $online, true, self::MAX_OPEN_INVOICES, 0) : array(),
 			'updated_at' => VereineMemberSummary::isoMoment(current($this->changes((int) $row->rowid))),
 		);
+	}
+
+	/**
+	 * Paid and invoiced ends of a member's subscription periods, see VereineMemberSummary::periodEnds().
+	 *
+	 * @param int    $memberId  Member id
+	 * @param string $memberEnd Dolibarr's end date of the member, used when it has no subscription periods (imported data)
+	 * @return array{paid_until:string,invoiced_until:string}
+	 */
+	private function periodEnds($memberId, $memberEnd)
+	{
+		$sql = "SELECT s.datef, f.fk_statut FROM ".MAIN_DB_PREFIX."subscription as s";
+		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."element_element as ee ON ee.fk_source = s.rowid AND ee.sourcetype = 'subscription' AND ee.targettype = 'facture'";
+		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."facture as f ON f.rowid = ee.fk_target";
+		$sql .= " WHERE s.fk_adherent = ".((int) $memberId);
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			dol_syslog(__METHOD__.' '.$this->db->lasterror(), LOG_ERR);
+			return array('paid_until' => $memberEnd, 'invoiced_until' => '');
+		}
+		$periods = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$periods[] = array('end' => VereineMemberSummary::dayOf($obj->datef), 'invoice_status' => $obj->fk_statut === null ? null : (int) $obj->fk_statut);
+		}
+		$this->db->free($resql);
+		return $periods ? VereineMemberSummary::periodEnds($periods) : array('paid_until' => $memberEnd, 'invoiced_until' => '');
 	}
 
 	/**
