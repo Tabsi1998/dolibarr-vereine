@@ -2488,6 +2488,68 @@ def attendance(stack: Stack) -> str:
             f"with proxies and half needed: {required} votes at 19:00 reach the quorum, gone after the holder left; board: no proxy, half present reaches the quorum; log")
 
 
+def votes(stack: Stack) -> str:
+    """Votes and elections: only with quorum, majorities of the statutes, an election starts the term and its report, a change of statutes stores version and notice."""
+    browser = stack.browser()
+    base = "/custom/vereine/meetings.php"
+    general_id = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting WHERE kind = 'general'")
+    board_id = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting WHERE kind = 'board'")
+    general_day = stack.value(f"SELECT meeting_day FROM llx_vereine_meeting WHERE rowid = {general_id}")
+    count = "SELECT COUNT(*) FROM llx_vereine_meeting_vote"
+
+    def vote(meeting: str, fields: dict) -> Page:
+        page = page_ok(browser.get(f"{base}?id={meeting}"), f"meeting {meeting}")
+        return page_ok(browser.submit(page.form(name="vereinevote"), fields), f"vote {fields}")
+
+    page = page_ok(browser.get(f"{base}?id={general_id}&at=19:00"), "general assembly at 19:00")
+    votes_at_seven = int(re.search(r'data-votes="(\d+)"', page.text).group(1))
+    expect(votes_at_seven >= 3, f"{votes_at_seven} votes at 19:00, the attendance scenario should leave at least three")
+    refused = vote(general_id, {"item": "2", "kind": "resolution", "title": "Budget", "yes": "2", "no": "0", "time": ""})
+    expect("nicht beschlussfähig" in html.unescape(refused.text) and stack.value(count) == "0", "a vote without quorum was entered")
+    refused = vote(general_id, {"item": "2", "kind": "resolution", "title": "Budget", "yes": str(votes_at_seven + 1), "no": "0", "time": "19:00"})
+    expect("mehr Stimmen" in html.unescape(refused.text) and stack.value(count) == "0", "more votes than present were entered")
+    vote(general_id, {"item": "2", "kind": "resolution", "title": "Budget", "yes": str(votes_at_seven - 1), "no": "1", "time": "19:00"})
+
+    versions = "SELECT COUNT(*) FROM llx_vereine_statute"
+    notices = "SELECT COUNT(*) FROM llx_vereine_authority_letter WHERE kind = 'statutes'"
+    before = (stack.value(versions), stack.value(notices))
+    vote(general_id, {"item": "3", "kind": "statutes", "title": "Ausschluss nach sechs Monaten", "yes": "3", "no": "2", "abstain": "0", "time": "19:00"}
+         if votes_at_seven >= 5 else {"item": "3", "kind": "statutes", "title": "Ausschluss nach sechs Monaten", "yes": "1", "no": "1", "time": "19:00"})
+    expect((stack.value(versions), stack.value(notices)) == before, "a change of statutes without two thirds stored a version or a notice")
+    vote(general_id, {"item": "3", "kind": "statutes", "title": "Ausschluss nach sechs Monaten", "yes": "2", "no": "1", "time": "19:00"})
+    expect(int(stack.value(versions)) == int(before[0]) + 1 and int(stack.value(notices)) == int(before[1]) + 1,
+           "a change of statutes with two thirds did not store the version and the notice")
+
+    kassier = stack.value("SELECT rowid FROM llx_vereine_function WHERE code = 'kassier'")
+    reports = "SELECT COUNT(*) FROM llx_vereine_function_report"
+    reports_before = int(stack.value(reports))
+    candidate = stack.value("SELECT d.rowid FROM llx_adherent as d WHERE d.statut = 1 AND d.rowid NOT IN (SELECT fk_adherent FROM llx_vereine_function_term) ORDER BY d.rowid LIMIT 1")
+    vote(general_id, {"item": "3", "kind": "election", "title": "Wahl Kassier:in", "yes": "2", "no": "0", "time": "19:00", "function_id": kassier, "candidate_id": candidate, "secret": "1"})
+    term = stack.sql(f"SELECT date_start, date_end IS NULL FROM llx_vereine_function_term WHERE fk_function = {kassier} AND fk_adherent = {candidate}")
+    open_others = stack.value(f"SELECT COUNT(*) FROM llx_vereine_function_term WHERE fk_function = {kassier} AND fk_adherent <> {candidate} "
+                              f"AND date_start <= '{general_day}' AND (date_end IS NULL OR date_end >= '{general_day}')")
+    expect(term == [[general_day, "1"]] and open_others == "0" and int(stack.value(reports)) == reports_before + 1,
+           f"election: term {term}, other open treasurer terms {open_others}, reports {stack.value(reports)} (before {reports_before})")
+    results = re.findall(r'data-vote="\d+" data-kind="([a-z]+)" data-passed="(\d)"', page_ok(browser.get(f"{base}?id={general_id}"), "general assembly").text)
+    expect(results == [("resolution", "1"), ("statutes", "0"), ("statutes", "1"), ("election", "1")], f"votes of the general assembly: {results}")
+
+    refused = vote(board_id, {"item": "1", "kind": "statutes", "title": "Statuten", "yes": "1", "no": "0"})
+    expect("nur die Generalversammlung" in html.unescape(refused.text), "the board resolved a change of statutes")
+    board_page = page_ok(browser.get(f"{base}?id={board_id}"), "board meeting")
+    members = re.findall(r'data-attendance="(\d+)"', board_page.text)
+    expect(len(members) >= 2, f"a tie needs two board members, the board meeting invited {len(members)}")
+    fields = [("token", token_of(board_page)), ("action", "saveattendance")] + [(f"attendance[{member}][state]", "present") for member in members]
+    page_ok(browser.post(f"{base}?id={board_id}", fields), "the whole board is present")
+    vote(board_id, {"item": "2", "kind": "resolution", "title": "Anschaffung", "yes": "1", "no": "1", "tie": "yes"})
+    board_votes = re.findall(r'data-vote="\d+" data-kind="([a-z]+)" data-passed="(\d)"', page_ok(browser.get(f"{base}?id={board_id}"), "board meeting").text)
+    expect(board_votes == [("resolution", "1")], f"a tie on the board decided by the chair: {board_votes}")
+    logged = stack.value("SELECT COUNT(*) FROM llx_vereine_log WHERE action = 'meeting_vote'")
+    expect(logged == "5", f"{logged} votes logged, expected 5")
+    return (f"{votes_at_seven} votes at 19:00; no vote without quorum or with more votes than present; resolution passed; change of statutes rejected without, "
+            "stored with two thirds (version and notice); secret election of the treasurer starts the term on the day, ends others, writes the report; "
+            "board: no change of statutes, tie decided by the chair; log")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -2579,7 +2641,8 @@ SCENARIOS = (
     ("statutechange", "Change of the statutes: comparison, PDF, new version with notice to the authority", statutechange, ("statutetext",)),
     ("meetings", "Meetings: exactly the board or every member invited by e-mail or letter, with deadline and proof", meetings, ("statutechange",)),
     ("attendance", "Attendance: proxies as the statutes allow, never on the board, quorum at any time", attendance, ("meetings",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("attendance",)),
+    ("votes", "Votes and elections: quorum, majorities of the statutes, election starts the term, change of statutes stores the version", votes, ("attendance",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("votes",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 
