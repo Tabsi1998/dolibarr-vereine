@@ -685,7 +685,8 @@ class VereineMeetings
 	/**
 	 * The agenda items with their text, stored or from the template, and the text with the real numbers of the meeting.
 	 *
-	 * The numbers of an item are those at the time of its first vote, so a later arrival counts from then on.
+	 * The numbers of an item are those at the time of its first vote, so a later arrival counts from then on; an item without a
+	 * vote takes the time of the last vote before it, or the start of the meeting.
 	 *
 	 * @param array<string,mixed> $meeting     Meeting
 	 * @param Translate           $outputlangs Language of the day in words
@@ -702,12 +703,16 @@ class VereineMeetings
 		$votes = $this->votes($meeting['id']);
 		$day = vereineMeetingDay($meeting['day'], $outputlangs);
 		$items = array();
+		$time = $meeting['time'];
 		foreach (array_values($meeting['agenda']) as $index => $title) {
 			$number = $index + 1;
 			$onItem = array_values(array_filter($votes, function ($vote) use ($number) {
 				return $vote['item'] === $number;
 			}));
-			$quorum = VereineAttendanceRules::quorum($meeting['kind'], $attendance['rows'], $attendance['voting'], $rules, $onItem ? $onItem[0]['time'] : '');
+			if ($onItem && $onItem[0]['time'] !== '') {
+				$time = $onItem[0]['time'];
+			}
+			$quorum = VereineAttendanceRules::quorum($meeting['kind'], $attendance['rows'], $attendance['voting'], $rules, $time);
 			$text = isset($notes[$number]) ? $notes[$number] : VereineMinutesRules::textFor($templates, $meeting['kind'], $title);
 			$values = VereineMinutesRules::values($meeting, $quorum, $onItem, trim((string) $mysoc->name), $day);
 			$items[] = array('item' => $number, 'title' => $title, 'text' => $text, 'stored' => isset($notes[$number]), 'filled' => VereineMinutesRules::fill($text, $values));

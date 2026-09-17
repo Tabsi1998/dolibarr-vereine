@@ -24,7 +24,8 @@ while using the module (#105, #106).
 - **Texts for the minutes** per agenda item, prepared before the meeting and
   completed in it. Placeholders such as `{anwesend}`, `{quorum}` and
   `{ergebnis}` show with the real numbers of the meeting, at the time of the
-  first vote on the item, so a later arrival counts. An emptied text stays
+  first vote on the item, so a later arrival counts; an item without a vote
+  counts at the start or at the last vote before it. An emptied text stays
   empty; texts follow their item when the agenda is reordered.
 
 ### Fixed
