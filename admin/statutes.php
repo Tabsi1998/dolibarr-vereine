@@ -154,6 +154,18 @@ if ($action === 'savetext') {
 		exit;
 	}
 	setEventMessages($statutes->error, null, 'errors');
+} elseif ($action === 'comparisonpdf') {
+	$comparison = $statutes->comparison($today);
+	$file = VereineStatutes::directory().'/gegenueberstellung-'.dol_print_date(dol_now(), '%Y%m%d-%H%M%S', 'tzserver').'.pdf';
+	if ($comparison['state'] === 'changed' && $statutes->buildComparisonPdf($comparison, $file)) {
+		header('Content-Type: application/pdf');
+		header('Content-Disposition: attachment; filename="'.basename($file).'"');
+		header('Content-Length: '.filesize($file));
+		readfile($file);
+		dol_delete_file($file);
+		exit;
+	}
+	setEventMessages($statutes->error !== '' ? $statutes->error : $langs->trans('VereineStatuteChangeNothing'), null, 'errors');
 } elseif ($action === 'saveversion' || $action === 'uploadversion') {
 	if ($action === 'saveversion') {
 		$result = $statutes->saveVersion(GETPOST('decided_on', 'alpha'), GETPOST('valid_from', 'alpha'), GETPOST('note', 'alphanohtml'), $user);
@@ -163,6 +175,16 @@ if ($action === 'savetext') {
 	}
 	if ($result > 0) {
 		setEventMessages($langs->trans('VereineStatuteVersionSaved'), null, 'mesgs');
+		if (GETPOSTISSET('notify')) {
+			require_once __DIR__.'/../class/vereineauthorityletters.class.php';
+			$letters = new VereineAuthorityLetters($db);
+			$letter = $letters->create(VereineAuthorityRules::KIND_STATUTES, array('date' => GETPOST('decided_on', 'alpha')), $user, $langs);
+			if ($letter > 0) {
+				setEventMessages($langs->trans('VereineStatuteNotified'), null, 'mesgs');
+			} else {
+				setEventMessages($langs->trans('VereineStatuteNotifyFailed', implode(' ', array_map(array($langs, 'trans'), $letters->errors)).$letters->error), null, 'warnings');
+			}
+		}
 		header('Location: '.$_SERVER['PHP_SELF'].'#vereinestatuteversions');
 		exit;
 	}
@@ -326,7 +348,7 @@ print ' <span class="opacitymedium small">'.$langs->trans('VereineStatuteTextAre
 print '<tr><td></td><td><label><input type="checkbox" name="branches" value="1"'.$checked($shownText['branches']).'> '.$langs->trans('VereineStatuteTextBranches').'</label></td></tr>';
 foreach (array('activities' => VereineStatuteText::SUGGESTED_ACTIVITIES, 'funds' => VereineStatuteText::SUGGESTED_FUNDS) as $key => $suggested) {
 	print '<tr><td class="tdtop"><label for="'.$key.'">'.$langs->trans('VereineStatuteText_'.$key).'</label></td>';
-	print '<td><textarea id="'.$key.'" name="'.$key.'" rows="6" class="centpercent">'.dol_escape_htmltag(implode("\n", $shownText[$key])).'</textarea>';
+	print '<td><textarea id="'.$key.'" name="'.$key.'" rows="6" class="centpercent">'.dol_escape_htmltag(implode("\n", $shownText[$key]), 0, 1).'</textarea>';
 	print '<div class="opacitymedium small">'.$langs->trans('VereineStatuteTextHelp_'.$key).' '.dol_escape_htmltag(implode('; ', $suggested)).'</div></td></tr>';
 }
 print '<tr><td><label for="admission">'.$langs->trans('VereineStatuteTextAdmission').'</label></td>';
@@ -382,6 +404,39 @@ print '<input type="hidden" name="action" value="draftpdf">';
 print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineStatuteDraftPdf')).'">';
 print '</form><br>';
 
+// Change of the statutes: what differs from the version in force.
+print load_fiche_titre($langs->trans('VereineStatuteChange'), '', '', 0, 'vereinestatutechange');
+$comparison = $statutes->comparison($today);
+print '<div data-statute-change="'.$comparison['state'].'">';
+if ($comparison['state'] === 'none') {
+	print '<div class="opacitymedium">'.$langs->trans('VereineStatuteChangeNoVersion').'</div>';
+} elseif ($comparison['state'] === 'uploaded') {
+	print '<div class="opacitymedium">'.$langs->trans('VereineStatuteChangeUploaded', $comparison['version']['version']).'</div>';
+} elseif ($comparison['state'] === 'same') {
+	print '<div class="ok">'.$langs->trans('VereineStatuteChangeNone', $comparison['version']['version']).'</div>';
+} else {
+	print '<div class="info"><ul><li>'.$langs->trans('VereineStatuteChangeIntro', $comparison['version']['version']).'</li>';
+	print '<li data-change-majority="'.$comparison['majority'].'">'.$langs->trans('VereineStatuteChangeMajority', $langs->trans('VereineStatuteMajority_'.$comparison['majority'])).'</li>';
+	print '<li>'.$langs->trans('VereineStatuteChangeResolution').'</li><li>'.$langs->trans('VereineStatuteChangeEffect').'</li></ul></div>';
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+	print '<tr class="liste_titre"><td class="width50p">'.$langs->trans('VereineStatuteChangeOld').'</td><td>'.$langs->trans('VereineStatuteChangeNew').'</td></tr>';
+	foreach ($comparison['changes'] as $change) {
+		print '<tr class="oddeven tdtop" data-changed-section="'.dol_escape_htmltag($change['title']).'">';
+		foreach (array('old' => 'old_number', 'new' => 'new_number') as $side => $number) {
+			print '<td class="tdtop">'.($change[$number] > 0 ? '<strong>§ '.$change[$number].': '.dol_escape_htmltag($change['title']).'</strong><br>'
+				.nl2br(dol_escape_htmltag(implode("\n", $change[$side]))) : '<span class="opacitymedium">-</span>').'</td>';
+		}
+		print '</tr>';
+	}
+	print '</table></div>';
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereinestatutecomparison" class="center paddingtop">';
+	print '<input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="action" value="comparisonpdf">';
+	print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineStatuteChangePdf')).'">';
+	print '</form>';
+}
+print '</div><br>';
+
 // Versions.
 print load_fiche_titre($langs->trans('VereineStatuteVersions'), '', '', 0, 'vereinestatuteversions');
 $versions = $statutes->versions();
@@ -412,6 +467,7 @@ print '<table class="border centpercent">';
 print '<tr><td class="fieldrequired">'.$langs->trans('VereineStatuteDecidedOn').'</td><td><input type="date" name="decided_on" value=""></td></tr>';
 print '<tr><td>'.$langs->trans('VereineStatuteValidFrom').'</td><td><input type="date" name="valid_from" value=""></td></tr>';
 print '<tr><td>'.$langs->trans('Note').'</td><td><input type="text" name="note" class="minwidth200" maxlength="255" value=""></td></tr>';
+print '<tr><td></td><td><label><input type="checkbox" name="notify" value="1"'.($versions ? ' checked' : '').'> '.$langs->trans('VereineStatuteNotify').'</label></td></tr>';
 print '</table><div class="center"><input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineStatuteSaveVersion')).'"></div>';
 print '</form></div><div class="fichehalfright">';
 print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereinestatuteversions" name="vereinestatuteupload" enctype="multipart/form-data">';

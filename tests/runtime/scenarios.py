@@ -2174,6 +2174,9 @@ def letters(stack: Stack) -> str:
     expect("E-Mail-Adresse der Behörde ist ungültig" in html.unescape(refused.text) and not stack.const("VEREINE_AUTHORITY_GZ"), "a bad e-mail of the authority was stored")
     page_ok(browser.submit(page().form(name="vereineauthority"), {"authority_gz": "VR-2026/42"}), "store the file number")
     expect(stack.const("VEREINE_AUTHORITY_GZ") == "VR-2026/42", "the file number was not stored")
+    # Saving the form again keeps the line break of the address instead of a written backslash-n.
+    breaks = stack.sql("SELECT LOCATE(CHAR(10), value) > 0, LOCATE(CHAR(92), value) FROM llx_const WHERE name = 'VEREINE_AUTHORITY_ADDRESS' AND entity = 1")
+    expect(breaks == [["1", "0"]], f"the authority's address lost its line break when saved again: {breaks}")
 
     write("statutes", {"date": today})
     rows = stack.sql("SELECT kind, event_date, deadline, filed_on, fk_actioncomm FROM llx_vereine_authority_letter ORDER BY rowid")
@@ -2286,6 +2289,40 @@ def statutetext(stack: Stack) -> str:
             "generated version 2 in force with PDF and hash; upload downloads unchanged; draft PDF not stored; log")
 
 
+def statutechange(stack: Stack) -> str:
+    """Change of the statutes: comparison with the version in force, PDF for the invitation, new version with notice to the authority."""
+    today = stack.notes["website"]["dates"]["today"]
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/statutes.php"
+
+    def page() -> Page:
+        return page_ok(browser.get(setup), "statute setup")
+
+    expect('data-statute-change="same"' in page().text, "the text just stored as version 2 is shown as changed")
+    page_ok(browser.submit(page().form(name="vereinestatutetext"), {"arrears_months": "6"}), "change the exclusion period")
+    changed = page()
+    sections = [html.unescape(title) for title in re.findall(r'data-changed-section="([^"]+)"', changed.text)]
+    expect('data-statute-change="changed"' in changed.text and sections == ["Beendigung der Mitgliedschaft"] and 'data-change-majority="two_thirds"' in changed.text,
+           f"comparison after changing the exclusion period: {sections}")
+    pdf = browser.post(setup, [("token", token_of(changed)), ("action", "comparisonpdf")])
+    leftovers = stack.shell("ls /var/www/documents/vereine/statutes").stdout
+    expect(pdf.status == 200 and pdf.body.startswith(b"%PDF") and "gegenueberstellung" not in leftovers, f"comparison PDF (HTTP {pdf.status}, files: {leftovers.split()})")
+
+    letters = "SELECT COUNT(*) FROM llx_vereine_authority_letter WHERE kind = 'statutes'"
+    before = int(stack.value(letters))
+    form = changed.form(name="vereinestatuteversion")
+    expect(form.value("notify") == "1", "the notice to the authority is not offered for a change")
+    page_ok(browser.submit(form, {"decided_on": today, "note": "Ausschluss nach sechs Monaten"}), "store version 3 with notice")
+    expect(stack.value("SELECT MAX(version) FROM llx_vereine_statute") == "3" and int(stack.value(letters)) == before + 1
+           and stack.value(f"SELECT COUNT(*) FROM llx_vereine_authority_letter WHERE kind = 'statutes' AND event_date = '{today}'") == str(before + 1),
+           "the new version or its notice to the authority is missing")
+    after = page()
+    expect('data-statute-change="same"' in after.text and 'data-statute-version="3" data-source="generated" data-current="1"' in after.text,
+           "version 3 is not in force or still differs")
+    return ("stored text matches version 2; new exclusion period changes only § 6, majority of the statutes in force; comparison PDF delivered and not kept; "
+            "version 3 stored with notice to the authority and in force")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -2374,7 +2411,8 @@ SCENARIOS = (
     ("statutes", "Rules of the statutes: checked, stored, election due and minimum age for applications", statutes, ("mailing",)),
     ("letters", "Letters to the association authority: responsible authority, notices with deadline, filed", letters, ("statutes",)),
     ("statutetext", "Statutes as text: fields, check, preview, uploaded and generated versions", statutetext, ("letters",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("statutetext",)),
+    ("statutechange", "Change of the statutes: comparison, PDF, new version with notice to the authority", statutechange, ("statutetext",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("statutechange",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

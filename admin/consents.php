@@ -173,7 +173,7 @@ print ' <span class="opacitymedium small">'.$langs->trans('VereineConsentCodeHel
 print '<tr><td class="fieldrequired"><label for="label">'.$langs->trans('VereineConsentLabel').'</label></td>';
 print '<td><input type="text" id="label" name="label" class="minwidth300" maxlength="'.VereineConsentRules::LABEL_MAX.'" value="'.dol_escape_htmltag($edit['label']).'"></td></tr>';
 print '<tr><td class="fieldrequired"><label for="text">'.$langs->trans('VereineConsentText').'</label></td>';
-print '<td><textarea id="text" name="text" rows="5" class="centpercent">'.dol_escape_htmltag($edit['text']).'</textarea></td></tr>';
+print '<td><textarea id="text" name="text" rows="5" class="centpercent">'.dol_escape_htmltag($edit['text'], 0, 1).'</textarea></td></tr>';
 print '</table>';
 print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'"></div>';
 print '</form>';

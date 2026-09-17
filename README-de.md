@@ -102,7 +102,8 @@ Vereinswebsite mit.
 - **Statuten als Text** (0.5.2): die ganzen Statuten nach dem Muster des
   Innenministeriums oder, für steuerbegünstigte Vereine, des Finanzministeriums,
   ausgefüllt aus dem Modul; geprüft, als Vorschau und als Fassungen mit PDF,
-  bestehende Statuten hochladen.
+  bestehende Statuten hochladen. Eine Änderung zeigt alt neben neu, als PDF für
+  die Einladung, und erstellt die Anzeige an die Behörde (0.5.3).
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

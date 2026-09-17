@@ -405,6 +405,35 @@ class VereineStatuteText
 	}
 
 	/**
+	 * The sections that differ between two versions of the statutes, matched by their title.
+	 *
+	 * @param array<int,array{number:int,title:string,paragraphs:string[]}> $old Sections in force
+	 * @param array<int,array{number:int,title:string,paragraphs:string[]}> $new Sections as they would be now
+	 * @return array<int,array{title:string,old_number:int,new_number:int,old:string[],new:string[]}> In the order of the new statutes, removed sections last
+	 */
+	public static function compare(array $old, array $new)
+	{
+		$oldByTitle = array();
+		foreach ($old as $section) {
+			$oldByTitle[$section['title']] = $section;
+		}
+		$changes = array();
+		foreach ($new as $section) {
+			$before = isset($oldByTitle[$section['title']]) ? $oldByTitle[$section['title']] : null;
+			unset($oldByTitle[$section['title']]);
+			if ($before !== null && $before['paragraphs'] === $section['paragraphs']) {
+				continue;
+			}
+			$changes[] = array('title' => $section['title'], 'old_number' => $before !== null ? $before['number'] : 0, 'new_number' => $section['number'],
+				'old' => $before !== null ? $before['paragraphs'] : array(), 'new' => $section['paragraphs']);
+		}
+		foreach ($oldByTitle as $section) {
+			$changes[] = array('title' => $section['title'], 'old_number' => $section['number'], 'new_number' => 0, 'old' => $section['paragraphs'], 'new' => array());
+		}
+		return $changes;
+	}
+
+	/**
 	 * The wording on the assets of an association with tax privileges (Vereinsrichtlinien Rz 867, § 17).
 	 *
 	 * @param array<string,mixed> $text Normalized text fields
