@@ -2798,9 +2798,10 @@ def resolutions(stack: Stack) -> str:
     form = page.form(name="vereinemeeting")
     page_ok(browser.submit(form, {"kind": "board", "title": "Vorstandssitzung mit Folgen", "day": "2026-11-05", "time": "19:00",
                                   "place": "Vereinsheim", "agenda": "Begrüßung", "follow[]": task[0][0]}), "a meeting that takes the follow-up over")
-    agenda = stack.value("SELECT agenda FROM llx_vereine_meeting WHERE title = 'Vorstandssitzung mit Folgen'")
-    expect(agenda is not None and "Begrüßung" in agenda and "Trikots bestellen (offen aus Beschluss" in agenda,
-           f"the agenda of the new meeting: {agenda!r}")
+    stored_agenda = stack.value("SELECT agenda FROM llx_vereine_meeting WHERE title = 'Vorstandssitzung mit Folgen'")
+    items = json.loads(stored_agenda) if stored_agenda else []
+    expect(len(items) == 2 and items[0] == "Begrüßung" and items[1].startswith("Trikots bestellen (offen aus Beschluss"),
+           f"the agenda of the new meeting: {items}")
 
     # The register as CSV, and the resolution at the member it concerns.
     export = browser.get(f"{base}?action=export&search=trikots", follow=False)
