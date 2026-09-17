@@ -110,7 +110,9 @@ Vereinswebsite mit.
   mit Vollmachten, wie es die Statuten erlauben, und Beschlussfähigkeit zu jeder
   Uhrzeit (0.5.5). Abstimmungen und Wahlen mit den Mehrheiten der Statuten; eine
   Wahl setzt die Funktionsperiode samt Meldung, eine Statutenänderung speichert
-  Fassung und Anzeige (0.5.6).
+  Fassung und Anzeige (0.5.6). Tagesordnungen aus Vorlagen mit Pflichtpunkten
+  und Texte je Punkt fürs Protokoll, mit den echten Zahlen statt Platzhaltern
+  (0.5.7).
 - **API-Dokumentation in Dolibarr** (0.5.6): Einrichtungsreiter *API* mit jeder
   Schnittstelle, ihren Rechten und einem Beispiel, den Benutzern mit
   API-Schlüssel und was sie aufrufen können.

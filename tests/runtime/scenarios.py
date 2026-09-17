@@ -2249,6 +2249,13 @@ def statutetext(stack: Stack) -> str:
     start = page()
     problems = re.findall(r'data-text-problem="([a-z_]+)"', start.text)
     expect("activities" in problems and 'data-statute-preview="1"' in start.text, f"problems of the empty text: {problems}")
+    purpose = stack.const("VEREINE_PURPOSE") or ""
+    shown_purpose = re.search(r'data-association-purpose="(\d)"', start.text)
+    expect(shown_purpose is not None and shown_purpose.group(1) == ("1" if purpose else "0") and "admin/setup.php#VEREINE_PURPOSE" in start.text,
+           f"the statutes page does not show the purpose of the association with a link to it (stored: {purpose!r})")
+    if not purpose:
+        expect("purpose" in problems and 'data-purpose-link="1"' in start.text and "nicht der Zweck, dem das Verm" in html.unescape(start.text),
+               "without a purpose of the association the problem does not name it or link to it")
     refused = page_ok(browser.submit(start.form(name="vereinestatutetext"), {"arrears_months": "0"}), "text with no months for exclusion")
     expect("1 bis 24 Monate" in html.unescape(refused.text) and not stack.const("VEREINE_STATUTE_TEXT"), "text fields without months for exclusion were stored")
     page_ok(browser.submit(page().form(name="vereinestatutetext"), {
@@ -2550,6 +2557,66 @@ def votes(stack: Stack) -> str:
             "board: no change of statutes, tie decided by the chair; log")
 
 
+def minutestexts(stack: Stack) -> str:
+    """Agenda templates with required items, a new meeting from a template, texts per item with the real numbers, texts follow a reordered agenda."""
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/meetings.php"
+    base = "/custom/vereine/meetings.php"
+    templates = page_ok(browser.get(setup), "meeting templates")
+    general_rows = len(re.findall(r'data-template="general" data-item="\d+" data-required="(\d)"', templates.text))
+    required = re.findall(r'data-template="general" data-item="\d+" data-required="1"', templates.text)
+    expect(general_rows == 13 and len(required) == 3, f"general assembly template: {general_rows} rows, {len(required)} required; expected 10 items and 3 empty rows, 3 required")
+    expect(denied(stack.browser("rtreader").get(setup)), "a non-administrator opens the meeting templates")
+    page_ok(browser.submit(templates.form(name="vereinetemplates"), {
+        "template[board][5][title]": "Kassabericht", "template[board][5][text]": "Kassastand am {datum}\nbei {verein}", "template[board][5][required]": "1"}), "add a required board item")
+    stored = stack.sql("SELECT kind, COUNT(*), SUM(mandatory) FROM llx_vereine_meeting_template GROUP BY kind ORDER BY kind")
+    expect(stored == [["board", "6", "2"], ["extraordinary", "4", "1"], ["general", "10", "3"]], f"stored templates: {stored}")
+
+    prefilled = page_ok(browser.get(f"{base}?template=board"), "new meeting from the board template")
+    form = prefilled.form(name="vereinemeeting")
+    agenda = (form.value("agenda") or "").splitlines()
+    expect(form.value("kind") == "board", f"the board template chose the kind {form.value('kind')!r}")
+    expect(agenda[0].startswith("Begrüßung") and agenda[-1] == "Kassabericht" and len(agenda) == 6, f"agenda from the board template: {agenda}")
+    day = stack.notes["website"]["dates"]["today"]
+    created = page_ok(browser.submit(form, {"day": day, "title": "Vorstandssitzung aus Vorlage"}), "store the meeting from the template")
+    new_id = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting")
+    expect('data-missing-items' not in created.text, "a meeting from the template reports missing required items")
+    notes = created.form(name="vereinemeetingnotes")
+    expect("Kassastand am {datum}" in (notes.value("note[6]") or ""), f"the new meeting does not suggest the template text: {notes.value('note[6]')!r}")
+    page_ok(browser.submit(notes, {"note[2]": "Vorbereitet für Punkt zwei"}), "prepare a text")
+    reordered = page_ok(browser.get(f"{base}?id={new_id}"), "planned meeting").form(name="vereinemeeting")
+    items = (reordered.value("agenda") or "").splitlines()
+    page_ok(browser.submit(reordered, {"agenda": "\n".join([items[1]] + items[2:5])}), "reorder the agenda and drop the required items")
+    moved = stack.sql(f"SELECT item FROM llx_vereine_meeting_note WHERE fk_meeting = {new_id} AND body = 'Vorbereitet für Punkt zwei'")
+    card = page_ok(browser.get(f"{base}?id={new_id}"), "reordered meeting")
+    missing = re.search(r'data-missing-items="(\d+)"', card.text)
+    expect(moved == [["1"]] and missing is not None and missing.group(1) == "2" and "Kassabericht" in card.text,
+           f"text after reordering at item {moved}, missing required items {missing.group(1) if missing else None}")
+
+    general_id = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting WHERE kind = 'general' AND status <> 'planned'")
+    general = page_ok(browser.get(f"{base}?id={general_id}"), "general assembly")
+    notes = general.form(name="vereinemeetingnotes")
+    page_ok(browser.submit(notes, {"note[1]": "Anwesend {anwesend} von {stimmberechtigt}, {beschlussfaehig}.", "note[2]": "{ergebnis}", "note[3]": ""}), "texts of the general assembly")
+    shown = page_ok(browser.get(f"{base}?id={general_id}"), "general assembly with texts")
+
+    def preview(item: int) -> str:
+        match = re.search(r'data-note-preview="' + str(item) + r'">(.*?)</div>', shown.text, re.S)
+        return html.unescape(match.group(1)) if match else ""
+
+    first, second = preview(1), preview(2)
+    expect(re.fullmatch(r"Anwesend \d+ von \d+, (nicht )?beschlussfähig\.", first) is not None, f"item 1 with real numbers: {first!r}")
+    expect("Budget: angenommen mit" in second and "{" not in second, f"item 2 with the result of its vote: {second!r}")
+    empty = shown.form(name="vereinemeetingnotes").value("note[3]")
+    stored = stack.value(f"SELECT COUNT(*) FROM llx_vereine_meeting_note WHERE fk_meeting = {general_id}")
+    agenda_items = len(re.findall(r'data-note="\d+"', shown.text))
+    expect(empty == "" and 'data-note-preview="3"' not in shown.text and stored == str(agenda_items), f"emptied text: {empty!r}, {stored} texts stored for {agenda_items} items")
+
+    page_ok(browser.submit(page_ok(browser.get(setup), "meeting templates").form(name="vereinetemplatesreset")), "restore the templates")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_meeting_template") == "0", "restoring the templates of the country profile kept stored templates")
+    return (f"general assembly template with 10 items, 3 required; own required board item stored; new meeting from the template with its texts; "
+            f"text follows the reordered agenda, 2 missing required items warned; general assembly texts: {first!r}, result of the vote filled, emptied text stays empty; templates restored")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -2585,6 +2652,13 @@ def action_link_for(page: Page, action: str, row_id: str | None) -> str:
 def disable(stack: Stack) -> str:
     """Disabling hides pages and API but keeps data and granted rights for the next activation."""
     browser = stack.browser()
+    backslash_n = "CONCAT('Zeile eins', CHAR(92), 'nZeile zwei')"
+    stack.sql("UPDATE llx_const SET value = CONCAT('Gilmstraße 2', CHAR(92), 'n6020 Innsbruck') WHERE name = 'VEREINE_AUTHORITY_ADDRESS'")
+    stack.sql(f"UPDATE llx_const SET value = JSON_SET(value, '$.asset_purpose', {backslash_n}) WHERE name = 'VEREINE_STATUTE_TEXT'")
+    stack.sql(f"UPDATE llx_vereine_consent_text SET text = {backslash_n} ORDER BY rowid LIMIT 1")
+    broken = stack.value("SELECT (SELECT COUNT(*) FROM llx_const WHERE name IN ('VEREINE_AUTHORITY_ADDRESS', 'VEREINE_STATUTE_TEXT') AND LOCATE(CONCAT(CHAR(92), 'n'), value) > 0)"
+                         " + (SELECT COUNT(*) FROM llx_vereine_consent_text WHERE LOCATE(CHAR(92), text) > 0)")
+    expect(broken == "3", f"{broken} broken values prepared for the repair, expected 3")
     page_ok(browser.get(module_link(module_list(browser), "reset")), "disable")
     expect(stack.const("MAIN_MODULE_VEREINE") is None, "MAIN_MODULE_VEREINE is still set after disabling")
     expect(stack.value("SELECT COUNT(*) FROM llx_menu WHERE module = 'vereine'") == "0", "menu entries survived disabling")
@@ -2597,11 +2671,16 @@ def disable(stack: Stack) -> str:
     page_ok(browser.get(module_link(module_list(browser), "set")), "enable again")
     expect(stack.const("VEREINE_REGISTER_NUMBER") == "123456789", "the association data was lost by disabling")
     expect(stack.const("VEREINE_COUNTRY_PROFILE") == "AT", "re-enabling replaced the chosen country profile")
+    repaired = stack.sql("SELECT LOCATE(CHAR(92), value) = 0 AND value = CONCAT('Gilmstraße 2', CHAR(10), '6020 Innsbruck') FROM llx_const WHERE name = 'VEREINE_AUTHORITY_ADDRESS'"
+                         " UNION ALL SELECT JSON_VALUE(value, '$.asset_purpose') = CONCAT('Zeile eins', CHAR(10), 'Zeile zwei') FROM llx_const WHERE name = 'VEREINE_STATUTE_TEXT'"
+                         " UNION ALL SELECT COUNT(*) = 0 FROM llx_vereine_consent_text WHERE LOCATE(CHAR(92), text) > 0")
+    expect(repaired == [["1"], ["1"], ["1"]], f"line breaks stored as \\n not repaired on activation: {repaired}")
     reader = stack.browser("rtreader")
     page_ok(reader.get("/custom/vereine/vereineindex.php"), "overview for the reader after enabling again")
     status, _ = stack.api("vereine/status", stack.reader_key)
     expect(status == 200, f"the API answers HTTP {status} after enabling again")
-    return f"off: pages refused, API HTTP {stack.notes['disabled_api_status']}; on again: data, profile and the reader's right kept"
+    return (f"off: pages refused, API HTTP {stack.notes['disabled_api_status']}; on again: data, profile and the reader's right kept; "
+            "line breaks stored as \\n repaired in authority address, statute text and consent text")
 
 
 def php_messages(stack: Stack) -> set:
@@ -2656,7 +2735,8 @@ SCENARIOS = (
     ("meetings", "Meetings: exactly the board or every member invited by e-mail or letter, with deadline and proof", meetings, ("statutechange",)),
     ("attendance", "Attendance: proxies as the statutes allow, never on the board, quorum at any time", attendance, ("meetings",)),
     ("votes", "Votes and elections: quorum, majorities of the statutes, election starts the term, change of statutes stores the version", votes, ("attendance",)),
-    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("votes",)),
+    ("minutestexts", "Agenda templates and texts per item: required items, new meeting from a template, real numbers in the texts", minutestexts, ("votes",)),
+    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("minutestexts",)),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )

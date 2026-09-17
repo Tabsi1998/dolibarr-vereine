@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '0.5.6-beta';
+		$this->version = '0.5.7-beta';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -341,6 +341,13 @@ class modVereine extends DolibarrModules
 		dol_include_once('/vereine/class/vereinewebsiteevents.class.php');
 		if (VereineWebsiteEvents::ensureTriggerCode($this->db) < 0) {
 			dol_syslog('modVereine::init adding '.VereineWebsiteEvents::TRIGGER_CODE.': '.$this->db->lasterror(), LOG_ERR);
+		}
+
+		// Line breaks stored as \n by the text areas before 0.5.3 become real line breaks.
+		dol_include_once('/vereine/class/vereinetextrepair.class.php');
+		$repaired = VereineTextRepair::run($this->db);
+		if ($repaired != 0) {
+			dol_syslog('modVereine::init repaired line breaks in '.$repaired.' values', $repaired < 0 ? LOG_ERR : LOG_INFO);
 		}
 
 		// A first activation picks the profile of the company's country. A later

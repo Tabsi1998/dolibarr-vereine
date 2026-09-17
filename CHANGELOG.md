@@ -7,6 +7,41 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.5.7-beta] - 2026-09-17
+
+Agenda templates and texts for the minutes (issue #20), and two fixes found
+while using the module (#105, #106).
+
+### Added
+
+- Setup tab *Meeting templates*: an agenda per kind of meeting with a text for
+  the minutes per item and **required items**. Prefilled for Austria
+  (Generalversammlung, Rechnungsprüfer) and Germany (Mitgliederversammlung,
+  Kassenprüfer). Required by default: the quorum and, in Austria, the board's
+  report on activity and finances (§ 20 VerG).
+- **New meeting from a template:** the agenda comes from the template; a
+  meeting warns while a required item is missing.
+- **Texts for the minutes** per agenda item, prepared before the meeting and
+  completed in it. Placeholders such as `{anwesend}`, `{quorum}` and
+  `{ergebnis}` show with the real numbers of the meeting, at the time of the
+  first vote on the item, so a later arrival counts. An emptied text stays
+  empty; texts follow their item when the agenda is reordered.
+
+### Fixed
+
+- Letters and texts showed line breaks as `\n` when they were saved before
+  0.5.3, for example the address of the authority in the notice of a change of
+  the statutes. Enabling the module repairs the stored address, purpose, statute
+  text, consent texts and tax profile notes (#105).
+- The statutes page reported "purpose missing" in a way that read like the
+  purpose the assets go to. It now names the purpose of the association, links
+  to its field and shows it on the page (#106).
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once. That creates the
+tables of templates and texts and repairs the stored line breaks.
+
 ## [0.5.6-beta] - 2026-09-17
 
 Votes and elections (issue #96, last part of #9), and the API documentation in
@@ -915,7 +950,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.6-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.7-beta...HEAD
+[0.5.7-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.7-beta
 [0.5.6-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.6-beta
 [0.5.5-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.5-beta
 [0.5.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.4-beta
