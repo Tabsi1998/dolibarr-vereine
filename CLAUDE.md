@@ -170,8 +170,9 @@ raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
 - Dolibarr stores a day (subscription end, invoice date) as midnight in the time
   zone of the user who entered it, written in the server's time zone; round to
   the nearest midnight (`VereineMemberSummary::dayOf`) to get the day back.
-- `Facture::validate()` does not build the PDF; the invoice card does. Invoices
-  created in fixtures have no PDF until something calls `generateDocument()`.
+- `Facture::validate()` does not build the PDF; the invoice card does, and so
+  does `Paiement::create()` for every invoice it pays (unless
+  `MAIN_DISABLE_PDF_AUTOUPDATE`). A fixture invoice without payment has no PDF.
 - Every answer of `vereine/...` in the runtime checks goes through
   `docs/openapi.json`; the last API scenario fails when a documented endpoint
   never answered 200. Dolibarr's answer for a disabled module is not covered

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import datetime
+import hashlib
 import html
 import json
 import re
@@ -1062,20 +1063,31 @@ def websiteinvoices(stack: Stack) -> str:
     status, _ = stack.api("vereine/members/999999/invoices", key)
     expect(status == 404, f"invoices of an unknown member answered HTTP {status}, expected 404")
 
-    ref = invoices["open"]["ref"]
-    stored = f"/var/www/documents/facture/{ref}/{ref}.pdf"
+    def download(invoice: dict) -> tuple[bytes, str]:
+        status, pdf = stack.api(f"{base}/{invoice['id']}/pdf", key)
+        expect(status == 200 and isinstance(pdf, dict), f"PDF of {invoice['ref']} answered HTTP {status}: {str(pdf)[:300]}")
+        content = base64.b64decode(pdf["content"])
+        expect(content.startswith(b"%PDF") and pdf["filesize"] == len(content) and pdf["filename"] == f"{invoice['ref']}.pdf",
+               f"PDF of {invoice['ref']}: {pdf['filename']}, {pdf['filesize']} bytes, starts with {content[:8]!r}")
+        stored = f"/var/www/documents/facture/{invoice['ref']}/{invoice['ref']}.pdf"
+        on_disk = stack.shell(f"sha256sum '{stored}' && stat -c %Y '{stored}'")
+        expect(on_disk.returncode == 0 and on_disk.stdout.split()[0] == hashlib.sha256(content).hexdigest(),
+               f"the PDF of {invoice['ref']} differs from {stored}: {on_disk.stdout.strip() or on_disk.stderr.strip()}")
+        return content, on_disk.stdout.split()[-1]
+
+    # The abandoned invoice never got a payment, so Dolibarr never built its PDF.
+    stored = f"/var/www/documents/facture/{abandoned['ref']}/{abandoned['ref']}.pdf"
     expect(stack.shell(f"test ! -e '{stored}'").returncode == 0, f"{stored} exists before the download, the test proves nothing")
-    status, pdf = stack.api(f"{base}/{invoices['open']['id']}/pdf", key)
-    expect(status == 200 and isinstance(pdf, dict), f"PDF of the open invoice answered HTTP {status}: {str(pdf)[:300]}")
-    content = base64.b64decode(pdf["content"])
-    expect(content.startswith(b"%PDF") and pdf["filesize"] == len(content) and pdf["filename"] == f"{ref}.pdf",
-           f"PDF of the open invoice: {pdf['filename']}, {pdf['filesize']} bytes, starts with {content[:8]!r}")
-    expect(ref in pdf_bytes_text(content), f"the PDF does not show the invoice number {ref}")
-    built = stack.shell(f"stat -c %Y '{stored}'")
-    expect(built.returncode == 0, f"the missing PDF was not stored at {stored}")
-    status, again = stack.api(f"{base}/{invoices['open']['id']}/pdf", key)
-    expect(status == 200 and again["content"] == pdf["content"] and stack.shell(f"stat -c %Y '{stored}'").stdout == built.stdout,
-           "the second download did not return the stored PDF unchanged")
+    content, _ = download(abandoned)
+    expect(abandoned["ref"] in pdf_bytes_text(content), f"the built PDF does not show the invoice number {abandoned['ref']}")
+    # Backdate the stored file: a second build would give it a new modification time.
+    expect(stack.shell(f"touch -d '2000-01-01 00:00:00' '{stored}'").returncode == 0, f"could not backdate {stored}")
+    again, mtime = download(abandoned)
+    expect(again == content and int(mtime) < 1000000000, "the second download built the PDF again instead of returning the stored one")
+    # Dolibarr built the open invoice's PDF when the part payment was booked; the download returns that file.
+    content, _ = download(invoices["open"])
+    expect(invoices["open"]["ref"] in pdf_bytes_text(content), f"the PDF does not show the invoice number {invoices['open']['ref']}")
+    ref = invoices["open"]["ref"]
 
     foreign = stack.notes["invoice_2026"]
     for path, what in ((f"{base}/{foreign}/pdf", "an invoice of another third party"),
@@ -1096,7 +1108,7 @@ def websiteinvoices(stack: Stack) -> str:
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
                      if status == "200" and (method, path, status) not in stack.openapi.checked)
     expect(not missing, f"no runtime check compared a successful answer with docs/openapi.json for: {missing}")
-    return (f"abandoned, paid and overdue invoice newest first, pages, draft left out; missing PDF built once and returned, "
+    return (f"abandoned, paid and overdue invoice newest first, pages, draft left out; missing PDF built once, stored PDFs returned as stored, "
             f"foreign, draft and unknown invoices 404; Dolibarr's documents API 403; {len(stack.openapi.checked)} answer kinds match docs/openapi.json")
 
 
