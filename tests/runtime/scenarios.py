@@ -2550,6 +2550,20 @@ def votes(stack: Stack) -> str:
             "board: no change of statutes, tie decided by the chair; log")
 
 
+def apidocs(stack: Stack) -> str:
+    """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
+    page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
+    described = json.loads(OPENAPI.read_text(encoding="utf-8"))
+    operations = {f"{method.upper()} {path}" for path, item in described["paths"].items() for method in item}
+    listed = {html.unescape(value) for value in re.findall(r'data-endpoint="([^"]+)" data-rights="[1-9]', page.text)}
+    expect(listed == operations, f"API tab lists {sorted(listed)}, docs/openapi.json describes {sorted(operations)}")
+    reader = re.search(r'data-api-user="rtreader" data-admin="0" data-endpoints="(\d+)"', page.text)
+    expect(reader is not None and int(reader.group(1)) > 0, "the reader with an API key is not listed with the endpoints it can call")
+    expect(stack.reader_key not in page.text and stack.nobody_key not in page.text, "the API tab shows an API key")
+    expect(denied(stack.browser("rtreader").get("/custom/vereine/admin/api.php")), "a non-administrator opens the API tab")
+    return f"{len(operations)} endpoints with rights listed; reader with key and {reader.group(1)} callable endpoints; no key shown; non-administrator refused"
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -2642,7 +2656,8 @@ SCENARIOS = (
     ("meetings", "Meetings: exactly the board or every member invited by e-mail or letter, with deadline and proof", meetings, ("statutechange",)),
     ("attendance", "Attendance: proxies as the statutes allow, never on the board, quorum at any time", attendance, ("meetings",)),
     ("votes", "Votes and elections: quorum, majorities of the statutes, election starts the term, change of statutes stores the version", votes, ("attendance",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("votes",)),
+    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("votes",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

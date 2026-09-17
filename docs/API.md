@@ -590,4 +590,7 @@ curl --fail -H "DOLAPIKEY: $DOLIBARR_API_KEY" \
 ```
 
 The endpoints are also listed in Dolibarr's API explorer at
-`/api/index.php/explorer` once the module is enabled.
+`/api/index.php/explorer` once the module is enabled, and in the module's setup
+tab *API* with the rights each one needs (`x-vereine-rights` in
+`docs/openapi.json`: every right of one inner list is enough, every list is
+needed) and the users with an API key.

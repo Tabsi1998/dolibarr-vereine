@@ -55,6 +55,7 @@ require_once $root.'/class/vereinestatutetext.class.php';
 require_once $root.'/class/vereinemeetingrules.class.php';
 require_once $root.'/class/vereineattendancerules.class.php';
 require_once $root.'/class/vereinevoterules.class.php';
+require_once $root.'/class/vereineapirules.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -1121,6 +1122,22 @@ sort($described);
 sort($implemented);
 same($implemented, $described, 'the endpoints in class/api_vereine.class.php and docs/openapi.json');
 
+// Every endpoint names the rights it needs, so the API tab of the setup can show them.
+$apiEndpoints = VereineApiRules::endpoints($openapi);
+expect(count($apiEndpoints) >= 13 && count(array_filter($apiEndpoints, function ($endpoint) {
+	return $endpoint['rights'] && $endpoint['operation'] !== '';
+})) === count($apiEndpoints), 'every endpoint in docs/openapi.json has an operationId and x-vereine-rights');
+$thresholds = array_values(array_filter($apiEndpoints, function ($endpoint) {
+	return $endpoint['path'] === '/vereine/thresholds';
+}));
+same(array(true, false, true, false), array(
+	VereineApiRules::canCall($thresholds[0]['rights'], array('vereine:association:read', 'facture:lire'), false),
+	VereineApiRules::canCall($thresholds[0]['rights'], array('vereine:association:read'), false),
+	VereineApiRules::canCall($thresholds[0]['rights'], array(), true),
+	VereineApiRules::canCall(array(), array('vereine:association:read'), false),
+), 'thresholds need both rights, an administrator has all, an endpoint without rights is never callable');
+same(array('vereine:website:read', 'facture:lire'), array(VereineApiRules::rightKey('vereine', 'website', 'read'), VereineApiRules::rightKey('facture', 'lire', null)), 'rights as in the description');
+
 // ------------------------------------------------------------ language files
 
 $english = langEntries($root.'/langs/en_US/vereine.lang');
@@ -1201,6 +1218,7 @@ $prefixes = array(
 	'VereineAttendanceState_' => VereineAttendanceRules::STATES,
 	'VereineAttendanceHowTo_' => array('board', 'general'),
 	'VereineVoteKind_' => VereineVoteRules::KINDS,
+	'VereineApiEndpoint_' => array_column(VereineApiRules::endpoints($openapi), 'operation'),
 	'VereineLetterKind_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
 	'VereineLetterTitle_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
 	'VereineLetterHelp_' => VereineAuthorityRules::KINDS,

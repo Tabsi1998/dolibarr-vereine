@@ -9,7 +9,8 @@ The section of a version is the text of its GitHub release.
 
 ## [0.5.6-beta] - 2026-09-17
 
-Votes and elections (issue #96, last part of #9).
+Votes and elections (issue #96, last part of #9), and the API documentation in
+Dolibarr (issue #99).
 
 ### Added
 
@@ -27,6 +28,17 @@ Votes and elections (issue #96, last part of #9).
   report to the association authority for representatives.
 - **A change of the statutes that passed** stores the current text as a version
   and writes the notice to the association authority.
+- Setup tab *API*:
+  - how to connect a website step by step, with a warning while Dolibarr's REST
+    API module is off, and a link to Dolibarr's API explorer
+  - **every endpoint** of the module with method and path, what it is for,
+    the rights it needs and a `curl` example, read from `docs/openapi.json` in
+    the package, so the list is never out of date
+  - **users with an API key**: their rights for these endpoints, directly or
+    through groups, and which endpoints they can call; administrators are
+    warned about; the key itself is never shown
+  - **webhooks**: the event, what it carries and how to set it up safely
+- `docs/openapi.json` names the rights of every endpoint (`x-vereine-rights`).
 
 ### Upgrade
 

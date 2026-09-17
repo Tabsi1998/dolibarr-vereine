@@ -57,7 +57,15 @@
           "501": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:website:read"
+          ]
+        ]
       }
     },
     "/vereine/board": {
@@ -88,7 +96,15 @@
           "501": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:website:read"
+          ]
+        ]
       }
     },
     "/vereine/consents": {
@@ -119,7 +135,16 @@
           "501": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:website:read",
+            "vereine:application:write"
+          ]
+        ]
       }
     },
     "/vereine/applications": {
@@ -163,7 +188,15 @@
           "501": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:application:write"
+          ]
+        ]
       }
     },
     "/vereine/members": {
@@ -229,7 +262,15 @@
           "501": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:website:read"
+          ]
+        ]
       }
     },
     "/vereine/status": {
@@ -257,7 +298,12 @@
           "501": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ]
+        ]
       }
     },
     "/vereine/organization": {
@@ -285,7 +331,12 @@
           "501": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ]
+        ]
       }
     },
     "/vereine/taxprofiles": {
@@ -316,7 +367,12 @@
           "501": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ]
+        ]
       }
     },
     "/vereine/thresholds": {
@@ -360,7 +416,15 @@
           "501": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "facture:lire"
+          ]
+        ]
       }
     },
     "/vereine/members/{id}/summary": {
@@ -403,7 +467,15 @@
           "501": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:website:read"
+          ]
+        ]
       }
     },
     "/vereine/members/lookup": {
@@ -461,7 +533,15 @@
           "501": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:website:read"
+          ]
+        ]
       }
     },
     "/vereine/members/{id}/invoices": {
@@ -531,7 +611,15 @@
           "501": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:website:read"
+          ]
+        ]
       }
     },
     "/vereine/members/{id}/invoices/{invoice}/pdf": {
@@ -587,7 +675,15 @@
           "501": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:website:read"
+          ]
+        ]
       }
     }
   },
@@ -624,11 +720,16 @@
       },
       "Error": {
         "type": "object",
-        "required": ["error"],
+        "required": [
+          "error"
+        ],
         "properties": {
           "error": {
             "type": "object",
-            "required": ["code", "message"],
+            "required": [
+              "code",
+              "message"
+            ],
             "properties": {
               "code": {
                 "type": "integer"
@@ -643,7 +744,13 @@
       "Status": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["module_version", "api_version", "country_profile", "country_profile_complete", "server_time"],
+        "required": [
+          "module_version",
+          "api_version",
+          "country_profile",
+          "country_profile_complete",
+          "server_time"
+        ],
         "properties": {
           "module_version": {
             "type": "string"
@@ -653,7 +760,11 @@
           },
           "country_profile": {
             "type": "string",
-            "enum": ["AT", "DE", ""]
+            "enum": [
+              "AT",
+              "DE",
+              ""
+            ]
           },
           "country_profile_complete": {
             "type": "boolean"
@@ -666,11 +777,29 @@
       "Organization": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["country_profile", "country_profile_complete", "name", "register", "authority", "address", "email", "phone", "url", "founded", "nonprofit", "purpose", "fiscal_year_start_month"],
+        "required": [
+          "country_profile",
+          "country_profile_complete",
+          "name",
+          "register",
+          "authority",
+          "address",
+          "email",
+          "phone",
+          "url",
+          "founded",
+          "nonprofit",
+          "purpose",
+          "fiscal_year_start_month"
+        ],
         "properties": {
           "country_profile": {
             "type": "string",
-            "enum": ["AT", "DE", ""]
+            "enum": [
+              "AT",
+              "DE",
+              ""
+            ]
           },
           "country_profile_complete": {
             "type": "boolean"
@@ -681,7 +810,11 @@
           "register": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["kind", "number", "court"],
+            "required": [
+              "kind",
+              "number",
+              "court"
+            ],
             "properties": {
               "kind": {
                 "type": "string",
@@ -703,7 +836,12 @@
           "address": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["street", "zip", "town", "country_code"],
+            "required": [
+              "street",
+              "zip",
+              "town",
+              "country_code"
+            ],
             "properties": {
               "street": {
                 "type": "string"
@@ -747,7 +885,19 @@
       "TaxProfile": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "code", "label", "sphere", "sphere_basis", "treatment", "treatment_basis", "rate", "note", "active", "standard"],
+        "required": [
+          "id",
+          "code",
+          "label",
+          "sphere",
+          "sphere_basis",
+          "treatment",
+          "treatment_basis",
+          "rate",
+          "note",
+          "active",
+          "standard"
+        ],
         "properties": {
           "id": {
             "type": "integer",
@@ -768,7 +918,15 @@
           },
           "treatment": {
             "type": "string",
-            "enum": ["nonbusiness", "hobby", "small_business", "sport", "reduced10", "reduced13", "standard20"]
+            "enum": [
+              "nonbusiness",
+              "hobby",
+              "small_business",
+              "sport",
+              "reduced10",
+              "reduced13",
+              "standard20"
+            ]
           },
           "treatment_basis": {
             "type": "string"
@@ -789,12 +947,24 @@
       },
       "Sphere": {
         "type": "string",
-        "enum": ["ideal", "assets", "essential", "auxiliary", "festival", "harmful"]
+        "enum": [
+          "ideal",
+          "assets",
+          "essential",
+          "auxiliary",
+          "festival",
+          "harmful"
+        ]
       },
       "Thresholds": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["year", "thresholds", "unassigned", "cash_register"],
+        "required": [
+          "year",
+          "thresholds",
+          "unassigned",
+          "cash_register"
+        ],
         "properties": {
           "year": {
             "type": "integer"
@@ -808,7 +978,11 @@
           "unassigned": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["net", "gross", "lines"],
+            "required": [
+              "net",
+              "gross",
+              "lines"
+            ],
             "properties": {
               "net": {
                 "type": "number"
@@ -824,7 +998,14 @@
           "cash_register": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["turnover_limit", "cash_limit", "small_canteen_limit", "small_canteen_days", "spheres", "unassigned_cash"],
+            "required": [
+              "turnover_limit",
+              "cash_limit",
+              "small_canteen_limit",
+              "small_canteen_days",
+              "spheres",
+              "unassigned_cash"
+            ],
             "properties": {
               "turnover_limit": {
                 "type": "number"
@@ -843,7 +1024,12 @@
                 "items": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": ["sphere", "turnover", "cash", "status"],
+                  "required": [
+                    "sphere",
+                    "turnover",
+                    "cash",
+                    "status"
+                  ],
                   "properties": {
                     "sphere": {
                       "$ref": "#/components/schemas/Sphere"
@@ -856,7 +1042,14 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["not_relevant", "exempt", "exempt_festival", "ok", "near", "required"]
+                      "enum": [
+                        "not_relevant",
+                        "exempt",
+                        "exempt_festival",
+                        "ok",
+                        "near",
+                        "required"
+                      ]
                     }
                   }
                 }
@@ -871,11 +1064,27 @@
       "Threshold": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["code", "year", "limit", "gross", "tolerance", "amount", "remaining", "ratio", "status", "basis", "source", "previous_exceeded"],
+        "required": [
+          "code",
+          "year",
+          "limit",
+          "gross",
+          "tolerance",
+          "amount",
+          "remaining",
+          "ratio",
+          "status",
+          "basis",
+          "source",
+          "previous_exceeded"
+        ],
         "properties": {
           "code": {
             "type": "string",
-            "enum": ["small_business", "harmful_business"]
+            "enum": [
+              "small_business",
+              "harmful_business"
+            ]
           },
           "year": {
             "type": "integer"
@@ -901,7 +1110,12 @@
           },
           "status": {
             "type": "string",
-            "enum": ["ok", "near", "tolerance", "exceeded"]
+            "enum": [
+              "ok",
+              "near",
+              "tolerance",
+              "exceeded"
+            ]
           },
           "basis": {
             "type": "string"
@@ -918,7 +1132,23 @@
       "MemberSummary": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "ref", "firstname", "lastname", "company", "type", "status", "member_since", "paid_until", "membership_ends", "functions", "currency", "fee", "open_invoices", "updated_at"],
+        "required": [
+          "id",
+          "ref",
+          "firstname",
+          "lastname",
+          "company",
+          "type",
+          "status",
+          "member_since",
+          "paid_until",
+          "membership_ends",
+          "functions",
+          "currency",
+          "fee",
+          "open_invoices",
+          "updated_at"
+        ],
         "properties": {
           "id": {
             "type": "integer"
@@ -940,7 +1170,10 @@
           "type": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "label"],
+            "required": [
+              "id",
+              "label"
+            ],
             "properties": {
               "id": {
                 "type": "integer"
@@ -952,7 +1185,12 @@
           },
           "status": {
             "type": "string",
-            "enum": ["draft", "active", "terminated", "excluded"]
+            "enum": [
+              "draft",
+              "active",
+              "terminated",
+              "excluded"
+            ]
           },
           "member_since": {
             "$ref": "#/components/schemas/Date"
@@ -979,7 +1217,15 @@
           "fee": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["required", "status", "next_due", "amount", "discount", "payer", "payment_url"],
+            "required": [
+              "required",
+              "status",
+              "next_due",
+              "amount",
+              "discount",
+              "payer",
+              "payment_url"
+            ],
             "properties": {
               "required": {
                 "type": "boolean",
@@ -987,7 +1233,13 @@
               },
               "status": {
                 "type": "string",
-                "enum": ["paid", "invoiced", "due", "not_required", "inactive"]
+                "enum": [
+                  "paid",
+                  "invoiced",
+                  "due",
+                  "not_required",
+                  "inactive"
+                ]
               },
               "next_due": {
                 "$ref": "#/components/schemas/Date"
@@ -1000,11 +1252,19 @@
               "discount": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["kind", "label"],
+                "required": [
+                  "kind",
+                  "label"
+                ],
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "enum": ["none", "exempt", "proof", "age"]
+                    "enum": [
+                      "none",
+                      "exempt",
+                      "proof",
+                      "age"
+                    ]
                   },
                   "label": {
                     "type": "string",
@@ -1014,7 +1274,10 @@
               },
               "payer": {
                 "type": "string",
-                "enum": ["self", "other"],
+                "enum": [
+                  "self",
+                  "other"
+                ],
                 "description": "Who gets the fee invoices: the member's own third party, or another one named as payer, such as a parent; the invoices of a payer are not listed for the member"
               },
               "payment_url": {
@@ -1038,7 +1301,14 @@
       "BoardFunction": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["code", "label", "board", "represents", "auditor", "holders"],
+        "required": [
+          "code",
+          "label",
+          "board",
+          "represents",
+          "auditor",
+          "holders"
+        ],
         "properties": {
           "code": {
             "type": "string",
@@ -1064,7 +1334,10 @@
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["name", "since"],
+              "required": [
+                "name",
+                "since"
+              ],
               "properties": {
                 "name": {
                   "type": "string",
@@ -1082,7 +1355,11 @@
       "MemberFunction": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["code", "label", "since"],
+        "required": [
+          "code",
+          "label",
+          "since"
+        ],
         "properties": {
           "code": {
             "type": "string"
@@ -1098,7 +1375,12 @@
       "ConsentText": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["code", "label", "version", "text"],
+        "required": [
+          "code",
+          "label",
+          "version",
+          "text"
+        ],
         "properties": {
           "code": {
             "type": "string",
@@ -1121,7 +1403,12 @@
       },
       "Application": {
         "type": "object",
-        "required": ["firstname", "lastname", "email", "type_id"],
+        "required": [
+          "firstname",
+          "lastname",
+          "email",
+          "type_id"
+        ],
         "properties": {
           "external_id": {
             "type": "string",
@@ -1130,7 +1417,10 @@
           },
           "morphy": {
             "type": "string",
-            "enum": ["phy", "mor"],
+            "enum": [
+              "phy",
+              "mor"
+            ],
             "description": "Natural person (default) or legal entity"
           },
           "company": {
@@ -1180,7 +1470,10 @@
             "description": "Consents given, each with the version of GET /vereine/consents shown to the person",
             "items": {
               "type": "object",
-              "required": ["code", "version"],
+              "required": [
+                "code",
+                "version"
+              ],
               "properties": {
                 "code": {
                   "type": "string"
@@ -1196,7 +1489,12 @@
       "ApplicationResult": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "ref", "status", "duplicate"],
+        "required": [
+          "id",
+          "ref",
+          "status",
+          "duplicate"
+        ],
         "properties": {
           "id": {
             "type": "integer",
@@ -1208,7 +1506,12 @@
           },
           "status": {
             "type": "string",
-            "enum": ["draft", "active", "terminated", "excluded"],
+            "enum": [
+              "draft",
+              "active",
+              "terminated",
+              "excluded"
+            ],
             "description": "draft until the association validates the member"
           },
           "duplicate": {
@@ -1220,7 +1523,21 @@
       "MembershipFee": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "label", "description", "for", "subscription_required", "amount", "amount_editable", "duration", "year_starts_month", "prorated", "proration", "admission_fee", "currency"],
+        "required": [
+          "id",
+          "label",
+          "description",
+          "for",
+          "subscription_required",
+          "amount",
+          "amount_editable",
+          "duration",
+          "year_starts_month",
+          "prorated",
+          "proration",
+          "admission_fee",
+          "currency"
+        ],
         "properties": {
           "id": {
             "type": "integer"
@@ -1234,7 +1551,11 @@
           },
           "for": {
             "type": "string",
-            "enum": ["natural", "legal", "both"]
+            "enum": [
+              "natural",
+              "legal",
+              "both"
+            ]
           },
           "subscription_required": {
             "type": "boolean"
@@ -1251,7 +1572,10 @@
           "duration": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["value", "unit"],
+            "required": [
+              "value",
+              "unit"
+            ],
             "properties": {
               "value": {
                 "type": "integer",
@@ -1259,7 +1583,12 @@
               },
               "unit": {
                 "type": "string",
-                "enum": ["y", "m", "w", "d"]
+                "enum": [
+                  "y",
+                  "m",
+                  "w",
+                  "d"
+                ]
               }
             }
           },
@@ -1275,7 +1604,12 @@
           },
           "proration": {
             "type": "string",
-            "enum": ["none", "month", "quarter", "half_year"],
+            "enum": [
+              "none",
+              "month",
+              "quarter",
+              "half_year"
+            ],
             "description": "How joining during the fee year pays: the full amount, or the remaining months, quarters or half-years, the one of joining counted in full"
           },
           "admission_fee": {
@@ -1290,7 +1624,12 @@
       "InvoicePdf": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["filename", "content_type", "filesize", "content"],
+        "required": [
+          "filename",
+          "content_type",
+          "filesize",
+          "content"
+        ],
         "properties": {
           "filename": {
             "type": "string",
@@ -1298,7 +1637,9 @@
           },
           "content_type": {
             "type": "string",
-            "enum": ["application/pdf"]
+            "enum": [
+              "application/pdf"
+            ]
           },
           "filesize": {
             "type": "integer",
@@ -1313,7 +1654,19 @@
       "Invoice": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "ref", "type", "date", "due_date", "total", "remaining", "status", "overdue", "payment_url", "fee"],
+        "required": [
+          "id",
+          "ref",
+          "type",
+          "date",
+          "due_date",
+          "total",
+          "remaining",
+          "status",
+          "overdue",
+          "payment_url",
+          "fee"
+        ],
         "properties": {
           "id": {
             "type": "integer",
@@ -1324,11 +1677,21 @@
           },
           "type": {
             "type": "string",
-            "enum": ["standard", "replacement", "credit_note", "deposit"]
+            "enum": [
+              "standard",
+              "replacement",
+              "credit_note",
+              "deposit"
+            ]
           },
           "status": {
             "type": "string",
-            "enum": ["open", "overdue", "paid", "abandoned"]
+            "enum": [
+              "open",
+              "overdue",
+              "paid",
+              "abandoned"
+            ]
           },
           "date": {
             "$ref": "#/components/schemas/Date"
