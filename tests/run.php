@@ -819,6 +819,10 @@ foreach (array_keys($used) as $key) {
 		}
 		continue;
 	}
+	// Class names in the descriptor, such as the scheduled job's object, are no language keys.
+	if (is_file($root.'/class/'.strtolower($key).'.class.php')) {
+		continue;
+	}
 	if (in_array($key, array('ModuleVereineDesc', 'ModuleVereineDescLong'), true) || isset($english[$key])) {
 		expect(isset($english[$key]), 'language key '.$key.' is missing in en_US');
 		continue;
