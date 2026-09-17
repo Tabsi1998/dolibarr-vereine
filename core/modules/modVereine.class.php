@@ -227,6 +227,20 @@ class modVereine extends DolibarrModules
 		$this->menu[$r++] = array(
 			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
 			'type' => 'left',
+			'titre' => 'VereineMenuResolutions',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_resolutions',
+			'url' => '/vereine/resolutions.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->hasRight("vereine", "association", "read") && $user->hasRight("adherent", "lire")',
+			'target' => '',
+			'user' => 0,
+		);
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
 			'titre' => 'VereineMenuLetters',
 			'mainmenu' => 'members',
 			'leftmenu' => 'vereine_authority',
@@ -347,6 +361,14 @@ class modVereine extends DolibarrModules
 		$repaired = VereineTextRepair::run($this->db);
 		if ($repaired != 0) {
 			dol_syslog('modVereine::init repaired line breaks in '.$repaired.' values', $repaired < 0 ? LOG_ERR : LOG_INFO);
+		}
+
+		// Votes of earlier versions get their entry in the register of resolutions.
+		dol_include_once('/vereine/class/vereineresolutions.class.php');
+		$register = new VereineResolutions($this->db);
+		$written = $register->backfill($user);
+		if ($written > 0) {
+			dol_syslog('modVereine::init wrote '.$written.' entries in the register of resolutions', LOG_INFO);
 		}
 
 		// The module serves Austrian associations only; the country profile of earlier versions is gone.

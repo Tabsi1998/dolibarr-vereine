@@ -13,6 +13,28 @@ Unterschriften und das Protokoll als PDF (#119, #21).
 
 ### Neu
 
+- **Beschlussbuch** (#22): Der neue Menüpunkt *Beschlussbuch* zeigt jeden
+  Beschluss an einer Stelle.
+  - Jede Abstimmung einer Sitzung legt ihren Eintrag selbst an, mit Nummer
+    (Jahr und laufende Nummer), Organ, Tagesordnungspunkt, Ergebnis und den
+    gezählten Stimmen. Die Zahlen bleiben, wie sie in der Sitzung gezählt
+    wurden. Abstimmungen aus früheren Versionen werden beim Aktivieren
+    nachgetragen.
+  - Nachtragen kannst du **Wortlaut**, **Kategorie** (Finanzen, Mitglieder,
+    Organe, Statuten, Veranstaltungen, Sonstiges), **ab wann und bis wann** der
+    Beschluss gilt, das betroffene **Mitglied** und die **Rechnung** in
+    Dolibarr. Eine eigene Ausgabenfreigabe gibt es nicht: Freigabe und Zahlung
+    macht der Kassier in Dolibarr, der Beschluss verweist nur darauf.
+  - **Suchen und filtern** nach Nummer, Titel, Wortlaut und Vermerk sowie nach
+    Jahr, Organ, Kategorie, Ergebnis und offenen Folgen; die Liste lässt sich
+    als CSV herunterladen.
+  - **Folgen eines Beschlusses**: eine Aufgabe mit zuständiger Person und
+    Frist. Sie wird als Aufgabe im Dolibarr-Kalender der zuständigen Person
+    angelegt und erscheint am Mitglied; als erledigt gilt sie an beiden
+    Stellen. Offene Folgen werden bei einer neuen Sitzung als
+    Tagesordnungspunkt vorgeschlagen.
+  - Am Mitglied listet der Reiter *Verein* die Beschlüsse, die es betreffen
+    (Wahl, Aufnahme, Ehrung, Ausschluss).
 - **Protokoll als PDF** (#21): Eine Sitzung bekommt *Vorsitz* und
   *Protokollführung* (vorgeschlagen aus den Funktionen) und den Abschnitt
   *Protokoll*.

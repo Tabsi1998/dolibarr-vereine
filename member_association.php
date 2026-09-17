@@ -69,6 +69,7 @@ require_once __DIR__.'/class/vereinepartnerservice.class.php';
 require_once __DIR__.'/class/vereineexits.class.php';
 require_once __DIR__.'/class/vereineconsents.class.php';
 require_once __DIR__.'/class/vereinefunctions.class.php';
+require_once __DIR__.'/class/vereineresolutions.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('companies', 'members', 'bills', 'categories', 'vereine@vereine'));
@@ -419,6 +420,26 @@ if (count($consentHistory) > count($currentConsents)) {
 	}
 }
 print '<br>';
+
+// Resolutions that concern the member: admission, honour, exclusion, an election.
+print load_fiche_titre($langs->trans('VereineResolutionMemberTitle'), '', '', 0, 'vereineresolutions');
+$register = new VereineResolutions($db);
+$memberResolutions = $register->forMember((int) $object->id);
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+print '<tr class="liste_titre"><td>'.$langs->trans('VereineResolutionRef').'</td><td>'.$langs->trans('VereineMeetingWhen').'</td>';
+print '<td>'.$langs->trans('VereineResolutionTitleColumn').'</td><td>'.$langs->trans('VereineResolutionCategory').'</td>';
+print '<td>'.$langs->trans('VereineResolutionResult').'</td></tr>';
+if (!$memberResolutions) {
+	print '<tr class="oddeven"><td colspan="5"><span class="opacitymedium">'.$langs->trans('VereineResolutionMemberNone').'</span></td></tr>';
+}
+foreach ($memberResolutions as $entry) {
+	print '<tr class="oddeven" data-member-resolution="'.$entry['id'].'" data-passed="'.($entry['passed'] ? 1 : 0).'">';
+	print '<td><a href="'.dol_buildpath('/vereine/resolutions.php', 1).'?id='.$entry['id'].'">'.dol_escape_htmltag($entry['ref']).'</a></td>';
+	print '<td class="nowraponall">'.vereineFormatDay($entry['day']).'</td><td>'.dol_escape_htmltag($entry['title']).'</td>';
+	print '<td>'.$langs->trans('VereineResolutionCategory_'.$entry['category']).'</td>';
+	print '<td>'.$langs->trans($entry['passed'] ? 'VereineResolutionPassed' : 'VereineResolutionRejected').'</td></tr>';
+}
+print '</table></div><br>';
 
 vereinePrintLog($db, (int) $object->id, $partner ? (int) $partner->id : 0);
 

@@ -58,6 +58,7 @@ require_once $root.'/class/vereinesignaturerules.class.php';
 require_once $root.'/class/vereinetextrepair.class.php';
 require_once $root.'/class/vereineattendancerules.class.php';
 require_once $root.'/class/vereinevoterules.class.php';
+require_once $root.'/class/vereineresolutionrules.class.php';
 require_once $root.'/class/vereineapirules.class.php';
 
 $failures = array();
@@ -1129,6 +1130,63 @@ expect(!VereineSignatureRules::complete($signatureRules, 'audit_report', 2, 1) &
 	'a document is complete with every needed signature');
 expect(!VereineSignatureRules::complete($signatureRules, 'letter', 0, 0), 'without signers a document never counts as signed');
 
+// -------------------------------------------------------- register of resolutions
+
+same('organe', VereineResolutionRules::category('election'), 'an election belongs to the bodies of the association');
+same('statuten', VereineResolutionRules::category('statutes'), 'a change of the statutes belongs to the statutes');
+same('statuten', VereineResolutionRules::category('dissolution'), 'the dissolution belongs to the statutes too');
+same('sonstiges', VereineResolutionRules::category('resolution'), 'an ordinary resolution starts as something else');
+same('2026-3', VereineResolutionRules::ref('2026-03-01', 3), 'the number is the year and a running number');
+same(date('Y').'-1', VereineResolutionRules::ref('', 0), 'without a day the current year and at least one');
+
+$entry = VereineResolutionRules::normalize(array('wording' => "  Der Vorstand kauft Trikots.  ", 'category' => 'finanzen',
+	'valid_from' => '2026-01-01', 'valid_to' => '2026-12-31', 'member_id' => '7', 'invoice_id' => '', 'note' => 'Angebot von Beispiel GmbH'));
+same(array('Der Vorstand kauft Trikots.', 'finanzen', '2026-01-01', '2026-12-31', 7, 0), array($entry['wording'], $entry['category'],
+	$entry['valid_from'], $entry['valid_to'], $entry['member_id'], $entry['invoice_id']), 'the entry is trimmed and typed');
+same(array('sonstiges', '', ''), array(VereineResolutionRules::normalize(array('category' => 'unbekannt', 'valid_from' => '1.1.2026'))['category'],
+	VereineResolutionRules::normalize(array('valid_from' => '1.1.2026'))['valid_from'],
+	VereineResolutionRules::normalize(null)['wording']), 'an unknown category and a day that is no day fall back');
+same(array(), VereineResolutionRules::validate($entry), 'a validity from January to December is fine');
+same(array('VereineResolutionErrorValidity'), VereineResolutionRules::validate(VereineResolutionRules::normalize(array('valid_from' => '2026-12-31', 'valid_to' => '2026-01-01'))),
+	'a validity that ends before it starts is refused');
+
+$task = VereineResolutionRules::normalizeTask(array('label' => '  Trikots bestellen  ', 'member_id' => '7', 'deadline' => '2026-10-01'));
+same(array('Trikots bestellen', 7, '2026-10-01'), array($task['label'], $task['member_id'], $task['deadline']), 'a task is trimmed and typed');
+same(array(), VereineResolutionRules::validateTask($task), 'a task with a text and somebody responsible is fine');
+same(array('VereineResolutionTaskErrorLabel', 'VereineResolutionTaskErrorMember'), VereineResolutionRules::validateTask(VereineResolutionRules::normalizeTask(array())),
+	'a task without a text and without somebody responsible is refused');
+
+$filters = VereineResolutionRules::filters(array('search' => 'Trikots', 'year' => '2026', 'organ' => 'board', 'category' => 'finanzen', 'result' => 'passed', 'open' => '1'));
+same(array('Trikots', '2026', 'board', 'finanzen', 'passed', true), array($filters['search'], $filters['year'], $filters['organ'], $filters['category'],
+	$filters['result'], $filters['open']), 'the filters are taken as entered');
+same(array('', '', '', ''), array(VereineResolutionRules::filters(array('year' => '26'))['year'], VereineResolutionRules::filters(array('organ' => 'x'))['organ'],
+	VereineResolutionRules::filters(array('category' => 'x'))['category'], VereineResolutionRules::filters(array('result' => 'x'))['result']),
+	'a year that is no year and unknown values fall away');
+
+$row = array('id' => 1, 'ref' => '2026-1', 'title' => 'Anschaffung', 'wording' => 'Der Vorstand kauft Trikots.', 'note' => '', 'day' => '2026-03-01',
+	'organ' => 'board', 'category' => 'finanzen', 'passed' => true, 'valid_from' => '', 'valid_to' => '', 'tasks' => 1, 'tasks_open' => 1);
+expect(VereineResolutionRules::matches($row, $filters), 'the resolution matches every filter');
+expect(VereineResolutionRules::matches($row, VereineResolutionRules::filters(array('search' => 'trikots'))), 'the search looks at the wording and ignores upper and lower case');
+expect(VereineResolutionRules::matches($row, VereineResolutionRules::filters(array('search' => '2026-1'))), 'the search finds a resolution by its number');
+expect(!VereineResolutionRules::matches($row, VereineResolutionRules::filters(array('search' => 'Bälle'))), 'a word that is nowhere finds nothing');
+expect(!VereineResolutionRules::matches($row, VereineResolutionRules::filters(array('year' => '2025'))), 'another year does not match');
+expect(!VereineResolutionRules::matches($row, VereineResolutionRules::filters(array('organ' => 'general'))), 'another organ does not match');
+expect(!VereineResolutionRules::matches($row, VereineResolutionRules::filters(array('result' => 'rejected'))), 'a resolution that passed is not a rejected one');
+expect(!VereineResolutionRules::matches(array_merge($row, array('tasks_open' => 0)), VereineResolutionRules::filters(array('open' => '1'))),
+	'without an open follow-up the filter for open ones leaves it out');
+
+expect(VereineResolutionRules::applies($row, '2026-03-01') && !VereineResolutionRules::applies($row, '2026-02-28'),
+	'without a validity a resolution applies from the day it was taken');
+$limited = array_merge($row, array('valid_from' => '2026-04-01', 'valid_to' => '2026-06-30'));
+same(array(false, true, false), array(VereineResolutionRules::applies($limited, '2026-03-31'), VereineResolutionRules::applies($limited, '2026-06-30'),
+	VereineResolutionRules::applies($limited, '2026-07-01')), 'a validity holds on its first and its last day');
+expect(!VereineResolutionRules::applies(array_merge($row, array('passed' => false)), '2026-03-01'), 'a rejected resolution never applies');
+
+same(array('Trikots bestellen (2026-1)'), VereineResolutionRules::suggestions(array(array('label' => 'Trikots bestellen', 'ref' => '2026-1'))),
+	'an open follow-up becomes an agenda item with its number');
+same(array('Trikots bestellen (2026-1)'), VereineResolutionRules::suggestions(array(array('label' => 'Trikots bestellen', 'ref' => '2026-1'),
+	array('label' => 'Trikots bestellen', 'ref' => '2026-1'), array('label' => '  ', 'ref' => '2026-2'))), 'the same item comes once, an empty one not at all');
+
 // ------------------------------------------------------------------- openapi
 
 // Every endpoint of the API class is in docs/openapi.json, and the description lists no other.
@@ -1225,7 +1283,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
@@ -1253,6 +1311,7 @@ $prefixes = array(
 	'VereineSignatureKindHelp_' => VereineSignatureRules::KINDS,
 	'VereineSignatureMode_' => VereineSignatureRules::MODE_LIST,
 	'VereineSignatureWay_' => array('click', 'paper'),
+	'VereineResolutionCategory_' => VereineResolutionRules::CATEGORIES,
 	'VereineMinutesAudience_' => array('board', 'members'),
 	'VereineMinutesSend_' => array('board', 'members'),
 	'VereineApiEndpoint_' => array_column(VereineApiRules::endpoints($openapi), 'operation'),

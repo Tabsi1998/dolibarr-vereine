@@ -70,6 +70,10 @@ class VereineLog
 	const SIGNATURE_DONE = 'signature_done';
 	const MINUTES_FINAL = 'minutes_final';
 	const MINUTES_SENT = 'minutes_sent';
+	const RESOLUTION_ADDED = 'resolution_added';
+	const RESOLUTION_SAVED = 'resolution_saved';
+	const RESOLUTION_TASK = 'resolution_task';
+	const RESOLUTION_TASK_DONE = 'resolution_task_done';
 
 	/**
 	 * Append one entry.

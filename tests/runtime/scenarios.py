@@ -332,7 +332,8 @@ def enable(stack: Stack) -> str:
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_authority", "/vereine/authority.php"],
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
                     ["members", "vereine_meetings", "/vereine/meetings.php"],
-                    ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"]],
+                    ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"],
+                    ["members", "vereine_resolutions", "/vereine/resolutions.php"]],
            f"menu entries after enabling: {menu}")
     expect(stack.sql("SHOW TABLES LIKE 'llx_vereine_log'") == [["llx_vereine_log"]], "the log table was not created")
     categories = {name: stack.const(name) or "0" for name in CATEGORY_CONSTANTS}
@@ -346,7 +347,7 @@ def enable(stack: Stack) -> str:
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
     return (f"module {stack.module_version} on with Members, third parties and categories; no country profile; "
-            "4 rights, 7 menu entries, log table, 3 categories")
+            "4 rights, 8 menu entries, log table, 3 categories")
 
 
 def pages(stack: Stack) -> str:
@@ -2728,6 +2729,105 @@ def minutestexts(stack: Stack) -> str:
             f"text follows the reordered agenda, 2 missing required items warned; general assembly texts: {first!r}, result of the vote filled, emptied text stays empty; templates restored")
 
 
+def resolutions(stack: Stack) -> str:
+    """The register: every vote in it, search and filters, wording and validity, a follow-up as a task of Dolibarr, the agenda suggestion."""
+    browser = stack.browser()
+    base = "/custom/vereine/resolutions.php"
+    votes = int(stack.value("SELECT COUNT(*) FROM llx_vereine_meeting_vote"))
+    kept = int(stack.value("SELECT COUNT(*) FROM llx_vereine_resolution"))
+    expect(votes > 0 and kept == votes, f"{kept} entries in the register for {votes} votes")
+
+    page = page_ok(browser.get(base), "register of resolutions")
+    listed = re.findall(r'data-resolution="(\d+)" data-category="([a-z]+)" data-passed="(\d)" data-open="(\d+)"', page.text)
+    numbers = re.findall(r'\?id=\d+">(\d{4}-\d+)</a>', page.text)
+    expect(len(listed) == votes and len(set(numbers)) == votes,
+           f"the register lists {len(listed)} resolutions with the numbers {numbers}, expected {votes} different ones")
+    expect(sorted({category for _, category, _, _ in listed}) == ["organe", "sonstiges", "statuten"],
+           f"categories the register gave by itself: {sorted({category for _, category, _, _ in listed})}")
+
+    def rows(query: str, what: str) -> list:
+        found = page_ok(browser.get(f"{base}?{query}"), what)
+        return re.findall(r'data-resolution="(\d+)"', found.text)
+
+    expect(len(rows("search=Budget", "search for Budget")) == 1, "the search for a title found no single resolution")
+    expect(len(rows("search=trikots", "search before the wording")) == 0, "a word nobody wrote is already in the register")
+    expect(len(rows("category=organe", "elections")) == 1, "the election is not the only resolution about the bodies")
+    expect(len(rows("result=rejected", "rejected")) == 1, "exactly one vote of the meetings was rejected")
+    expect(len(rows("year=1999", "another year")) == 0, "a year without a meeting listed something")
+
+    # The board resolution gets its wording, its category and a validity.
+    entry = stack.value("SELECT rowid FROM llx_vereine_resolution WHERE title = 'Anschaffung'")
+    expect(entry is not None, "the board resolution Anschaffung is missing in the register")
+    page = page_ok(browser.get(f"{base}?id={entry}"), "the board resolution")
+    refused = page_ok(browser.submit(page.form(name="vereineresolution"),
+                                     {"wording": "Der Vorstand kauft Trikots.", "category": "finanzen", "valid_from": "2026-12-31", "valid_to": "2026-01-01"}),
+                      "a validity that ends before it starts")
+    expect("liegt vor" in html.unescape(refused.text) and stack.value(f"SELECT wording IS NULL FROM llx_vereine_resolution WHERE rowid = {entry}") == "1",
+           "a validity that ends before it starts was stored")
+    page = page_ok(browser.get(f"{base}?id={entry}"), "the board resolution again")
+    page_ok(browser.submit(page.form(name="vereineresolution"),
+                           {"wording": "Der Vorstand kauft Trikots.", "category": "finanzen", "valid_from": "2026-01-01", "valid_to": "2026-12-31",
+                            "note": "Angebot der Beispiel GmbH"}), "wording, category and validity")
+    saved = stack.sql(f"SELECT wording, category, valid_from, valid_to FROM llx_vereine_resolution WHERE rowid = {entry}")
+    expect(saved == [["Der Vorstand kauft Trikots.", "finanzen", "2026-01-01", "2026-12-31"]], f"stored entry: {saved}")
+    expect(len(rows("search=trikots", "search in the wording")) == 1, "the search does not find the resolution by its wording")
+    expect(len(rows("category=finanzen", "money matters")) == 1, "the chosen category does not filter")
+
+    # What follows from it: a task with somebody responsible, as a to-do of Dolibarr.
+    member = stack.value("SELECT rowid FROM llx_adherent WHERE statut = 1 ORDER BY rowid LIMIT 1")
+    page = page_ok(browser.get(f"{base}?id={entry}"), "the resolution before its follow-up")
+    refused = page_ok(browser.submit(page.form(name="vereineresolutiontask"), {"label": "Trikots bestellen", "member_id": "0"}),
+                      "a follow-up without somebody responsible")
+    expect("zuständige" in html.unescape(refused.text) and stack.value("SELECT COUNT(*) FROM llx_vereine_resolution_task") == "0",
+           "a follow-up without somebody responsible was stored")
+    page = page_ok(browser.get(f"{base}?id={entry}"), "the resolution again")
+    page_ok(browser.submit(page.form(name="vereineresolutiontask"),
+                           {"label": "Trikots bestellen", "member_id": member, "deadline": "2026-10-01"}), "the follow-up")
+    task = stack.sql("SELECT rowid, fk_adherent, deadline, fk_actioncomm IS NOT NULL, done_at IS NULL FROM llx_vereine_resolution_task")
+    expect(task and task[0][1] == member and task[0][2] == "2026-10-01" and task[0][3] == "1" and task[0][4] == "1", f"the stored follow-up: {task}")
+    event = stack.sql(f"SELECT percent, elementtype, fk_element, datep FROM llx_actioncomm WHERE id = "
+                      f"(SELECT fk_actioncomm FROM llx_vereine_resolution_task WHERE rowid = {task[0][0]})")
+    expect(event and event[0][0] == "0" and event[0][1] == "member" and event[0][2] == member and event[0][3].startswith("2026-10-01"),
+           f"the to-do of Dolibarr for the follow-up: {event}")
+    expect(len(rows("open=1", "only open follow-ups")) == 1, "the filter for open follow-ups does not find the resolution")
+
+    # The open follow-up is offered as an item of the next agenda.
+    meetings = "/custom/vereine/meetings.php"
+    page = page_ok(browser.get(f"{meetings}?template=board"), "a new board meeting from the template")
+    expect(f'data-follow="{task[0][0]}"' in page.text, "the new meeting does not offer the open follow-up")
+    form = page.form(name="vereinemeeting")
+    page_ok(browser.submit(form, {"kind": "board", "title": "Vorstandssitzung mit Folgen", "day": "2026-11-05", "time": "19:00",
+                                  "place": "Vereinsheim", "agenda": "Begrüßung", "follow[]": task[0][0]}), "a meeting that takes the follow-up over")
+    agenda = stack.value("SELECT agenda FROM llx_vereine_meeting WHERE title = 'Vorstandssitzung mit Folgen'")
+    expect(agenda is not None and "Begrüßung" in agenda and "Trikots bestellen (offen aus Beschluss" in agenda,
+           f"the agenda of the new meeting: {agenda!r}")
+
+    # The register as CSV, and the resolution at the member it concerns.
+    export = browser.get(f"{base}?action=export&search=trikots", follow=False)
+    expect(export.status == 200 and "text/csv" in export.headers.get("Content-Type", "") and "beschlussbuch.csv" in export.headers.get("Content-Disposition", ""),
+           f"the export answered HTTP {export.status} as {export.headers.get('Content-Type')}")
+    csv = export.body.decode("utf-8")
+    expect(csv.startswith("\ufeff") and csv.count("\r\n") == 2 and "Der Vorstand kauft Trikots." in csv and "finanzen" not in csv and "Finanzen" in csv,
+           f"the CSV of the register: {csv[:200]!r}")
+    candidate = stack.value("SELECT fk_adherent FROM llx_vereine_resolution WHERE kind = 'election'")
+    card = page_ok(browser.get(f"/custom/vereine/member_association.php?id={candidate}"), "the member who was elected")
+    expect(re.search(r'data-member-resolution="\d+" data-passed="1"', card.text) is not None, "the election is not shown at the member")
+    other = page_ok(browser.get(f"/custom/vereine/member_association.php?id={member}"), "a member without a resolution")
+    expect('data-member-resolution=' not in other.text or member == candidate, "a member gets resolutions that do not concern them")
+
+    # Done: the to-do of Dolibarr is done as well, and the filter for open ones finds nothing.
+    page = page_ok(browser.get(f"{base}?id={entry}"), "the resolution with its follow-up")
+    page_ok(browser.submit(page.form(name=f"vereineresolutiontaskdone{task[0][0]}")), "the follow-up is done")
+    done = stack.sql(f"SELECT done_at IS NOT NULL, (SELECT percent FROM llx_actioncomm WHERE id = fk_actioncomm) FROM llx_vereine_resolution_task WHERE rowid = {task[0][0]}")
+    expect(done == [["1", "100"]], f"the follow-up and its to-do after it was done: {done}")
+    expect(len(rows("open=1", "only open follow-ups after it was done")) == 0, "a resolution without an open follow-up is still listed as open")
+    logged = stack.value("SELECT COUNT(*) FROM llx_vereine_log WHERE action LIKE 'resolution%'")
+    expect(int(logged) >= votes + 3, f"{logged} entries in the log for {votes} resolutions, an entry saved and a follow-up opened and done")
+    return (f"{votes} votes in the register with their number and category; search by title and wording, filters by organ, result, year and open follow-ups; "
+            "wording and validity stored, a validity that ends before it starts refused; follow-up as a to-do of Dolibarr at the member, "
+            "offered as an item of the next agenda, done in both places; CSV export")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -2849,7 +2949,8 @@ SCENARIOS = (
     ("votes", "Votes and elections: quorum, majorities of the statutes, election starts the term, change of statutes stores the version", votes, ("attendance",)),
     ("minutestexts", "Agenda templates and texts per item: required items, new meeting from a template, real numbers in the texts", minutestexts, ("votes",)),
     ("minutes", "Minutes: roles, draft PDF, final version with signatures, sent to the board", minutes, ("minutestexts", "signatures")),
-    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("minutes",)),
+    ("resolutions", "The register of resolutions: search, wording and validity, follow-ups as to-dos of Dolibarr, agenda suggestion", resolutions, ("minutes",)),
+    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("resolutions",)),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
