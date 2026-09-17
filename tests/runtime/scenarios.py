@@ -2548,6 +2548,70 @@ def votes(stack: Stack) -> str:
             "board: no change of statutes, tie decided by the chair; log")
 
 
+def signatures(stack: Stack) -> str:
+    """Signatures: who signs a letter, signing in Dolibarr with the password, the paper way as a scan, a changed document."""
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/signatures.php"
+    base = "/custom/vereine/authority.php"
+    page = page_ok(browser.get(setup), "signature setup")
+    kinds = re.findall(r'data-rule="([a-z_]+)" data-roles="(\d+)" data-mode="(all|min)"', page.text)
+    expect([kind for kind, _, _ in kinds] == ["letter", "minutes", "resolution", "audit_report"], f"kinds of document: {kinds}")
+    expect(denied(stack.browser("rtreader").get(setup)), "a non-administrator opens the signature setup")
+
+    # The chair signs letters; the runtime admin gets the chair's member, so it can sign in Dolibarr.
+    chair = stack.value("SELECT t.fk_adherent FROM llx_vereine_function_term as t INNER JOIN llx_vereine_function as f ON f.rowid = t.fk_function"
+                        " WHERE f.code = 'obmann' AND t.date_end IS NULL ORDER BY t.rowid DESC LIMIT 1")
+    expect(chair is not None, "the functions scenario should leave a chair in office")
+    stack.sql(f"UPDATE llx_user SET fk_member = {chair} WHERE login = 'admin'")
+    page_ok(browser.submit(page.form(name="vereinesignaturerules"), {"rule[letter][roles][]": "obmann", "rule[letter][mode]": "all"},
+                            drop=("rule[letter][roles][]",)), "letters are signed by the chair")
+    stored = json.loads(stack.const("VEREINE_SIGNATURE_RULES") or "{}")
+    expect(stored.get("letter", {}).get("roles") == ["obmann"], f"stored signature rules: {stored.get('letter')}")
+
+    letters = page_ok(browser.get(base), "letters")
+    runs = re.findall(r'data-signature="(\d+)" data-status="(\w+)" data-signed="(\d+)" data-needed="(\d+)"', letters.text)
+    expect(runs, "a letter written in the letters scenario should have its signature run")
+    run, status, signed, needed = runs[0]
+    expect(status == "open" and signed == "0" and needed == "1", f"first run: {runs[0]}")
+
+    refused = page_ok(browser.post(base, [("token", token_of(letters)), ("action", "sign"), ("id", run), ("password", "falsch-" + stack.admin_password)]), "sign with a wrong password")
+    expect("Passwort stimmt nicht" in html.unescape(refused.text), "a wrong password signed the letter")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_signature_person WHERE fk_signature = {run} AND signed_at IS NOT NULL") == "0", "a signature was stored without the password")
+    page_ok(browser.post(base, [("token", token_of(letters)), ("action", "sign"), ("id", run), ("password", stack.admin_password)]), "sign in Dolibarr")
+    signed_row = stack.sql(f"SELECT way, signed_at IS NOT NULL FROM llx_vereine_signature_person WHERE fk_signature = {run}")
+    state = stack.value(f"SELECT status FROM llx_vereine_signature WHERE rowid = {run}")
+    expect(signed_row == [["click", "1"]] and state == "done", f"after signing: {signed_row}, status {state}")
+    sheet = pdf_text(stack, "vereine/signatures")
+    for word in ("Unterschriftenblatt", "SHA-256", "in Dolibarr"):
+        expect(word in sheet, f"the signature sheet lacks {word!r}")
+
+    # A second letter takes the paper way: the signed PDF is uploaded.
+    other = [item for item in runs[1:]] or []
+    if not other:
+        second = page_ok(browser.get(base), "letters for the paper way")
+        other = re.findall(r'data-signature="(\d+)" data-status="open"', second.text)
+        other = [(identifier, "open", "0", "1") for identifier in other]
+    expect(other, "a second open signature run is needed for the paper way")
+    paper = other[0][0]
+    letters = page_ok(browser.get(base), "letters before the upload")
+    scanned = b"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
+    refused = page_ok(browser.post_multipart(base, [("token", token_of(letters)), ("action", "signscan"), ("id", paper)], [("scan_file", "scan.txt", scanned)]), "upload a text file")
+    expect("Nur eine PDF-Datei" in html.unescape(refused.text), "a file that is no PDF was stored as signed document")
+    page_ok(browser.post_multipart(base, [("token", token_of(letters)), ("action", "signscan"), ("id", paper)], [("scan_file", "unterschrieben.pdf", scanned)]), "upload the signed PDF")
+    paper_state = stack.sql(f"SELECT status, scan_name FROM llx_vereine_signature WHERE rowid = {paper}")
+    ways = stack.sql(f"SELECT DISTINCT way FROM llx_vereine_signature_person WHERE fk_signature = {paper}")
+    expect(paper_state and paper_state[0][0] == "done" and paper_state[0][1].startswith("unterschrieben-") and ways == [["paper"]],
+           f"after the upload: {paper_state}, ways {ways}")
+
+    # A document rebuilt after the run started must be signed again.
+    name = stack.value(f"SELECT doc_name FROM llx_vereine_signature WHERE rowid = {run}")
+    stack.shell(f"echo x >> /var/www/documents/vereine/authority/{name}")
+    changed = page_ok(browser.get(base), "letters after the document changed")
+    expect('data-signature-changed="1"' in changed.text, "a changed document is not reported")
+    return ("4 kinds of document; letters signed by the chair; wrong password refused, signing in Dolibarr stored with the checksum and the sheet built; "
+            "paper way: only PDF accepted, scan finishes the run; a changed document asks for new signatures")
+
+
 def minutestexts(stack: Stack) -> str:
     """Agenda templates with required items, a new meeting from a template, texts per item with the real numbers, texts follow a reordered agenda."""
     browser = stack.browser()
@@ -2723,6 +2787,7 @@ SCENARIOS = (
     ("letters", "Letters to the association authority: responsible authority, notices with deadline, filed", letters, ("statutes",)),
     ("statutetext", "Statutes as text: fields, check, preview, uploaded and generated versions", statutetext, ("letters",)),
     ("statutechange", "Change of the statutes: comparison, PDF, new version with notice to the authority", statutechange, ("statutetext",)),
+    ("signatures", "Signatures: who signs, in Dolibarr with the password, on paper as a scan, a changed document", signatures, ("letters", "functions")),
     ("meetings", "Meetings: exactly the board or every member invited by e-mail or letter, with deadline and proof", meetings, ("statutechange",)),
     ("attendance", "Attendance: proxies as the statutes allow, never on the board, quorum at any time", attendance, ("meetings",)),
     ("votes", "Votes and elections: quorum, majorities of the statutes, election starts the term, change of statutes stores the version", votes, ("attendance",)),

@@ -65,6 +65,7 @@ if (!$res) {
  */
 
 require_once __DIR__.'/class/vereineauthorityletters.class.php';
+require_once __DIR__.'/class/vereinesignatures.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('members', 'vereine@vereine'));
@@ -81,6 +82,7 @@ if (!$user->hasRight('vereine', 'association', 'read') || !$user->hasRight('adhe
 
 $today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
 $letters = new VereineAuthorityLetters($db);
+$signatures = new VereineSignatures($db);
 $canWrite = $user->hasRight('adherent', 'creer');
 $action = GETPOST('action', 'aZ09');
 // A refused letter keeps what was entered.
@@ -101,6 +103,57 @@ if ($action === 'download') {
 	header('Content-Length: '.filesize($file));
 	readfile($file);
 	exit;
+} elseif ($action === 'sheet') {
+	$run = $signatures->fetch(GETPOSTINT('id'));
+	$file = $run !== null && $run['kind'] === VereineSignatureRules::KIND_LETTER ? VereineSignatures::sheetPath($run['id']) : '';
+	if ($file === '' || !is_file($file)) {
+		accessforbidden();
+	}
+	header('Content-Type: application/pdf');
+	header('Content-Disposition: attachment; filename="'.basename($file).'"');
+	header('Content-Length: '.filesize($file));
+	readfile($file);
+	exit;
+} elseif ($action === 'signed') {
+	$run = $signatures->fetch(GETPOSTINT('id'));
+	$file = $run !== null && $run['kind'] === VereineSignatureRules::KIND_LETTER ? VereineSignatures::scanPath($run) : '';
+	if ($file === '') {
+		accessforbidden();
+	}
+	header('Content-Type: application/pdf');
+	header('Content-Disposition: attachment; filename="'.basename($file).'"');
+	header('Content-Length: '.filesize($file));
+	readfile($file);
+	exit;
+} elseif ($action === 'startsign' && $canWrite) {
+	$id = GETPOSTINT('id');
+	$result = $signatures->start(VereineSignatureRules::KIND_LETTER, $id, $letters->path($id), $today, $user);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineSignatureStarted'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereineletters');
+		exit;
+	}
+	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $signatures->errors), 'errors');
+} elseif ($action === 'sign' && $canWrite) {
+	$run = $signatures->fetch(GETPOSTINT('id'));
+	$file = $run !== null ? $letters->path($run['object_id']) : '';
+	$result = $run === null ? 0 : $signatures->sign($run['id'], GETPOST('password', 'password'), $file, $user, $langs);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineSignatureSigned'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereineletters');
+		exit;
+	}
+	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $run === null ? array('VereineSignatureErrorNotOpen') : $signatures->errors), 'errors');
+} elseif ($action === 'signscan' && $canWrite) {
+	$run = $signatures->fetch(GETPOSTINT('id'));
+	$upload = isset($_FILES['scan_file']) && is_array($_FILES['scan_file']) ? $_FILES['scan_file'] : array();
+	$result = $run === null ? 0 : $signatures->uploadScan($run['id'], $upload, $user, $langs);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineSignatureScanStored'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereineletters');
+		exit;
+	}
+	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $run === null ? array('VereineSignatureErrorNotOpen') : $signatures->errors), 'errors');
 } elseif ($action === 'saveauthority' && $canWrite) {
 	$result = $letters->saveAuthority(GETPOST('authority_name', 'alphanohtml'), GETPOST('authority_address', 'restricthtml'), GETPOST('authority_email', 'alphanohtml'), GETPOST('authority_gz', 'alphanohtml'));
 	if ($result < 0) {
@@ -133,6 +186,8 @@ if ($action === 'download') {
 	$entered['founders'] = GETPOSTISSET('founders');
 	$result = $letters->create($kind, $entered, $user, $langs);
 	if ($result > 0) {
+		// A written letter goes straight into its signature run, where the statutes ask for signatures.
+		$signatures->start(VereineSignatureRules::KIND_LETTER, $result, $letters->path($result), $today, $user);
 		setEventMessages($langs->trans('VereineLetterWritten', $langs->transnoentities('VereineLetterKind_'.$kind)), null, 'mesgs');
 		header('Location: '.$_SERVER['PHP_SELF'].'#vereineletters');
 		exit;
@@ -214,10 +269,11 @@ print load_fiche_titre($langs->trans('VereineLettersWritten'), '', '', 0, 'verei
 $written = $letters->fetchAll();
 print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
 print '<tr class="liste_titre"><td>'.$langs->trans('VereineLetterKind').'</td><td>'.$langs->trans('VereineLetterDate').'</td><td>'.$langs->trans('VereineReportDeadline').'</td>';
-print '<td>'.$langs->trans('VereineLetterFiledOn').'</td><td></td></tr>';
+print '<td>'.$langs->trans('VereineLetterFiledOn').'</td><td>'.$langs->trans('VereineSignatureTitle').'</td><td></td></tr>';
 if (!$written) {
-	print '<tr class="oddeven"><td colspan="5"><span class="opacitymedium">'.$langs->trans('VereineLettersNone').'</span></td></tr>';
+	print '<tr class="oddeven"><td colspan="6"><span class="opacitymedium">'.$langs->trans('VereineLettersNone').'</span></td></tr>';
 }
+$signatureRules = $signatures->rules();
 foreach ($written as $letter) {
 	$overdue = $letter['filed_on'] === '' && $letter['deadline'] !== '' && $letter['deadline'] < $today;
 	print '<tr class="oddeven" data-letter="'.$letter['id'].'" data-kind="'.$letter['kind'].'" data-deadline="'.$letter['deadline'].'" data-filed="'.$letter['filed_on'].'" data-overdue="'.($overdue ? 1 : 0).'">';
@@ -232,6 +288,64 @@ foreach ($written as $letter) {
 		print '<input type="hidden" name="id" value="'.$letter['id'].'">';
 		print '<input type="date" name="filed_on" value="'.$today.'"> <input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineLetterMarkFiled')).'">';
 		print '</form>';
+	}
+	print '</td><td>';
+	$run = $signatures->current(VereineSignatureRules::KIND_LETTER, $letter['id'], $letters->path($letter['id']));
+	if ($run === null) {
+		if (!VereineSignatureRules::wanted($signatureRules, VereineSignatureRules::KIND_LETTER)) {
+			print '<span class="opacitymedium" data-signature="none">'.$langs->trans('VereineSignatureOff').'</span>';
+		} elseif ($canWrite && $letters->path($letter['id']) !== '') {
+			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereineletters" name="vereinestartsign'.$letter['id'].'">';
+			print '<input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="startsign">';
+			print '<input type="hidden" name="id" value="'.$letter['id'].'">';
+			print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineSignatureStart')).'">';
+			print '</form>';
+		}
+	} else {
+		print '<span data-signature="'.$run['id'].'" data-status="'.$run['status'].'" data-signed="'.$run['signed'].'" data-needed="'.$run['needed'].'">';
+		print $langs->trans($run['status'] === VereineSignatures::STATUS_DONE ? 'VereineSignatureComplete' : 'VereineSignatureProgress', $run['signed'], $run['needed']);
+		print '</span>';
+		$open = array();
+		foreach ($run['people'] as $person) {
+			if ($person['signed_at'] === 0) {
+				$open[] = $person['name'].' ('.$person['label'].')';
+			}
+		}
+		if ($open && $run['status'] === VereineSignatures::STATUS_OPEN) {
+			print '<div class="opacitymedium small">'.$langs->trans('VereineSignatureOpenBy', implode(', ', $open)).'</div>';
+		}
+		if ($run['document_changed']) {
+			print '<div class="warning" data-signature-changed="1">'.$langs->trans('VereineSignatureChanged').'</div>';
+		}
+		if (is_file(VereineSignatures::sheetPath($run['id']))) {
+			print '<div><a href="'.$_SERVER['PHP_SELF'].'?action=sheet&amp;id='.$run['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineSignatureSheet').'</a></div>';
+		}
+		if (VereineSignatures::scanPath($run) !== '') {
+			print '<div><a href="'.$_SERVER['PHP_SELF'].'?action=signed&amp;id='.$run['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineSignatureScan').'</a></div>';
+		}
+		$mine = false;
+		foreach ($run['people'] as $person) {
+			$mine = $mine || ($person['member_id'] === (int) $user->fk_member && $person['signed_at'] === 0);
+		}
+		if ($run['status'] === VereineSignatures::STATUS_OPEN && $canWrite && $mine && !$run['document_changed']) {
+			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereineletters" name="vereinesign'.$run['id'].'" class="paddingtop">';
+			print '<input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="sign">';
+			print '<input type="hidden" name="id" value="'.$run['id'].'">';
+			print '<input type="password" name="password" autocomplete="current-password" placeholder="'.dol_escape_htmltag($langs->trans('Password')).'"> ';
+			print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineSignatureSign')).'">';
+			print '</form>';
+		}
+		if ($run['status'] === VereineSignatures::STATUS_OPEN && $canWrite) {
+			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereineletters" name="vereinesignscan'.$run['id'].'" enctype="multipart/form-data" class="paddingtop">';
+			print '<input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="signscan">';
+			print '<input type="hidden" name="id" value="'.$run['id'].'">';
+			print '<input type="file" name="scan_file" accept="application/pdf"> ';
+			print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineSignatureUpload')).'">';
+			print '</form>';
+		}
 	}
 	print '</td><td class="right"><a href="'.$_SERVER['PHP_SELF'].'?action=download&amp;id='.$letter['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.dol_escape_htmltag($letter['filename']).'</a></td></tr>';
 }

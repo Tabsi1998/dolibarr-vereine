@@ -54,6 +54,7 @@ require_once $root.'/class/vereineauthorityrules.class.php';
 require_once $root.'/class/vereinestatutetext.class.php';
 require_once $root.'/class/vereinemeetingrules.class.php';
 require_once $root.'/class/vereineminutesrules.class.php';
+require_once $root.'/class/vereinesignaturerules.class.php';
 require_once $root.'/class/vereinetextrepair.class.php';
 require_once $root.'/class/vereineattendancerules.class.php';
 require_once $root.'/class/vereinevoterules.class.php';
@@ -1080,6 +1081,40 @@ same(array(array(), array('the statutes admit members from 18 years of age'), ar
 	VereineConsentRules::application(array('birth' => '') + $valid, $types, $texts, 18, '2026-09-17')['errors'],
 ), 'the minimum age of the statutes: old enough on the birthday, younger and unknown birth dates refused');
 
+// ----------------------------------------------------------- signature rules
+
+$codes = array('obmann', 'schriftfuehrung', 'kassier', 'rechnungspruefung');
+$signatureRules = VereineSignatureRules::normalize(null, $codes);
+same(array('obmann', 'schriftfuehrung'), $signatureRules['letter']['roles'], 'letters are signed by the chair and the secretary, as in the model statutes');
+same(array('rechnungspruefung'), $signatureRules['audit_report']['roles'], 'the auditors sign their own report');
+same(array(), VereineSignatureRules::normalize(null, array('obmann'))['audit_report']['roles'], 'a function the catalogue lacks is left out');
+expect(VereineSignatureRules::wanted($signatureRules, 'letter') && !VereineSignatureRules::wanted(VereineSignatureRules::normalize(array('letter' => array('roles' => array())), $codes), 'letter'),
+	'a kind without a function is switched off');
+$own = VereineSignatureRules::normalize(array('letter' => array('roles' => array('obmann', 'kassier', 'obmann', 'unknown'), 'mode' => 'min', 'min' => 5)), $codes);
+same(array(array('obmann', 'kassier'), 'min', 2), array($own['letter']['roles'], $own['letter']['mode'], $own['letter']['min']), 'doubles and unknown functions drop out, min never exceeds the functions');
+same(array(), VereineSignatureRules::validate($own), 'own rules are fine');
+same(array('VereineSignatureErrorMinWithoutRole'), VereineSignatureRules::validate(VereineSignatureRules::normalize(array('letter' => array('roles' => array(), 'mode' => 'min', 'min' => 1)), $codes)), 'min without a function is refused');
+
+$holders = array('obmann' => array(array('member_id' => 7, 'name' => 'Paula Beispiel')),
+	'schriftfuehrung' => array(array('member_id' => 7, 'name' => 'Paula Beispiel')),
+	'rechnungspruefung' => array(array('member_id' => 8, 'name' => 'Rafael Beispiel'), array('member_id' => 9, 'name' => 'Marco Beispiel')));
+$labels = array('obmann' => 'Obmann/Obfrau', 'schriftfuehrung' => 'Schriftführer:in', 'rechnungspruefung' => 'Rechnungsprüfer:in');
+$signers = VereineSignatureRules::signers($signatureRules, 'letter', $holders, $labels);
+same(array(1, 'obmann', 7), array(count($signers['people']), $signers['people'][0]['role'], $signers['people'][0]['member_id']), 'somebody holding both functions signs once');
+same(array(), $signers['vacant'], 'no function is vacant');
+$audit = VereineSignatureRules::signers($signatureRules, 'audit_report', $holders, $labels);
+same(array(8, 9), array_column($audit['people'], 'member_id'), 'both auditors sign');
+$vacant = VereineSignatureRules::signers($signatureRules, 'letter', array('obmann' => array(array('member_id' => 7, 'name' => 'Paula'))), $labels);
+same(array('Schriftführer:in'), $vacant['vacant'], 'a function nobody holds is reported');
+
+same(2, VereineSignatureRules::needed($signatureRules, 'audit_report', 2), 'all of them sign');
+same(2, VereineSignatureRules::needed($own, 'letter', 3), 'min takes the number entered');
+same(1, VereineSignatureRules::needed($own, 'letter', 1), 'min never asks for more people than there are');
+same(0, VereineSignatureRules::needed($signatureRules, 'letter', 0), 'nobody to sign needs no signature');
+expect(!VereineSignatureRules::complete($signatureRules, 'audit_report', 2, 1) && VereineSignatureRules::complete($signatureRules, 'audit_report', 2, 2),
+	'a document is complete with every needed signature');
+expect(!VereineSignatureRules::complete($signatureRules, 'letter', 0, 0), 'without signers a document never counts as signed');
+
 // ------------------------------------------------------------------- openapi
 
 // Every endpoint of the API class is in docs/openapi.json, and the description lists no other.
@@ -1176,7 +1211,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
@@ -1200,6 +1235,10 @@ $prefixes = array(
 	'VereineAttendanceHowTo_' => array('board', 'general'),
 	'VereineVoteKind_' => VereineVoteRules::KINDS,
 	'VereineMinutesPlaceholder_' => VereineMinutesRules::PLACEHOLDERS,
+	'VereineSignatureKind_' => VereineSignatureRules::KINDS,
+	'VereineSignatureKindHelp_' => VereineSignatureRules::KINDS,
+	'VereineSignatureMode_' => VereineSignatureRules::MODE_LIST,
+	'VereineSignatureWay_' => array('click', 'paper'),
 	'VereineApiEndpoint_' => array_column(VereineApiRules::endpoints($openapi), 'operation'),
 	'VereineLetterKind_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
 	'VereineLetterTitle_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
