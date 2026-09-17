@@ -67,6 +67,9 @@ with a REST API for the association's website.
 - **Exit** (0.3.9): resignation with the notice period of the statutes,
   exclusion, death or struck off; the member is set to resiliated on the last
   day, and the fee run stops there.
+- **SEPA direct debit** (0.3.10): the fee run checks mandates, reports expired
+  ones and requests the direct debit with pre-notification through Dolibarr's
+  own module.
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 

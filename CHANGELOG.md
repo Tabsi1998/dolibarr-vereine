@@ -7,6 +7,29 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.3.10-beta] - 2026-09-17
+
+Membership fees, part 4 (issue #63): SEPA direct debit from the fee run.
+
+### Added
+
+- The fee run checks the payer's mandate - the default bank account of the
+  third party with mandate reference and signature date - and reports a mandate
+  not used for 36 months as expired.
+- With Dolibarr's module *Direct debit payment orders* on, the fee run offers
+  *Request direct debit where a valid mandate exists*: the invoice gets payment
+  mode direct debit, a pre-notification with amount, earliest collection day,
+  mandate reference and creditor identifier, and a direct debit request that
+  Dolibarr turns into the order for the bank as usual.
+- Setup tab *Fees*, section *SEPA direct debit*: how it works, a warning when the
+  module or the creditor identifier is missing, and the days of pre-notification
+  (14 unless set otherwise).
+
+### Upgrade
+
+Deploy the new ZIP. Nothing to activate again; enable Dolibarr's module *Direct
+debit payment orders* to use it.
+
 ## [0.3.9-beta] - 2026-09-17
 
 Membership fees, part 5 (issue #64): exit with reason and the notice period of
@@ -544,7 +567,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.9-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.10-beta...HEAD
+[0.3.10-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.10-beta
 [0.3.9-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.9-beta
 [0.3.8-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.8-beta
 [0.3.7-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.7-beta

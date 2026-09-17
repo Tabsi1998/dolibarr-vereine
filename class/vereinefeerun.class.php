@@ -31,6 +31,7 @@ require_once __DIR__.'/vereinefeemodel.class.php';
 require_once __DIR__.'/vereinefeediscountstore.class.php';
 require_once __DIR__.'/vereinefeefamilystore.class.php';
 require_once __DIR__.'/vereineexits.class.php';
+require_once __DIR__.'/vereinesepastore.class.php';
 require_once __DIR__.'/vereinemembersummary.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 
@@ -65,6 +66,16 @@ class VereineFeeRun
 	 * @var string Last error
 	 */
 	public $error = '';
+
+	/**
+	 * @var string What happened to the direct debit of the last invoice: '', 'requested' or 'failed'
+	 */
+	public $sepaRequest = '';
+
+	/**
+	 * @var string Why the last direct debit request failed
+	 */
+	public $sepaError = '';
 
 	/**
 	 * Constructor.
@@ -203,6 +214,17 @@ class VereineFeeRun
 		if ($family['mode'] === VereineFeeFamilies::MODE_CAP) {
 			$rows = $this->applyCap($rows, $family['value'], $families, $people, $types, $discountData, $familyStore);
 		}
+
+		// The payer's mandate for a direct debit, when Dolibarr's direct debit module is on.
+		$mandates = array();
+		if (VereineSepaStore::enabled()) {
+			$sepaStore = new VereineSepaStore($this->db);
+			$mandates = $sepaStore->mandates(array_column($rows, 'payer_socid'), dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+		}
+		foreach ($rows as $index => $row) {
+			$rows[$index]['sepa'] = isset($mandates[$row['payer_socid']]) ? $mandates[$row['payer_socid']]
+				: array('status' => VereineSepaStore::enabled() ? VereineSepa::MANDATE_NONE : 'off', 'rib_id' => 0, 'reference' => '', 'signed_on' => '', 'last_collection' => '');
+		}
 		return $rows;
 	}
 
@@ -219,9 +241,10 @@ class VereineFeeRun
 	 * @param string[] $keys           Keys of the chosen rows
 	 * @param bool     $createPartners Create a third party for members that have none and no payer
 	 * @param User     $user           User who runs it
+	 * @param bool     $directDebit    Request a direct debit for invoices whose payer has a valid mandate
 	 * @return array{created:array<int,array<string,mixed>>,skipped:array<int,array<string,mixed>>,failed:array<int,array<string,mixed>>}
 	 */
-	public function run($dueUntil, $typeId, array $keys, $createPartners, $user)
+	public function run($dueUntil, $typeId, array $keys, $createPartners, $user, $directDebit = false)
 	{
 		require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
 
@@ -308,14 +331,15 @@ class VereineFeeRun
 				$result['created'][] = $row + array('invoice_id' => 0, 'invoice_ref' => '');
 				continue;
 			}
-			$invoice = $this->createFees($rows, $group['socid'], $user);
+			$invoice = $this->createFees($rows, $group['socid'], $user, $directDebit && VereineSepaStore::enabled());
 			foreach ($rows as $row) {
 				if ($invoice === null) {
 					$stopped[$row['member_id']] = true;
 					$result['failed'][] = $row + array('error' => $this->error);
 					VereineLog::add($this->db, $user, VereineLog::FEE_ERROR, $row['member_id'], $group['socid'], $this->error);
 				} else {
-					$result['created'][] = array('invoice_id' => (int) $invoice->id, 'invoice_ref' => (string) $invoice->ref, 'payer_socid' => $group['socid']) + $row;
+					$result['created'][] = array('invoice_id' => (int) $invoice->id, 'invoice_ref' => (string) $invoice->ref, 'payer_socid' => $group['socid'],
+						'sepa_request' => $this->sepaRequest, 'sepa_error' => $this->sepaError) + $row;
 				}
 			}
 		}
@@ -499,13 +523,19 @@ class VereineFeeRun
 	 * Subscription periods of fees for one payer and one validated invoice with a line for each, together or not at all.
 	 *
 	 * @param array<int,array<string,mixed>> $rows  Rows of the preview, one per member
-	 * @param int                            $socid Third party that gets the invoice
-	 * @param User                           $user  User
-	 * @return Facture|null Null on error, see $error
+	 * @param int                            $socid       Third party that gets the invoice
+	 * @param User                           $user        User
+	 * @param bool                           $directDebit Request a direct debit when the payer has a valid mandate
+	 * @return Facture|null Null on error, see $error; $sepaRequest tells what happened to the direct debit
 	 */
-	private function createFees(array $rows, $socid, $user)
+	private function createFees(array $rows, $socid, $user, $directDebit)
 	{
-		global $langs, $mysoc;
+		global $conf, $langs, $mysoc;
+
+		$this->sepaRequest = '';
+		$this->sepaError = '';
+		$mandate = $rows[0]['sepa'];
+		$debit = $directDebit && $mandate['status'] === VereineSepa::MANDATE_VALID && $mandate['rib_id'] > 0;
 
 		require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
 		require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
@@ -551,6 +581,21 @@ class VereineFeeRun
 			$invoice->fk_account = getDolGlobalInt('FACTURE_RIB_NUMBER');
 		}
 		$invoice->linked_objects['subscription'] = $subscriptionIds;
+		if ($debit) {
+			// Pre-notification on the invoice: amount, earliest day of the collection, mandate and creditor identifier.
+			$total = 0.0;
+			foreach ($rows as $row) {
+				$total += $row['fee']['total'];
+			}
+			$sepaStore = new VereineSepaStore($this->db);
+			$collection = VereineSepa::collectionDay(dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'), $sepaStore->noticeDays());
+			$invoice->note_public = $langs->transnoentities('VereineSepaPreNotification', price($total, 0, $langs, 1, -1, -1, $conf->currency),
+				dol_print_date($this->moment($collection), 'day'), $mandate['reference'], getDolGlobalString('PRELEVEMENT_ICS'));
+			$directDebitMode = (int) dol_getIdFromCode($this->db, 'PRE', 'c_paiement', 'code', 'id', 1);
+			if ($directDebitMode > 0) {
+				$invoice->mode_reglement_id = $directDebitMode;
+			}
+		}
 		if ($invoice->create($user) <= 0) {
 			return $this->fail('invoice: '.$invoice->error.' '.implode(' | ', (array) $invoice->errors));
 		}
@@ -580,6 +625,17 @@ class VereineFeeRun
 		foreach ($rows as $row) {
 			VereineLog::add($this->db, $user, VereineLog::FEE_INVOICE, $row['member_id'], (int) $customer->id,
 				$invoice->ref.' / '.$row['fee']['start'].' - '.$row['fee']['end'].' / '.price2num($row['fee']['total'], 'MT'));
+		}
+		if ($debit) {
+			// The invoice stays when the request fails; the request can be made again on the invoice card.
+			if ($invoice->demande_prelevement($user, 0, 'direct-debit', 'facture', 0, (int) $mandate['rib_id']) > 0) {
+				$this->sepaRequest = 'requested';
+				VereineLog::add($this->db, $user, VereineLog::FEE_DIRECT_DEBIT, $rows[0]['member_id'], (int) $customer->id, $invoice->ref.' / '.$mandate['reference']);
+			} else {
+				$this->sepaRequest = 'failed';
+				$this->sepaError = trim($langs->transnoentities($invoice->error).' '.implode(' | ', (array) $invoice->errors));
+				VereineLog::add($this->db, $user, VereineLog::FEE_ERROR, $rows[0]['member_id'], (int) $customer->id, $invoice->ref.' / direct debit: '.$this->sepaError);
+			}
 		}
 		return $invoice;
 	}

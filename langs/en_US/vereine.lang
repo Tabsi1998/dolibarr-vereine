@@ -581,3 +581,26 @@ VereineLog_exit_planned=Exit recorded
 VereineLog_exit_done=Exit took effect
 VereineLog_exit_cancelled=Exit taken back
 VereineLog_exit_error=Exit could not take effect
+
+#
+# SEPA direct debit
+#
+VereineSepaTitle=SEPA direct debit
+VereineSepaHowToModule=<strong>Enable Dolibarr's module <em>Direct debit payment orders</em></strong> and enter the association's creditor identifier there. The fee run then creates the direct debit requests; Dolibarr builds the file for the bank as usual under <em>Bank > Direct debit orders</em>.
+VereineSepaHowToMandate=<strong>Mandate:</strong> on the payer's third party, tab <em>Bank accounts</em>, the default account with IBAN, mandate reference and signature date.
+VereineSepaHowToExpiry=<strong>Expiry:</strong> a mandate not used for 36 months is no longer valid. The fee run reports it and requests no direct debit for it.
+VereineSepaHowToNotice=<strong>Pre-notification:</strong> the invoice states amount, earliest collection day, mandate reference and creditor identifier. 14 calendar days before the collection are usual unless agreed otherwise with the member.
+VereineSepaHowToOrder=<strong>In the fee run</strong> "Request direct debit" is ticked. Invoices without a valid mandate stay ordinary invoices.
+VereineSepaModuleOff=Dolibarr's module "Direct debit payment orders" is off: the fee run requests no direct debits.
+VereineSepaNoCreditorId=The creditor identifier is missing in the module "Direct debit payment orders". It belongs on the pre-notification.
+VereineSepaNoticeDays=Pre-notification in days
+VereineSepaNoticeDaysHelp=earliest collection this many days after the invoice date; 1 to 60, usually 14
+VereineSepaErrorDays=Enter the days of pre-notification as a whole number from 1 to 60.
+VereineSepaSaved=Direct debit setting saved.
+VereineSepaMandateValid=direct debit, mandate %s
+VereineSepaMandateExpired=mandate %s expired: 36 months without collection, no direct debit
+VereineSepaRequestOption=Request direct debit where a valid mandate exists
+VereineSepaRequested=direct debit requested
+VereineSepaRequestFailed=direct debit not requested: %s
+VereineSepaPreNotification=The amount of %s will be collected by SEPA direct debit on %s at the earliest. Mandate reference: %s, creditor identifier: %s.
+VereineLog_fee_direct_debit=Direct debit requested

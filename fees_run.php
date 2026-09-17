@@ -111,7 +111,7 @@ if ($action === 'run') {
 			$keys[] = (string) $key;
 		}
 	}
-	$result = $feeRun->run($dueUntil, $typeId, $keys, GETPOSTINT('createpartners') === 1 && $mayCreatePartners, $user);
+	$result = $feeRun->run($dueUntil, $typeId, $keys, GETPOSTINT('createpartners') === 1 && $mayCreatePartners, $user, GETPOSTINT('directdebit') === 1);
 	if ($result['created']) {
 		$total = 0.0;
 		foreach ($result['created'] as $created) {
@@ -170,6 +170,11 @@ if ($result !== null && ($result['created'] || $result['skipped'] || $result['fa
 				print $langs->trans('VereineFeeRunPeriodOnly');
 			} elseif ($kind === 'created') {
 				print '<a href="'.DOL_URL_ROOT.'/compta/facture/card.php?facid='.((int) $entry['invoice_id']).'">'.dol_escape_htmltag($entry['invoice_ref']).'</a>';
+				if ($entry['sepa_request'] === 'requested') {
+					print ' <span data-sepa-request="requested">'.$langs->trans('VereineSepaRequested').'</span>';
+				} elseif ($entry['sepa_request'] === 'failed') {
+					print ' <span class="warning" data-sepa-request="failed">'.$langs->trans('VereineSepaRequestFailed', dol_escape_htmltag($entry['sepa_error'])).'</span>';
+				}
 			} elseif ($kind === 'skipped') {
 				print $langs->trans('VereineFeeRunSkip_'.$entry['reason']);
 			} else {
@@ -237,6 +242,11 @@ foreach ($rows as $row) {
 				vereineFormatDay($family['year_start']), price($family['charged'], 0, $langs, 1, -1, -1, $conf->currency),
 				price($family['before'], 0, $langs, 1, -1, -1, $conf->currency)).'</span>';
 		}
+		if ($row['sepa']['status'] === VereineSepa::MANDATE_VALID && $fee['total'] > 0) {
+			$notes[] = '<span data-sepa="valid">'.$langs->trans('VereineSepaMandateValid', dol_escape_htmltag($row['sepa']['reference'])).'</span>';
+		} elseif ($row['sepa']['status'] === VereineSepa::MANDATE_EXPIRED && $fee['total'] > 0) {
+			$notes[] = '<span class="warning" data-sepa="expired">'.$langs->trans('VereineSepaMandateExpired', dol_escape_htmltag($row['sepa']['reference'])).'</span>';
+		}
 		if ($row['exit_last_day'] !== '') {
 			$notes[] = '<span data-exit-last-day="'.dol_escape_htmltag($row['exit_last_day']).'">'.$langs->trans('VereineExitFeeRunNote', vereineFormatDay($row['exit_last_day'])).'</span>';
 		}
@@ -262,6 +272,9 @@ if ($rows) {
 	if ($mayRun) {
 		if ($mayCreatePartners) {
 			print '<input type="checkbox" id="createpartners" name="createpartners" value="1"> <label for="createpartners">'.$langs->trans('VereineFeeRunCreatePartners').'</label><br>';
+		}
+		if (VereineSepaStore::enabled()) {
+			print '<input type="checkbox" id="directdebit" name="directdebit" value="1" checked> <label for="directdebit">'.$langs->trans('VereineSepaRequestOption').'</label><br>';
 		}
 		print '<div class="center"><input type="submit" class="button" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineFeeRunCreate')).'"></div>';
 	} else {

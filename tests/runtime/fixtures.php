@@ -823,6 +823,70 @@ if ($stage === 'exitmembers') {
 	exit(0);
 }
 
+// Dolibarr's direct debit module with a creditor identifier, and three members: a valid mandate, one unused for 40 months, none.
+if ($stage === 'sepamembers') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/companybankaccount.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+	$result = activateModule('modPrelevement');
+	if (!empty($result['errors'])) {
+		rt_fail('activating modPrelevement failed: '.implode(' | ', (array) $result['errors']));
+	}
+	// A made-up creditor identifier in the Austrian format, for tests only.
+	dolibarr_set_const($db, 'PRELEVEMENT_ICS', 'AT12ZZZ00000000001', 'chaine', 0, '', 1);
+	$today = dol_mktime(12, 0, 0, (int) dol_print_date(dol_now(), '%m'), (int) dol_print_date(dol_now(), '%d'), (int) dol_print_date(dol_now(), '%Y'));
+	$people = array(
+		'valid' => array('Valentin', 'RT-MANDAT-GUELTIG', dol_time_plus_duree($today, -30, 'd')),
+		'expired' => array('Egon', 'RT-MANDAT-ALT', dol_time_plus_duree($today, -40, 'm')),
+		'none' => array('Nadine', '', 0),
+	);
+	$members = array();
+	$accounts = array();
+	foreach ($people as $key => $data) {
+		$member = new Adherent($db);
+		$member->typeid = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."adherent_type WHERE libelle = 'Beitragspflichtig'");
+		$member->morphy = 'phy';
+		$member->firstname = $data[0];
+		$member->lastname = 'Lastschrift';
+		$member->email = $key.'.lastschrift@runtime-verein.test';
+		$member->country_id = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+		$member->public = 0;
+		if ($member->create($admin) <= 0 || $member->validate($admin) <= 0) {
+			rt_fail('member '.$key.': '.$member->error.' '.implode(' | ', (array) $member->errors));
+		}
+		$member->fetch($member->id);
+		$partner = new Societe($db);
+		if ((int) $member->fk_soc <= 0 && $partner->create_from_member($member) <= 0) {
+			rt_fail('third party of '.$key.': '.$partner->error);
+		}
+		$members[$key] = (int) $member->id;
+		if ($data[1] === '') {
+			continue;
+		}
+		$account = new CompanyBankAccount($db);
+		$account->socid = (int) rt_value($db, "SELECT fk_soc FROM ".MAIN_DB_PREFIX."adherent WHERE rowid = ".((int) $member->id));
+		$account->type = 'ban';
+		$account->label = 'RT Konto '.$data[0];
+		$account->bank = 'RT Bank';
+		// The example IBAN and BIC published for documentation, not a real account.
+		$account->iban = 'AT611904300234573201';
+		$account->bic = 'BKAUATWW';
+		$account->proprio = $data[0].' Lastschrift';
+		$account->owner_name = $account->proprio;
+		$account->rum = $data[1];
+		$account->date_rum = $data[2];
+		$account->frstrecur = 'FRST';
+		$account->default_rib = 1;
+		if ($account->create($admin) <= 0 || $account->update($admin) <= 0) {
+			rt_fail('bank account of '.$key.': '.$account->error.' '.implode(' | ', (array) $account->errors));
+		}
+		$accounts[$key] = (int) $account->id;
+	}
+	print json_encode(array('members' => $members, 'accounts' => $accounts))."\n";
+	exit(0);
+}
+
 // Dolibarr's scheduled job for exits, as the cron runner calls it.
 if ($stage === 'runexits') {
 	dol_include_once('/vereine/class/vereineexits.class.php');
@@ -954,4 +1018,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, resiliate, guardian or reset');

@@ -303,6 +303,15 @@ CONTRACTS = (
     ("htdocs/core/modules/DolibarrModules.class.php", "$methodename = isset($value['method']) ? $value['method'] : '';", "the scheduled job for exits is registered from the descriptor"),
     ("htdocs/core/modules/DolibarrModules.class.php", "$unitfrequency = isset($value['unitfrequency']) ? $value['unitfrequency'] : '';", "the job runs once a day"),
     ("htdocs/install/mysql/tables/llx_cronjob.sql", "methodename", "the runtime test finds the scheduled job"),
+    # SEPA direct debit from the fee run (issue #63)
+    ("htdocs/core/class/commoninvoice.class.php", "public function demande_prelevement(User $fuser, float $amount = 0, string $type = 'direct-debit', string $sourcetype = 'facture', int $checkduplicateamongall = 0, int $ribId = 0)", "direct debit request for a fee invoice with the payer's mandate"),
+    ("htdocs/install/mysql/tables/llx_prelevement_demande.sql", "fk_societe_rib", "the request names the bank account of the mandate"),
+    ("htdocs/install/mysql/tables/llx_prelevement_demande.sql", "date_traite", "the last collection keeps a mandate valid"),
+    ("htdocs/install/mysql/tables/llx_societe_rib.sql", "date_rum", "signature date of the mandate"),
+    ("htdocs/install/mysql/tables/llx_societe_rib.sql", "default_rib", "the default bank account holds the mandate"),
+    ("htdocs/societe/class/companybankaccount.class.php", "public $rum;", "mandate reference on the bank account"),
+    ("htdocs/compta/facture/prelevement.php", "$usercancreate = $user->hasRight('facture', 'creer');", "requesting a direct debit needs only the right to create invoices"),
+    ("htdocs/compta/prelevement/class/bonprelevement.class.php", "PRELEVEMENT_ICS", "the creditor identifier of the pre-notification"),
 )
 
 LANG_KEYS = {
