@@ -113,6 +113,28 @@ class VereineFunctions
 	}
 
 	/**
+	 * Holders of every function on a day, by function code.
+	 *
+	 * @param string $day Day, YYYY-MM-DD
+	 * @return array<string,array<int,array{member_id:int,name:string}>> By function code
+	 */
+	public function holdersByCode($day)
+	{
+		$byId = array();
+		foreach ($this->fetchAll() as $function) {
+			$byId[$function['id']] = $function['code'];
+		}
+		$holders = array();
+		foreach ($this->terms() as $term) {
+			if (!isset($byId[$term['function_id']]) || (int) $term['member_status'] !== 1 || !VereineFunctionRules::isActive($term, $day)) {
+				continue;
+			}
+			$holders[$byId[$term['function_id']]][] = array('member_id' => (int) $term['member_id'], 'name' => (string) $term['member_name']);
+		}
+		return $holders;
+	}
+
+	/**
 	 * User groups of this entity.
 	 *
 	 * @return array<int,string> Name by id

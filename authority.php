@@ -273,7 +273,6 @@ print '<td>'.$langs->trans('VereineLetterFiledOn').'</td><td>'.$langs->trans('Ve
 if (!$written) {
 	print '<tr class="oddeven"><td colspan="6"><span class="opacitymedium">'.$langs->trans('VereineLettersNone').'</span></td></tr>';
 }
-$signatureRules = $signatures->rules();
 foreach ($written as $letter) {
 	$overdue = $letter['filed_on'] === '' && $letter['deadline'] !== '' && $letter['deadline'] < $today;
 	print '<tr class="oddeven" data-letter="'.$letter['id'].'" data-kind="'.$letter['kind'].'" data-deadline="'.$letter['deadline'].'" data-filed="'.$letter['filed_on'].'" data-overdue="'.($overdue ? 1 : 0).'">';
@@ -290,63 +289,7 @@ foreach ($written as $letter) {
 		print '</form>';
 	}
 	print '</td><td>';
-	$run = $signatures->current(VereineSignatureRules::KIND_LETTER, $letter['id'], $letters->path($letter['id']));
-	if ($run === null) {
-		if (!VereineSignatureRules::wanted($signatureRules, VereineSignatureRules::KIND_LETTER)) {
-			print '<span class="opacitymedium" data-signature="none">'.$langs->trans('VereineSignatureOff').'</span>';
-		} elseif ($canWrite && $letters->path($letter['id']) !== '') {
-			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereineletters" name="vereinestartsign'.$letter['id'].'">';
-			print '<input type="hidden" name="token" value="'.newToken().'">';
-			print '<input type="hidden" name="action" value="startsign">';
-			print '<input type="hidden" name="id" value="'.$letter['id'].'">';
-			print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineSignatureStart')).'">';
-			print '</form>';
-		}
-	} else {
-		print '<span data-signature="'.$run['id'].'" data-status="'.$run['status'].'" data-signed="'.$run['signed'].'" data-needed="'.$run['needed'].'">';
-		print $langs->trans($run['status'] === VereineSignatures::STATUS_DONE ? 'VereineSignatureComplete' : 'VereineSignatureProgress', $run['signed'], $run['needed']);
-		print '</span>';
-		$open = array();
-		foreach ($run['people'] as $person) {
-			if ($person['signed_at'] === 0) {
-				$open[] = $person['name'].' ('.$person['label'].')';
-			}
-		}
-		if ($open && $run['status'] === VereineSignatures::STATUS_OPEN) {
-			print '<div class="opacitymedium small">'.$langs->trans('VereineSignatureOpenBy', implode(', ', $open)).'</div>';
-		}
-		if ($run['document_changed']) {
-			print '<div class="warning" data-signature-changed="1">'.$langs->trans('VereineSignatureChanged').'</div>';
-		}
-		if (is_file(VereineSignatures::sheetPath($run['id']))) {
-			print '<div><a href="'.$_SERVER['PHP_SELF'].'?action=sheet&amp;id='.$run['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineSignatureSheet').'</a></div>';
-		}
-		if (VereineSignatures::scanPath($run) !== '') {
-			print '<div><a href="'.$_SERVER['PHP_SELF'].'?action=signed&amp;id='.$run['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineSignatureScan').'</a></div>';
-		}
-		$mine = false;
-		foreach ($run['people'] as $person) {
-			$mine = $mine || ($person['member_id'] === (int) $user->fk_member && $person['signed_at'] === 0);
-		}
-		if ($run['status'] === VereineSignatures::STATUS_OPEN && $canWrite && $mine && !$run['document_changed']) {
-			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereineletters" name="vereinesign'.$run['id'].'" class="paddingtop">';
-			print '<input type="hidden" name="token" value="'.newToken().'">';
-			print '<input type="hidden" name="action" value="sign">';
-			print '<input type="hidden" name="id" value="'.$run['id'].'">';
-			print '<input type="password" name="password" autocomplete="current-password" placeholder="'.dol_escape_htmltag($langs->trans('Password')).'"> ';
-			print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineSignatureSign')).'">';
-			print '</form>';
-		}
-		if ($run['status'] === VereineSignatures::STATUS_OPEN && $canWrite) {
-			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereineletters" name="vereinesignscan'.$run['id'].'" enctype="multipart/form-data" class="paddingtop">';
-			print '<input type="hidden" name="token" value="'.newToken().'">';
-			print '<input type="hidden" name="action" value="signscan">';
-			print '<input type="hidden" name="id" value="'.$run['id'].'">';
-			print '<input type="file" name="scan_file" accept="application/pdf"> ';
-			print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineSignatureUpload')).'">';
-			print '</form>';
-		}
-	}
+	vereineSignatureBlock($signatures, VereineSignatureRules::KIND_LETTER, $letter['id'], $letters->path($letter['id']), $canWrite, 'vereineletters');
 	print '</td><td class="right"><a href="'.$_SERVER['PHP_SELF'].'?action=download&amp;id='.$letter['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.dol_escape_htmltag($letter['filename']).'</a></td></tr>';
 }
 print '</table></div>';

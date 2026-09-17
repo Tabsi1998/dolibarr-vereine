@@ -2548,6 +2548,62 @@ def votes(stack: Stack) -> str:
             "board: no change of statutes, tie decided by the chair; log")
 
 
+def minutes(stack: Stack) -> str:
+    """Minutes: roles of a meeting, the draft as PDF, a final version with checksum and signatures, sending it to the board."""
+    browser = stack.browser()
+    base = "/custom/vereine/meetings.php"
+    meeting = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting WHERE kind = 'general' AND status <> 'planned'")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "general assembly")
+    suggested = re.search(r'data-minutes="(\d+)" data-versions="(\d+)" data-suggested="(\d)"', page.text)
+    expect(suggested is not None and suggested.group(2) == "0", f"minutes section of the meeting: {suggested.groups() if suggested else None}")
+    form = page.form(name="vereinemeetingroles")
+    people = re.findall(r'data-attendance="(\d+)"', page.text)
+    expect(len(people) >= 2, f"the meeting should have invited several members, found {len(people)}")
+    chair, keeper = people[0], people[1]
+    page_ok(browser.submit(form, {"chair": chair, "keeper": keeper}), "who presided and who kept the minutes")
+    stored = stack.sql(f"SELECT fk_chair, fk_keeper FROM llx_vereine_meeting WHERE rowid = {meeting}")
+    expect(stored == [[chair, keeper]], f"stored roles: {stored}, expected {[chair, keeper]}")
+
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "meeting with roles")
+    draft = browser.post(f"{base}?id={meeting}", [("token", token_of(page)), ("action", "draft")], follow=False)
+    expect(draft.status == 200 and draft.body[:5] == b"%PDF-", f"the draft is no PDF: HTTP {draft.status}")
+    text = pdf_bytes_text(draft.body)
+    for word in ("Protokoll", "Entwurf", "Anwesend", "Beschl"):
+        expect(word in text, f"the draft lacks {word!r}")
+
+    page_ok(browser.submit(page.form(name="vereinemeetingfinalize"), {"approved_on": stack.notes["website"]["dates"]["today"], "note": "Beschluss der Generalversammlung"}), "final version")
+    version = stack.sql(f"SELECT rowid, version, approved_on IS NOT NULL, LENGTH(doc_sha) FROM llx_vereine_meeting_minutes WHERE fk_meeting = {meeting}")
+    expect(version and version[0][1] == "1" and version[0][2] == "1" and version[0][3] == "64", f"the final version: {version}")
+    run = stack.sql(f"SELECT s.rowid, s.status, COUNT(p.rowid) FROM llx_vereine_signature as s"
+                    f" LEFT JOIN llx_vereine_signature_person as p ON p.fk_signature = s.rowid"
+                    f" WHERE s.kind = 'minutes' AND s.fk_object = {version[0][0]} GROUP BY s.rowid, s.status")
+    expect(run and run[0][1] == "open" and run[0][2] == "2", f"the signature run of the minutes: {run}")
+    roles = stack.sql(f"SELECT function_code FROM llx_vereine_signature_person WHERE fk_signature = {run[0][0]} ORDER BY function_code")
+    expect(roles == [["chair"], ["keeper"]], f"the minutes are signed by those two roles: {roles}")
+
+    # The paper way finishes it: the signed minutes come back as a scan.
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "meeting with the final version")
+    scanned = b"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
+    page_ok(browser.post_multipart(f"{base}?id={meeting}", [("token", token_of(page)), ("action", "signscan"), ("id", run[0][0])],
+                                   [("scan_file", "protokoll-unterschrieben.pdf", scanned)]), "upload the signed minutes")
+    expect(stack.value(f"SELECT status FROM llx_vereine_signature WHERE rowid = {run[0][0]}") == "done", "the scan did not finish the signature run")
+
+    # Send it to the board: every board member with an e-mail gets exactly the stored PDF.
+    mail = stack.mailpit()
+    mail.clear()
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "meeting before sending")
+    page_ok(browser.submit(page.form(name=f"vereinesendboard{version[0][0]}")), "send the minutes to the board")
+    sent = stack.value(f"SELECT sent_board IS NOT NULL FROM llx_vereine_meeting_minutes WHERE rowid = {version[0][0]}")
+    messages = mail.messages()
+    expect(sent == "1" and messages, f"minutes sent: {sent}, {len(messages)} e-mails")
+    attachments = mail.attachment_hashes(messages[0]["ID"])
+    stored_sha = stack.value(f"SELECT doc_sha FROM llx_vereine_meeting_minutes WHERE rowid = {version[0][0]}")
+    expect(any(name.startswith("protokoll-") and digest == stored_sha for name, digest in attachments.items()),
+           f"the e-mail carries {list(attachments)} instead of the stored minutes")
+    return (f"roles stored, draft as PDF with attendance and resolutions, final version 1 with checksum and a signature run for chair and keeper, "
+            f"scan finished it, minutes mailed to the board ({len(messages)} e-mails, PDF identical to the stored version)")
+
+
 def signatures(stack: Stack) -> str:
     """Signatures: who signs a letter, signing in Dolibarr with the password, the paper way as a scan, a changed document."""
     browser = stack.browser()
@@ -2792,7 +2848,8 @@ SCENARIOS = (
     ("attendance", "Attendance: proxies as the statutes allow, never on the board, quorum at any time", attendance, ("meetings",)),
     ("votes", "Votes and elections: quorum, majorities of the statutes, election starts the term, change of statutes stores the version", votes, ("attendance",)),
     ("minutestexts", "Agenda templates and texts per item: required items, new meeting from a template, real numbers in the texts", minutestexts, ("votes",)),
-    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("minutestexts",)),
+    ("minutes", "Minutes: roles, draft PDF, final version with signatures, sent to the board", minutes, ("minutestexts", "signatures")),
+    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("minutes",)),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )

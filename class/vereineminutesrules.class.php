@@ -210,6 +210,39 @@ class VereineMinutesRules
 	}
 
 	/**
+	 * Who presided and who kept the minutes: what was entered, otherwise the usual functions.
+	 *
+	 * The model statutes give the chair to Obmann/Obfrau and the minutes to the secretary; a meeting
+	 * may name anybody who was invited.
+	 *
+	 * @param array<string,mixed>                                      $stored  Keys chair and keeper as stored, 0 when unset
+	 * @param array<string,array<int,array{member_id:int,name:string}>> $holders Holders by function code
+	 * @param int[]                                                    $invited Members who were invited, empty when unknown
+	 * @return array{chair:int,keeper:int,suggested:bool}
+	 */
+	public static function roles(array $stored, array $holders, array $invited)
+	{
+		$first = function ($code) use ($holders) {
+			return isset($holders[$code]) && $holders[$code] ? (int) $holders[$code][0]['member_id'] : 0;
+		};
+		$allowed = function ($id) use ($invited) {
+			return (int) $id > 0 && (!$invited || in_array((int) $id, array_map('intval', $invited), true)) ? (int) $id : 0;
+		};
+		$chair = $allowed(isset($stored['chair']) ? $stored['chair'] : 0);
+		$keeper = $allowed(isset($stored['keeper']) ? $stored['keeper'] : 0);
+		$suggested = false;
+		if ($chair === 0) {
+			$chair = $allowed($first('obmann'));
+			$suggested = $suggested || $chair > 0;
+		}
+		if ($keeper === 0) {
+			$keeper = $allowed($first('schriftfuehrung'));
+			$suggested = $suggested || $keeper > 0;
+		}
+		return array('chair' => $chair, 'keeper' => $keeper, 'suggested' => $suggested);
+	}
+
+	/**
 	 * The real values of the placeholders for one agenda item.
 	 *
 	 * @param array<string,mixed>            $meeting Meeting with kind, day, place, format

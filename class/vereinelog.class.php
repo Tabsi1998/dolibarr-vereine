@@ -68,6 +68,8 @@ class VereineLog
 	const SIGNATURE_STARTED = 'signature_started';
 	const SIGNATURE_SIGNED = 'signature_signed';
 	const SIGNATURE_DONE = 'signature_done';
+	const MINUTES_FINAL = 'minutes_final';
+	const MINUTES_SENT = 'minutes_sent';
 
 	/**
 	 * Append one entry.

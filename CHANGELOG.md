@@ -9,6 +9,19 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **Protokoll als PDF** (#21): Eine Sitzung bekommt *Vorsitz* und
+  *Protokollführung* (vorgeschlagen aus den Funktionen) und den Abschnitt
+  *Protokoll*.
+  - **Entwurf** jederzeit als PDF: Kopf mit Verein und ZVR-Zahl, Sitzungsart,
+    Tag, Uhrzeit, Form und Ort, Anwesenheit mit Vollmachten und
+    Beschlussfähigkeit, jeder Tagesordnungspunkt mit seinem Text und seinen
+    Abstimmungen, die Beschlüsse als Liste, Unterschriftszeilen.
+  - **Endfassung** mit Tag der Genehmigung und wie genehmigt: eingefroren, mit
+    Prüfsumme gespeichert und sofort im Unterschriftslauf (#119), unterschrieben
+    von Vorsitz und Protokollführung. Eine weitere Fassung bekommt die nächste
+    Nummer; eine fertige Fassung ändert sich nie.
+  - **Versand** der Endfassung als E-Mail mit PDF an den Vorstand oder an alle
+    aktiven Mitglieder, mit Vermerk, wann das geschehen ist.
 - **Unterschriften** (#119): Einrichtungsreiter *Unterschriften* legt je Art von
   Dokument fest, welche Funktionen unterschreiben und wie viele Unterschriften
   nötig sind – vorbelegt wie in den Musterstatuten (schriftliche Ausfertigungen:
