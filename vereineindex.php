@@ -67,6 +67,7 @@ if (!$res) {
 require_once __DIR__.'/lib/vereine.lib.php';
 require_once __DIR__.'/class/vereineprofile.class.php';
 require_once __DIR__.'/class/vereineorganization.class.php';
+require_once __DIR__.'/class/vereinethresholdreport.class.php';
 
 $langs->loadLangs(array('members', 'companies', 'vereine@vereine'));
 
@@ -169,6 +170,43 @@ foreach ($checks as $check) {
 }
 print '</table>';
 print '</div>';
+
+// Thresholds of a calendar year, for users who may read invoices.
+if (isModEnabled('invoice') && $user->hasRight('facture', 'lire')) {
+	$currentYear = (int) dol_print_date(dol_now(), '%Y');
+	$year = GETPOSTINT('year') >= 2000 && GETPOSTINT('year') <= 2100 ? GETPOSTINT('year') : $currentYear;
+	$thresholdReport = new VereineThresholdReport($db);
+	$report = $thresholdReport->report($year);
+	$here = dol_buildpath('/vereine/vereineindex.php', 1);
+	$navigation = '<a href="'.$here.'?year='.($year - 1).'">&lsaquo; '.($year - 1).'</a>';
+	if ($year < $currentYear) {
+		$navigation .= ' &nbsp; <a href="'.$here.'?year='.($year + 1).'">'.($year + 1).' &rsaquo;</a>';
+	}
+	print '<br>';
+	print load_fiche_titre($langs->trans('VereineThresholdsTitle', $year), $navigation, '');
+	print '<div class="opacitymedium small">'.$langs->trans('VereineThresholdsIntro').'</div>';
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-thresholds="'.$year.'">';
+	print '<tr class="liste_titre"><th>'.$langs->trans('VereineThresholdColumn').'</th><th class="right">'.$langs->trans('VereineThresholdCounted').'</th>';
+	print '<th class="right">'.$langs->trans('VereineThresholdLimit').'</th><th class="center">'.$langs->trans('Status').'</th></tr>';
+	foreach (vereineThresholdRows($report) as $row) {
+		print '<tr class="oddeven" data-threshold="'.$row['code'].'" data-status="'.$row['status'].'">';
+		print '<td>'.$row['label'].'<br><span class="small">'.$row['text'].'</span><br>';
+		print '<span class="opacitymedium small">'.$langs->trans('VereineTaxLegalBasis').': <a href="'.dol_escape_htmltag($row['source']).'" target="_blank" rel="noopener noreferrer">'.dol_escape_htmltag($row['basis']).'</a></span></td>';
+		print '<td class="right nowraponall tdtop">'.$row['amount'].'</td><td class="right nowraponall tdtop">'.$row['limit'].'</td>';
+		print '<td class="center nowraponall tdtop">'.$row['badge'].'</td></tr>';
+	}
+	foreach (array(VereineThresholds::CASH_REGISTER, VereineThresholds::FESTIVAL_HOURS) as $code) {
+		print '<tr class="oddeven" data-threshold="'.$code.'" data-status="unchecked"><td>'.$langs->trans('VereineThreshold_'.$code);
+		print '<br><span class="small opacitymedium">'.$langs->trans('VereineThresholdHelp_'.$code).'</span></td><td></td><td></td>';
+		print '<td class="center nowraponall tdtop"><span class="opacitymedium small">'.$langs->trans('VereineThresholdNotChecked').'</span></td></tr>';
+	}
+	print '</table></div>';
+	if ($report['unassigned']['lines'] > 0) {
+		print '<div class="warning" data-thresholds-unassigned="'.((int) $report['unassigned']['lines']).'">';
+		print $langs->trans('VereineThresholdUnassigned', price($report['unassigned']['gross'], 0, $langs, 1, -1, 2), (int) $report['unassigned']['lines']).'</div>';
+	}
+	print '<div class="opacitymedium small">'.$langs->trans('VereineThresholdsHow').'</div><br>';
+}
 
 print '<div class="opacitymedium small">'.$langs->trans('VereineNoTaxAdvice').'</div>';
 

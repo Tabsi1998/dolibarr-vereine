@@ -173,6 +173,18 @@ CONTRACTS = (
     ("htdocs/core/modules/facture/doc/pdf_sponge.modules.php", "executeHooks('afterPDFCreation', $parameters, $this, $action)", "the public note is put back afterwards"),
     ("htdocs/core/modules/facture/doc/pdf_sponge.modules.php", "$notetoshow = empty($object->note_public) ? '' : $object->note_public;", "the invoice PDF prints the public note"),
     ("htdocs/core/lib/functions.lib.php", "function dol_concatdesc(", "notes joined with the existing public note"),
+    # Thresholds and traffic light (issue #39)
+    ("htdocs/compta/facture/class/facture.class.php", "const STATUS_CLOSED = 2;", "paid invoices count"),
+    ("htdocs/compta/facture/class/facture.class.php", "const TYPE_STANDARD = 0;", "standard invoices count"),
+    ("htdocs/compta/facture/class/facture.class.php", "const TYPE_REPLACEMENT = 1;", "replacement invoices count"),
+    ("htdocs/compta/facture/class/facture.class.php", "const TYPE_CREDIT_NOTE = 2;", "credit notes count, negative"),
+    ("htdocs/install/mysql/tables/llx_facture.sql", "datef", "invoice date decides the year"),
+    ("htdocs/install/mysql/tables/llx_facture.sql", "fk_statut", "invoice status column"),
+    ("htdocs/install/mysql/tables/llx_facturedet.sql", "total_ttc", "gross amount of a line"),
+    ("htdocs/core/boxes/modules_boxes.php", "class ModeleBoxes", "home page box base class"),
+    ("htdocs/core/boxes/modules_boxes.php", "public function showBox($head = null, $contents = null, $nooutput = 0)", "home page box output"),
+    ("htdocs/core/modules/DolibarrModules.class.php", "public function insert_boxes(", "the box is registered on activation"),
+    ("htdocs/core/lib/functions.lib.php", "function price(", "amounts in the traffic light"),
 )
 
 LANG_KEYS = {
@@ -182,7 +194,7 @@ LANG_KEYS = {
                                      "August", "September", "October", "November", "December",
                                      "Type", "Categories", "BackToList", "DateDue", "AmountTTC", "Ref",
                                      "None", "Date", "Action", "Description", "Confirm", "Cancel", "Email",
-                                     "Enabled", "Disabled", "Modify"),
+                                     "Enabled", "Disabled", "Modify", "ReadPermissionNotAllowed"),
     # Loaded by partners.php and partner_membership.php.
     "htdocs/langs/en_US/members.lang": ("MemberRef", "Member"),
     # Loaded by admin/setup.php and admin/about.php.

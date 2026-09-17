@@ -43,6 +43,8 @@ with a REST API for the association's website.
   product's VAT rate follows it, new invoice lines take it over, and an invoice
   lists lines whose rate does not match. Invoice PDFs print the notes per line
   and the ZVR number (0.2.6).
+- **Thresholds as traffic light** (0.2.7): small business limit and § 45a BAO per
+  calendar year from the invoices, on the overview, as home page box and in the API.
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 
@@ -64,7 +66,8 @@ are listed in [docs/LEGAL-SOURCES.md](https://github.com/Tabsi1998/dolibarr-vere
 | *Home > Setup > Company/Organisation* | Name, address, e-mail, phone, website and first month of the fiscal year - the module reads them, it does not keep a copy |
 | *Home > Setup > Modules > Vereine* | Setup: country profile and register data; tax profiles; about page with version and licence |
 | *Members*, *Third parties*, *Categories* (Dolibarr's own modules) | Required and enabled with Vereine; the Members menu gets *Association*, *Members and third parties* and, for administrators, *Third party settings* |
-| *Members > Association* | Overview with the association's data and the checks |
+| *Members > Association* | Overview with the association's data, the checks and the thresholds of the year |
+| Home page | Box *Vereine: thresholds of the year* (users who may read invoices) |
 | *Members > Association > Members and third parties* | Reconciliation of members and their third parties |
 | Third party card | Tab *Membership*; categories *Member* and *Former member* |
 | Member card | Tab *Association*; *Create third party* and *Linked third party* are followed by the module |

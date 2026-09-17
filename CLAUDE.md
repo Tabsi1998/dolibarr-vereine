@@ -149,3 +149,8 @@ raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
   template as object and the invoice in `$parameters['object']`. The runtime
   test reads the PDF by inflating its streams with `zlib`: text with the core
   font appears as `(...)` strings.
+- Module boxes live in `core/boxes/box_<name>.php` with class `box_<name>`,
+  registered in the descriptor's `$this->boxes` and inserted on activation;
+  `$this->hidden` decides per user whether the box shows.
+- Apply scripts must be idempotent: an interrupted run left half a feature in
+  place once. Check whether a change is already there before applying it.

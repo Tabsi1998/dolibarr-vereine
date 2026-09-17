@@ -196,3 +196,46 @@ function vereinePrintLog($db, $memberId, $socid)
 	}
 	print '</table>';
 }
+
+/**
+ * The thresholds of a year as rows for the overview and the home page box, in plain words.
+ *
+ * @param array{year:int,thresholds:array<int,array<string,mixed>>,unassigned:array{net:float,gross:float,lines:int}} $report Report of VereineThresholdReport
+ * @return array<int,array{code:string,label:string,status:string,badge:string,amount:string,limit:string,text:string,basis:string,source:string}>
+ */
+function vereineThresholdRows(array $report)
+{
+	global $langs;
+
+	$langs->load('vereine@vereine');
+	$badges = array('ok' => 'success', 'near' => 'warning', 'tolerance' => 'warning', 'exceeded' => 'danger');
+	$rows = array();
+	foreach ($report['thresholds'] as $threshold) {
+		$status = $threshold['status'];
+		$amount = price($threshold['amount'], 0, $langs, 1, -1, 2);
+		$limit = price($threshold['limit'], 0, $langs, 1, -1, 0);
+		$remaining = price(max(0, $threshold['remaining']), 0, $langs, 1, -1, 2);
+		if ($status === VereineThresholds::STATUS_EXCEEDED) {
+			$text = $langs->trans('VereineThresholdText_exceeded_'.$threshold['code'], $limit);
+		} elseif ($status === VereineThresholds::STATUS_TOLERANCE) {
+			$text = $langs->trans('VereineThresholdText_tolerance', $limit);
+		} else {
+			$text = $langs->trans('VereineThresholdText_'.$status, $remaining, $limit);
+		}
+		if (!empty($threshold['previous_exceeded'])) {
+			$text .= ' '.$langs->trans('VereineThresholdPreviousExceeded');
+		}
+		$rows[] = array(
+			'code' => $threshold['code'],
+			'label' => $langs->trans('VereineThreshold_'.$threshold['code']),
+			'status' => $status,
+			'badge' => dolGetBadge($langs->trans('VereineThresholdStatus_'.$status), '', $badges[$status]),
+			'amount' => $amount.' € <span class="opacitymedium small">'.$langs->trans($threshold['gross'] ? 'VereineThresholdGross' : 'VereineThresholdNet').'</span>',
+			'limit' => $limit.' €',
+			'text' => $text,
+			'basis' => $threshold['basis'],
+			'source' => $threshold['source'],
+		);
+	}
+	return $rows;
+}

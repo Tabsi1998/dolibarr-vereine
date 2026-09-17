@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '0.2.6-beta';
+		$this->version = '0.2.7-beta';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -106,7 +106,10 @@ class modVereine extends DolibarrModules
 		$this->tabs[] = array('data' => 'thirdparty:+vereinemembership:VereineTabMembership:vereine@vereine:$user->hasRight("vereine", "association", "read") && $user->hasRight("adherent", "lire"):/vereine/partner_membership.php?socid=__ID__');
 		$this->tabs[] = array('data' => 'member:+vereineassociation:VereineTabAssociation:vereine@vereine:$user->hasRight("vereine", "association", "read") && $user->hasRight("adherent", "lire") && $user->hasRight("societe", "lire"):/vereine/member_association.php?id=__ID__');
 		$this->dictionaries = array();
-		$this->boxes = array();
+		// Thresholds of the current year on the home page, for users who may read invoices.
+		$this->boxes = array(
+			0 => array('file' => 'box_vereine_thresholds.php@vereine', 'note' => '', 'enabledbydefaulton' => 'Home'),
+		);
 		$this->cronjobs = array();
 
 		$this->rights = array();

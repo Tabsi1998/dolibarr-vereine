@@ -847,6 +847,47 @@ def invoicepdf(stack: Stack) -> str:
     return "notes per line and ZVR number on the invoice PDF, stored invoice unchanged, both switchable"
 
 
+def thresholds(stack: Stack) -> str:
+    """Thresholds per calendar year from validated invoices, as traffic light on the overview, the home page and the API."""
+    data = stack.php_fixture("turnover")
+    expect(len(data.get("invoices", {})) == 3, f"turnover fixture returned {data}")
+
+    status, body = stack.api("vereine/thresholds?year=2026", stack.reader_key)
+    expect(status == 200 and isinstance(body, dict), f"GET vereine/thresholds?year=2026 answered HTTP {status}: {body}")
+    found = {entry["code"]: entry for entry in body.get("thresholds", [])}
+    small, harmful = found.get("small_business", {}), found.get("harmful_business", {})
+    expect(small.get("amount") == 60000 and small.get("status") == "tolerance" and small.get("limit") == 55000 and small.get("gross") is True,
+           f"small business limit 2026 (only the canteen, gross, draft left out): {small}")
+    expect(harmful.get("amount") == 60000 and harmful.get("status") == "ok", f"§ 45a BAO 2026: {harmful}")
+    unassigned = body.get("unassigned", {})
+    expect(unassigned.get("lines") == 1 and unassigned.get("gross") == 600, f"income without tax profile 2026: {unassigned}")
+
+    status, body = stack.api("vereine/thresholds?year=2025", stack.reader_key)
+    found = {entry["code"]: entry for entry in body.get("thresholds", [])} if status == 200 else {}
+    expect(found.get("small_business", {}).get("amount") == 1200 and found["small_business"].get("status") == "ok",
+           f"2025 counts only the invoice of 31 December 2025: {found}")
+    status, _ = stack.api("vereine/thresholds?year=2026", stack.nobody_key)
+    expect(status == 403, f"a user without rights got HTTP {status} for the thresholds, expected 403")
+
+    browser = stack.browser()
+    overview = page_ok(browser.get("/custom/vereine/vereineindex.php?year=2026"), "overview with thresholds")
+    rows = dict(re.findall(r'data-threshold="([a-z_]+)" data-status="([a-z]+)"', overview.text))
+    expect(rows == {"small_business": "tolerance", "harmful_business": "ok", "cash_register": "unchecked", "festival_hours": "unchecked"},
+           f"traffic light on the overview: {rows}")
+    text = html.unescape(overview.text)
+    expect("innerhalb der 10 % Toleranz" in text and 'data-thresholds-unassigned="1"' in overview.text,
+           "the overview does not explain the tolerance in German or does not report the line without tax profile")
+
+    boxes = stack.value("SELECT COUNT(*) FROM llx_boxes_def WHERE file = 'box_vereine_thresholds.php@vereine'")
+    expect(boxes == "1", f"the home page box is registered {boxes} times")
+    home = page_ok(browser.get("/index.php?mainmenu=home"), "home page")
+    expect('data-box-threshold="small_business"' in home.text, "the home page does not show the thresholds box")
+    reader_home = page_ok(stack.browser("rtnobody").get("/index.php?mainmenu=home"), "home page without rights")
+    expect("data-box-threshold" not in reader_home.text, "a user without rights sees the thresholds box")
+    return ("calendar years counted on their own; draft and lines without profile left out and reported; tolerance, "
+            "§ 45a status on overview, home page box and API with and without rights")
+
+
 def action_link_for(page: Page, action: str, row_id: str | None) -> str:
     """The link a setup list offers for an action on one row."""
     for href in re.findall(r'href="([^"]*[?&](?:amp;)?action=' + re.escape(action) + r'(?:&[^"]*)?)"', page.text):
@@ -904,6 +945,7 @@ SCENARIOS = (
     ("taxprofiles", "Tax profiles: suggestions, legal checks, own profiles and the API", taxprofiles, ("api",)),
     ("taxassign", "Tax profiles on products and invoice lines, and a warning for differing VAT", taxassign, ("taxprofiles",)),
     ("invoicepdf", "The invoice PDF shows tax profile notes and the ZVR number", invoicepdf, ("taxassign",)),
+    ("thresholds", "Thresholds of a calendar year as traffic light on overview, home page and API", thresholds, ("invoicepdf",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 
