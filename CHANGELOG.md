@@ -7,6 +7,13 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+### Geändert
+
+- Neue Arbeitsweise: Mehrere Pull Requests werden gesammelt und gemeinsam
+  veröffentlicht. Ein Pull Request trägt seine Änderungen hier unter
+  „Unreleased“ ein; die Version steigt erst im Release-Pull-Request
+  (`docs/RELEASES.md`, jetzt auf Deutsch) (#131).
+
 ## [0.5.7-beta] - 2026-09-17
 
 Agenda templates and texts for the minutes (issue #20), and two fixes found

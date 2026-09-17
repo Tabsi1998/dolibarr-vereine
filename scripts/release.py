@@ -136,12 +136,21 @@ def released_versions() -> list[str]:
     return sorted(versions, key=version_key, reverse=True)
 
 
-def version_progress(version: str) -> str:
-    """A change to the installable package needs a new version, higher than every release.
+def unreleased_entries(text: str | None = None) -> str:
+    """What CHANGELOG.md lists under ## [Unreleased], empty when nothing."""
+    text = CHANGELOG.read_text(encoding="utf-8") if text is None else text
+    match = re.search(r"^## \[Unreleased\][ \t]*$(.*?)(?=^## \[|\Z)", text, re.MULTILINE | re.DOTALL)
+    return match.group(1).strip() if match else ""
 
-    Every merged pull request that changes the package is published, so a pull
-    request that changes it without raising the version would collide with the
-    release that is already out.
+
+def version_progress(version: str, changelog: str | None = None) -> str:
+    """Pull requests collect changes under Unreleased; a release pull request raises the version.
+
+    Several pull requests may change the package before the next release
+    (docs/RELEASES.md). While the version is still the released one, every
+    change to the package has to be listed under Unreleased, so the release
+    pull request knows what goes into its section. A new version must be higher
+    than every release and must have taken over those entries.
     """
     released = released_versions()
     if not released:
@@ -149,16 +158,23 @@ def version_progress(version: str) -> str:
     newest = released[0]
     if version_key(version) < version_key(newest):
         raise ReleaseRefused(f"version {version} is lower than the released {newest}")
+    pending = unreleased_entries(changelog)
     if version != newest:
+        if pending:
+            raise ReleaseRefused(f"version {version} is new, but CHANGELOG.md still lists entries under Unreleased. "
+                                 f"Move them into the section of {version}.")
         return f"{version} follows the released {newest}"
     changed = run("git", "diff", "--name-only", f"v{newest}", check=False).stdout.split()
     changed += run("git", "ls-files", "--others", "--exclude-standard", check=False).stdout.split()
     in_package = sorted({name for name in changed if build_release.included(Path(name))})
-    if in_package:
-        shown = ", ".join(in_package[:5]) + (" ..." if len(in_package) > 5 else "")
-        raise ReleaseRefused(f"the package changed since the release {newest} ({shown}), but the version is still "
-                             f"{version}. Raise $this->version and add a CHANGELOG.md section for the new version.")
-    return f"{version} is released and the package is unchanged since"
+    if not in_package:
+        return f"{version} is released and the package is unchanged since"
+    shown = ", ".join(in_package[:5]) + (" ..." if len(in_package) > 5 else "")
+    if not pending:
+        raise ReleaseRefused(f"the package changed since the release {newest} ({shown}), but CHANGELOG.md lists "
+                             f"nothing under Unreleased. Describe the change there; the version is raised in the "
+                             f"release pull request (docs/RELEASES.md).")
+    return f"{version} is released; {len(in_package)} package files changed since, listed under Unreleased for the next release"
 
 
 def metadata(tag: str | None = None) -> dict:
