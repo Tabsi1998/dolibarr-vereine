@@ -20,7 +20,7 @@
  * \ingroup vereine
  * \brief   Agenda templates with standard texts, and their placeholders filled with the real numbers of a meeting, plain PHP.
  *
- * The texts of minutes are German, like the statutes of an association in Austria and Germany.
+ * The texts of minutes are German, like the statutes of an Austrian association.
  */
 
 require_once __DIR__.'/vereinemeetingrules.class.php';
@@ -38,22 +38,19 @@ class VereineMinutesRules
 	const TEXT_MAX = 4000;
 
 	/**
-	 * Agenda templates of a country profile. Required are the items the law asks for, and the quorum every decision needs.
+	 * Suggested agenda templates. Required are the items the law asks for, and the quorum every decision needs:
+	 * the board informs the general assembly about the activity and the finances (§ 20 VerG).
 	 *
-	 * Austria: the board informs the general assembly about the activity and the finances (§ 20 VerG).
-	 *
-	 * @param string $profile Country profile, AT or DE
 	 * @return array<string,array<int,array{title:string,text:string,required:bool}>> By kind of meeting
 	 */
-	public static function defaults($profile = 'AT')
+	public static function defaults()
 	{
-		$germany = $profile === 'DE';
-		$assembly = $germany ? 'Mitgliederversammlung' : 'Generalversammlung';
-		$auditors = $germany ? 'Kassenprüfer' : 'Rechnungsprüfer';
+		$assembly = 'Generalversammlung';
+		$auditors = 'Rechnungsprüfer';
 		$item = function ($title, $text, $required = false) {
 			return array('title' => $title, 'text' => $text, 'required' => $required);
 		};
-		$leader = $germany ? 'Die Versammlungsleitung' : 'Die Obfrau oder der Obmann';
+		$leader = 'Die Obfrau oder der Obmann';
 		$counted = 'begrüßt die Anwesenden und stellt fest, dass ordnungsgemäß eingeladen wurde. Anwesend sind {anwesend} Stimmberechtigte, vertreten {vertreten}, zusammen {stimmen} von {stimmberechtigt} Stimmen; nötig sind {quorum}. Die Versammlung ist {beschlussfaehig}.';
 		$welcome = $item('Begrüßung und Feststellung der Beschlussfähigkeit', $leader.' '.$counted, true);
 		$boardWelcome = $item('Begrüßung und Feststellung der Beschlussfähigkeit', 'Anwesend sind {anwesend} von {stimmberechtigt} Mitgliedern des Vorstands; nötig sind {quorum}. Der Vorstand ist {beschlussfaehig}.', true);
@@ -69,9 +66,8 @@ class VereineMinutesRules
 			VereineMeetingRules::KIND_GENERAL => array(
 				$welcome,
 				$item('Genehmigung des Protokolls der letzten '.$assembly, 'Das Protokoll der letzten '.$assembly.' wird genehmigt. {ergebnis}'),
-				$item('Rechenschaftsbericht des Vorstands', 'Der Vorstand berichtet über die Tätigkeit des Vereins seit der letzten '.$assembly.'.', !$germany),
-				$item('Bericht über den Rechnungsabschluss', ($germany ? 'Die Kassenwartin oder der Kassenwart' : 'Die Kassierin oder der Kassier')
-					.' stellt den Rechnungsabschluss vor.', !$germany),
+				$item('Rechenschaftsbericht des Vorstands', 'Der Vorstand berichtet über die Tätigkeit des Vereins seit der letzten '.$assembly.'.', true),
+				$item('Bericht über den Rechnungsabschluss', 'Die Kassierin oder der Kassier stellt den Rechnungsabschluss vor.', true),
 				$item('Bericht der '.$auditors, 'Die '.$auditors.' berichten über die Prüfung der Finanzgebarung.'),
 				$item('Entlastung des Vorstands', '{ergebnis}'),
 				$item('Wahlen', '{ergebnis}'),
@@ -89,15 +85,14 @@ class VereineMinutesRules
 	}
 
 	/**
-	 * Templates as entered that can be used as they are; kinds without an item keep the defaults of the profile.
+	 * Templates as entered that can be used as they are; kinds without an item keep the suggested defaults.
 	 *
-	 * @param mixed  $data    Templates by kind, each a list of title, text and required
-	 * @param string $profile Country profile, AT or DE
+	 * @param mixed $data Templates by kind, each a list of title, text and required
 	 * @return array<string,array<int,array{title:string,text:string,required:bool}>>
 	 */
-	public static function normalize($data, $profile = 'AT')
+	public static function normalize($data)
 	{
-		$templates = self::defaults($profile);
+		$templates = self::defaults();
 		if (!is_array($data)) {
 			return $templates;
 		}

@@ -13,6 +13,17 @@ The section of a version is the text of its GitHub release.
   veröffentlicht. Ein Pull Request trägt seine Änderungen hier unter
   „Unreleased“ ein; die Version steigt erst im Release-Pull-Request
   (`docs/RELEASES.md`, jetzt auf Deutsch) (#131).
+- **Nur noch Österreich:** Das Modul ist für österreichische Vereine. Die
+  Einrichtung fragt kein Land und kein Registergericht mehr, die Vereinsdaten
+  kennen nur die ZVR-Zahl, die Sitzungsvorlagen nur die Generalversammlung.
+  Beim Aktivieren werden die Einstellungen des alten Länderprofils gelöscht
+  (#129).
+
+### Veraltet
+
+- API: `country_profile` (immer `AT`), `country_profile_complete` (immer
+  `true`) und `register.court` (immer leer) bleiben bis 1.0 für bestehende
+  Websites und entfallen dann (#129).
 
 ## [0.5.7-beta] - 2026-09-17
 

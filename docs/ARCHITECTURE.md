@@ -24,7 +24,7 @@ legal source, not in code, so a changed threshold is a data update.
 | Path | Content |
 | --- | --- |
 | `core/modules/modVereine.class.php` | Descriptor: id 492100, rights, menu, dependencies |
-| `class/vereineprofile.class.php` | Country profiles and input rules, plain PHP |
+| `class/vereineassociationrules.class.php` | Input rules of the association data: ZVR number, purpose, founding date, plain PHP |
 | `class/vereineorganization.class.php` | Association data and checks, plain PHP; `load()` reads Dolibarr |
 | `class/api_vereine.class.php` | REST API class `Vereine` |
 | `class/vereinepartnerrules.class.php` | Member and third party decisions, plain PHP |

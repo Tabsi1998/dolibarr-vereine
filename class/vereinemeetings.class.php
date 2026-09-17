@@ -25,7 +25,6 @@ require_once __DIR__.'/vereinemeetingrules.class.php';
 require_once __DIR__.'/vereineattendancerules.class.php';
 require_once __DIR__.'/vereinevoterules.class.php';
 require_once __DIR__.'/vereineminutesrules.class.php';
-require_once __DIR__.'/vereineprofile.class.php';
 require_once __DIR__.'/vereinestatutes.class.php';
 require_once __DIR__.'/vereinefunctions.class.php';
 require_once __DIR__.'/vereinelog.class.php';
@@ -571,7 +570,7 @@ class VereineMeetings
 	}
 
 	/**
-	 * Agenda templates of the association, or those of the country profile.
+	 * Agenda templates of the association, or the suggested ones.
 	 *
 	 * @return array<string,array<int,array{title:string,text:string,required:bool}>>
 	 */
@@ -585,13 +584,13 @@ class VereineMeetings
 		while ($resql && ($obj = $this->db->fetch_object($resql))) {
 			$stored[(string) $obj->kind][] = array('title' => (string) $obj->title, 'text' => (string) $obj->body, 'required' => (int) $obj->mandatory === 1);
 		}
-		return VereineMinutesRules::normalize($stored, getDolGlobalString('VEREINE_COUNTRY_PROFILE', VereineProfile::AUSTRIA));
+		return VereineMinutesRules::normalize($stored);
 	}
 
 	/**
-	 * Store the agenda templates; kinds without an item get the templates of the country profile.
+	 * Store the agenda templates; kinds without an item get the suggested templates.
 	 *
-	 * @param array<string,mixed>|null $entered Templates by kind, null to go back to the country profile
+	 * @param array<string,mixed>|null $entered Templates by kind, null to go back to the suggested templates
 	 * @param User                     $user    Who stores
 	 * @return int 1 when stored, -1 on error
 	 */
@@ -606,7 +605,7 @@ class VereineMeetings
 			return -1;
 		}
 		if ($entered !== null) {
-			foreach (VereineMinutesRules::normalize($entered, getDolGlobalString('VEREINE_COUNTRY_PROFILE', VereineProfile::AUSTRIA)) as $kind => $items) {
+			foreach (VereineMinutesRules::normalize($entered) as $kind => $items) {
 				foreach ($items as $position => $item) {
 					$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_meeting_template (entity, kind, position, title, body, mandatory, fk_user_modif)";
 					$sql .= " VALUES (".((int) $conf->entity).", '".$this->db->escape($kind)."', ".((int) $position).", '".$this->db->escape($item['title'])."',";

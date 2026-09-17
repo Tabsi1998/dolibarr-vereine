@@ -1,13 +1,13 @@
-# Vereine - Dolibarr module for associations under Austrian and German law
+# Vereine - Dolibarr module for associations under Austrian law
 # Copyright (C) 2026 IT-Tabelander - GPL-3.0-or-later
 # English is the reference language: every key of every other language must exist here.
 
 #
 # Module
 #
-ModuleVereineName=Vereine (associations AT/DE)
-ModuleVereineDesc=Associations under Austrian and German law: country profile, register data and an API for the association's website
-ModuleVereineDescLong=Vereine extends Dolibarr's Members module with what associations in Austria and Germany need: country profile, register data and a REST API for the association's website. Tax profiles, membership fee runs, donation reporting, volunteer allowances, officers and the annual accounts follow in the next versions.
+ModuleVereineName=Vereine (associations in Austria)
+ModuleVereineDesc=Associations under Austrian law: association data, statutes, officers, membership fees, meetings and an API for the association's website
+ModuleVereineDescLong=Vereine extends Dolibarr's Members module with what an Austrian association needs: association data with ZVR number, tax profiles, membership fees with SEPA, consents, officers with reports to the association authority, statutes, meetings with invitation, attendance and votes, and a REST API for the association's website.
 Permission49210001=Read the association overview and its data (also through the API)
 VereineMenuAssociation=Association
 
@@ -19,16 +19,8 @@ VereineSetupTabAssociation=Association
 VereineSetupIntro=What Dolibarr does not know about an association yet. Name, address and contact details are the company settings of Dolibarr.
 VereineSetupCompanyHint=Name, address, e-mail, phone, website and the first month of the fiscal year come from the company settings.
 VereineSetupCompanyLink=Open company settings
-VereineCountryProfile=Country profile
-VereineCountryProfileHelp=Decides which law the module follows: register, authorities, tax rules and forms.
-VereineProfileAT=Austria
-VereineProfileDE=Germany
-VereineProfilePreview=preview, tax and legal rules follow in version 1.1
 VereineRegisterNumberZVR=ZVR number
-VereineRegisterNumberVR=Register number (VR)
 VereineRegisterNumberHelpZVR=The association register number (ZVR-Zahl), one to ten digits. It must appear on letters, invoices and the website (§ 18 VerG).
-VereineRegisterNumberHelpVR=The number in the register of associations, for example VR 12345 or VR 12345 B.
-VereineRegisterCourt=Register court
 VereineAuthority=Association authority
 VereineAuthorityHelp=The authority that keeps the association's register entry, for example Landespolizeidirektion Tirol or Bezirkshauptmannschaft Innsbruck.
 VereineFounded=Founded on
@@ -36,13 +28,10 @@ VereineNonprofit=Non-profit
 VereineNonprofitHelp=The association pursues charitable, benevolent or church purposes and is recognised as such by the tax office.
 VereinePurpose=Purpose
 VereinePurposeHelp=A short summary of the purpose in the statutes, for example for the website.
-VereineErrorProfile=Choose Austria or Germany as the country profile.
 VereineErrorZvrFormat=The ZVR number consists of one to ten digits.
-VereineErrorVrFormat=The register number reads VR followed by up to seven digits and an optional letter suffix, for example VR 12345 B.
 VereineErrorPurposeTooLong=The purpose can have at most %s characters.
 VereineErrorFoundingDate=The founding date is not a valid date.
 VereineErrorFoundingDateFuture=The founding date lies in the future.
-VereineWarningRegisterNumberCleared=The country profile changed, so the previous register number was removed. Enter the register number for the new country.
 
 #
 # About
@@ -67,14 +56,10 @@ VereineCheckStatusOk=OK
 VereineCheckStatusWarning=To do
 VereineCheckCompanyOk=Name and town of the association are set.
 VereineCheckCompanyMissing=Name or town of the association are missing in the company settings.
-VereineCheckCountryOk=The country profile matches the company's country.
-VereineCheckCountryMismatch=The country profile does not match the company's country.
+VereineCheckCountryOk=The company in Dolibarr has Austria as its country.
+VereineCheckCountryMismatch=The company in Dolibarr does not have Austria as its country. The module is for Austrian associations.
 VereineCheckZvrOk=The ZVR number is set.
 VereineCheckZvrMissing=The ZVR number is missing. It must appear on letters, invoices and the website (§ 18 VerG).
-VereineCheckVrOk=Register number and register court are set.
-VereineCheckVrMissing=Register number or register court are missing.
-VereineCheckProfileComplete=The country profile carries its tax and legal rules.
-VereineCheckProfilePreview=The country profile is a preview: its tax and legal rules follow in version 1.1.
 VereineCheckApiOk=The REST API module is enabled, so a website can read the association's data.
 VereineCheckApiOff=The REST API module is disabled. A website can only read the association's data once it is enabled.
 VereineFixInSetup=Open setup
@@ -296,8 +281,6 @@ VereineTaxLinesDeviateHint=Please check and change the line or its tax profile. 
 VereinePdfNoteLine=Line %s: %s
 VereinePdfNoteLines=Lines %s: %s
 VereinePdfRegister_ZVR=ZVR number: %s
-VereinePdfRegister_VR=Register of associations: %s
-VereinePdfRegisterCourt=Register court: %s
 VereinePdfRegisterSetting=Print on invoices
 VereinePdfTaxNotesSetting=Print the invoice notes of the tax profiles on invoices
 VereinePdfTaxNotesHelp=Printed in the note area of the invoice with the lines it applies to, for example "Line 1: Genuine membership fee without consideration, not subject to VAT." The stored invoice does not change.
@@ -1205,7 +1188,7 @@ VereineApiRights=Rights needed (all)
 VereineApiOr=or
 VereineApiExample=Example
 VereineApiDocs=Answers and fields in detail are in docs/API.md and docs/openapi.json in the module folder and on GitHub.
-VereineApiEndpoint_getStatus=Module version, API version and country profile, to check the connection.
+VereineApiEndpoint_getStatus=Module version and API version, to check the connection.
 VereineApiEndpoint_getOrganization=Association data such as name, ZVR number, seat and authority, for example for the imprint.
 VereineApiEndpoint_getTaxprofiles=Tax profiles of the association (Austria).
 VereineApiEndpoint_getThresholds=Thresholds and cash register duty of a calendar year.
@@ -1234,8 +1217,8 @@ VereineApiWebhookRead=The website then reads the summary through the API, best a
 # Agenda templates and minutes texts
 VereineSetupTabMeetings=Meeting templates
 VereineMeetingTemplatesSaved=The meeting templates are saved.
-VereineMeetingTemplatesReset=The templates of the country profile apply again.
-VereineMeetingTemplatesResetButton=Restore the templates of the country profile
+VereineMeetingTemplatesReset=The suggested templates apply again.
+VereineMeetingTemplatesResetButton=Restore the suggested templates
 VereineMeetingTemplatesHowTo=A new meeting takes the items of its template as agenda, and every item gets its text suggested. In the meeting only the details are added. Required items never go missing unnoticed: the meeting shows a warning while one is missing.
 VereineMeetingTemplatesPlaceholders=Placeholders in the texts are replaced with the real numbers of the meeting, at the time of the first vote on the item; without a vote at the start of the meeting or the last vote before:
 VereineMinutesPlaceholder_verein=name of the association
@@ -1251,7 +1234,7 @@ VereineMinutesPlaceholder_ergebnis=result of every vote on the item with yes, no
 VereineMeetingTemplateItem=Agenda item
 VereineMeetingTemplateText=Text for the minutes
 VereineMeetingTemplateRequired=Required
-VereineMeetingTemplateEmpty=Items without a title are removed; a template without items gets the items of the country profile. Required by default: the quorum and, in Austria, the board's report on activity and finances (§ 20 VerG).
+VereineMeetingTemplateEmpty=Items without a title are removed; a template without items gets the suggested items. Required by default: the quorum and the board's report on activity and finances (§ 20 VerG).
 VereineMeetingFromTemplate=Agenda from the template:
 VereineMeetingMissingItems=These required items of the template are missing on the agenda:
 VereineMinutesTitle=Texts for the minutes
