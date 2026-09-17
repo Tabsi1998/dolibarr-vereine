@@ -215,6 +215,18 @@ CONTRACTS = (
     ("htdocs/core/lib/admin.lib.php", "function unActivateModule(", "runtime fixtures"),
     ("htdocs/adherents/class/adherent.class.php", "public function subscription($date, $amount, $accountid = 0, $operation = '', $label = '', $num_chq = '', $emetteur_nom = '', $emetteur_banque = '', $datesubend = 0, $fk_type = null", "runtime fixture records subscription periods"),
     ("htdocs/adherents/class/api_members.class.php", "if (!DolibarrApiAccess::$user->hasRight('adherent', 'lire')) {", "the website user cannot read members through Dolibarr's own API"),
+    # Invoices and PDFs of a member for a website (issue #50)
+    ("htdocs/compta/facture/class/facture.class.php", "const STATUS_DRAFT = 0;", "drafts are no invoices of a member"),
+    ("htdocs/compta/facture/class/facture.class.php", "const STATUS_ABANDONED = 3;", "abandoned invoices of a member"),
+    ("htdocs/compta/facture/class/facture.class.php", "public function generateDocument($modele, $outputlangs, $hidedetails = 0, $hidedesc = 0, $hideref = 0, $moreparams = null)", "a missing invoice PDF is built"),
+    ("htdocs/compta/facture/class/facture.class.php", "$modele = getDolGlobalString('FACTURE_ADDON_PDF');", "an empty template name takes the invoice's or the default template"),
+    ("htdocs/core/modules/facture/doc/pdf_sponge.modules.php", "$file = $dir.\"/\".$objectref.\".pdf\";", "where the invoice PDF is stored"),
+    ("htdocs/core/modules/facture/doc/pdf_sponge.modules.php", "$objectref = dol_sanitizeFileName($object->ref);", "the PDF's folder and name come from the sanitised reference"),
+    ("htdocs/core/lib/functions.lib.php", "function dol_sanitizeFileName(", "PDF file name of an invoice"),
+    ("htdocs/core/class/commonobject.class.php", "public function fetch_thirdparty(", "language of the invoice's third party for a built PDF"),
+    ("htdocs/core/class/commoninvoice.class.php", "const CLOSECODE_ABANDONED = 'abandon';", "runtime fixture abandons an invoice"),
+    ("htdocs/compta/facture/class/facture.class.php", "public function setCanceled($user, $close_code = '', $close_note = '')", "runtime fixture abandons an invoice"),
+    ("htdocs/api/class/api_documents.class.php", "$check_access = dol_check_secure_access_document($modulepart, $relativefile, $entity, DolibarrApiAccess::$user, '', 'read');", "the website user cannot download invoices through Dolibarr's own API"),
 )
 
 LANG_KEYS = {

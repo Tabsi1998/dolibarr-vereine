@@ -223,11 +223,14 @@ in Dolibarr (the number in the address of the member card).
   },
   "open_invoices": [
     {
+      "id": 31,
       "ref": "FA2608-0003",
+      "type": "standard",
       "date": "2026-08-01",
       "due_date": "2026-08-15",
       "total": 60,
       "remaining": 50,
+      "status": "overdue",
       "overdue": true,
       "payment_url": "https://erp.example.org/public/payment/newpayment.php?source=invoice&ref=FA2608-0003&securekey=..."
     }
@@ -247,10 +250,7 @@ in Dolibarr (the number in the address of the member card).
 | `fee.next_due` | The day after `paid_until`; the validation date when the member never paid; empty for `not_required` and `inactive` |
 | `fee.amount` | Amount of the member type; `null` when the type sets none or needs no subscription |
 | `fee.payment_url` | Dolibarr's online payment page for the fee, only while the fee is `due` and an online payment service (Stripe, PayPal or one added by a module) is set up; otherwise empty |
-| `open_invoices` | Validated, unpaid invoices of the member's third party, oldest first, at most 50: standard, replacement and deposit invoices. Empty when the member has no third party |
-| `open_invoices[].remaining` | What is still to pay after payments, credit notes and deposits |
-| `open_invoices[].overdue` | The due date has passed |
-| `open_invoices[].payment_url` | Dolibarr's online payment page for the invoice, only with an online payment service; otherwise empty |
+| `open_invoices` | Validated, unpaid invoices of the member's third party, oldest first, at most 50: standard, replacement and deposit invoices. Empty when the member has no third party. Each invoice as in [`members/{id}/invoices`](#get-vereinemembersidinvoices) |
 
 Dates are `YYYY-MM-DD` or empty, amounts are numbers in `currency`. The summary
 never contains birth date, address, phone, e-mail, notes, bank data or dunning
@@ -274,6 +274,66 @@ account with Dolibarr.
 
 Look members up once when an account is linked, store the `id`, and read the
 summary by id afterwards.
+
+## GET /vereine/members/{id}/invoices
+
+All validated invoices of the member's third party, newest first - for a list
+of invoices on the website. Drafts are left out; a member without third party
+has none. `?limit=` (1 to 100, default 100) and `?page=` (from 0) page through
+them; a page after the last one is an empty list.
+
+```json
+[
+  {
+    "id": 31,
+    "ref": "FA2608-0003",
+    "type": "standard",
+    "date": "2026-08-01",
+    "due_date": "2026-08-15",
+    "total": 60,
+    "remaining": 50,
+    "status": "overdue",
+    "overdue": true,
+    "payment_url": ""
+  }
+]
+```
+
+| Field | Content |
+| --- | --- |
+| `id` | Invoice id, for the PDF below |
+| `type` | `standard`, `replacement`, `credit_note` (negative amounts) or `deposit` |
+| `total` | Amount including VAT |
+| `remaining` | What is still to pay after payments, credit notes and deposits; 0 for paid and abandoned invoices |
+| `status` | `open`, `overdue` (due date passed), `paid`, `abandoned` |
+| `overdue` | `true` exactly when `status` is `overdue` |
+| `payment_url` | Dolibarr's online payment page for an open or overdue invoice other than a credit note, only with an online payment service; otherwise empty |
+
+Answers 400 for a limit or page out of range and 404 when there is no member
+with this id.
+
+## GET /vereine/members/{id}/invoices/{invoice}/pdf
+
+The PDF of one invoice of the member, base64 encoded, the same way Dolibarr's
+own document download answers:
+
+```json
+{
+  "filename": "FA2608-0003.pdf",
+  "content_type": "application/pdf",
+  "filesize": 48213,
+  "content": "JVBERi0xLjcK..."
+}
+```
+
+- The invoice must belong to the member's third party and be validated.
+  Another member's invoice, a draft or an unknown invoice answers 404 - the
+  same answer, so nobody learns whether a foreign invoice exists.
+- A PDF that was never built is built with the invoice's template, in the third
+  party's language when Dolibarr uses several languages, and stored like a PDF
+  built on the invoice card. Answers 500 when that fails.
+- The website must hand the PDF only to the member it belongs to: it carries
+  the member's name and address. Pass it through, do not keep it.
 
 ## Example
 

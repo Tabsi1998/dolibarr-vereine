@@ -460,6 +460,15 @@ expect(VereineMemberSummary::overdue('2026-09-16', $today), 'an invoice due yest
 expect(!VereineMemberSummary::overdue('2026-09-17', $today), 'an invoice due today is not overdue');
 expect(!VereineMemberSummary::overdue('', $today), 'an invoice without due date is not overdue');
 
+same('open', VereineMemberSummary::invoiceStatus(1, '2026-09-17', $today), 'a validated invoice due today is open');
+same('overdue', VereineMemberSummary::invoiceStatus('1', '2026-09-16', $today), 'a validated invoice due yesterday is overdue');
+same('open', VereineMemberSummary::invoiceStatus(1, '', $today), 'a validated invoice without due date is open');
+same('paid', VereineMemberSummary::invoiceStatus(2, '2026-01-01', $today), 'a closed invoice is paid, whatever its due date');
+same('abandoned', VereineMemberSummary::invoiceStatus(3, '2026-01-01', $today), 'an abandoned invoice');
+same(array('standard', 'replacement', 'credit_note', 'deposit', ''),
+	array_map(array('VereineMemberSummary', 'invoiceType'), array(0, '1', 2, 3, 5)),
+	'names of Dolibarr\'s invoice types, none for a type the module does not list');
+
 same('2025-01-01', VereineMemberSummary::dayAfter('2024-12-31'), 'the day after New Year\'s Eve');
 same('2024-02-29', VereineMemberSummary::dayAfter('2024-02-28'), 'the day after 28 February in a leap year');
 same('', VereineMemberSummary::dayAfter('31.12.2024'), 'no day after an invalid date');

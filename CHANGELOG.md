@@ -7,6 +7,32 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.3.1-beta] - 2026-09-17
+
+Website API, part 2 (issue #50): a member's invoices and their PDFs.
+
+### Added
+
+- `GET /vereine/members/{id}/invoices`: all validated invoices of the member's
+  third party, newest first, with type, date, due date, amount, remaining amount,
+  status (open, overdue, paid, abandoned) and payment link; `?limit=` and
+  `?page=` page through them.
+- `GET /vereine/members/{id}/invoices/{invoice}/pdf`: the PDF of one of the
+  member's invoices, base64 encoded. Another member's invoice, a draft or an
+  unknown invoice answers 404. A PDF that was never built is built the way
+  Dolibarr builds it on the invoice card.
+- Both need only the right *Read member summaries for a website*; the website
+  user still cannot read invoices or documents through Dolibarr's own API.
+
+### Changed
+
+- The open invoices in the member summary carry `id`, `type` and `status` as
+  well, so the website can fetch their PDFs.
+
+### Upgrade
+
+Deploy the new ZIP. Disabling and enabling is not needed.
+
 ## [0.3.0-beta] - 2026-09-17
 
 Website API, part 1 (issues #49 and #16): member summaries for the association's
@@ -310,7 +336,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.0-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.1-beta...HEAD
+[0.3.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.1-beta
 [0.3.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.0-beta
 [0.2.8-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.8-beta
 [0.2.7-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.7-beta

@@ -47,6 +47,18 @@ class VereineMemberSummary
 	/** The membership is not active, so no fee is expected. */
 	const FEE_INACTIVE = 'inactive';
 
+	/** Validated, not yet paid, due date not passed. */
+	const INVOICE_OPEN = 'open';
+	/** Validated, not yet paid, due date passed. */
+	const INVOICE_OVERDUE = 'overdue';
+	/** Paid, or closed as paid. */
+	const INVOICE_PAID = 'paid';
+	/** Abandoned: nothing more to pay. */
+	const INVOICE_ABANDONED = 'abandoned';
+
+	/** Dolibarr's invoice types by their number: standard, replacement, credit note, deposit. */
+	const INVOICE_TYPES = array(0 => 'standard', 1 => 'replacement', 2 => 'credit_note', 3 => 'deposit');
+
 	/**
 	 * Membership status from Dolibarr's member status.
 	 *
@@ -123,6 +135,37 @@ class VereineMemberSummary
 	public static function overdue($dueDate, $today)
 	{
 		return (string) $dueDate !== '' && $dueDate < $today;
+	}
+
+	/**
+	 * Status of a validated invoice as a website shows it.
+	 *
+	 * @param int|string $statut  Dolibarr's invoice status: 1 validated, 2 closed, 3 abandoned
+	 * @param string     $dueDate Due date, empty when the invoice has none
+	 * @param string     $today   Today
+	 * @return string One of the INVOICE constants
+	 */
+	public static function invoiceStatus($statut, $dueDate, $today)
+	{
+		$statut = (int) $statut;
+		if ($statut === 2) {
+			return self::INVOICE_PAID;
+		}
+		if ($statut === 3) {
+			return self::INVOICE_ABANDONED;
+		}
+		return self::overdue($dueDate, $today) ? self::INVOICE_OVERDUE : self::INVOICE_OPEN;
+	}
+
+	/**
+	 * Name of a Dolibarr invoice type.
+	 *
+	 * @param int|string $type Dolibarr's invoice type
+	 * @return string standard, replacement, credit_note or deposit; empty for a type the module does not list
+	 */
+	public static function invoiceType($type)
+	{
+		return isset(self::INVOICE_TYPES[(int) $type]) ? self::INVOICE_TYPES[(int) $type] : '';
 	}
 
 	/**

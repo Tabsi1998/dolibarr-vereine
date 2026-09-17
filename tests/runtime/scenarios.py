@@ -9,7 +9,9 @@ upload, the module list, the pages, the REST API - and the database to verify.
 
 from __future__ import annotations
 
+import base64
 import datetime
+import hashlib
 import html
 import json
 import re
@@ -809,12 +811,15 @@ def taxassign(stack: Stack) -> str:
 
 def pdf_text(stack: Stack, directory: str) -> str:
     """Text of the newest PDF below a documents directory: every stream inflated, as Latin-1."""
-    import base64
-    import zlib
     listing = stack.shell(f"ls -t $(find /var/www/documents/{directory} -name '*.pdf') | head -1")
     path = listing.stdout.strip()
     expect(listing.returncode == 0 and path.endswith(".pdf"), f"no PDF was built below documents/{directory}")
-    data = base64.b64decode(stack.shell(f"base64 '{path}'").stdout)
+    return pdf_bytes_text(base64.b64decode(stack.shell(f"base64 '{path}'").stdout))
+
+
+def pdf_bytes_text(data: bytes) -> str:
+    """Text of a PDF: every stream inflated, as Latin-1."""
+    import zlib
     parts = []
     for stream in re.findall(rb"stream\r?\n(.*?)\r?\nendstream", data, re.S):
         try:
@@ -948,6 +953,7 @@ def website(stack: Stack) -> str:
     key = secrets.token_hex(20)
     data = stack.php_fixture("website", RT_WEBSITE_KEY=key)
     members, refs, dates, invoices = data["members"], data["refs"], data["dates"], data["invoices"]
+    stack.notes["website"] = {"key": key, **data}
 
     def summary(member: str, who: str = key) -> dict:
         status, body = stack.api(f"vereine/members/{members[member]}/summary", who)
@@ -962,8 +968,9 @@ def website(stack: Stack) -> str:
            f"paid member since {paid['member_since']} until {paid['paid_until']}, expected {dates['paid_since']} to {dates['paid_until']}")
     expect(paid["fee"] == {"required": True, "status": "paid", "next_due": day_after(dates["paid_until"]), "amount": 50, "payment_url": ""},
            f"fee of the paid member: {paid['fee']}")
-    expect(paid["open_invoices"] == [{"ref": invoices["open"]["ref"], "date": dates["open_invoice"], "due_date": dates["open_invoice"],
-                                      "total": 60, "remaining": 50, "overdue": True, "payment_url": ""}],
+    expect(paid["open_invoices"] == [{"id": invoices["open"]["id"], "ref": invoices["open"]["ref"], "type": "standard",
+                                      "date": dates["open_invoice"], "due_date": dates["open_invoice"], "total": 60, "remaining": 50,
+                                      "status": "overdue", "overdue": True, "payment_url": ""}],
            f"only the validated unpaid invoice with its part payment is open: {paid['open_invoices']}")
 
     expired = answers["expired"]
@@ -1025,12 +1032,84 @@ def website(stack: Stack) -> str:
     invoice_link = paid["open_invoices"][0]["payment_url"]
     expect(f"/public/payment/newpayment.php?source=invoice&ref={urllib.parse.quote(invoices['open']['ref'])}" in invoice_link
            and paid["fee"]["payment_url"] == "", f"payment links of the paid member: fee {paid['fee']['payment_url']!r}, invoice {invoice_link!r}")
+    return ("paid, expired, never paid, no fee, terminated; lookup by number and e-mail (409, 404, 400); payment links with Stripe; "
+            "website user refused by Dolibarr's own API")
+
+
+def websiteinvoices(stack: Stack) -> str:
+    """A website user lists a member's invoices and gets the PDFs of that member's invoices only."""
+    site = stack.notes["website"]
+    key, members, invoices, dates = site["key"], site["members"], site["invoices"], site["dates"]
+    abandoned = stack.php_fixture("websiteinvoices", RT_MEMBER_ID=str(members["paid"]))["abandoned"]
+    listed = [
+        {"id": abandoned["id"], "ref": abandoned["ref"], "type": "standard", "date": abandoned["date"], "due_date": abandoned["date"],
+         "total": 20, "remaining": 0, "status": "abandoned", "overdue": False, "payment_url": ""},
+        {"id": invoices["paid"]["id"], "ref": invoices["paid"]["ref"], "type": "standard", "date": dates["paid_invoice"],
+         "due_date": dates["paid_invoice"], "total": 30, "remaining": 0, "status": "paid", "overdue": False, "payment_url": ""},
+        {"id": invoices["open"]["id"], "ref": invoices["open"]["ref"], "type": "standard", "date": dates["open_invoice"],
+         "due_date": dates["open_invoice"], "total": 60, "remaining": 50, "status": "overdue", "overdue": True, "payment_url": ""},
+    ]
+    base = f"vereine/members/{members['paid']}/invoices"
+    status, body = stack.api(base, key)
+    expect(status == 200 and body == listed, f"invoices of the paid member, newest first and without the draft: HTTP {status} {body}")
+    for query, expected in (("limit=1&page=1", listed[1:2]), ("limit=2&page=1", listed[2:]), ("limit=2&page=5", [])):
+        status, body = stack.api(f"{base}?{query}", key)
+        expect(status == 200 and body == expected, f"invoices with {query}: HTTP {status} {body}")
+    for query in ("limit=0", "limit=101", "page=-1"):
+        status, _ = stack.api(f"{base}?{query}", key)
+        expect(status == 400, f"invoices with {query} answered HTTP {status}, expected 400")
+    status, body = stack.api(f"vereine/members/{members['unpaid']}/invoices", key)
+    expect(status == 200 and body == [], f"a member without third party has no invoices: HTTP {status} {body}")
+    status, _ = stack.api("vereine/members/999999/invoices", key)
+    expect(status == 404, f"invoices of an unknown member answered HTTP {status}, expected 404")
+
+    def download(invoice: dict) -> tuple[bytes, str]:
+        status, pdf = stack.api(f"{base}/{invoice['id']}/pdf", key)
+        expect(status == 200 and isinstance(pdf, dict), f"PDF of {invoice['ref']} answered HTTP {status}: {str(pdf)[:300]}")
+        content = base64.b64decode(pdf["content"])
+        expect(content.startswith(b"%PDF") and pdf["filesize"] == len(content) and pdf["filename"] == f"{invoice['ref']}.pdf",
+               f"PDF of {invoice['ref']}: {pdf['filename']}, {pdf['filesize']} bytes, starts with {content[:8]!r}")
+        stored = f"/var/www/documents/facture/{invoice['ref']}/{invoice['ref']}.pdf"
+        on_disk = stack.shell(f"sha256sum '{stored}' && stat -c %Y '{stored}'")
+        expect(on_disk.returncode == 0 and on_disk.stdout.split()[0] == hashlib.sha256(content).hexdigest(),
+               f"the PDF of {invoice['ref']} differs from {stored}: {on_disk.stdout.strip() or on_disk.stderr.strip()}")
+        return content, on_disk.stdout.split()[-1]
+
+    # The abandoned invoice never got a payment, so Dolibarr never built its PDF.
+    stored = f"/var/www/documents/facture/{abandoned['ref']}/{abandoned['ref']}.pdf"
+    expect(stack.shell(f"test ! -e '{stored}'").returncode == 0, f"{stored} exists before the download, the test proves nothing")
+    content, _ = download(abandoned)
+    expect(abandoned["ref"] in pdf_bytes_text(content), f"the built PDF does not show the invoice number {abandoned['ref']}")
+    # Backdate the stored file: a second build would give it a new modification time.
+    expect(stack.shell(f"touch -d '2000-01-01 00:00:00' '{stored}'").returncode == 0, f"could not backdate {stored}")
+    again, mtime = download(abandoned)
+    expect(again == content and int(mtime) < 1000000000, "the second download built the PDF again instead of returning the stored one")
+    # Dolibarr built the open invoice's PDF when the part payment was booked; the download returns that file.
+    content, _ = download(invoices["open"])
+    expect(invoices["open"]["ref"] in pdf_bytes_text(content), f"the PDF does not show the invoice number {invoices['open']['ref']}")
+    ref = invoices["open"]["ref"]
+
+    foreign = stack.notes["invoice_2026"]
+    for path, what in ((f"{base}/{foreign}/pdf", "an invoice of another third party"),
+                       (f"{base}/{invoices['draft']['id']}/pdf", "a draft of the member"),
+                       (f"{base}/99999999/pdf", "an unknown invoice"),
+                       (f"vereine/members/{members['expired']}/invoices/{invoices['open']['id']}/pdf", "another member's invoice"),
+                       (f"vereine/members/{members['unpaid']}/invoices/{invoices['open']['id']}/pdf", "an invoice for a member without third party")):
+        status, _ = stack.api(path, key)
+        expect(status == 404, f"the PDF of {what} answered HTTP {status}, expected 404")
+
+    status, _ = stack.api(f"documents/download?modulepart=facture&original_file={ref}/{ref}.pdf", key)
+    expect(status == 403, f"the website user downloads through Dolibarr's own documents API with HTTP {status}, expected 403")
+    for who, name in ((stack.reader_key, "a user who may read invoices but lacks the website right"), (stack.nobody_key, "a user without rights")):
+        for path in (base, f"{base}/{invoices['open']['id']}/pdf"):
+            status, _ = stack.api(path, who)
+            expect(status == 403, f"{name} got HTTP {status} for {path}, expected 403")
 
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
                      if status == "200" and (method, path, status) not in stack.openapi.checked)
     expect(not missing, f"no runtime check compared a successful answer with docs/openapi.json for: {missing}")
-    return (f"paid, expired, never paid, no fee, terminated; lookup by number and e-mail (409, 404, 400); payment links with Stripe; "
-            f"website user refused by Dolibarr's own API; {len(stack.openapi.checked)} answer kinds match docs/openapi.json")
+    return (f"abandoned, paid and overdue invoice newest first, pages, draft left out; missing PDF built once, stored PDFs returned as stored, "
+            f"foreign, draft and unknown invoices 404; Dolibarr's documents API 403; {len(stack.openapi.checked)} answer kinds match docs/openapi.json")
 
 
 def action_link_for(page: Page, action: str, row_id: str | None) -> str:
@@ -1093,7 +1172,8 @@ SCENARIOS = (
     ("invoicepdf", "The invoice PDF shows tax profile notes and the ZVR number", invoicepdf, ("taxassign",)),
     ("thresholds", "Thresholds of a calendar year as traffic light on overview, home page and API", thresholds, ("invoicepdf",)),
     ("cashregister", "Cash register duty per sphere and the missing 13 % VAT rate", cashregister, ("thresholds",)),
-    ("website", "Member summaries for a website: fee status, open invoices, lookup, rights and docs/openapi.json", website, ("cashregister",)),
+    ("website", "Member summaries for a website: fee status, open invoices, lookup and rights", website, ("cashregister",)),
+    ("websiteinvoices", "A member's invoices and PDFs for a website, and every answer matches docs/openapi.json", websiteinvoices, ("website",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

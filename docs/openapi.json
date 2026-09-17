@@ -257,6 +257,132 @@
           }
         }
       }
+    },
+    "/vereine/members/{id}/invoices": {
+      "get": {
+        "operationId": "getMemberInvoices",
+        "summary": "Validated invoices of a member, newest first",
+        "description": "Invoices of the member's third party; drafts are left out, an empty list when the member has no third party. Needs the same rights as the summary, not the right to read invoices.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Member id",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Invoices per page, 100 when left out",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page, starting at 0",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Invoice"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/vereine/members/{id}/invoices/{invoice}/pdf": {
+      "get": {
+        "operationId": "getMemberInvoicePdf",
+        "summary": "PDF of a member's invoice",
+        "description": "Base64 encoded. Another member's invoice, a draft or an unknown invoice answers 404. A missing PDF is built with the invoice's template. Hand it only to the member it belongs to.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Member id",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "description": "Invoice id, as listed by members/{id}/invoices",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The PDF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoicePdf"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -653,19 +779,55 @@
           },
           "open_invoices": {
             "type": "array",
+            "description": "Validated, unpaid standard, replacement and deposit invoices, oldest first, at most 50",
             "items": {
-              "$ref": "#/components/schemas/OpenInvoice"
+              "$ref": "#/components/schemas/Invoice"
             }
           }
         }
       },
-      "OpenInvoice": {
+      "InvoicePdf": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["ref", "date", "due_date", "total", "remaining", "overdue", "payment_url"],
+        "required": ["filename", "content_type", "filesize", "content"],
         "properties": {
+          "filename": {
+            "type": "string",
+            "pattern": "\\.pdf$"
+          },
+          "content_type": {
+            "type": "string",
+            "enum": ["application/pdf"]
+          },
+          "filesize": {
+            "type": "integer",
+            "description": "Size in bytes after decoding"
+          },
+          "content": {
+            "type": "string",
+            "description": "The PDF, base64 encoded"
+          }
+        }
+      },
+      "Invoice": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "ref", "type", "date", "due_date", "total", "remaining", "status", "overdue", "payment_url"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Invoice id for the PDF"
+          },
           "ref": {
             "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["standard", "replacement", "credit_note", "deposit"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["open", "overdue", "paid", "abandoned"]
           },
           "date": {
             "$ref": "#/components/schemas/Date"
@@ -679,14 +841,14 @@
           },
           "remaining": {
             "type": "number",
-            "description": "Amount still to pay"
+            "description": "Amount still to pay; 0 for paid and abandoned invoices"
           },
           "overdue": {
             "type": "boolean"
           },
           "payment_url": {
             "type": "string",
-            "description": "Dolibarr's online payment page for the invoice; empty unless an online payment service is set up"
+            "description": "Dolibarr's online payment page for an open or overdue invoice other than a credit note; empty unless an online payment service is set up"
           }
         }
       }

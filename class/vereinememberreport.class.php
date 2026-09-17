@@ -130,28 +130,108 @@ class VereineMemberReport
 				'payment_url' => ($online && $fee['status'] === VereineMemberSummary::FEE_DUE && (string) $row->ref !== '')
 					? getOnlinePaymentUrl(0, 'member', (string) $row->ref, $amount === null ? 0 : $amount) : '',
 			),
-			'open_invoices' => (int) $row->fk_soc > 0 ? $this->openInvoices((int) $row->fk_soc, $today, $online) : array(),
+			'open_invoices' => (int) $row->fk_soc > 0 ? $this->invoices((int) $row->fk_soc, $today, $online, true, self::MAX_OPEN_INVOICES, 0) : array(),
 		);
 	}
 
 	/**
-	 * Validated, unpaid invoices of a third party, oldest first.
+	 * All validated invoices of a member, newest first.
 	 *
-	 * @param int    $socid  Third party of the member
-	 * @param string $today  Today, YYYY-MM-DD
-	 * @param bool   $online Whether an online payment service is set up
+	 * @param int $id    Member id
+	 * @param int $limit Invoices per page
+	 * @param int $page  Page, starting at 0
+	 * @return array<int,array<string,mixed>>|null Null when this entity has no such member
+	 */
+	public function memberInvoices($id, $limit, $page)
+	{
+		$socid = $this->thirdPartyOf($id);
+		if ($socid === null) {
+			return null;
+		}
+		if ($socid === 0) {
+			return array();
+		}
+		$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
+		return $this->invoices($socid, $today, $this->onlinePayment(), false, (int) $limit, (int) $limit * (int) $page);
+	}
+
+	/**
+	 * The PDF of a member's invoice, built the way Dolibarr builds it when it is missing.
+	 *
+	 * @param int $id        Member id
+	 * @param int $invoiceId Invoice id
+	 * @return array{filename:string,content_type:string,filesize:int,content:string}|false|null
+	 *         Null when the member or a validated invoice of the member does not exist, false when the PDF cannot be built
+	 */
+	public function invoicePdf($id, $invoiceId)
+	{
+		global $conf, $langs;
+
+		require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+
+		$socid = $this->thirdPartyOf($id);
+		if (!$socid) {
+			return null;
+		}
+		$invoice = new Facture($this->db);
+		if ($invoice->fetch((int) $invoiceId) <= 0 || (int) $invoice->socid !== $socid || (int) $invoice->status === Facture::STATUS_DRAFT
+			|| !in_array((int) $invoice->entity, array_map('intval', explode(',', getEntity('invoice'))), true)) {
+			return null;
+		}
+
+		$reference = dol_sanitizeFileName($invoice->ref);
+		$file = $conf->facture->multidir_output[$invoice->entity].'/'.$reference.'/'.$reference.'.pdf';
+		if (!is_file($file)) {
+			$outputlangs = $langs;
+			$invoice->fetch_thirdparty();
+			if (getDolGlobalInt('MAIN_MULTILANGS') && !empty($invoice->thirdparty->default_lang)) {
+				$outputlangs = new Translate('', $conf);
+				$outputlangs->setDefaultLang($invoice->thirdparty->default_lang);
+			}
+			if ($invoice->generateDocument('', $outputlangs) <= 0 || !is_file($file)) {
+				dol_syslog(__METHOD__.' building the PDF of '.$invoice->ref.' failed: '.$invoice->error, LOG_ERR);
+				return false;
+			}
+		}
+		$content = file_get_contents($file);
+		if ($content === false) {
+			return false;
+		}
+		return array(
+			'filename' => $reference.'.pdf',
+			'content_type' => 'application/pdf',
+			'filesize' => strlen($content),
+			'content' => base64_encode($content),
+		);
+	}
+
+	/**
+	 * Validated invoices of a third party: the open ones oldest first, or all of them newest first.
+	 *
+	 * @param int    $socid    Third party of the member
+	 * @param string $today    Today, YYYY-MM-DD
+	 * @param bool   $online   Whether an online payment service is set up
+	 * @param bool   $openOnly Only unpaid standard, replacement and deposit invoices
+	 * @param int    $limit    At most this many
+	 * @param int    $offset   Skip this many
 	 * @return array<int,array<string,mixed>>
 	 */
-	private function openInvoices($socid, $today, $online)
+	private function invoices($socid, $today, $online, $openOnly, $limit, $offset)
 	{
 		require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
 
 		$sql = "SELECT f.rowid, f.datef, f.date_lim_reglement FROM ".MAIN_DB_PREFIX."facture as f";
 		$sql .= " WHERE f.fk_soc = ".((int) $socid)." AND f.entity IN (".getEntity('invoice').")";
-		$sql .= " AND f.fk_statut = ".((int) Facture::STATUS_VALIDATED)." AND f.paye = 0";
-		$sql .= " AND f.type IN (".((int) Facture::TYPE_STANDARD).", ".((int) Facture::TYPE_REPLACEMENT).", ".((int) Facture::TYPE_DEPOSIT).")";
-		$sql .= " ORDER BY f.datef, f.rowid";
-		$sql .= $this->db->plimit(self::MAX_OPEN_INVOICES);
+		if ($openOnly) {
+			$sql .= " AND f.fk_statut = ".((int) Facture::STATUS_VALIDATED)." AND f.paye = 0";
+			$sql .= " AND f.type IN (".((int) Facture::TYPE_STANDARD).", ".((int) Facture::TYPE_REPLACEMENT).", ".((int) Facture::TYPE_DEPOSIT).")";
+			$sql .= " ORDER BY f.datef, f.rowid";
+		} else {
+			$sql .= " AND f.fk_statut IN (".((int) Facture::STATUS_VALIDATED).", ".((int) Facture::STATUS_CLOSED).", ".((int) Facture::STATUS_ABANDONED).")";
+			$sql .= " AND f.type IN (".implode(', ', array_keys(VereineMemberSummary::INVOICE_TYPES)).")";
+			$sql .= " ORDER BY f.datef DESC, f.rowid DESC";
+		}
+		$sql .= $this->db->plimit((int) $limit, (int) $offset);
 		$resql = $this->db->query($sql);
 		if (!$resql) {
 			dol_syslog(__METHOD__.' '.$this->db->lasterror(), LOG_ERR);
@@ -170,17 +250,43 @@ class VereineMemberReport
 				continue;
 			}
 			$dueDate = VereineMemberSummary::dayOf($obj->date_lim_reglement);
+			$status = VereineMemberSummary::invoiceStatus($invoice->status, $dueDate, $today);
+			$open = in_array($status, array(VereineMemberSummary::INVOICE_OPEN, VereineMemberSummary::INVOICE_OVERDUE), true);
+			$type = VereineMemberSummary::invoiceType($invoice->type);
 			$invoices[] = array(
+				'id' => (int) $invoice->id,
 				'ref' => (string) $invoice->ref,
+				'type' => $type,
 				'date' => VereineMemberSummary::dayOf($obj->datef),
 				'due_date' => $dueDate,
 				'total' => (float) price2num($invoice->total_ttc, 'MT'),
-				'remaining' => (float) $invoice->getRemainToPay(0),
-				'overdue' => VereineMemberSummary::overdue($dueDate, $today),
-				'payment_url' => $online ? getOnlinePaymentUrl(0, 'invoice', (string) $invoice->ref) : '',
+				'remaining' => $open ? (float) $invoice->getRemainToPay(0) : 0.0,
+				'status' => $status,
+				'overdue' => $status === VereineMemberSummary::INVOICE_OVERDUE,
+				'payment_url' => ($online && $open && $type !== 'credit_note') ? getOnlinePaymentUrl(0, 'invoice', (string) $invoice->ref) : '',
 			);
 		}
 		return $invoices;
+	}
+
+	/**
+	 * The third party of a member of this entity.
+	 *
+	 * @param int $id Member id
+	 * @return int|null Third party id, 0 when the member has none, null when there is no such member
+	 */
+	private function thirdPartyOf($id)
+	{
+		$sql = "SELECT d.fk_soc FROM ".MAIN_DB_PREFIX."adherent as d";
+		$sql .= " WHERE d.rowid = ".((int) $id)." AND d.entity IN (".getEntity('adherent').")";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			dol_syslog(__METHOD__.' '.$this->db->lasterror(), LOG_ERR);
+			return null;
+		}
+		$obj = $this->db->fetch_object($resql);
+		$this->db->free($resql);
+		return $obj ? (int) $obj->fk_soc : null;
 	}
 
 	/**
