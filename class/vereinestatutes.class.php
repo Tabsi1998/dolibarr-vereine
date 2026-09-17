@@ -375,6 +375,88 @@ class VereineStatutes
 	}
 
 	/**
+	 * How the statutes as they would be generated now differ from the version in force.
+	 *
+	 * @param string $day Day the version in force is taken for
+	 * @return array{state:string,version:array<string,mixed>|null,changes:array<int,array<string,mixed>>,majority:string}
+	 *         state none (no version), uploaded (no text to compare), same or changed
+	 */
+	public function comparison($day)
+	{
+		global $conf;
+
+		$result = array('state' => 'none', 'version' => $this->current($day), 'changes' => array(), 'majority' => '');
+		if ($result['version'] === null) {
+			return $result;
+		}
+		$content = null;
+		$resql = $this->db->query("SELECT content FROM ".MAIN_DB_PREFIX."vereine_statute WHERE rowid = ".((int) $result['version']['id'])." AND entity = ".((int) $conf->entity));
+		if ($resql && ($obj = $this->db->fetch_object($resql))) {
+			$content = json_decode((string) $obj->content, true);
+		}
+		if (!is_array($content) || !isset($content['rules'], $content['text'], $content['context'])) {
+			$result['state'] = 'uploaded';
+			return $result;
+		}
+		$oldRules = VereineStatuteRules::normalize($content['rules']);
+		$rules = $this->rules();
+		$result['changes'] = VereineStatuteText::compare(VereineStatuteText::sections($oldRules, VereineStatuteText::normalize($content['text']), $content['context']),
+			VereineStatuteText::sections($rules, $this->text(), $this->context($rules)));
+		$result['state'] = $result['changes'] ? 'changed' : 'same';
+		// The statutes in force decide the majority their change needs.
+		$result['majority'] = $oldRules['statute_majority'];
+		return $result;
+	}
+
+	/**
+	 * Build the PDF comparing the version in force with the statutes as they would be now.
+	 *
+	 * @param array<string,mixed> $comparison Result of comparison()
+	 * @param string              $file       Path to write
+	 * @return bool
+	 */
+	public function buildComparisonPdf(array $comparison, $file)
+	{
+		global $langs, $mysoc;
+
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/pdf.lib.php';
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+
+		if (dol_mkdir(dirname($file)) < 0) {
+			$this->error = 'cannot create '.dirname($file);
+			return false;
+		}
+		$pdf = pdf_getInstance();
+		$font = pdf_getPDFFont($langs);
+		$pdf->setPrintHeader(false);
+		$pdf->setPrintFooter(false);
+		$pdf->SetMargins(15, 15, 15);
+		$pdf->SetAutoPageBreak(true, 15);
+		$pdf->AddPage();
+		$pdf->SetFont($font, 'B', 14);
+		$pdf->MultiCell(0, 7, $langs->transnoentities('VereineStatuteChangePdfTitle', trim((string) $mysoc->name)), 0, 'C');
+		$pdf->SetFont($font, '', 9);
+		$pdf->MultiCell(0, 5, $langs->transnoentities('VereineStatuteChangeIntro', $comparison['version']['version']), 0, 'C');
+		$pdf->MultiCell(0, 5, $langs->transnoentities('VereineStatuteChangeMajority', $langs->transnoentities('VereineStatuteMajority_'.$comparison['majority'])), 0, 'C');
+		$pdf->Ln(4);
+		$html = '<table border="1" cellpadding="4"><tr><th width="50%"><b>'.dol_escape_htmltag($langs->transnoentities('VereineStatuteChangeOld')).'</b></th>';
+		$html .= '<th width="50%"><b>'.dol_escape_htmltag($langs->transnoentities('VereineStatuteChangeNew')).'</b></th></tr>';
+		foreach ($comparison['changes'] as $change) {
+			$html .= '<tr><td>'.($change['old_number'] > 0 ? '<b>§ '.$change['old_number'].': '.dol_escape_htmltag($change['title']).'</b><br>'.nl2br(dol_escape_htmltag(implode("\n", $change['old']))) : '-').'</td>';
+			$html .= '<td>'.($change['new_number'] > 0 ? '<b>§ '.$change['new_number'].': '.dol_escape_htmltag($change['title']).'</b><br>'.nl2br(dol_escape_htmltag(implode("\n", $change['new']))) : '-').'</td></tr>';
+		}
+		$html .= '</table>';
+		$pdf->SetFont($font, '', 8);
+		$pdf->writeHTML($html, true, false, false, false, '');
+		$pdf->Output($file, 'F');
+		if (!is_file($file)) {
+			$this->error = 'the PDF was not written';
+			return false;
+		}
+		return true;
+	}
+
+	/**
 	 * Path of the PDF of a version.
 	 *
 	 * @param int $id Version

@@ -928,6 +928,17 @@ foreach (VereineStatuteText::ASSETS as $tax => $assets) {
 	}
 }
 
+$changedText = VereineStatuteText::normalize(array('activities' => "Turniere\nTraining", 'tax' => 'bao', 'asset' => 'a', 'asset_purpose' => 'Jugendsport', 'arrears_months' => '3'));
+$changes = VereineStatuteText::compare($sections, VereineStatuteText::sections($statuteRules, $changedText, $statuteContext));
+same(array(array('Beendigung der Mitgliedschaft', 6, 6)), array_map(function ($change) {
+	return array($change['title'], $change['old_number'], $change['new_number']);
+}, $changes), 'only the section with the new exclusion period differs');
+expect(strpos(implode(' ', $changes[0]['old']), 'länger als sechs Monate') !== false && strpos(implode(' ', $changes[0]['new']), 'länger als drei Monate') !== false,
+	'old and new wording of the changed section');
+same(array(), VereineStatuteText::compare($sections, $sections), 'the same statutes have no change');
+$withoutTax = VereineStatuteText::compare($sections, VereineStatuteText::sections($statuteRules, VereineStatuteText::normalize(array('activities' => "Turniere\nTraining")), $statuteContext));
+same(array(0, 17), array(end($withoutTax)['new_number'], end($withoutTax)['old_number']), 'a section that is gone comes last with the old number only');
+
 // ---------------------------------------------------------------- mailings
 
 $people = array(

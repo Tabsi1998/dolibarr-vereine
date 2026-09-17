@@ -93,7 +93,8 @@ with a REST API for the association's website.
 - **Statutes as text** (0.5.2): the whole statutes built from the model of the
   Ministry of the Interior or, for tax-privileged associations, of the Ministry
   of Finance, filled in from the module; checked, previewed and kept as versions
-  with PDF, existing statutes uploaded.
+  with PDF, existing statutes uploaded. A change shows old next to new, as PDF
+  for the invitation, and writes the notice to the authority (0.5.3).
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 

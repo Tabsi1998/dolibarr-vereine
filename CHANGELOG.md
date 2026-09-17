@@ -7,6 +7,33 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.5.3-beta] - 2026-09-17
+
+Change of the statutes (issue #89).
+
+### Added
+
+- Setup tab *Statutes*, section *Change of the statutes*: the version in force
+  compared with the text as it is set now, section by section, old next to new.
+  The majority comes from the statutes in force; a draft resolution and what
+  happens after the resolution are explained (§ 14 (1) with §§ 12 and 13 VerG).
+- The comparison as PDF, to send with the invitation to the general assembly.
+- Storing a version after the resolution writes the notice of the change to the
+  association authority with its four-week deadline, where there was a version
+  before.
+
+### Fixed
+
+- Text boxes showed line breaks as `\n`, and saving the form again stored that
+  text: consent texts, purpose, tax profile notes, the authority's address and
+  the lists of the statutes. They keep their line breaks now. A text saved
+  again with `\n` has to be corrected once by hand.
+
+### Upgrade
+
+Deploy the new ZIP. Nothing to activate again. Look through consent texts and
+the authority's address for a written `\n` and replace it by a line break.
+
 ## [0.5.2-beta] - 2026-09-17
 
 Statutes as text from their rules, with versions (issue #88).
@@ -785,7 +812,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.2-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.3-beta...HEAD
+[0.5.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.3-beta
 [0.5.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.2-beta
 [0.5.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.1-beta
 [0.5.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.0-beta

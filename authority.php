@@ -197,7 +197,7 @@ print '<table class="border centpercent">';
 print '<tr><td class="titlefieldcreate fieldrequired"><label for="authority_name">'.$langs->trans('VereineAuthority').'</label></td>';
 print '<td><input type="text" id="authority_name" name="authority_name" class="minwidth300" maxlength="128" value="'.dol_escape_htmltag($authority['name']).'"'.($canWrite ? '' : ' disabled').'></td></tr>';
 print '<tr><td class="fieldrequired tdtop"><label for="authority_address">'.$langs->trans('VereineLetterAuthorityAddress').'</label></td>';
-print '<td><textarea id="authority_address" name="authority_address" rows="3" class="minwidth300"'.($canWrite ? '' : ' disabled').'>'.dol_escape_htmltag($authority['address']).'</textarea></td></tr>';
+print '<td><textarea id="authority_address" name="authority_address" rows="3" class="minwidth300"'.($canWrite ? '' : ' disabled').'>'.dol_escape_htmltag($authority['address'], 0, 1).'</textarea></td></tr>';
 print '<tr><td><label for="authority_email">'.$langs->trans('Email').'</label></td>';
 print '<td><input type="text" id="authority_email" name="authority_email" class="minwidth300" value="'.dol_escape_htmltag($authority['email']).'"'.($canWrite ? '' : ' disabled').'></td></tr>';
 print '<tr><td><label for="authority_gz">'.$langs->trans('VereineLetterAuthorityGz').'</label></td>';
@@ -266,7 +266,7 @@ if ($canWrite) {
 		}
 		if ($kind === VereineAuthorityRules::KIND_ADDRESS) {
 			print '<tr><td class="tdtop"><label for="address">'.$langs->trans('VereineLetterNewAddress').'</label></td>';
-			print '<td><textarea id="address" name="address" rows="3" class="minwidth300">'.dol_escape_htmltag($value($kind, 'address', $companyAddress)).'</textarea></td></tr>';
+			print '<td><textarea id="address" name="address" rows="3" class="minwidth300">'.dol_escape_htmltag($value($kind, 'address', $companyAddress), 0, 1).'</textarea></td></tr>';
 		} elseif ($kind === VereineAuthorityRules::KIND_DISSOLUTION) {
 			print '<tr><td><label for="effective">'.$langs->trans('VereineLetterEffective').'</label></td>';
 			print '<td><input type="text" id="effective" name="effective" class="minwidth300" value="'.dol_escape_htmltag($value($kind, 'effective', $langs->transnoentitiesnoconv('VereineLetterEffectiveNow'))).'"></td></tr>';
@@ -279,7 +279,7 @@ if ($canWrite) {
 			print '<tr><td class="titlefieldcreate"></td><td><label><input type="checkbox" name="founders" value="1"'.($value($kind, 'founders') ? ' checked' : '').'> '.$langs->trans('VereineLetterAsFounders').'</label></td></tr>';
 		} elseif ($kind === VereineAuthorityRules::KIND_EXTENSION) {
 			print '<tr><td class="tdtop"><label for="reason">'.$langs->trans('VereineLetterReason').'</label></td>';
-			print '<td><textarea id="reason" name="reason" rows="4" class="centpercent">'.dol_escape_htmltag($value($kind, 'reason')).'</textarea></td></tr>';
+			print '<td><textarea id="reason" name="reason" rows="4" class="centpercent">'.dol_escape_htmltag($value($kind, 'reason'), 0, 1).'</textarea></td></tr>';
 		}
 		print '</table>';
 		print '<div class="center"><input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineLetterWrite')).'"></div>';

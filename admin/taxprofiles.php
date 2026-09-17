@@ -287,7 +287,7 @@ print '<tr><td class="fieldrequired"><label for="treatment">'.$langs->trans('Ver
 print '<td>'.Form::selectarray('treatment', $treatmentOptions, $edit['treatment'], 0, 0, 0, '', 0, 0, 0, '', 'minwidth300');
 print '<br><span class="opacitymedium small">'.$langs->trans('VereineTaxRateAuto').'</span></td></tr>';
 print '<tr><td><label for="note">'.$langs->trans('VereineTaxNote').'</label></td>';
-print '<td><textarea id="note" name="note" class="quatrevingtpercent" rows="2" maxlength="'.VereineTaxRules::NOTE_MAX.'">'.dol_escape_htmltag($edit['note']).'</textarea>';
+print '<td><textarea id="note" name="note" class="quatrevingtpercent" rows="2" maxlength="'.VereineTaxRules::NOTE_MAX.'">'.dol_escape_htmltag($edit['note'], 0, 1).'</textarea>';
 print '<br><span class="opacitymedium small">'.$langs->trans('VereineTaxNoteHelp').'</span></td></tr>';
 print '<tr><td><label for="active">'.$langs->trans('Enabled').'</label></td>';
 print '<td><input type="checkbox" id="active" name="active" value="1"'.(!empty($edit['active']) ? ' checked' : '').'></td></tr>';

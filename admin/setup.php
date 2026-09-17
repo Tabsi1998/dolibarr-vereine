@@ -252,7 +252,7 @@ print '</td></tr>';
 
 // Purpose
 print '<tr class="oddeven"><td class="tdtop"><label for="VEREINE_PURPOSE">'.$langs->trans('VereinePurpose').'</label></td><td>';
-print '<textarea id="VEREINE_PURPOSE" name="VEREINE_PURPOSE" class="quatrevingtpercent" rows="4" maxlength="'.VereineProfile::PURPOSE_MAX_LENGTH.'">'.dol_escape_htmltag($current['VEREINE_PURPOSE']).'</textarea>';
+print '<textarea id="VEREINE_PURPOSE" name="VEREINE_PURPOSE" class="quatrevingtpercent" rows="4" maxlength="'.VereineProfile::PURPOSE_MAX_LENGTH.'">'.dol_escape_htmltag($current['VEREINE_PURPOSE'], 0, 1).'</textarea>';
 print '<div class="opacitymedium small">'.$langs->trans('VereinePurposeHelp').'</div>';
 print '</td></tr>';
 
