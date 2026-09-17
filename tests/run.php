@@ -48,6 +48,7 @@ require_once $root.'/class/vereineexitrules.class.php';
 require_once $root.'/class/vereinesepa.class.php';
 require_once $root.'/class/vereineconsentrules.class.php';
 require_once $root.'/class/vereinefunctionrules.class.php';
+require_once $root.'/class/vereinemailingrules.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -791,6 +792,35 @@ same(array('birth', 'birth_place', 'address'), VereineFunctionRules::missingForR
 same(array(), VereineFunctionRules::missingForReport(array('birth' => '1980-05-05', 'birth_place' => 'Innsbruck', 'address' => 'Hauptplatz 1', 'zip' => '6020', 'town' => 'Innsbruck')),
 	'nothing missing');
 
+// ---------------------------------------------------------------- mailings
+
+$people = array(
+	array('id' => 1, 'status' => 1, 'type_id' => 5, 'email' => 'chair@example.org', 'firstname' => 'Paula', 'lastname' => 'P', 'birth' => '1980-01-01',
+		'functions' => array('obmann'), 'board' => true, 'consents' => array('newsletter'), 'guardians' => array()),
+	array('id' => 2, 'status' => 1, 'type_id' => 6, 'email' => 'Kid@Example.org', 'firstname' => 'Jonas', 'lastname' => 'J', 'birth' => '2015-05-05',
+		'functions' => array(), 'board' => false, 'consents' => array(), 'guardians' => array(array('contact_id' => 9, 'email' => 'parent@example.org', 'firstname' => 'Gerda', 'lastname' => 'J'))),
+	array('id' => 3, 'status' => 0, 'type_id' => 5, 'email' => 'former@example.org', 'firstname' => 'Otto', 'lastname' => 'O', 'birth' => '',
+		'functions' => array(), 'board' => false, 'consents' => array('newsletter'), 'guardians' => array()),
+	array('id' => 4, 'status' => 1, 'type_id' => 5, 'email' => 'CHAIR@example.org', 'firstname' => 'Twin', 'lastname' => 'T', 'birth' => '1990-01-01',
+		'functions' => array('jugendleitung'), 'board' => false, 'consents' => array(), 'guardians' => array()),
+	array('id' => 5, 'status' => -1, 'type_id' => 5, 'email' => '', 'firstname' => 'Ohne', 'lastname' => 'Adresse', 'birth' => '',
+		'functions' => array(), 'board' => false, 'consents' => array(), 'guardians' => array()),
+);
+$emails = function ($filter) use ($people) {
+	return array_column(VereineMailingRules::recipients($people, $filter, '2026-09-17'), 'email');
+};
+same(array('chair@example.org', 'Kid@Example.org'), $emails(array()), 'active members by default, each address once regardless of case');
+same(array('chair@example.org'), $emails(array('function' => 'board')), 'only the board');
+same(array('CHAIR@example.org'), $emails(array('function' => 'jugendleitung', 'status' => 'all')), 'one function');
+same(array('chair@example.org'), $emails(array('purpose' => 'newsletter')), 'newsletter only with consent and active');
+same(array('chair@example.org', 'former@example.org'), $emails(array('purpose' => 'newsletter', 'status' => 'all')), 'all members with consent');
+same(array('chair@example.org', 'parent@example.org'), $emails(array('guardians' => true)), 'a minor is reached through the guardian');
+same(array(), $emails(array('status' => 'draft')), 'a member without address gets nothing');
+same(array(true, false, false), array(VereineMailingRules::isMinor('2009-09-18', '2026-09-17'), VereineMailingRules::isMinor('2008-09-17', '2026-09-17'), VereineMailingRules::isMinor('', '2026-09-17')),
+	'under 18 on the day, unknown birth date counts as adult');
+same(array('status' => 'active', 'type_id' => 0, 'function' => '', 'purpose' => 'info', 'guardians' => false), VereineMailingRules::normalize(array('status' => 'x', 'function' => 'DROP', 'purpose' => '')),
+	'an unusable filter is the default filter');
+
 // ---------------------------------------------------------------- consents
 
 same(array(true, false, false), array(VereineConsentRules::isCode('fotos_web'), VereineConsentRules::isCode('Fotos'), VereineConsentRules::isCode('1newsletter')), 'codes are lower case and start with a letter');
@@ -905,6 +935,7 @@ $prefixes = array(
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
 	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove'),
 	'VereineGroupsChange_' => array('add', 'remove'),
+	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
 	'VereineFunctionProblem_' => array('missing', 'too_many', 'board_too_small', 'auditor_on_board'),
 	'VereineConsentSource_' => VereineConsentRules::SOURCES,

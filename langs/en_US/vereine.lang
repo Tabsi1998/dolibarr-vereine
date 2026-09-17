@@ -767,3 +767,18 @@ VereineGroupsWithoutUser=Holders without Dolibarr user (the member card can crea
 VereineGroupsNoRights=No rights through functions yet.
 VereineLog_function_group_add=added to a user group because of a function
 VereineLog_function_group_remove=removed from a user group after a function ended
+
+#
+# E-mail campaigns
+#
+VereineMailingTargets=Association members by status, member type, function and consent
+VereineMailingStatus_active=active members
+VereineMailingStatus_draft=members in draft
+VereineMailingStatus_former=resiliated and excluded members
+VereineMailingStatus_all=all members
+VereineMailingAllTypes=all member types
+VereineMailingAnyFunction=with or without function
+VereineMailingBoard=Board
+VereineMailingPurposeInfo=information of the association, for example an invitation (no consent)
+VereineMailingPurposeConsent=only with consent: %s
+VereineMailingGuardians=Reach minors through their guardians

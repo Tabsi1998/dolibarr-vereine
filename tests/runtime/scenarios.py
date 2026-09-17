@@ -2043,6 +2043,42 @@ def groups(stack: Stack) -> str:
             "term ended yesterday: removal suggested, nothing before confirming, removed after; log")
 
 
+def mailing(stack: Stack) -> str:
+    """Dolibarr's e-mail campaigns find the board, only members with newsletter consent, and guardians of minors."""
+    site = stack.notes["website"]
+    members = site["members"]
+    campaign = int(stack.php_fixture("mailing")["mailing"])
+    jonas = int(stack.value("SELECT rowid FROM llx_adherent WHERE firstname = 'Jonas' AND lastname = 'Jung'"))
+    stack.php_fixture("guardian", RT_PARTNER_ID=stack.value(f"SELECT fk_soc FROM llx_adherent WHERE rowid = {jonas}"))
+    fee_type = stack.value("SELECT rowid FROM llx_adherent_type WHERE libelle = 'Beitragspflichtig'")
+    browser = stack.browser()
+
+    def targets(fields: dict) -> set:
+        stack.sql(f"DELETE FROM llx_mailing_cibles WHERE fk_mailing = {campaign}")
+        page = page_ok(browser.get(f"/comm/mailing/targetemailing.php?id={campaign}"), "recipients of the campaign")
+        expect('name="vereine_purpose"' in page.text, "Dolibarr's campaign offers no recipients of the association")
+        page_ok(browser.submit(page.form(name="vereine"), fields), f"add recipients {fields}")
+        return {row[0].lower() for row in stack.sql(f"SELECT email FROM llx_mailing_cibles WHERE fk_mailing = {campaign}")}
+
+    board = targets({"vereine_status": "active", "vereine_type": "0", "vereine_function": "board", "vereine_purpose": "info"})
+    expect(board == {"paula.bezahlt@runtime-verein.test", "karl.austritt@runtime-verein.test"}, f"recipients for the board: {board}")
+
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={members['unpaid']}"), "association tab of Nina")
+    record = next((form for form in tab.forms() if form.value("action") == "recordconsent" and form.value("consent_code") == "newsletter"), None)
+    expect(record is not None, "Nina's tab offers no newsletter consent")
+    page_ok(browser.submit(record), "Nina consents to the newsletter")
+    newsletter = targets({"vereine_status": "active", "vereine_type": "0", "vereine_function": "", "vereine_purpose": "newsletter"})
+    expect(newsletter == {"nina@runtime-verein.test"}, f"recipients of the newsletter: {newsletter}")
+
+    guardians = targets({"vereine_status": "active", "vereine_type": fee_type, "vereine_function": "", "vereine_purpose": "info", "vereine_guardians": "1"})
+    expect("gerda.jung@runtime-verein.test" in guardians and "child.discount@runtime-verein.test" not in guardians and "nina@runtime-verein.test" in guardians,
+           f"recipients with guardians for minors: {sorted(guardians)}")
+    kinds = dict(stack.sql(f"SELECT LOWER(email), source_type FROM llx_mailing_cibles WHERE fk_mailing = {campaign} AND email LIKE 'gerda%'"))
+    expect(kinds.get("gerda.jung@runtime-verein.test") == "contact", f"the guardian is not added as contact: {kinds}")
+    return ("board: exactly the chair and the deputy treasurer; newsletter: only the member with consent; minors reached through their "
+            "guardian as contact, adults directly")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -2127,7 +2163,8 @@ SCENARIOS = (
     ("authority", "Report of new representatives to the association authority: deadline, agenda, letter, noted as reported", authority, ("functions",)),
     ("board", "Board for a website: names with consent or disclosure, functions in the summary", board, ("authority",)),
     ("groups", "User groups through functions, changed only after an administrator confirms", groups, ("board",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("groups",)),
+    ("mailing", "E-mail campaign recipients by function, consent and guardians of minors", mailing, ("groups",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("mailing",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

@@ -919,6 +919,26 @@ if ($stage === 'reportpeople') {
 	exit(0);
 }
 
+// Dolibarr's e-mail campaigns and one campaign in draft to add recipients to.
+if ($stage === 'mailing') {
+	$result = activateModule('modMailing');
+	if (!empty($result['errors'])) {
+		rt_fail('activating modMailing failed: '.implode(' | ', (array) $result['errors']));
+	}
+	require_once DOL_DOCUMENT_ROOT.'/comm/mailing/class/mailing.class.php';
+	$mailing = new Mailing($db);
+	$mailing->messtype = 'email';
+	$mailing->title = 'RT Einladung';
+	$mailing->sujet = 'Einladung zur Generalversammlung';
+	$mailing->body = 'Liebe Mitglieder';
+	$mailing->email_from = 'verein@runtime-verein.test';
+	if ($mailing->create($admin) <= 0) {
+		rt_fail('campaign: '.$mailing->error);
+	}
+	print json_encode(array('mailing' => (int) $mailing->id))."\n";
+	exit(0);
+}
+
 // A user group for the treasury and a Dolibarr user created from the member RT_MEMBER_ID.
 if ($stage === 'groupuser') {
 	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
@@ -1100,4 +1120,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian or reset');
