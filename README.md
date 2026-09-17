@@ -27,7 +27,8 @@ with a REST API for the association's website.
   `GET /api/index.php/vereine/status`. See [docs/API.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/API.md).
 - **Member summaries for the website** (0.3): membership, fee status with payment
   link and open invoices of a member, found by member number or e-mail address,
-  for a website user that cannot read anything else of Dolibarr. Described in
+  for a website user that cannot read anything else of Dolibarr. All invoices of
+  a member with their PDFs (0.3.1). Described in
   [docs/openapi.json](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/openapi.json).
 - **Members and third parties** (0.2): a validated member can get its third
   party automatically; an existing third party with the same e-mail (or name

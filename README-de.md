@@ -29,7 +29,7 @@ Vereinswebsite mit.
 - **Mitglieds-Zusammenfassung für die Website** (0.3): Mitgliedschaft,
   Beitragsstand mit Zahlungslink und offene Rechnungen eines Mitglieds, gefunden
   über Mitgliedsnummer oder E-Mail – für einen Website-Benutzer, der sonst nichts
-  aus Dolibarr lesen kann. Beschrieben in
+  aus Dolibarr lesen kann. Alle Rechnungen eines Mitglieds mit PDF (0.3.1). Beschrieben in
   [docs/openapi.json](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/openapi.json).
 - **Mitglieder und Geschäftspartner** (0.2): Ein aktiviertes Mitglied kann
   automatisch seinen Geschäftspartner bekommen; gibt es schon einen mit derselben
@@ -169,6 +169,11 @@ Mit diesem Schlüssel lässt sich die Zusammenfassung jedes Mitglieds lesen und
 ein Mitglied über seine E-Mail finden. Er gehört behandelt wie ein Passwort: nie
 in den Browser, nie in ein Repository. Dolibarrs eigene Aufrufe wie `/members`
 oder `/invoices` beantworten diesem Benutzer mit 403.
+
+Rechnungs-PDFs holt die Website über
+`/vereine/members/{id}/invoices/{rechnung}/pdf` und gibt sie nur an das Mitglied
+weiter, dem die Rechnung gehört – durchreichen, nicht speichern. Eine fremde
+Rechnung oder ein Entwurf ergibt 404.
 
 ## Keine Steuer- oder Rechtsberatung
 

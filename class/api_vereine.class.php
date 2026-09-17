@@ -245,6 +245,72 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Invoices of a member
+	 *
+	 * The validated invoices of the member's third party, newest first: number, type, date,
+	 * due date, amount, remaining amount, status and payment link. Drafts are left out. Needs
+	 * the right to read member summaries for a website, not the right to read invoices.
+	 *
+	 * @param int $id    Member id
+	 * @param int $limit Invoices per page, 1 to 100
+	 * @param int $page  Page, starting at 0
+	 * @return array List of invoices as documented in docs/API.md
+	 *
+	 * @url GET members/{id}/invoices
+	 *
+	 * @throws RestException 400 Limit or page out of range
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such member
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMemberInvoices($id, $limit = 100, $page = 0)
+	{
+		$this->checkAccess();
+		$this->checkWebsiteRight();
+		if ((int) $limit < 1 || (int) $limit > 100 || (int) $page < 0) {
+			throw new RestException(400, 'The limit must be between 1 and 100 and the page 0 or more');
+		}
+		$invoices = $this->memberReport()->memberInvoices((int) $id, (int) $limit, (int) $page);
+		if ($invoices === null) {
+			throw new RestException(404, 'No member with this id');
+		}
+		return $invoices;
+	}
+
+	/**
+	 * PDF of a member's invoice
+	 *
+	 * The PDF of a validated invoice of the member, base64 encoded. Another member's invoice
+	 * or a draft answers 404, like an invoice that does not exist. A missing PDF is built with
+	 * the invoice's template, as Dolibarr does on validation. Hand it only to the member it
+	 * belongs to.
+	 *
+	 * @param int $id      Member id
+	 * @param int $invoice Invoice id, as listed by members/{id}/invoices
+	 * @return array Fields filename, content_type, filesize, content
+	 *
+	 * @url GET members/{id}/invoices/{invoice}/pdf
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such member or no such invoice of the member
+	 * @throws RestException 500 The PDF could not be built
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMemberInvoicePdf($id, $invoice)
+	{
+		$this->checkAccess();
+		$this->checkWebsiteRight();
+		$pdf = $this->memberReport()->invoicePdf((int) $id, (int) $invoice);
+		if ($pdf === null) {
+			throw new RestException(404, 'No such invoice of this member');
+		}
+		if ($pdf === false) {
+			throw new RestException(500, 'The PDF could not be built');
+		}
+		return $pdf;
+	}
+
+	/**
 	 * Refuse the call unless the module is on and the user may read the association.
 	 *
 	 * @return void

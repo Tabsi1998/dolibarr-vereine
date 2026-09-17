@@ -162,3 +162,17 @@ raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
   runtime fixture leaves the foreign currency out.
 - A fixture that fails prints its PHP error in "What failed, in full" at the end
   of the local check log, not in the step line.
+
+## Facts found while building 0.3
+
+- Dolibarr's API layer (Restler) validates a parameter named `email` as an
+  e-mail address before the module's code runs: surrounding spaces answer 400.
+- Dolibarr stores a day (subscription end, invoice date) as midnight in the time
+  zone of the user who entered it, written in the server's time zone; round to
+  the nearest midnight (`VereineMemberSummary::dayOf`) to get the day back.
+- `Facture::validate()` does not build the PDF; the invoice card does. Invoices
+  created in fixtures have no PDF until something calls `generateDocument()`.
+- Every answer of `vereine/...` in the runtime checks goes through
+  `docs/openapi.json`; the last API scenario fails when a documented endpoint
+  never answered 200. Dolibarr's answer for a disabled module is not covered
+  (`check=False`).

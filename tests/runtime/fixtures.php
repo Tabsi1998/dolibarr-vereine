@@ -29,6 +29,7 @@
  * php fixtures.php cashpayments  cash and bank payments on the invoice of 2026
  * php fixtures.php website  a website user with two rights and members in every fee situation
  * php fixtures.php onlinepayment  Stripe on (RT_ONLINE=1) or off, for payment links
+ * php fixtures.php websiteinvoices  an abandoned invoice for a member's third party
  *
  * Prints one JSON object. Passwords and API keys come from the environment only.
  */
@@ -534,8 +535,30 @@ if ($stage === 'website') {
 			'expired_until' => $ymd($day(-35)),
 			'expired_since' => $ymd($day(-400)),
 			'open_invoice' => $ymd($day(-40)),
+			'paid_invoice' => $ymd($day(-20)),
 		),
 	))."\n";
+	exit(0);
+}
+
+// An abandoned invoice for the third party of a member.
+if ($stage === 'websiteinvoices') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+	$socid = (int) rt_value($db, "SELECT fk_soc FROM ".MAIN_DB_PREFIX."adherent WHERE rowid = ".((int) rt_env('RT_MEMBER_ID')));
+	$date = dol_time_plus_duree(dol_mktime(0, 0, 0, (int) dol_print_date(dol_now(), '%m'), (int) dol_print_date(dol_now(), '%d'), (int) dol_print_date(dol_now(), '%Y')), -10, 'd');
+	$invoice = new Facture($db);
+	$invoice->socid = $socid;
+	$invoice->type = Facture::TYPE_STANDARD;
+	$invoice->date = $date;
+	if ($socid <= 0 || $invoice->create($admin) <= 0 || $invoice->addline('Turnierbeitrag', 20, 1, 0) <= 0 || $invoice->validate($admin) <= 0) {
+		rt_fail('abandoned invoice: '.$invoice->error.' '.implode(' | ', (array) $invoice->errors));
+	}
+	if ($invoice->setCanceled($admin, Facture::CLOSECODE_ABANDONED, 'Runtime') <= 0) {
+		rt_fail('abandon invoice: '.$invoice->error);
+	}
+	$invoice->fetch($invoice->id);
+	print json_encode(array('abandoned' => array('id' => (int) $invoice->id, 'ref' => (string) $invoice->ref, 'date' => dol_print_date($date, '%Y-%m-%d'))))."\n";
 	exit(0);
 }
 
@@ -610,4 +633,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, resiliate, guardian or reset');
