@@ -264,7 +264,7 @@ class VereineTaxRules
 	}
 
 	/**
-	 * Length in characters; bytes when mbstring is missing, as VereineProfile counts.
+	 * Length in characters; bytes when mbstring is missing, as VereineAssociationRules counts.
 	 *
 	 * @param string $text Text
 	 * @return int

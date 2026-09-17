@@ -63,7 +63,7 @@ if (!$res) {
 
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once __DIR__.'/../lib/vereine.lib.php';
-require_once __DIR__.'/../class/vereineprofile.class.php';
+require_once __DIR__.'/../class/vereineassociationrules.class.php';
 require_once __DIR__.'/../class/vereineorganization.class.php';
 
 $langs->loadLangs(array('admin', 'members', 'vereine@vereine'));
@@ -83,9 +83,7 @@ $action = GETPOST('action', 'aZ09');
  */
 
 if ($action == 'update') {
-	$profile = GETPOST('VEREINE_COUNTRY_PROFILE', 'aZ09');
-	$registerNumber = VereineProfile::normalizeRegisterNumber($profile, GETPOST('VEREINE_REGISTER_NUMBER', 'alphanohtml'));
-	$registerCourt = trim(GETPOST('VEREINE_REGISTER_COURT', 'alphanohtml'));
+	$registerNumber = VereineAssociationRules::normalizeZvr(GETPOST('VEREINE_REGISTER_NUMBER', 'alphanohtml'));
 	$authority = trim(GETPOST('VEREINE_AUTHORITY', 'alphanohtml'));
 	$purpose = trim(GETPOST('VEREINE_PURPOSE', 'alphanohtml'));
 	$nonprofit = GETPOSTINT('VEREINE_NONPROFIT') ? '1' : '0';
@@ -95,24 +93,15 @@ if ($action == 'update') {
 	$foundedDay = GETPOSTINT('foundedday');
 
 	$errors = array();
-	$warnings = array();
-	if (!VereineProfile::isSupported($profile)) {
-		$errors[] = $langs->trans('VereineErrorProfile');
-	}
-	$error = VereineProfile::validateRegisterNumber($profile, $registerNumber);
-	if ($error !== '' && $profile !== getDolGlobalString('VEREINE_COUNTRY_PROFILE')) {
-		// The number still belongs to the previous country; its field only
-		// changes after saving. Drop it and ask for the new one.
-		$registerNumber = '';
-		$warnings[] = $langs->trans('VereineWarningRegisterNumberCleared');
-	} elseif ($error !== '') {
+	$error = VereineAssociationRules::validateZvr($registerNumber);
+	if ($error !== '') {
 		$errors[] = $langs->trans($error);
 	}
-	$error = VereineProfile::validatePurpose($purpose);
+	$error = VereineAssociationRules::validatePurpose($purpose);
 	if ($error !== '') {
-		$errors[] = $langs->trans($error, VereineProfile::PURPOSE_MAX_LENGTH);
+		$errors[] = $langs->trans($error, VereineAssociationRules::PURPOSE_MAX_LENGTH);
 	}
-	$error = VereineProfile::validateFoundingDate($foundedYear, $foundedMonth, $foundedDay, dol_now());
+	$error = VereineAssociationRules::validateFoundingDate($foundedYear, $foundedMonth, $foundedDay, dol_now());
 	if ($error !== '') {
 		$errors[] = $langs->trans($error);
 	}
@@ -124,10 +113,8 @@ if ($action == 'update') {
 	} else {
 		$founded = $foundedYear ? sprintf('%04d-%02d-%02d', $foundedYear, $foundedMonth, $foundedDay) : '';
 		$values = array(
-			'VEREINE_COUNTRY_PROFILE' => $profile,
 			'VEREINE_REGISTER_NUMBER' => $registerNumber,
-			'VEREINE_REGISTER_COURT' => $profile === VereineProfile::GERMANY ? $registerCourt : '',
-			'VEREINE_AUTHORITY' => $profile === VereineProfile::AUSTRIA ? $authority : '',
+			'VEREINE_AUTHORITY' => $authority,
 			'VEREINE_FOUNDED' => $founded,
 			'VEREINE_NONPROFIT' => $nonprofit,
 			'VEREINE_PURPOSE' => $purpose,
@@ -146,9 +133,6 @@ if ($action == 'update') {
 		} else {
 			$db->commit();
 			setEventMessages($langs->trans('SetupSaved'), null, 'mesgs');
-			if ($warnings) {
-				setEventMessages(null, $warnings, 'warnings');
-			}
 			header('Location: '.$_SERVER['PHP_SELF']);
 			exit;
 		}
@@ -165,9 +149,7 @@ $form = new Form($db);
 if ($action == 'edit') {
 	// A form sent back with errors shows what was entered.
 	$current = array(
-		'VEREINE_COUNTRY_PROFILE' => GETPOST('VEREINE_COUNTRY_PROFILE', 'aZ09'),
 		'VEREINE_REGISTER_NUMBER' => GETPOST('VEREINE_REGISTER_NUMBER', 'alphanohtml'),
-		'VEREINE_REGISTER_COURT' => GETPOST('VEREINE_REGISTER_COURT', 'alphanohtml'),
 		'VEREINE_AUTHORITY' => GETPOST('VEREINE_AUTHORITY', 'alphanohtml'),
 		'VEREINE_NONPROFIT' => GETPOSTINT('VEREINE_NONPROFIT') ? '1' : '0',
 		'VEREINE_PURPOSE' => GETPOST('VEREINE_PURPOSE', 'alphanohtml'),
@@ -186,10 +168,6 @@ if ($action == 'edit') {
 		$foundedTimestamp = dol_mktime(12, 0, 0, (int) $parts[2], (int) $parts[3], (int) $parts[1]);
 	}
 }
-if (!VereineProfile::isSupported($current['VEREINE_COUNTRY_PROFILE'])) {
-	$current['VEREINE_COUNTRY_PROFILE'] = VereineProfile::suggestFromCountry($mysoc->country_code);
-}
-$profile = $current['VEREINE_COUNTRY_PROFILE'];
 
 $title = $langs->trans('VereineSetupTitle');
 llxHeader('', $title, '', '', 0, 0, '', '', '', 'mod-vereine page-admin-setup');
@@ -210,34 +188,18 @@ print '<div class="div-table-responsive-no-min">';
 print '<table class="noborder centpercent">';
 print '<tr class="liste_titre"><td class="titlefieldcreate">'.$langs->trans('Parameter').'</td><td>'.$langs->trans('Value').'</td></tr>';
 
-// Country profile
-$profiles = array();
-foreach (VereineProfile::codes() as $code) {
-	$profiles[$code] = $langs->trans('VereineProfile'.$code).(VereineProfile::isComplete($code) ? '' : ' - '.$langs->trans('VereineProfilePreview'));
-}
-print '<tr class="oddeven"><td class="fieldrequired"><label for="VEREINE_COUNTRY_PROFILE">'.$langs->trans('VereineCountryProfile').'</label></td><td>';
-print Form::selectarray('VEREINE_COUNTRY_PROFILE', $profiles, $profile, 0, 0, 0, '', 0, 0, 0, '', 'minwidth200');
-print '<div class="opacitymedium small">'.$langs->trans('VereineCountryProfileHelp').'</div>';
-print '</td></tr>';
-
-// Register number
-print '<tr class="oddeven"><td><label for="VEREINE_REGISTER_NUMBER">'.$langs->trans('VereineRegisterNumber'.VereineProfile::registerKind($profile)).'</label></td><td>';
+// ZVR number
+print '<tr class="oddeven"><td><label for="VEREINE_REGISTER_NUMBER">'.$langs->trans('VereineRegisterNumberZVR').'</label></td><td>';
 print '<input type="text" class="minwidth200" id="VEREINE_REGISTER_NUMBER" name="VEREINE_REGISTER_NUMBER" value="'.dol_escape_htmltag($current['VEREINE_REGISTER_NUMBER']).'" maxlength="32">';
-print '<div class="opacitymedium small">'.$langs->trans('VereineRegisterNumberHelp'.VereineProfile::registerKind($profile)).'</div>';
+print '<div class="opacitymedium small">'.$langs->trans('VereineRegisterNumberHelpZVR').'</div>';
 print '<input type="checkbox" id="VEREINE_PDF_REGISTER" name="VEREINE_PDF_REGISTER" value="1"'.($current['VEREINE_PDF_REGISTER'] === '1' ? ' checked' : '').'>';
 print ' <label for="VEREINE_PDF_REGISTER">'.$langs->trans('VereinePdfRegisterSetting').'</label>';
 print '</td></tr>';
 
-if ($profile === VereineProfile::GERMANY) {
-	print '<tr class="oddeven"><td><label for="VEREINE_REGISTER_COURT">'.$langs->trans('VereineRegisterCourt').'</label></td><td>';
-	print '<input type="text" class="minwidth300" id="VEREINE_REGISTER_COURT" name="VEREINE_REGISTER_COURT" value="'.dol_escape_htmltag($current['VEREINE_REGISTER_COURT']).'" maxlength="128">';
-	print '</td></tr>';
-} else {
-	print '<tr class="oddeven"><td><label for="VEREINE_AUTHORITY">'.$langs->trans('VereineAuthority').'</label></td><td>';
-	print '<input type="text" class="minwidth300" id="VEREINE_AUTHORITY" name="VEREINE_AUTHORITY" value="'.dol_escape_htmltag($current['VEREINE_AUTHORITY']).'" maxlength="128">';
-	print '<div class="opacitymedium small">'.$langs->trans('VereineAuthorityHelp').'</div>';
-	print '</td></tr>';
-}
+print '<tr class="oddeven"><td><label for="VEREINE_AUTHORITY">'.$langs->trans('VereineAuthority').'</label></td><td>';
+print '<input type="text" class="minwidth300" id="VEREINE_AUTHORITY" name="VEREINE_AUTHORITY" value="'.dol_escape_htmltag($current['VEREINE_AUTHORITY']).'" maxlength="128">';
+print '<div class="opacitymedium small">'.$langs->trans('VereineAuthorityHelp').'</div>';
+print '</td></tr>';
 
 // Founding date
 print '<tr class="oddeven"><td>'.$langs->trans('VereineFounded').'</td><td>';
@@ -252,7 +214,7 @@ print '</td></tr>';
 
 // Purpose
 print '<tr class="oddeven"><td class="tdtop"><label for="VEREINE_PURPOSE">'.$langs->trans('VereinePurpose').'</label></td><td>';
-print '<textarea id="VEREINE_PURPOSE" name="VEREINE_PURPOSE" class="quatrevingtpercent" rows="4" maxlength="'.VereineProfile::PURPOSE_MAX_LENGTH.'">'.dol_escape_htmltag($current['VEREINE_PURPOSE'], 0, 1).'</textarea>';
+print '<textarea id="VEREINE_PURPOSE" name="VEREINE_PURPOSE" class="quatrevingtpercent" rows="4" maxlength="'.VereineAssociationRules::PURPOSE_MAX_LENGTH.'">'.dol_escape_htmltag($current['VEREINE_PURPOSE'], 0, 1).'</textarea>';
 print '<div class="opacitymedium small">'.$langs->trans('VereinePurposeHelp').'</div>';
 print '</td></tr>';
 

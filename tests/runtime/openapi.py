@@ -14,7 +14,7 @@ from pathlib import Path
 
 VALIDATING = {"$ref", "type", "nullable", "enum", "pattern", "minimum", "maximum", "required", "properties",
               "additionalProperties", "items"}
-ANNOTATING = {"description", "example"}
+ANNOTATING = {"description", "example", "deprecated"}
 TYPES = {
     "object": lambda value: isinstance(value, dict),
     "array": lambda value: isinstance(value, list),

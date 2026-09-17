@@ -18,7 +18,7 @@
 /**
  * \file    core/modules/modVereine.class.php
  * \ingroup vereine
- * \brief   Descriptor of the Vereine module: associations under Austrian and German law.
+ * \brief   Descriptor of the Vereine module: associations under Austrian law.
  */
 
 include_once DOL_DOCUMENT_ROOT.'/core/modules/DolibarrModules.class.php';
@@ -263,10 +263,9 @@ class modVereine extends DolibarrModules
 	 */
 	public function init($options = '')
 	{
-		global $conf, $mysoc, $user, $langs;
+		global $conf, $user, $langs;
 
 		require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
-		dol_include_once('/vereine/class/vereineprofile.class.php');
 
 		// Tables are created once and kept when the module is disabled, so an
 		// update or a re-activation never loses the log.
@@ -350,11 +349,9 @@ class modVereine extends DolibarrModules
 			dol_syslog('modVereine::init repaired line breaks in '.$repaired.' values', $repaired < 0 ? LOG_ERR : LOG_INFO);
 		}
 
-		// A first activation picks the profile of the company's country. A later
-		// re-activation keeps whatever the association chose on the setup page.
-		if (getDolGlobalString('VEREINE_COUNTRY_PROFILE') === '') {
-			$countryCode = (is_object($mysoc) && !empty($mysoc->country_code)) ? $mysoc->country_code : '';
-			dolibarr_set_const($this->db, 'VEREINE_COUNTRY_PROFILE', VereineProfile::suggestFromCountry($countryCode), 'chaine', 0, '', $conf->entity);
+		// The module serves Austrian associations only; the country profile of earlier versions is gone.
+		foreach (array('VEREINE_COUNTRY_PROFILE', 'VEREINE_REGISTER_COURT') as $obsolete) {
+			dolibarr_del_const($this->db, $obsolete, $conf->entity);
 		}
 
 		return $result;

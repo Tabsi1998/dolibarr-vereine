@@ -70,12 +70,12 @@ come from Dolibarr's company settings; the rest from the module's setup.
 
 | Field | Content |
 | --- | --- |
-| `country_profile` | `AT` or `DE` |
-| `country_profile_complete` | `false` while a profile is a preview (Germany until 1.1) |
-| `register.kind` | `ZVR` in Austria, `VR` in Germany |
-| `register.number` | ZVR number (digits) or VR number such as `VR 12345 B`; empty when not set |
-| `register.court` | German register court; always empty in Austria |
-| `authority` | Austrian association authority; always empty in Germany |
+| `country_profile` | Always `AT`; deprecated, removed with 1.0 |
+| `country_profile_complete` | Always `true`; deprecated, removed with 1.0 |
+| `register.kind` | Always `ZVR` |
+| `register.number` | ZVR number (digits); empty when not set |
+| `register.court` | Always empty; deprecated, removed with 1.0 |
+| `authority` | Association authority |
 | `founded` | `YYYY-MM-DD`, or empty |
 | `fiscal_year_start_month` | 1 to 12, from Dolibarr's company settings |
 

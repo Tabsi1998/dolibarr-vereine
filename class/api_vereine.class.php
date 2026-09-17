@@ -23,7 +23,7 @@
 
 use Luracast\Restler\RestException;
 
-require_once __DIR__.'/vereineprofile.class.php';
+require_once __DIR__.'/vereineassociationrules.class.php';
 require_once __DIR__.'/vereineorganization.class.php';
 
 /**
@@ -52,7 +52,7 @@ class Vereine extends DolibarrApi
 	/**
 	 * Module status
 	 *
-	 * Module version, API version and country profile. Useful to test a connection.
+	 * Module version and API version. Useful to test a connection.
 	 *
 	 * @return array Fields module_version, api_version, country_profile, country_profile_complete, server_time
 	 *
@@ -66,13 +66,13 @@ class Vereine extends DolibarrApi
 		$this->checkAccess();
 		dol_include_once('/vereine/core/modules/modVereine.class.php');
 		$module = new modVereine($this->db);
-		$profile = getDolGlobalString('VEREINE_COUNTRY_PROFILE');
 
 		return array(
 			'module_version' => (string) $module->version,
 			'api_version' => self::API_VERSION,
-			'country_profile' => $profile,
-			'country_profile_complete' => VereineProfile::isComplete($profile),
+			// Deprecated, kept for websites of API version 1 until 1.0: the module serves Austrian associations only.
+			'country_profile' => VereineAssociationRules::COUNTRY,
+			'country_profile_complete' => true,
 			// Dolibarr's clock, for changed_since of a website sync.
 			'server_time' => gmdate('Y-m-d\TH:i:s\Z', dol_now()),
 		);
@@ -81,7 +81,7 @@ class Vereine extends DolibarrApi
 	/**
 	 * The association
 	 *
-	 * Name, register number (ZVR-Zahl in Austria, VR number and court in Germany),
+	 * Name, ZVR number,
 	 * responsible authority, address, contact, founding date, non-profit status,
 	 * purpose and the month the fiscal year starts. Suitable for a website imprint.
 	 *

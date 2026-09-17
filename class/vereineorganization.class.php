@@ -25,7 +25,7 @@
  * adds only what Dolibarr does not know about an association.
  */
 
-require_once __DIR__.'/vereineprofile.class.php';
+require_once __DIR__.'/vereineassociationrules.class.php';
 
 /**
  * The association as the module sees it.
@@ -34,9 +34,7 @@ class VereineOrganization
 {
 	/** Constants the setup page writes. */
 	const SETTINGS = array(
-		'VEREINE_COUNTRY_PROFILE',
 		'VEREINE_REGISTER_NUMBER',
-		'VEREINE_REGISTER_COURT',
 		'VEREINE_AUTHORITY',
 		'VEREINE_FOUNDED',
 		'VEREINE_NONPROFIT',
@@ -58,25 +56,23 @@ class VereineOrganization
 	 */
 	public static function build(array $settings, array $company)
 	{
-		$profile = isset($settings['VEREINE_COUNTRY_PROFILE']) ? (string) $settings['VEREINE_COUNTRY_PROFILE'] : '';
-		if (!VereineProfile::isSupported($profile)) {
-			$profile = VereineProfile::suggestFromCountry(isset($company['country_code']) ? $company['country_code'] : '');
-		}
 		$value = static function (array $source, $key) {
 			return isset($source[$key]) ? trim((string) $source[$key]) : '';
 		};
 		$fiscalMonth = (int) $value($company, 'fiscal_month_start');
 
 		return array(
-			'country_profile' => $profile,
-			'country_profile_complete' => VereineProfile::isComplete($profile),
+			// Deprecated, kept for websites of API version 1 until 1.0: the module serves Austrian associations only.
+			'country_profile' => VereineAssociationRules::COUNTRY,
+			'country_profile_complete' => true,
 			'name' => $value($company, 'name'),
 			'register' => array(
-				'kind' => VereineProfile::registerKind($profile),
+				'kind' => 'ZVR',
 				'number' => $value($settings, 'VEREINE_REGISTER_NUMBER'),
-				'court' => $profile === VereineProfile::GERMANY ? $value($settings, 'VEREINE_REGISTER_COURT') : '',
+				// Deprecated like country_profile; a register court exists only in Germany.
+				'court' => '',
 			),
-			'authority' => $profile === VereineProfile::AUSTRIA ? $value($settings, 'VEREINE_AUTHORITY') : '',
+			'authority' => $value($settings, 'VEREINE_AUTHORITY'),
 			'address' => array(
 				'street' => $value($company, 'address'),
 				'zip' => $value($company, 'zip'),
@@ -104,7 +100,6 @@ class VereineOrganization
 	public static function checks(array $organization, $apiEnabled, $partnerIssues = null)
 	{
 		$checks = array();
-		$profile = $organization['country_profile'];
 
 		$checks[] = array(
 			'code' => 'company_name',
@@ -113,7 +108,7 @@ class VereineOrganization
 			'fix' => 'company',
 		);
 
-		$countryMatches = strtoupper($organization['address']['country_code']) === $profile;
+		$countryMatches = strtoupper($organization['address']['country_code']) === VereineAssociationRules::COUNTRY;
 		$checks[] = array(
 			'code' => 'country',
 			'status' => $countryMatches ? self::CHECK_OK : self::CHECK_WARNING,
@@ -122,24 +117,11 @@ class VereineOrganization
 		);
 
 		$hasNumber = $organization['register']['number'] !== '';
-		if ($profile === VereineProfile::AUSTRIA) {
-			$label = $hasNumber ? 'VereineCheckZvrOk' : 'VereineCheckZvrMissing';
-		} else {
-			$label = $hasNumber && $organization['register']['court'] !== '' ? 'VereineCheckVrOk' : 'VereineCheckVrMissing';
-			$hasNumber = $hasNumber && $organization['register']['court'] !== '';
-		}
 		$checks[] = array(
 			'code' => 'register',
 			'status' => $hasNumber ? self::CHECK_OK : self::CHECK_WARNING,
-			'label' => $label,
+			'label' => $hasNumber ? 'VereineCheckZvrOk' : 'VereineCheckZvrMissing',
 			'fix' => $hasNumber ? '' : 'setup',
-		);
-
-		$checks[] = array(
-			'code' => 'profile',
-			'status' => $organization['country_profile_complete'] ? self::CHECK_OK : self::CHECK_WARNING,
-			'label' => $organization['country_profile_complete'] ? 'VereineCheckProfileComplete' : 'VereineCheckProfilePreview',
-			'fix' => '',
 		);
 
 		$checks[] = array(

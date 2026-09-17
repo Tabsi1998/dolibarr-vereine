@@ -33,7 +33,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 'stderr');
 
 $root = dirname(__DIR__);
-require_once $root.'/class/vereineprofile.class.php';
+require_once $root.'/class/vereineassociationrules.class.php';
 require_once $root.'/class/vereineorganization.class.php';
 require_once $root.'/class/vereinepartnerrules.class.php';
 require_once $root.'/class/vereinetaxrules.class.php';
@@ -117,44 +117,29 @@ function langEntries($path)
 	return $entries;
 }
 
-// ------------------------------------------------------------------ profiles
+// --------------------------------------------------------- association rules
 
-same(array('AT', 'DE'), VereineProfile::codes(), 'profile codes');
-expect(VereineProfile::isSupported('AT') && VereineProfile::isSupported('DE'), 'AT and DE are supported');
-expect(!VereineProfile::isSupported('CH') && !VereineProfile::isSupported('') && !VereineProfile::isSupported('at'), 'CH, empty and lower case are not supported');
-expect(VereineProfile::isComplete('AT') && !VereineProfile::isComplete('DE'), 'AT is complete, DE is a preview until 1.1');
-same('DE', VereineProfile::suggestFromCountry('de'), 'a German company suggests DE');
-same('AT', VereineProfile::suggestFromCountry('AT'), 'an Austrian company suggests AT');
-same('AT', VereineProfile::suggestFromCountry(''), 'an unknown country suggests AT');
-same('AT', VereineProfile::suggestFromCountry('CH'), 'a Swiss company suggests AT until CH exists');
-same('ZVR', VereineProfile::registerKind('AT'), 'Austrian register kind');
-same('VR', VereineProfile::registerKind('DE'), 'German register kind');
+same('AT', VereineAssociationRules::COUNTRY, 'the module serves Austrian associations');
+same('123456789', VereineAssociationRules::normalizeZvr(' 123 456.789 '), 'ZVR spaces and dots removed');
+same('', VereineAssociationRules::normalizeZvr('   '), 'blank ZVR number becomes empty');
 
-same('123456789', VereineProfile::normalizeRegisterNumber('AT', ' 123 456.789 '), 'ZVR spaces and dots removed');
-same('VR 12345 B', VereineProfile::normalizeRegisterNumber('DE', 'vr12345  B'), 'VR prefix and spacing normalised');
-same('VR 200', VereineProfile::normalizeRegisterNumber('DE', ' VR   200 '), 'VR trimmed');
-same('', VereineProfile::normalizeRegisterNumber('AT', '   '), 'blank register number becomes empty');
+same('', VereineAssociationRules::validateZvr(''), 'an empty ZVR number is allowed');
+same('', VereineAssociationRules::validateZvr('1234567890'), 'ten digits are a ZVR number');
+same('VereineErrorZvrFormat', VereineAssociationRules::validateZvr('12345678901'), 'eleven digits are not');
+same('VereineErrorZvrFormat', VereineAssociationRules::validateZvr('ZVR 123'), 'letters are not');
+same('VereineErrorZvrFormat', VereineAssociationRules::validateZvr('VR 12345'), 'a German register number is not a ZVR number');
 
-same('', VereineProfile::validateRegisterNumber('AT', ''), 'an empty ZVR number is allowed');
-same('', VereineProfile::validateRegisterNumber('AT', '1234567890'), 'ten digits are a ZVR number');
-same('VereineErrorZvrFormat', VereineProfile::validateRegisterNumber('AT', '12345678901'), 'eleven digits are not');
-same('VereineErrorZvrFormat', VereineProfile::validateRegisterNumber('AT', 'ZVR 123'), 'letters are not');
-same('', VereineProfile::validateRegisterNumber('DE', 'VR 12345'), 'VR 12345 is valid');
-same('', VereineProfile::validateRegisterNumber('DE', 'VR 12345 B'), 'VR 12345 B is valid');
-same('VereineErrorVrFormat', VereineProfile::validateRegisterNumber('DE', '12345'), 'a VR number needs its prefix');
-same('VereineErrorVrFormat', VereineProfile::validateRegisterNumber('DE', 'VR 12345678'), 'eight digits are too many');
-
-same('', VereineProfile::validatePurpose(str_repeat('ä', VereineProfile::PURPOSE_MAX_LENGTH)), 'purpose at the limit counts characters, not bytes');
-same('VereineErrorPurposeTooLong', VereineProfile::validatePurpose(str_repeat('a', VereineProfile::PURPOSE_MAX_LENGTH + 1)), 'purpose over the limit');
+same('', VereineAssociationRules::validatePurpose(str_repeat('ä', VereineAssociationRules::PURPOSE_MAX_LENGTH)), 'purpose at the limit counts characters, not bytes');
+same('VereineErrorPurposeTooLong', VereineAssociationRules::validatePurpose(str_repeat('a', VereineAssociationRules::PURPOSE_MAX_LENGTH + 1)), 'purpose over the limit');
 
 $today = gmmktime(12, 0, 0, 9, 16, 2026);
-same('', VereineProfile::validateFoundingDate(0, 0, 0, $today), 'no founding date is allowed');
-same('', VereineProfile::validateFoundingDate(2019, 3, 1, $today), 'a past founding date');
-same('', VereineProfile::validateFoundingDate(2026, 9, 16, $today), 'founded today');
-same('VereineErrorFoundingDateFuture', VereineProfile::validateFoundingDate(2026, 9, 17, $today), 'founded tomorrow');
-same('VereineErrorFoundingDate', VereineProfile::validateFoundingDate(2023, 2, 29, $today), '29 February 2023 does not exist');
-same('VereineErrorFoundingDate', VereineProfile::validateFoundingDate(2020, 5, 0, $today), 'a date without its day');
-same('VereineErrorFoundingDate', VereineProfile::validateFoundingDate(1700, 1, 1, $today), 'a founding date before 1800');
+same('', VereineAssociationRules::validateFoundingDate(0, 0, 0, $today), 'no founding date is allowed');
+same('', VereineAssociationRules::validateFoundingDate(2019, 3, 1, $today), 'a past founding date');
+same('', VereineAssociationRules::validateFoundingDate(2026, 9, 16, $today), 'founded today');
+same('VereineErrorFoundingDateFuture', VereineAssociationRules::validateFoundingDate(2026, 9, 17, $today), 'founded tomorrow');
+same('VereineErrorFoundingDate', VereineAssociationRules::validateFoundingDate(2023, 2, 29, $today), '29 February 2023 does not exist');
+same('VereineErrorFoundingDate', VereineAssociationRules::validateFoundingDate(2020, 5, 0, $today), 'a date without its day');
+same('VereineErrorFoundingDate', VereineAssociationRules::validateFoundingDate(1700, 1, 1, $today), 'a founding date before 1800');
 
 // -------------------------------------------------------------- organization
 
@@ -170,9 +155,7 @@ $company = array(
 	'fiscal_month_start' => '',
 );
 $settings = array(
-	'VEREINE_COUNTRY_PROFILE' => 'AT',
 	'VEREINE_REGISTER_NUMBER' => '123456789',
-	'VEREINE_REGISTER_COURT' => 'Amtsgericht München',
 	'VEREINE_AUTHORITY' => 'Landespolizeidirektion Tirol',
 	'VEREINE_FOUNDED' => '2019-03-01',
 	'VEREINE_NONPROFIT' => '1',
@@ -180,9 +163,9 @@ $settings = array(
 );
 
 $organization = VereineOrganization::build($settings, $company);
-same('AT', $organization['country_profile'], 'profile from settings');
-same(true, $organization['country_profile_complete'], 'Austria is complete');
-same(array('kind' => 'ZVR', 'number' => '123456789', 'court' => ''), $organization['register'], 'an Austrian register carries no court');
+same('AT', $organization['country_profile'], 'the deprecated country profile is always AT');
+same(true, $organization['country_profile_complete'], 'the deprecated completeness is always true');
+same(array('kind' => 'ZVR', 'number' => '123456789', 'court' => ''), $organization['register'], 'the register is the ZVR, the deprecated court stays empty');
 same('Landespolizeidirektion Tirol', $organization['authority'], 'authority for Austria');
 same(true, $organization['nonprofit'], 'non-profit flag');
 same(1, $organization['fiscal_year_start_month'], 'an unset fiscal month means January');
@@ -192,13 +175,11 @@ same(
 	'API version 1 fields and their order'
 );
 
-$german = VereineOrganization::build(array_merge($settings, array('VEREINE_COUNTRY_PROFILE' => 'DE', 'VEREINE_REGISTER_NUMBER' => 'VR 12345')), array_merge($company, array('country_code' => 'DE', 'fiscal_month_start' => '7')));
-same('Amtsgericht München', $german['register']['court'], 'court for Germany');
-same('', $german['authority'], 'a German association has no Vereinsbehörde');
-same(7, $german['fiscal_year_start_month'], 'fiscal year starts in July');
+$july = VereineOrganization::build($settings, array_merge($company, array('fiscal_month_start' => '7')));
+same(7, $july['fiscal_year_start_month'], 'fiscal year starts in July');
 
-$fallback = VereineOrganization::build(array('VEREINE_COUNTRY_PROFILE' => 'XX'), array('country_code' => 'DE'));
-same('DE', $fallback['country_profile'], 'an unknown stored profile falls back to the company country');
+$fallback = VereineOrganization::build(array('VEREINE_COUNTRY_PROFILE' => 'DE', 'VEREINE_REGISTER_COURT' => 'Amtsgericht'), array('country_code' => 'DE'));
+same(array('AT', ''), array($fallback['country_profile'], $fallback['register']['court']), 'old settings of a German profile are ignored');
 same('', $fallback['name'], 'missing company data stays empty, not null');
 same(false, $fallback['nonprofit'], 'missing non-profit flag is false');
 
@@ -211,14 +192,14 @@ $statusOf = static function (array $checks) {
 };
 
 same(
-	array('company_name' => 'ok', 'country' => 'ok', 'register' => 'ok', 'profile' => 'ok', 'api' => 'ok'),
+	array('company_name' => 'ok', 'country' => 'ok', 'register' => 'ok', 'api' => 'ok'),
 	$statusOf(VereineOrganization::checks($organization, true)),
 	'a complete Austrian association passes every check'
 );
-$incomplete = VereineOrganization::build(array('VEREINE_COUNTRY_PROFILE' => 'AT'), array_merge($company, array('town' => '', 'country_code' => 'DE')));
+$incomplete = VereineOrganization::build(array(), array_merge($company, array('town' => '', 'country_code' => 'DE')));
 $checks = VereineOrganization::checks($incomplete, false);
 same(
-	array('company_name' => 'warning', 'country' => 'warning', 'register' => 'warning', 'profile' => 'ok', 'api' => 'warning'),
+	array('company_name' => 'warning', 'country' => 'warning', 'register' => 'warning', 'api' => 'warning'),
 	$statusOf($checks),
 	'missing town, wrong country, no ZVR number and no API are reported'
 );
@@ -228,9 +209,6 @@ foreach ($checks as $check) {
 	}
 }
 same('VereineCheckZvrMissing', $checks[2]['label'], 'the Austrian register check names the ZVR number');
-$germanChecks = VereineOrganization::checks(VereineOrganization::build(array('VEREINE_COUNTRY_PROFILE' => 'DE', 'VEREINE_REGISTER_NUMBER' => 'VR 1'), array('country_code' => 'DE', 'name' => 'x', 'town' => 'y')), true);
-same('warning', $statusOf($germanChecks)['register'], 'a German register number without court is incomplete');
-same('warning', $statusOf($germanChecks)['profile'], 'the German profile is reported as preview');
 
 // ---------------------------------------------------------- partner rules
 
@@ -1188,9 +1166,6 @@ foreach ($iterator as $file) {
 $sections = array('without_partner', 'attributes', 'differences', 'orphans', 'minors', 'duplicates');
 $operations = array('create', 'attributes', 'copy', 'orphans');
 $prefixes = array(
-	'VereineProfile' => VereineProfile::codes(),
-	'VereineRegisterNumber' => array('ZVR', 'VR'),
-	'VereineRegisterNumberHelp' => array('ZVR', 'VR'),
 	'VereinePartnerSection_' => $sections,
 	'VereinePartnerSectionHelp_' => $sections,
 	'VereinePartnerPreviewButton_' => $operations,
@@ -1240,7 +1215,6 @@ $prefixes = array(
 	'VereineSphere_' => array_keys(VereineTaxRules::spheres()),
 	'VereineTreatment_' => array_keys(VereineTaxRules::treatments()),
 	'VereineSphereHelp_' => array_keys(VereineTaxRules::spheres()),
-	'VereinePdfRegister_' => array('ZVR', 'VR'),
 	'VereineThreshold_' => array('small_business', 'harmful_business', 'cash_register', 'festival_hours'),
 	'VereineThresholdHelp_' => array('cash_register', 'festival_hours'),
 	'VereineThresholdStatus_' => array('ok', 'near', 'tolerance', 'exceeded'),
@@ -1284,15 +1258,12 @@ expect(isset($english['Permission49210001']), 'the read permission has a transla
 
 // ------------------------------------------------------------ minutes texts
 
-$templates = VereineMinutesRules::defaults('AT');
+$templates = VereineMinutesRules::defaults();
 same(array('Begrüßung und Feststellung der Beschlussfähigkeit', true), array($templates['general'][0]['title'], $templates['general'][0]['required']), 'a general assembly starts with the quorum, required');
 same(array(), VereineMinutesRules::missing($templates, 'general', VereineMinutesRules::agenda($templates, 'general')), 'an agenda from the Austrian template lacks no required item');
 same(array('Rechenschaftsbericht des Vorstands', 'Bericht über den Rechnungsabschluss'), VereineMinutesRules::missing($templates, 'general', array('begrüßung und  feststellung der beschlussfähigkeit', 'Wahlen')),
 	'the report on activity and finances is required in Austria, titles compared regardless of case and spaces');
-$german = VereineMinutesRules::defaults('DE');
-expect(strpos($german['general'][1]['title'], 'Mitgliederversammlung') !== false && strpos($templates['general'][1]['title'], 'Generalversammlung') !== false, 'Germany says Mitgliederversammlung, Austria Generalversammlung');
-same(array(), VereineMinutesRules::missing($german, 'general', array('Begrüßung und Feststellung der Beschlussfähigkeit')), 'Germany requires only the quorum');
-$own = VereineMinutesRules::normalize(array('board' => array(array('title' => ' <b>Kassa</b>  prüfen ', 'text' => "Zeile 1\r\nZeile 2", 'required' => '1'), array('title' => '', 'text' => 'ohne Titel'))), 'AT');
+$own = VereineMinutesRules::normalize(array('board' => array(array('title' => ' <b>Kassa</b>  prüfen ', 'text' => "Zeile 1\r\nZeile 2", 'required' => '1'), array('title' => '', 'text' => 'ohne Titel'))));
 same(array(array('title' => 'Kassa prüfen', 'text' => "Zeile 1\nZeile 2", 'required' => true)), $own['board'], 'own template: tags and empty titles removed, lines kept');
 same($templates['general'], $own['general'], 'kinds without own items keep the template of the profile');
 same('{ergebnis}', VereineMinutesRules::textFor($templates, 'general', 'WAHLEN'), 'the text of an item is found by its title');

@@ -1,13 +1,13 @@
-# Vereine - Dolibarr-Modul für Vereine nach österreichischem und deutschem Recht
+# Vereine - Dolibarr-Modul für Vereine nach österreichischem Recht
 # Copyright (C) 2026 IT-Tabelander - GPL-3.0-or-later
 # Jeder Schlüssel dieser Datei muss auch in langs/en_US/vereine.lang stehen.
 
 #
 # Modul
 #
-ModuleVereineName=Vereine (AT/DE)
-ModuleVereineDesc=Vereine nach österreichischem und deutschem Recht: Länderprofil, Registerdaten und eine API für die Vereinswebsite
-ModuleVereineDescLong=Vereine erweitert das Mitgliedermodul von Dolibarr um das, was Vereine in Österreich und Deutschland brauchen: Länderprofil, Registerdaten und eine REST-API für die Vereinswebsite. Steuerprofile, Beitragsläufe, Spendenmeldung, Ehrenamtspauschalen, Funktionäre und Rechnungslegung folgen in den nächsten Versionen.
+ModuleVereineName=Vereine (Österreich)
+ModuleVereineDesc=Vereine nach österreichischem Recht: Vereinsdaten, Statuten, Funktionen, Beiträge, Sitzungen und eine API für die Vereinswebsite
+ModuleVereineDescLong=Vereine erweitert das Mitgliedermodul von Dolibarr um das, was ein österreichischer Verein braucht: Vereinsdaten mit ZVR-Zahl, Steuerprofile, Beiträge mit SEPA, Einwilligungen, Funktionen mit Meldung an die Vereinsbehörde, Statuten, Sitzungen mit Einladung, Anwesenheit und Abstimmungen, und eine REST-API für die Vereinswebsite.
 Permission49210001=Vereinsübersicht und Vereinsdaten lesen (auch über die API)
 VereineMenuAssociation=Verein
 
@@ -19,16 +19,8 @@ VereineSetupTabAssociation=Verein
 VereineSetupIntro=Was Dolibarr über einen Verein noch nicht weiß. Name, Anschrift und Kontakt stehen in den Unternehmensdaten von Dolibarr.
 VereineSetupCompanyHint=Name, Anschrift, E-Mail, Telefon, Website und der erste Monat des Rechnungsjahres kommen aus den Unternehmensdaten.
 VereineSetupCompanyLink=Unternehmensdaten öffnen
-VereineCountryProfile=Länderprofil
-VereineCountryProfileHelp=Bestimmt, nach welchem Recht das Modul arbeitet: Register, Behörden, Steuerregeln und Formulare.
-VereineProfileAT=Österreich
-VereineProfileDE=Deutschland
-VereineProfilePreview=Vorschau, Steuer- und Rechtsregeln folgen mit Version 1.1
 VereineRegisterNumberZVR=ZVR-Zahl
-VereineRegisterNumberVR=Registernummer (VR)
 VereineRegisterNumberHelpZVR=Die Vereinsregisterzahl, ein bis zehn Ziffern. Sie muss auf Briefen, Rechnungen und der Website stehen (§ 18 VerG).
-VereineRegisterNumberHelpVR=Die Nummer im Vereinsregister, zum Beispiel VR 12345 oder VR 12345 B.
-VereineRegisterCourt=Registergericht
 VereineAuthority=Vereinsbehörde
 VereineAuthorityHelp=Die Behörde, bei der der Verein eingetragen ist, zum Beispiel Landespolizeidirektion Tirol oder Bezirkshauptmannschaft Innsbruck.
 VereineFounded=Gegründet am
@@ -36,13 +28,10 @@ VereineNonprofit=Gemeinnützig
 VereineNonprofitHelp=Der Verein verfolgt gemeinnützige, mildtätige oder kirchliche Zwecke und ist vom Finanzamt als solcher anerkannt.
 VereinePurpose=Vereinszweck
 VereinePurposeHelp=Eine kurze Zusammenfassung des Zwecks laut Statuten, zum Beispiel für die Website.
-VereineErrorProfile=Als Länderprofil Österreich oder Deutschland wählen.
 VereineErrorZvrFormat=Die ZVR-Zahl besteht aus einer bis zehn Ziffern.
-VereineErrorVrFormat=Die Registernummer lautet VR, gefolgt von bis zu sieben Ziffern und einem optionalen Buchstabenzusatz, zum Beispiel VR 12345 B.
 VereineErrorPurposeTooLong=Der Vereinszweck darf höchstens %s Zeichen lang sein.
 VereineErrorFoundingDate=Das Gründungsdatum ist kein gültiges Datum.
 VereineErrorFoundingDateFuture=Das Gründungsdatum liegt in der Zukunft.
-VereineWarningRegisterNumberCleared=Das Länderprofil hat sich geändert, deshalb wurde die bisherige Registernummer entfernt. Bitte die Registernummer für das neue Land eintragen.
 
 #
 # Über
@@ -67,14 +56,10 @@ VereineCheckStatusOk=Passt
 VereineCheckStatusWarning=Offen
 VereineCheckCompanyOk=Name und Ort des Vereins sind eingetragen.
 VereineCheckCompanyMissing=Name oder Ort des Vereins fehlen in den Unternehmensdaten.
-VereineCheckCountryOk=Das Länderprofil passt zum Land des Unternehmens.
-VereineCheckCountryMismatch=Das Länderprofil passt nicht zum Land des Unternehmens.
+VereineCheckCountryOk=Das Unternehmen in Dolibarr hat Österreich als Land.
+VereineCheckCountryMismatch=Das Unternehmen in Dolibarr hat nicht Österreich als Land. Das Modul ist für österreichische Vereine.
 VereineCheckZvrOk=Die ZVR-Zahl ist eingetragen.
 VereineCheckZvrMissing=Die ZVR-Zahl fehlt. Sie muss auf Briefen, Rechnungen und der Website stehen (§ 18 VerG).
-VereineCheckVrOk=Registernummer und Registergericht sind eingetragen.
-VereineCheckVrMissing=Registernummer oder Registergericht fehlen.
-VereineCheckProfileComplete=Das Länderprofil enthält seine Steuer- und Rechtsregeln.
-VereineCheckProfilePreview=Das Länderprofil ist eine Vorschau: Steuer- und Rechtsregeln folgen mit Version 1.1.
 VereineCheckApiOk=Das REST-API-Modul ist aktiv, eine Website kann die Vereinsdaten lesen.
 VereineCheckApiOff=Das REST-API-Modul ist aus. Eine Website kann die Vereinsdaten erst lesen, wenn es aktiviert ist.
 VereineFixInSetup=Einrichtung öffnen
@@ -296,8 +281,6 @@ VereineTaxLinesDeviateHint=Bitte prüfen und die Zeile oder ihr Steuerprofil än
 VereinePdfNoteLine=Zeile %s: %s
 VereinePdfNoteLines=Zeilen %s: %s
 VereinePdfRegister_ZVR=ZVR-Zahl: %s
-VereinePdfRegister_VR=Vereinsregister: %s
-VereinePdfRegisterCourt=Registergericht: %s
 VereinePdfRegisterSetting=Auf Rechnungen drucken
 VereinePdfTaxNotesSetting=Rechnungshinweise der Steuerprofile auf Rechnungen drucken
 VereinePdfTaxNotesHelp=Steht im Hinweisbereich der Rechnung und nennt die Zeilen, für die er gilt, zum Beispiel „Zeile 1: Echter Mitgliedsbeitrag ohne Gegenleistung, nicht umsatzsteuerbar.“ Die gespeicherte Rechnung bleibt dabei unverändert.
@@ -1205,7 +1188,7 @@ VereineApiRights=Nötige Rechte (alle)
 VereineApiOr=oder
 VereineApiExample=Beispiel
 VereineApiDocs=Antworten und Felder im Detail stehen in docs/API.md und docs/openapi.json im Ordner des Moduls und auf GitHub.
-VereineApiEndpoint_getStatus=Modulversion, API-Version und Länderprofil, zum Prüfen, ob die Verbindung steht.
+VereineApiEndpoint_getStatus=Modulversion und API-Version, zum Prüfen, ob die Verbindung steht.
 VereineApiEndpoint_getOrganization=Vereinsdaten wie Name, ZVR-Zahl, Sitz und Behörde, etwa für das Impressum.
 VereineApiEndpoint_getTaxprofiles=Steuerprofile des Vereins (Österreich).
 VereineApiEndpoint_getThresholds=Umsatzgrenzen und Registrierkassenpflicht eines Kalenderjahres.
@@ -1234,8 +1217,8 @@ VereineApiWebhookRead=Die Website liest danach die Zusammenfassung über die API
 # Agenda templates and minutes texts
 VereineSetupTabMeetings=Sitzungsvorlagen
 VereineMeetingTemplatesSaved=Die Sitzungsvorlagen sind gespeichert.
-VereineMeetingTemplatesReset=Die Sitzungsvorlagen des Länderprofils gelten wieder.
-VereineMeetingTemplatesResetButton=Vorlagen des Länderprofils wiederherstellen
+VereineMeetingTemplatesReset=Die vorgeschlagenen Sitzungsvorlagen gelten wieder.
+VereineMeetingTemplatesResetButton=Vorgeschlagene Vorlagen wiederherstellen
 VereineMeetingTemplatesHowTo=Eine neue Sitzung übernimmt die Punkte ihrer Vorlage als Tagesordnung, und jeder Punkt bekommt seinen Text vorgeschlagen. In der Sitzung wird nur noch ergänzt. Pflichtpunkte fehlen nie unbemerkt: Die Sitzung zeigt eine Warnung, solange einer fehlt.
 VereineMeetingTemplatesPlaceholders=Platzhalter in den Texten werden mit den echten Zahlen der Sitzung ersetzt, zum Zeitpunkt der ersten Abstimmung zum Punkt; ohne Abstimmung zum Beginn der Sitzung bzw. zur letzten Abstimmung davor:
 VereineMinutesPlaceholder_verein=Name des Vereins
@@ -1251,7 +1234,7 @@ VereineMinutesPlaceholder_ergebnis=Ergebnis jeder Abstimmung zum Punkt mit Ja, N
 VereineMeetingTemplateItem=Tagesordnungspunkt
 VereineMeetingTemplateText=Text für das Protokoll
 VereineMeetingTemplateRequired=Pflichtpunkt
-VereineMeetingTemplateEmpty=Punkte ohne Titel werden entfernt; eine Vorlage ohne Punkte bekommt die Punkte des Länderprofils. Vorbelegt als Pflichtpunkte: Beschlussfähigkeit und, in Österreich, der Bericht des Vorstands über Tätigkeit und Finanzen (§ 20 VerG).
+VereineMeetingTemplateEmpty=Punkte ohne Titel werden entfernt; eine Vorlage ohne Punkte bekommt die vorgeschlagenen Punkte. Vorbelegt als Pflichtpunkte: Beschlussfähigkeit und der Bericht des Vorstands über Tätigkeit und Finanzen (§ 20 VerG).
 VereineMeetingFromTemplate=Tagesordnung aus der Vorlage:
 VereineMeetingMissingItems=Diese Pflichtpunkte der Vorlage fehlen in der Tagesordnung:
 VereineMinutesTitle=Texte für das Protokoll

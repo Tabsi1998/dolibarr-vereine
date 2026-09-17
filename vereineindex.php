@@ -65,7 +65,6 @@ if (!$res) {
  */
 
 require_once __DIR__.'/lib/vereine.lib.php';
-require_once __DIR__.'/class/vereineprofile.class.php';
 require_once __DIR__.'/class/vereineorganization.class.php';
 require_once __DIR__.'/class/vereinethresholdreport.class.php';
 
@@ -100,7 +99,6 @@ if ($user->hasRight('adherent', 'lire') && $user->hasRight('societe', 'lire')) {
 	}
 }
 $checks = VereineOrganization::checks($organization, isModEnabled('api'), $partnerIssues);
-$profile = $organization['country_profile'];
 $notSet = '<span class="opacitymedium">'.$langs->trans('VereineNotSet').'</span>';
 
 $title = $langs->trans('VereineOverviewTitle');
@@ -120,16 +118,11 @@ print '<table class="noborder centpercent">';
 print '<tr class="liste_titre"><th colspan="2">'.$langs->trans('VereineAssociationData').'</th></tr>';
 
 $rows = array();
-$rows[] = array($langs->trans('VereineCountryProfile'), $langs->trans('VereineProfile'.$profile).($organization['country_profile_complete'] ? '' : ' - '.$langs->trans('VereineProfilePreview')));
 $rows[] = array($langs->trans('Name'), $organization['name'] !== '' ? dol_escape_htmltag($organization['name']) : $notSet);
 $address = trim($organization['address']['street']."\n".trim($organization['address']['zip'].' '.$organization['address']['town']));
 $rows[] = array($langs->trans('Address'), $address !== '' ? dol_nl2br(dol_escape_htmltag($address)) : $notSet);
-$rows[] = array($langs->trans('VereineRegisterNumber'.$organization['register']['kind']), $organization['register']['number'] !== '' ? dol_escape_htmltag($organization['register']['number']) : $notSet);
-if ($profile === VereineProfile::GERMANY) {
-	$rows[] = array($langs->trans('VereineRegisterCourt'), $organization['register']['court'] !== '' ? dol_escape_htmltag($organization['register']['court']) : $notSet);
-} else {
-	$rows[] = array($langs->trans('VereineAuthority'), $organization['authority'] !== '' ? dol_escape_htmltag($organization['authority']) : $notSet);
-}
+$rows[] = array($langs->trans('VereineRegisterNumberZVR'), $organization['register']['number'] !== '' ? dol_escape_htmltag($organization['register']['number']) : $notSet);
+$rows[] = array($langs->trans('VereineAuthority'), $organization['authority'] !== '' ? dol_escape_htmltag($organization['authority']) : $notSet);
 $founded = $notSet;
 if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $organization['founded'], $parts)) {
 	$founded = dol_print_date(dol_mktime(12, 0, 0, (int) $parts[2], (int) $parts[3], (int) $parts[1]), 'day');

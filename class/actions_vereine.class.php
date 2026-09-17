@@ -195,10 +195,7 @@ class ActionsVereine
 			dol_include_once('/vereine/class/vereineorganization.class.php');
 			$organization = VereineOrganization::load($mysoc);
 			if ($organization['register']['number'] !== '') {
-				$texts[] = $outputlangs->transnoentitiesnoconv('VereinePdfRegister_'.$organization['register']['kind'], $organization['register']['number']);
-				if ($organization['register']['court'] !== '') {
-					$texts[] = $outputlangs->transnoentitiesnoconv('VereinePdfRegisterCourt', $organization['register']['court']);
-				}
+				$texts[] = $outputlangs->transnoentitiesnoconv('VereinePdfRegister_ZVR', $organization['register']['number']);
 			}
 		}
 		if ($texts) {

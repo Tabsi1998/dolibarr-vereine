@@ -41,7 +41,7 @@ class VereinePartnerRules
 	/** A match on name and postcode. */
 	const MATCH_NAME_ZIP = 'name_zip';
 
-	/** Age of majority in Austria and Germany. */
+	/** Age of majority in Austria. */
 	const AGE_OF_MAJORITY = 18;
 
 	/**

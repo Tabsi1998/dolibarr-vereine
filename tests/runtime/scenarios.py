@@ -318,13 +318,13 @@ def enable(stack: Stack) -> str:
     """Enabling from the module list registers rights, menu and the country profile."""
     browser = stack.browser()
     page = module_list(browser)
-    expect("Vereine (AT/DE)" in page.text, "the module list does not show the translated module name")
+    expect("Vereine (Österreich)" in page.text, "the module list does not show the translated module name")
     page_ok(browser.get(module_link(page, "set")), "enable")
     expect(stack.const("MAIN_MODULE_VEREINE") == "1", "MAIN_MODULE_VEREINE is not 1 after enabling")
     for module in ("MAIN_MODULE_ADHERENT", "MAIN_MODULE_SOCIETE", "MAIN_MODULE_CATEGORIE"):
         expect(stack.const(module) == "1", f"{module} was not enabled together with Vereine")
-    expect(stack.const("VEREINE_COUNTRY_PROFILE") == "AT",
-           f"an Austrian company should start with profile AT, found {stack.const('VEREINE_COUNTRY_PROFILE')!r}")
+    expect(stack.const("VEREINE_COUNTRY_PROFILE") is None and stack.const("VEREINE_REGISTER_COURT") is None,
+           "enabling left the country profile of earlier versions in place")
     rights = stack.sql("SELECT id, perms, subperms FROM llx_rights_def WHERE module = 'vereine' AND entity = 1 ORDER BY id")
     expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"], ["49210003", "website", "read"],
                       ["49210004", "application", "write"]], f"rights after enabling: {rights}")
@@ -359,9 +359,8 @@ def pages(stack: Stack) -> str:
     expect(data_status(overview, "api") == "ok", "the enabled REST API is reported as off")
     setup = page_ok(browser.get("/custom/vereine/admin/setup.php"), "setup")
     form = setup.form(name="vereinesetup")
-    expect(form.value("VEREINE_COUNTRY_PROFILE") == "AT", "the setup does not preselect profile AT")
-    expect(form.has("VEREINE_AUTHORITY") and not form.has("VEREINE_REGISTER_COURT"),
-           "the Austrian setup must ask for the authority, not a register court")
+    expect(not form.has("VEREINE_COUNTRY_PROFILE") and form.has("VEREINE_AUTHORITY") and not form.has("VEREINE_REGISTER_COURT"),
+           "the setup must ask for the authority, and neither for a country nor for a register court")
     about = page_ok(browser.get("/custom/vereine/admin/about.php"), "about")
     expect(stack.module_version in about.text and "IT-Tabelander" in about.text, "the about page lacks version or publisher")
     members = page_ok(browser.get("/adherents/index.php?mainmenu=members&leftmenu="), "Members home")
@@ -430,19 +429,11 @@ def setup(stack: Stack) -> str:
     expect(re.search(r"im Verein &amp; (&quot;)?gemeinsam", overview.text) is not None
            and "im Verein & " not in overview.text, "the overview prints the purpose without escaping")
 
-    form = browser.get("/custom/vereine/admin/setup.php").form(name="vereinesetup")
-    page_ok(browser.submit(form, {"VEREINE_COUNTRY_PROFILE": "DE"}), "switch to Germany")
-    expect(stack.const("VEREINE_COUNTRY_PROFILE") == "DE", "the profile did not switch to DE")
-    expect(not stack.const("VEREINE_REGISTER_NUMBER"), "an Austrian ZVR number survived the switch to Germany")
-    german = browser.get("/custom/vereine/admin/setup.php").form(name="vereinesetup")
-    expect(german.has("VEREINE_REGISTER_COURT") and not german.has("VEREINE_AUTHORITY"),
-           "the German setup must ask for the register court")
-
-    page_ok(browser.submit(german, {"VEREINE_COUNTRY_PROFILE": "AT", "VEREINE_REGISTER_NUMBER": "123456789",
-                                    "VEREINE_AUTHORITY": "Landespolizeidirektion Tirol"}), "switch back to Austria")
-    expect(stack.const("VEREINE_COUNTRY_PROFILE") == "AT" and stack.const("VEREINE_REGISTER_NUMBER") == "123456789",
-           "switching back to Austria did not store profile and ZVR number")
-    return "bad ZVR refused and kept on the form, data normalised, markup stripped, AT/DE switch clears the number"
+    stack.sql("INSERT INTO llx_const (name, entity, value, type, visible) VALUES ('VEREINE_COUNTRY_PROFILE', 1, 'DE', 'chaine', 0)")
+    overview = page_ok(browser.get("/custom/vereine/vereineindex.php"), "overview with an old German profile")
+    expect("123456789" in overview.text and "Registergericht" not in overview.text, "an old German profile still changes the overview")
+    stack.sql("DELETE FROM llx_const WHERE name = 'VEREINE_COUNTRY_PROFILE'")
+    return "bad ZVR refused and kept on the form, data normalised, markup stripped, no country choice, an old German profile is ignored"
 
 
 def access(stack: Stack) -> str:
@@ -2670,7 +2661,7 @@ def disable(stack: Stack) -> str:
 
     page_ok(browser.get(module_link(module_list(browser), "set")), "enable again")
     expect(stack.const("VEREINE_REGISTER_NUMBER") == "123456789", "the association data was lost by disabling")
-    expect(stack.const("VEREINE_COUNTRY_PROFILE") == "AT", "re-enabling replaced the chosen country profile")
+    expect(stack.const("VEREINE_COUNTRY_PROFILE") is None, "re-enabling brought the country profile back")
     repaired = stack.sql("SELECT LOCATE(CHAR(92), value) = 0 AND value = CONCAT('Gilmstraße 2', CHAR(10), '6020 Innsbruck') FROM llx_const WHERE name = 'VEREINE_AUTHORITY_ADDRESS'"
                          " UNION ALL SELECT JSON_VALUE(value, '$.asset_purpose') = CONCAT('Zeile eins', CHAR(10), 'Zeile zwei') FROM llx_const WHERE name = 'VEREINE_STATUTE_TEXT'"
                          " UNION ALL SELECT COUNT(*) = 0 FROM llx_vereine_consent_text WHERE LOCATE(CHAR(92), text) > 0")
