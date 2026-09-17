@@ -248,7 +248,7 @@ print '<input type="hidden" name="action" value="saverules">';
 
 print load_fiche_titre($langs->trans('VereineStatutesMembership'), '', '');
 print '<table class="border centpercent">';
-print '<tr><td class="titlefieldcreate"><label for="min_age">'.$langs->trans('VereineStatuteMinAge').'</label></td>';
+print '<tr><td class="titlefieldcreate fieldrequired"><label for="min_age">'.$langs->trans('VereineStatuteMinAge').'</label></td>';
 print '<td>'.$number('min_age', $shown['min_age'], 99).' <span class="opacitymedium small">'.$langs->trans('VereineStatuteMinAgeHelp').'</span></td></tr>';
 print '<tr><td>'.$langs->trans('VereineStatuteVotingTypes').'</td><td>';
 $feeModel = new VereineFeeModel($db);
@@ -265,34 +265,34 @@ print '</table><br>';
 
 print load_fiche_titre($langs->trans('VereineStatutesGeneral'), '', '');
 print '<table class="border centpercent">';
-print '<tr><td class="titlefieldcreate"><label for="general_years">'.$langs->trans('VereineStatuteGeneralYears').'</label></td>';
+print '<tr><td class="titlefieldcreate fieldrequired"><label for="general_years">'.$langs->trans('VereineStatuteGeneralYears').'</label></td>';
 print '<td>'.$number('general_years', $shown['general_years'], VereineStatuteRules::GENERAL_MAX_YEARS).' '.$langs->trans('VereineStatuteGeneralYearsUnit').'</td></tr>';
-print '<tr><td><label for="invite_days">'.$langs->trans('VereineStatuteInviteDays').'</label></td>';
+print '<tr><td class="fieldrequired"><label for="invite_days">'.$langs->trans('VereineStatuteInviteDays').'</label></td>';
 print '<td>'.$number('invite_days', $shown['invite_days'], VereineStatuteRules::MAX_DAYS).' '.$langs->trans('VereineStatuteDaysBefore').'</td></tr>';
-print '<tr><td>'.$langs->trans('VereineStatuteInviteChannels').'</td><td>';
+print '<tr><td class="fieldrequired">'.$langs->trans('VereineStatuteInviteChannels').'</td><td>';
 $channels = is_array($shown['invite_channels']) ? $shown['invite_channels'] : array();
 foreach (VereineStatuteRules::CHANNELS as $channel) {
 	print '<label class="paddingright"><input type="checkbox" name="invite_channels[]" value="'.$channel.'"'.$checked(in_array($channel, $channels, true)).'> ';
 	print $langs->trans('VereineStatuteChannel_'.$channel).'</label> ';
 }
 print '</td></tr>';
-print '<tr><td><label for="motion_days">'.$langs->trans('VereineStatuteMotionDays').'</label></td>';
+print '<tr><td class="fieldrequired"><label for="motion_days">'.$langs->trans('VereineStatuteMotionDays').'</label></td>';
 print '<td>'.$number('motion_days', $shown['motion_days'], VereineStatuteRules::MAX_DAYS).' '.$langs->trans('VereineStatuteDaysBefore').'</td></tr>';
 print '<tr><td></td><td><label><input type="checkbox" id="proxy" name="proxy" value="1"'.$checked($shown['proxy']).'> '.$langs->trans('VereineStatuteProxy').'</label></td></tr>';
-print '<tr><td><label for="general_quorum">'.$langs->trans('VereineStatuteGeneralQuorum').'</label></td>';
+print '<tr><td class="fieldrequired"><label for="general_quorum">'.$langs->trans('VereineStatuteGeneralQuorum').'</label></td>';
 print '<td>'.$number('general_quorum', $shown['general_quorum'], 100).' <span class="opacitymedium small">'.$langs->trans('VereineStatuteGeneralQuorumHelp').'</span></td></tr>';
-print '<tr><td><label for="statute_majority">'.$langs->trans('VereineStatuteStatuteMajority').'</label></td>';
+print '<tr><td class="fieldrequired"><label for="statute_majority">'.$langs->trans('VereineStatuteStatuteMajority').'</label></td>';
 print '<td>'.$select('statute_majority', VereineStatuteRules::MAJORITIES, 'VereineStatuteMajority_', $shown['statute_majority']).'</td></tr>';
-print '<tr><td><label for="dissolution_majority">'.$langs->trans('VereineStatuteDissolutionMajority').'</label></td>';
+print '<tr><td class="fieldrequired"><label for="dissolution_majority">'.$langs->trans('VereineStatuteDissolutionMajority').'</label></td>';
 print '<td>'.$select('dissolution_majority', VereineStatuteRules::MAJORITIES, 'VereineStatuteMajority_', $shown['dissolution_majority']).'</td></tr>';
-print '<tr><td><label for="virtual">'.$langs->trans('VereineStatuteVirtual').'</label></td>';
+print '<tr><td class="fieldrequired"><label for="virtual">'.$langs->trans('VereineStatuteVirtual').'</label></td>';
 print '<td>'.$select('virtual', VereineStatuteRules::VIRTUALS, 'VereineStatuteVirtual_', $shown['virtual']);
 print '<br><span class="opacitymedium small">'.$langs->trans('VereineStatuteVirtualHelp').'</span></td></tr>';
 print '</table><br>';
 
 print load_fiche_titre($langs->trans('VereineStatutesBoard'), '', '');
 print '<table class="border centpercent">';
-print '<tr><td class="titlefieldcreate"><label for="board_quorum">'.$langs->trans('VereineStatuteBoardQuorum').'</label></td>';
+print '<tr><td class="titlefieldcreate fieldrequired"><label for="board_quorum">'.$langs->trans('VereineStatuteBoardQuorum').'</label></td>';
 print '<td>'.$number('board_quorum', $shown['board_quorum'], 100).' '.$langs->trans('VereineStatuteBoardQuorumUnit').'</td></tr>';
 print '<tr><td></td><td><label><input type="checkbox" id="board_tie_chair" name="board_tie_chair" value="1"'.$checked($shown['board_tie_chair']).'> ';
 print $langs->trans('VereineStatuteBoardTieChair').'</label></td></tr>';
@@ -355,9 +355,9 @@ print '<tr><td><label for="admission">'.$langs->trans('VereineStatuteTextAdmissi
 print '<td><input type="text" id="admission" name="admission" class="minwidth300" maxlength="255" value="'.dol_escape_htmltag($shownText['admission']).'">';
 print ' <span class="opacitymedium small">'.$langs->trans('VereineStatuteTextAdmissionHelp').'</span></td></tr>';
 print '<tr><td></td><td><label><input type="checkbox" name="legal_persons" value="1"'.$checked($shownText['legal_persons']).'> '.$langs->trans('VereineStatuteTextLegalPersons').'</label></td></tr>';
-print '<tr><td><label for="arrears_months">'.$langs->trans('VereineStatuteTextArrears').'</label></td>';
+print '<tr><td class="fieldrequired"><label for="arrears_months">'.$langs->trans('VereineStatuteTextArrears').'</label></td>';
 print '<td>'.$number('arrears_months', $shownText['arrears_months'], 24).' '.$langs->trans('VereineStatuteTextArrearsUnit').'</td></tr>';
-print '<tr><td class="tdtop"><label for="wording">'.$langs->trans('VereineStatuteTextWording').'</label></td><td><select id="wording" name="wording" class="minwidth300">';
+print '<tr><td class="tdtop fieldrequired"><label for="wording">'.$langs->trans('VereineStatuteTextWording').'</label></td><td><select id="wording" name="wording" class="minwidth300">';
 foreach (VereineStatuteText::ASSETS as $tax => $assets) {
 	print '<optgroup label="'.dol_escape_htmltag($langs->trans('VereineStatuteTextTax_'.$tax)).'">';
 	foreach ($assets as $asset) {

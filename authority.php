@@ -261,14 +261,14 @@ if ($canWrite) {
 			print '</select></td></tr>';
 		}
 		if ($kind !== VereineAuthorityRules::KIND_FOUNDING) {
-			print '<tr><td class="titlefieldcreate"><label for="date_'.$kind.'">'.$langs->trans('VereineLetterDate_'.$kind).'</label></td>';
+			print '<tr><td class="titlefieldcreate'.($kind !== VereineAuthorityRules::KIND_EXTRACT ? ' fieldrequired' : '').'"><label for="date_'.$kind.'">'.$langs->trans('VereineLetterDate_'.$kind).'</label></td>';
 			print '<td><input type="date" id="date_'.$kind.'" name="date" value="'.dol_escape_htmltag($value($kind, 'date')).'"></td></tr>';
 		}
 		if ($kind === VereineAuthorityRules::KIND_ADDRESS) {
-			print '<tr><td class="tdtop"><label for="address">'.$langs->trans('VereineLetterNewAddress').'</label></td>';
+			print '<tr><td class="tdtop fieldrequired"><label for="address">'.$langs->trans('VereineLetterNewAddress').'</label></td>';
 			print '<td><textarea id="address" name="address" rows="3" class="minwidth300">'.dol_escape_htmltag($value($kind, 'address', $companyAddress), 0, 1).'</textarea></td></tr>';
 		} elseif ($kind === VereineAuthorityRules::KIND_DISSOLUTION) {
-			print '<tr><td><label for="effective">'.$langs->trans('VereineLetterEffective').'</label></td>';
+			print '<tr><td class="fieldrequired"><label for="effective">'.$langs->trans('VereineLetterEffective').'</label></td>';
 			print '<td><input type="text" id="effective" name="effective" class="minwidth300" value="'.dol_escape_htmltag($value($kind, 'effective', $langs->transnoentitiesnoconv('VereineLetterEffectiveNow'))).'"></td></tr>';
 			print '<tr><td></td><td><label><input type="checkbox" name="assets" value="1"'.($value($kind, 'assets') ? ' checked' : '').'> '.$langs->trans('VereineLetterAssets').'</label></td></tr>';
 			foreach (array('liquidator_name' => 'text', 'liquidator_birth' => 'date', 'liquidator_birth_place' => 'text', 'liquidator_address' => 'text', 'liquidator_start' => 'date') as $key => $type) {
@@ -278,7 +278,7 @@ if ($canWrite) {
 		} elseif ($kind === VereineAuthorityRules::KIND_FOUNDING) {
 			print '<tr><td class="titlefieldcreate"></td><td><label><input type="checkbox" name="founders" value="1"'.($value($kind, 'founders') ? ' checked' : '').'> '.$langs->trans('VereineLetterAsFounders').'</label></td></tr>';
 		} elseif ($kind === VereineAuthorityRules::KIND_EXTENSION) {
-			print '<tr><td class="tdtop"><label for="reason">'.$langs->trans('VereineLetterReason').'</label></td>';
+			print '<tr><td class="tdtop fieldrequired"><label for="reason">'.$langs->trans('VereineLetterReason').'</label></td>';
 			print '<td><textarea id="reason" name="reason" rows="4" class="centpercent">'.dol_escape_htmltag($value($kind, 'reason'), 0, 1).'</textarea></td></tr>';
 		}
 		print '</table>';

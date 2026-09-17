@@ -9,8 +9,8 @@ The section of a version is the text of its GitHub release.
 
 ## [0.5.5-beta] - 2026-09-17
 
-Attendance, proxies and quorum (issue #95, second part of #9), and the layout of
-the statutes (issue #101).
+Attendance, proxies and quorum (issue #95, second part of #9), the layout of the
+statutes (issue #101) and required fields in bold (issue #102).
 
 ### Added
 
@@ -33,6 +33,9 @@ the statutes (issue #101).
   and paragraph numbers hang in front of their text, in the PDF too.
 - The purpose the assets go to on dissolution takes up to 1000 characters in a
   larger field, the recipient up to 500.
+- Required fields are bold, as everywhere in Dolibarr: rules and text of the
+  statutes, fee settings, letters to the authority, exit and function on the
+  member, day of the report (issue #102).
 
 ### Upgrade
 

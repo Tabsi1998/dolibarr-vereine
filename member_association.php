@@ -301,9 +301,9 @@ if ($planned) {
 		$reasons[$reason] = $langs->trans('VereineExitReason_'.$reason);
 	}
 	print '<table class="border centpercent">';
-	print '<tr><td class="titlefieldcreate"><label for="exit_reason">'.$langs->trans('VereineExitReason').'</label></td><td>'.Form::selectarray('exit_reason', $reasons, VereineExitRules::REASON_RESIGNATION, 0, 0, 0, '', 0, 0, 0, '', 'minwidth200').'</td></tr>';
+	print '<tr><td class="titlefieldcreate fieldrequired"><label for="exit_reason">'.$langs->trans('VereineExitReason').'</label></td><td>'.Form::selectarray('exit_reason', $reasons, VereineExitRules::REASON_RESIGNATION, 0, 0, 0, '', 0, 0, 0, '', 'minwidth200').'</td></tr>';
 	print '<tr><td><label for="exit_notice_day">'.$langs->trans('VereineExitNoticeDay').'</label></td><td><input type="date" id="exit_notice_day" name="exit_notice_day" value="'.$today.'"></td></tr>';
-	print '<tr><td><label for="exit_last_day">'.$langs->trans('VereineExitLastDay').'</label></td><td><input type="date" id="exit_last_day" name="exit_last_day" value="'.$today.'">';
+	print '<tr><td class="fieldrequired"><label for="exit_last_day">'.$langs->trans('VereineExitLastDay').'</label></td><td><input type="date" id="exit_last_day" name="exit_last_day" value="'.$today.'">';
 	print ' <span class="opacitymedium small">'.$langs->trans('VereineExitLastDayHelp').'</span></td></tr>';
 	print '<tr><td><label for="exit_note">'.$langs->trans('VereineExitNote').'</label></td><td><input type="text" id="exit_note" name="exit_note" class="minwidth300" maxlength="255"></td></tr>';
 	print '</table>';
@@ -362,7 +362,7 @@ if ($canExit && (int) $object->statut === 1) {
 	print '<input type="hidden" name="token" value="'.newToken().'">';
 	print '<input type="hidden" name="action" value="addfunction">';
 	print Form::selectarray('function_id', $options, 0, 1, 0, 0, '', 0, 0, 0, '', 'minwidth200');
-	print ' <label for="function_start">'.$langs->trans('DateStart').'</label> <input type="date" id="function_start" name="function_start" value="'.$today.'">';
+	print ' <label for="function_start" class="fieldrequired">'.$langs->trans('DateStart').'</label> <input type="date" id="function_start" name="function_start" value="'.$today.'">';
 	print ' <label for="function_end">'.$langs->trans('DateEnd').'</label> <input type="date" id="function_end" name="function_end" value="">';
 	print ' <input type="text" name="function_note" class="minwidth200" maxlength="255" placeholder="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineFunctionNoteHelp')).'">';
 	print ' <input type="submit" class="button small" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineFunctionAdd')).'">';
