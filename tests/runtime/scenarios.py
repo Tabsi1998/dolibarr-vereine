@@ -2799,7 +2799,8 @@ def resolutions(stack: Stack) -> str:
     page_ok(browser.submit(form, {"kind": "board", "title": "Vorstandssitzung mit Folgen", "day": "2026-11-05", "time": "19:00",
                                   "place": "Vereinsheim", "agenda": "Begrüßung", "follow[]": task[0][0]}), "a meeting that takes the follow-up over")
     stored_agenda = stack.value("SELECT agenda FROM llx_vereine_meeting WHERE title = 'Vorstandssitzung mit Folgen'")
-    items = json.loads(stored_agenda) if stored_agenda else []
+    # The client of MariaDB doubles a backslash of its own, and the agenda is stored as JSON.
+    items = json.loads(stored_agenda.replace("\\\\", "\\")) if stored_agenda else []
     expect(len(items) == 2 and items[0] == "Begrüßung" and items[1].startswith("Trikots bestellen (offen aus Beschluss"),
            f"the agenda of the new meeting: {items}")
 
