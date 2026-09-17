@@ -1,73 +1,79 @@
 # Releases
 
-## Versions
+## Versionen
 
-| Kind | Tag and module version | GitHub | Package |
+| Art | Tag und Modulversion | GitHub | Paket |
 | --- | --- | --- | --- |
-| Beta | `v0.1.0-beta` | Pre-release | `module_vereine-0.1.0.zip` |
-| Bugfix of a beta | `v0.1.1-beta` | Pre-release | `module_vereine-0.1.1.zip` |
-| Release | `v1.0.0` | Release, marked latest | `module_vereine-1.0.0.zip` |
-| Bugfix release | `v1.0.1` | Release, marked latest | `module_vereine-1.0.1.zip` |
-| Beta of a later release | `v1.1.0-beta` | Pre-release | `module_vereine-1.1.0.zip` |
+| Beta | `v0.5.8-beta` | Pre-Release | `module_vereine-0.5.8.zip` |
+| Erste Beta eines Meilensteins | `v0.6.0-beta` | Pre-Release | `module_vereine-0.6.0.zip` |
+| Stabile Version | `v1.0.0` | Release, als neueste markiert | `module_vereine-1.0.0.zip` |
+| Fehlerbehebung | `v1.0.1` | Release, als neueste markiert | `module_vereine-1.0.1.zip` |
 
-Versions below 1.0.0 are always betas. The package name carries no `-beta`:
-Dolibarr's *Deploy an external module* only accepts names ending in
-`-x.y.z.zip`. The beta marker is in the tag, the release title and the module
-version Dolibarr shows in its module list.
+Versionen unter 1.0.0 sind immer Betas. Der Paketname trägt kein `-beta`:
+Dolibarrs *Externes Modul bereitstellen* nimmt nur Namen an, die auf
+`-x.y.z.zip` enden. Die Beta-Kennung steht im Tag, im Titel des Releases und in
+der Modulversion, die Dolibarr in der Modulliste zeigt.
 
-Each minor version has a milestone. Bugfix versions go into the milestone of
-the version they fix.
+Jede zweite Versionszahl hat einen Meilenstein (0.5, 0.6, …). Innerhalb eines
+Meilensteins zählt die dritte Zahl hoch (0.5.8, 0.5.9, 0.5.10 …), der erste
+Release eines neuen Meilensteins setzt sie auf 0 (0.6.0).
 
-## One release per merged pull request
+## Arbeitsweise: mehrere Pull Requests je Release
 
-Every pull request that changes the installable package is released as soon as
-it is merged, so the newest state can always be installed in Dolibarr from the
-releases page. Pull requests that only touch what the package leaves out -
-`scripts/`, `tests/`, `.github/`, `CLAUDE.md`, `CONTRIBUTING.md` - are not
-released.
+1. **Ein Issue ergibt einen Pull Request**; kleine, zusammengehörige Issues
+   dürfen gebündelt werden. Lokale Prüfung zuerst, GitHub CI danach.
+2. **Ein Pull Request erhöht die Version nicht.** Er beschreibt seine Änderungen
+   in `CHANGELOG.md` unter `## [Unreleased]`.
+3. Der Eigentümer merged, wann es passt, auch mehrere Pull Requests hintereinander.
+4. **Veröffentlicht wird, wenn es sich lohnt:** nach einigen Pull Requests, am
+   Ende eines Meilensteins oder sofort bei einem wichtigen Fehler. Dafür gibt es
+   einen kleinen **Release-Pull-Request**:
+   - `$this->version` in `core/modules/modVereine.class.php` erhöhen
+   - die Einträge unter `Unreleased` in einen Abschnitt
+     `## [x.y.z(-beta)] - JJJJ-MM-TT` verschieben und unten den Link ergänzen;
+     dieser Abschnitt wird der Text des GitHub-Releases
 
-Such a pull request therefore carries its version itself:
+Die lokale Prüfung (Schritt *release*) achtet darauf:
 
-1. Raise `$this->version` in `core/modules/modVereine.class.php`: the next
-   patch version for fixes and small additions within a milestone
-   (`0.1.0-beta` to `0.1.1-beta`), the next minor version for the first pull
-   request of a new milestone (`0.1.1-beta` to `0.2.0-beta`).
-2. Move its `Unreleased` entries of `CHANGELOG.md` into a section
-   `## [x.y.z(-beta)] - YYYY-MM-DD` and add the link at the bottom. That section
-   becomes the text of the GitHub release.
-3. `python scripts/local_check.py` must pass. Its release step fails when the
-   package changed since the newest release but the version did not.
+- Ändert ein Pull Request das Paket, während die Version noch die
+  veröffentlichte ist, muss `CHANGELOG.md` unter `Unreleased` etwas stehen haben.
+- Ist die Version neu, darf unter `Unreleased` nichts mehr stehen, und sie muss
+  höher sein als jede veröffentlichte.
 
-## Publishing
+Pull Requests, die nur ändern, was nicht ins Paket kommt – `scripts/`,
+`tests/`, `.github/`, `CLAUDE.md`, `CONTRIBUTING.md` – brauchen keinen Eintrag.
 
-Right after the merge, on an up-to-date `main`:
+## Veröffentlichen
+
+Nach dem Merge des Release-Pull-Requests, auf einem aktuellen `main`:
 
 ```bash
-python scripts/local_check.py             # the full check for exactly this commit
-python scripts/release.py --check         # everything except tag and publication
-python scripts/release.py                 # tag, GitHub release, package upload
+python scripts/local_check.py --all       # die vollständige Prüfung genau dieses Commits
+python scripts/release.py --check         # alles außer Tag und Veröffentlichung
+python scripts/release.py                 # Tag, GitHub-Release, Paket hochladen
 ```
 
-`release.py` refuses unless:
+`release.py` verweigert, solange nicht alles davon gilt:
 
-- `main` is checked out, clean and equal to `origin/main`;
-- the module version is `x.y.z` or `x.y.z-beta`, and below 1.0.0 it is a beta;
-- `CHANGELOG.md` has a non-empty section for it, dated today or earlier;
-- neither the tag nor a release of that name exists yet, and the version is
-  higher than every released one;
-- `.local-testing/local-check.json` reports a complete, green local check for
-  this commit, runtime tests included.
+- `main` ist ausgecheckt, sauber und gleich `origin/main`;
+- die Modulversion ist `x.y.z` oder `x.y.z-beta`, unter 1.0.0 eine Beta;
+- `CHANGELOG.md` hat einen nicht leeren Abschnitt für sie, datiert heute oder
+  früher, und unter `Unreleased` steht nichts mehr;
+- weder Tag noch Release dieses Namens gibt es schon, und die Version ist höher
+  als jede veröffentlichte;
+- `.local-testing/local-check.json` meldet eine vollständige, grüne lokale
+  Prüfung für genau diesen Commit, Laufzeit-Tests eingeschlossen.
 
-It then builds the package from the committed files (`git archive`), verifies
-it, creates the annotated tag `v<version>`, pushes it, creates the GitHub
-release - a pre-release for betas, otherwise the latest release - with the
-changelog section as its notes, uploads the ZIP and its `.sha256`, downloads
-both again and compares the checksum.
+Danach baut es das Paket aus den eingecheckten Dateien (`git archive`), prüft
+es, erstellt den Tag `v<version>`, pusht ihn, legt das GitHub-Release an – ein
+Pre-Release für Betas, sonst das neueste Release – mit dem Changelog-Abschnitt
+als Text, lädt ZIP und `.sha256` hoch, lädt beides wieder herunter und
+vergleicht die Prüfsumme.
 
-## GitHub's second confirmation
+## Zweite Bestätigung durch GitHub
 
-`.github/workflows/release-verify.yml` runs when a release is published. It
-checks out the tag, builds the package again and fails when the SHA-256 differs
-from the uploaded asset, or when the pre-release flag does not match the
-version. The package build is reproducible byte for byte, so a difference means
-the published ZIP was not built from that tag.
+`.github/workflows/release-verify.yml` läuft, sobald ein Release veröffentlicht
+ist. Es checkt den Tag aus, baut das Paket erneut und schlägt fehl, wenn die
+SHA-256 vom hochgeladenen Paket abweicht oder die Pre-Release-Markierung nicht
+zur Version passt. Das Paket wird Byte für Byte gleich gebaut; eine Abweichung
+heißt, das veröffentlichte ZIP stammt nicht von diesem Tag.

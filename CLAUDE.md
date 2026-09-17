@@ -18,13 +18,16 @@ German.
 - Flow: commit, draft PR, `python scripts/local_check.py`, its result as a PR
   comment, `gh pr ready` (wait about 10 s after the last push). Fabian merges;
   everything else - issues, checks, releases - is done here.
-- After Fabian merged a pull request that changes the package: switch to
-  `main`, pull, run `python scripts/local_check.py`, then
+- Several pull requests per release (issue #131, `docs/RELEASES.md`): a pull
+  request does not raise the version; it lists its changes in `CHANGELOG.md`
+  under `Unreleased` (German). The release step of the local check refuses a
+  changed package without such entries.
+- When a release is worthwhile (a few merged PRs, end of a milestone, an
+  important fix): a small release pull request raises `$this->version` and
+  moves the Unreleased entries into a dated section. After Fabian merged it:
+  switch to `main`, pull, `python scripts/local_check.py --all`, then
   `python scripts/release.py --check` and `python scripts/release.py`. Report
-  the release link so he can install the ZIP. See `docs/RELEASES.md`.
-- A pull request that changes the package raises the version and moves its
-  changelog entries into a dated section; the release step of the local check
-  refuses otherwise.
+  the release link so he can install the ZIP.
 
 ## Checks: local first, GitHub second
 
@@ -45,7 +48,7 @@ Results: `.local-testing/local-check.json`, logs in `.local-testing/logs/`.
 | codestyle | `scripts/check-codestyle.sh`: PHP_CodeSniffer 4.0.4 with Dolibarr 24.0.1's ruleset, severity 5, pinned by SHA-256 |
 | dolibarr | `scripts/check_dolibarr_api.py`: every function, class and core language key the module uses exists in branches 22.0, 23.0, 24.0 |
 | package | `scripts/build_release.py` from the Git working copy (tracked files only, output inside the repository as on GitHub) and from the snapshot: byte-identical, checked file by file |
-| release | `scripts/release.py` metadata: version scheme, changelog section, support matrix in descriptor, scripts, ci.yml and READMEs; version raised when the package changed since the last release |
+| release | `scripts/release.py` metadata: version scheme, changelog section, support matrix in descriptor, scripts, ci.yml and READMEs; a package changed since the last release has entries under Unreleased, a new version has none left there |
 | runtime | per Dolibarr 22.0.5, 23.0.4, 24.0.1 (ports 18042-18044, Mailpit 18142-18144 for the e-mails): upload the ZIP through *Deploy an external module*, enable in the module list, pages, setup with bad and good input, rights, REST API, disable and enable again, PHP messages from module code (ratchet) |
 | extra | deprecations on PHP 8.4, ShellCheck, OSV |
 

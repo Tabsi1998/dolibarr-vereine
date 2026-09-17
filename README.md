@@ -147,8 +147,9 @@ dunning module can then tell members apart by category and customer type.
 
 ## Versions and updates
 
-Every merged change is published as a release with its patch notes on the
-[releases page](https://github.com/Tabsi1998/dolibarr-vereine/releases).
+Changes are published in releases with their patch notes on the
+[releases page](https://github.com/Tabsi1998/dolibarr-vereine/releases),
+usually several merged changes at once.
 Versions below 1.0.0 are betas (`v0.1.0-beta`, `v0.1.1-beta`, ...) and marked
 as pre-releases; 1.0.0 is the first stable release. The file to install is
 always `module_vereine-x.y.z.zip` - without `-beta`, because Dolibarr only

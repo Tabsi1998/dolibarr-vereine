@@ -171,9 +171,9 @@ Kategorie und Kundentyp.
 
 ## Versionen und Updates
 
-Jede gemergte Änderung wird als Release mit Patchnotes auf der
-[Release-Seite](https://github.com/Tabsi1998/dolibarr-vereine/releases)
-veröffentlicht. Versionen unter 1.0.0 sind Betas (`v0.1.0-beta`,
+Änderungen erscheinen als Releases mit Patchnotes auf der
+[Release-Seite](https://github.com/Tabsi1998/dolibarr-vereine/releases),
+meist mehrere gemergte Änderungen auf einmal. Versionen unter 1.0.0 sind Betas (`v0.1.0-beta`,
 `v0.1.1-beta`, …) und als Pre-Release markiert; 1.0.0 ist das erste stabile
 Release. Die Datei zum Installieren heißt immer `module_vereine-x.y.z.zip` –
 ohne `-beta`, weil Dolibarr nur diesen Namen annimmt.
