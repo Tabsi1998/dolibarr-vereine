@@ -104,7 +104,7 @@ if ($action === 'download') {
 	readfile($file);
 	exit;
 } elseif ($action === 'sheet') {
-	$run = $signatures->fetch(GETPOSTINT('id'));
+	$run = $signatures->fetch(GETPOSTINT('signature'));
 	$file = $run !== null && $run['kind'] === VereineSignatureRules::KIND_LETTER ? VereineSignatures::sheetPath($run['id']) : '';
 	if ($file === '' || !is_file($file)) {
 		accessforbidden();
@@ -115,7 +115,7 @@ if ($action === 'download') {
 	readfile($file);
 	exit;
 } elseif ($action === 'signed') {
-	$run = $signatures->fetch(GETPOSTINT('id'));
+	$run = $signatures->fetch(GETPOSTINT('signature'));
 	$file = $run !== null && $run['kind'] === VereineSignatureRules::KIND_LETTER ? VereineSignatures::scanPath($run) : '';
 	if ($file === '') {
 		accessforbidden();
@@ -126,8 +126,8 @@ if ($action === 'download') {
 	readfile($file);
 	exit;
 } elseif ($action === 'startsign' && $canWrite) {
-	$id = GETPOSTINT('id');
-	$result = $signatures->start(VereineSignatureRules::KIND_LETTER, $id, $letters->path($id), $today, $user);
+	$letterId = GETPOSTINT('object');
+	$result = $signatures->start(VereineSignatureRules::KIND_LETTER, $letterId, $letters->path($letterId), $today, $user);
 	if ($result > 0) {
 		setEventMessages($langs->trans('VereineSignatureStarted'), null, 'mesgs');
 		header('Location: '.$_SERVER['PHP_SELF'].'#vereineletters');
@@ -135,7 +135,7 @@ if ($action === 'download') {
 	}
 	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $signatures->errors), 'errors');
 } elseif ($action === 'sign' && $canWrite) {
-	$run = $signatures->fetch(GETPOSTINT('id'));
+	$run = $signatures->fetch(GETPOSTINT('signature'));
 	$file = $run !== null ? $letters->path($run['object_id']) : '';
 	$result = $run === null ? 0 : $signatures->sign($run['id'], GETPOST('password', 'password'), $file, $user, $langs);
 	if ($result > 0) {
@@ -145,7 +145,7 @@ if ($action === 'download') {
 	}
 	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $run === null ? array('VereineSignatureErrorNotOpen') : $signatures->errors), 'errors');
 } elseif ($action === 'signscan' && $canWrite) {
-	$run = $signatures->fetch(GETPOSTINT('id'));
+	$run = $signatures->fetch(GETPOSTINT('signature'));
 	$upload = isset($_FILES['scan_file']) && is_array($_FILES['scan_file']) ? $_FILES['scan_file'] : array();
 	$result = $run === null ? 0 : $signatures->uploadScan($run['id'], $upload, $user, $langs);
 	if ($result > 0) {

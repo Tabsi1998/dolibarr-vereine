@@ -179,7 +179,7 @@ function vereineSignatureBlock($signatures, $kind, $objectId, $file, $canWrite, 
 			print '<form method="POST" action="'.$back.'" name="vereinestartsign'.$kind.$objectId.'">';
 			print '<input type="hidden" name="token" value="'.newToken().'">';
 			print '<input type="hidden" name="action" value="startsign">';
-			print '<input type="hidden" name="id" value="'.((int) $objectId).'">';
+			print '<input type="hidden" name="object" value="'.((int) $objectId).'">';
 			print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineSignatureStart')).'">';
 			print '</form>';
 		}
@@ -203,16 +203,16 @@ function vereineSignatureBlock($signatures, $kind, $objectId, $file, $canWrite, 
 		print '<div class="warning" data-signature-changed="1">'.$langs->trans('VereineSignatureChanged').'</div>';
 	}
 	if (is_file(VereineSignatures::sheetPath($run['id']))) {
-		print '<div><a href="'.$_SERVER['PHP_SELF'].'?action=sheet&amp;id='.$run['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineSignatureSheet').'</a></div>';
+		print '<div><a href="'.$_SERVER['PHP_SELF'].'?action=sheet&amp;signature='.$run['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineSignatureSheet').'</a></div>';
 	}
 	if (VereineSignatures::scanPath($run) !== '') {
-		print '<div><a href="'.$_SERVER['PHP_SELF'].'?action=signed&amp;id='.$run['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineSignatureScan').'</a></div>';
+		print '<div><a href="'.$_SERVER['PHP_SELF'].'?action=signed&amp;signature='.$run['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineSignatureScan').'</a></div>';
 	}
 	if ($run['status'] === VereineSignatures::STATUS_OPEN && $canWrite && $mine && !$run['document_changed']) {
 		print '<form method="POST" action="'.$back.'" name="vereinesign'.$run['id'].'" class="paddingtop">';
 		print '<input type="hidden" name="token" value="'.newToken().'">';
 		print '<input type="hidden" name="action" value="sign">';
-		print '<input type="hidden" name="id" value="'.$run['id'].'">';
+		print '<input type="hidden" name="signature" value="'.$run['id'].'">';
 		print '<input type="password" name="password" autocomplete="current-password" placeholder="'.dol_escape_htmltag($langs->trans('Password')).'"> ';
 		print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineSignatureSign')).'">';
 		print '</form>';
@@ -221,7 +221,7 @@ function vereineSignatureBlock($signatures, $kind, $objectId, $file, $canWrite, 
 		print '<form method="POST" action="'.$back.'" name="vereinesignscan'.$run['id'].'" enctype="multipart/form-data" class="paddingtop">';
 		print '<input type="hidden" name="token" value="'.newToken().'">';
 		print '<input type="hidden" name="action" value="signscan">';
-		print '<input type="hidden" name="id" value="'.$run['id'].'">';
+		print '<input type="hidden" name="signature" value="'.$run['id'].'">';
 		print '<input type="file" name="scan_file" accept="application/pdf"> ';
 		print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineSignatureUpload')).'">';
 		print '</form>';

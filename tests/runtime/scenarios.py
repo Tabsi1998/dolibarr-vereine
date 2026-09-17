@@ -2584,7 +2584,7 @@ def minutes(stack: Stack) -> str:
     # The paper way finishes it: the signed minutes come back as a scan.
     page = page_ok(browser.get(f"{base}?id={meeting}"), "meeting with the final version")
     scanned = b"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
-    page_ok(browser.post_multipart(f"{base}?id={meeting}", [("token", token_of(page)), ("action", "signscan"), ("id", run[0][0])],
+    page_ok(browser.post_multipart(f"{base}?id={meeting}", [("token", token_of(page)), ("action", "signscan"), ("signature", run[0][0])],
                                    [("scan_file", "protokoll-unterschrieben.pdf", scanned)]), "upload the signed minutes")
     expect(stack.value(f"SELECT status FROM llx_vereine_signature WHERE rowid = {run[0][0]}") == "done", "the scan did not finish the signature run")
 
@@ -2630,10 +2630,10 @@ def signatures(stack: Stack) -> str:
     run, status, signed, needed = runs[0]
     expect(status == "open" and signed == "0" and needed == "1", f"first run: {runs[0]}")
 
-    refused = page_ok(browser.post(base, [("token", token_of(letters)), ("action", "sign"), ("id", run), ("password", "falsch-" + stack.admin_password)]), "sign with a wrong password")
+    refused = page_ok(browser.post(base, [("token", token_of(letters)), ("action", "sign"), ("signature", run), ("password", "falsch-" + stack.admin_password)]), "sign with a wrong password")
     expect("Passwort stimmt nicht" in html.unescape(refused.text), "a wrong password signed the letter")
     expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_signature_person WHERE fk_signature = {run} AND signed_at IS NOT NULL") == "0", "a signature was stored without the password")
-    page_ok(browser.post(base, [("token", token_of(letters)), ("action", "sign"), ("id", run), ("password", stack.admin_password)]), "sign in Dolibarr")
+    page_ok(browser.post(base, [("token", token_of(letters)), ("action", "sign"), ("signature", run), ("password", stack.admin_password)]), "sign in Dolibarr")
     signed_row = stack.sql(f"SELECT way, signed_at IS NOT NULL FROM llx_vereine_signature_person WHERE fk_signature = {run}")
     state = stack.value(f"SELECT status FROM llx_vereine_signature WHERE rowid = {run}")
     expect(signed_row == [["click", "1"]] and state == "done", f"after signing: {signed_row}, status {state}")
@@ -2651,9 +2651,9 @@ def signatures(stack: Stack) -> str:
     paper = other[0][0]
     letters = page_ok(browser.get(base), "letters before the upload")
     scanned = b"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
-    refused = page_ok(browser.post_multipart(base, [("token", token_of(letters)), ("action", "signscan"), ("id", paper)], [("scan_file", "scan.txt", scanned)]), "upload a text file")
+    refused = page_ok(browser.post_multipart(base, [("token", token_of(letters)), ("action", "signscan"), ("signature", paper)], [("scan_file", "scan.txt", scanned)]), "upload a text file")
     expect("Nur eine PDF-Datei" in html.unescape(refused.text), "a file that is no PDF was stored as signed document")
-    page_ok(browser.post_multipart(base, [("token", token_of(letters)), ("action", "signscan"), ("id", paper)], [("scan_file", "unterschrieben.pdf", scanned)]), "upload the signed PDF")
+    page_ok(browser.post_multipart(base, [("token", token_of(letters)), ("action", "signscan"), ("signature", paper)], [("scan_file", "unterschrieben.pdf", scanned)]), "upload the signed PDF")
     paper_state = stack.sql(f"SELECT status, scan_name FROM llx_vereine_signature WHERE rowid = {paper}")
     ways = stack.sql(f"SELECT DISTINCT way FROM llx_vereine_signature_person WHERE fk_signature = {paper}")
     expect(paper_state and paper_state[0][0] == "done" and paper_state[0][1].startswith("unterschrieben-") and ways == [["paper"]],

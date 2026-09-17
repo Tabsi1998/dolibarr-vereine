@@ -232,7 +232,7 @@ if ($action === 'savemeeting' && $canWrite) {
 	}
 	setEventMessages($result < 0 ? $minutes->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $minutes->errors ? $minutes->errors : array('VereineMinutesErrorNobody')), 'errors');
 } elseif ($action === 'sheet' || $action === 'signed') {
-	$run = $signatures->fetch(GETPOSTINT('id'));
+	$run = $signatures->fetch(GETPOSTINT('signature'));
 	$file = '';
 	if ($run !== null && $run['kind'] === VereineSignatureRules::KIND_MINUTES) {
 		$file = $action === 'sheet' ? VereineSignatures::sheetPath($run['id']) : VereineSignatures::scanPath($run);
@@ -246,7 +246,7 @@ if ($action === 'savemeeting' && $canWrite) {
 	readfile($file);
 	exit;
 } elseif ($action === 'startsign' && $canWrite) {
-	$version = $minutes->version(GETPOSTINT('id'));
+	$version = $minutes->version(GETPOSTINT('object'));
 	$meeting = $version !== null ? $meetings->fetch($version['meeting_id']) : null;
 	$result = $meeting === null ? 0 : $signatures->start(VereineSignatureRules::KIND_MINUTES, $version['id'], VereineMinutes::path($version), $meeting['day'], $user);
 	if ($result > 0) {
@@ -256,7 +256,7 @@ if ($action === 'savemeeting' && $canWrite) {
 	}
 	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $signatures->errors ? $signatures->errors : array('VereineSignatureErrorDocument')), 'errors');
 } elseif (($action === 'sign' || $action === 'signscan') && $canWrite) {
-	$run = $signatures->fetch(GETPOSTINT('id'));
+	$run = $signatures->fetch(GETPOSTINT('signature'));
 	$version = $run !== null ? $minutes->version($run['object_id']) : null;
 	$file = $version !== null ? VereineMinutes::path($version) : '';
 	$message = 'VereineSignatureSigned';
