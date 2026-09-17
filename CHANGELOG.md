@@ -7,6 +7,36 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.5.4-beta] - 2026-09-17
+
+Meetings and their invitations (issue #94, first part of #9).
+
+### Added
+
+- *Members > Association > Meetings*: board meetings, ordinary and extraordinary
+  general assemblies with day, time, place, format and agenda. A general
+  assembly takes only the format the statutes allow (in person, virtual or
+  hybrid, § 1 VirtGesG); virtual participation needs its details (§ 2 (2) VirtGesG).
+- **Recipients, shown before sending:** a board meeting invites exactly the
+  board members on the day of the meeting, a general assembly every active
+  member, with who may vote under the statutes. Sending needs the confirmation
+  that the recipients are checked.
+- **Deadlines from the statutes:** invite by and motions by; an invitation after
+  the period of the statutes is marked. The meeting list warns when the last
+  ordinary general assembly is longer ago than the statutes or five years allow
+  (§ 5 (2) VerG).
+- **Invitation:** by e-mail through Dolibarr's mail sending, with agenda,
+  deadline for motions and a note for members without vote; one PDF with letters
+  for members without e-mail or when the statutes do not allow e-mail; an event
+  in the agenda. For every person the day, way and any sending error stay as
+  proof.
+- Meetings can be noted as held or cancelled.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once. That creates the
+tables of the meetings and the menu entry.
+
 ## [0.5.3-beta] - 2026-09-17
 
 Change of the statutes (issue #89).
@@ -812,7 +842,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.3-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.4-beta...HEAD
+[0.5.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.4-beta
 [0.5.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.3-beta
 [0.5.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.2-beta
 [0.5.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.1-beta

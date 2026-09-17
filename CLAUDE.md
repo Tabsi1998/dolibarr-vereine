@@ -46,7 +46,7 @@ Results: `.local-testing/local-check.json`, logs in `.local-testing/logs/`.
 | dolibarr | `scripts/check_dolibarr_api.py`: every function, class and core language key the module uses exists in branches 22.0, 23.0, 24.0 |
 | package | `scripts/build_release.py` from the Git working copy (tracked files only, output inside the repository as on GitHub) and from the snapshot: byte-identical, checked file by file |
 | release | `scripts/release.py` metadata: version scheme, changelog section, support matrix in descriptor, scripts, ci.yml and READMEs; version raised when the package changed since the last release |
-| runtime | per Dolibarr 22.0.5, 23.0.4, 24.0.1 (ports 18042-18044): upload the ZIP through *Deploy an external module*, enable in the module list, pages, setup with bad and good input, rights, REST API, disable and enable again, PHP messages from module code (ratchet) |
+| runtime | per Dolibarr 22.0.5, 23.0.4, 24.0.1 (ports 18042-18044, Mailpit 18142-18144 for the e-mails): upload the ZIP through *Deploy an external module*, enable in the module list, pages, setup with bad and good input, rights, REST API, disable and enable again, PHP messages from module code (ratchet) |
 | extra | deprecations on PHP 8.4, ShellCheck, OSV |
 
 The php, codestyle, package and runtime steps work on `.local-testing/snapshot`,

@@ -52,6 +52,7 @@ require_once $root.'/class/vereinemailingrules.class.php';
 require_once $root.'/class/vereinestatuterules.class.php';
 require_once $root.'/class/vereineauthorityrules.class.php';
 require_once $root.'/class/vereinestatutetext.class.php';
+require_once $root.'/class/vereinemeetingrules.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -939,6 +940,41 @@ same(array(), VereineStatuteText::compare($sections, $sections), 'the same statu
 $withoutTax = VereineStatuteText::compare($sections, VereineStatuteText::sections($statuteRules, VereineStatuteText::normalize(array('activities' => "Turniere\nTraining")), $statuteContext));
 same(array(0, 17), array(end($withoutTax)['new_number'], end($withoutTax)['old_number']), 'a section that is gone comes last with the old number only');
 
+// ---------------------------------------------------------------- meetings
+
+$meetingRules = VereineStatuteRules::normalize(array('invite_days' => '14', 'motion_days' => '3', 'invite_channels' => array('email', 'letter'), 'virtual' => 'hybrid',
+	'voting_types' => array('5')));
+$meeting = VereineMeetingRules::normalize(array('kind' => 'general', 'title' => ' Generalversammlung ', 'day' => '2026-10-01', 'time' => '19:30', 'format' => 'hybrid',
+	'place' => 'Vereinsheim', 'access' => 'Link folgt', 'agenda' => "Begrüßung\n\nWahlen\n"));
+same(array('general', 'Generalversammlung', array('Begrüßung', 'Wahlen')), array($meeting['kind'], $meeting['title'], $meeting['agenda']), 'a meeting as entered, agenda one item per line');
+same(array(), VereineMeetingRules::validate($meeting, $meetingRules), 'a hybrid general assembly the statutes allow');
+same(array('VereineMeetingErrorFormat'), VereineMeetingRules::validate(array('format' => 'physical') + $meeting, $meetingRules), 'a general assembly in person when the statutes say hybrid');
+same(array('VereineMeetingErrorMoment', 'VereineMeetingErrorAccess', 'VereineMeetingErrorAgenda'), VereineMeetingRules::validate(VereineMeetingRules::normalize(array('kind' => 'board',
+	'title' => 'Vorstand', 'day' => '2026-02-30', 'time' => '19:00', 'format' => 'virtual')), $meetingRules), 'a board meeting on no real day, virtual without access and without agenda');
+same(array(true, false, true), array(VereineMeetingRules::formatAllowed('board', 'physical', $meetingRules), VereineMeetingRules::formatAllowed('extraordinary', 'virtual', $meetingRules),
+	VereineMeetingRules::formatAllowed('general', 'physical', VereineStatuteRules::defaults())), 'formats: any for the board, the statutes decide for general assemblies');
+same(array('2026-09-17', '2026-09-28', '', ''), array(VereineMeetingRules::inviteBy($meeting, $meetingRules), VereineMeetingRules::motionsBy($meeting, $meetingRules),
+	VereineMeetingRules::inviteBy(array('kind' => 'board') + $meeting, $meetingRules), VereineMeetingRules::motionsBy($meeting, array('motion_days' => 0) + $meetingRules)),
+	'invite 14 days and motions 3 days before a general assembly; no period for the board, none for motions until the start');
+$people = array(
+	array('id' => 1, 'status' => 1, 'type_id' => 5, 'email' => 'chair@example.org', 'name' => 'Paula', 'board' => true),
+	array('id' => 2, 'status' => 1, 'type_id' => 6, 'email' => '', 'name' => 'Otto', 'board' => false),
+	array('id' => 3, 'status' => 0, 'type_id' => 5, 'email' => 'former@example.org', 'name' => 'Frieda', 'board' => true),
+	array('id' => 4, 'status' => 1, 'type_id' => 5, 'email' => 'not an address', 'name' => 'Karl', 'board' => true),
+	array('id' => 5, 'status' => 1, 'type_id' => 6, 'email' => 'nina@example.org', 'name' => 'Nina', 'board' => false),
+);
+same(array(array(1, 'email', true), array(4, 'letter', true)), array_map(function ($recipient) {
+	return array($recipient['member_id'], $recipient['channel'], $recipient['voting']);
+}, VereineMeetingRules::recipients('board', $people, $meetingRules)), 'a board meeting reaches the active board and nobody else; an invalid address gets a letter');
+same(array(array(1, 'email', true), array(2, 'letter', false), array(4, 'letter', true), array(5, 'email', false)), array_map(function ($recipient) {
+	return array($recipient['member_id'], $recipient['channel'], $recipient['voting']);
+}, VereineMeetingRules::recipients('general', $people, $meetingRules)), 'a general assembly reaches every active member; voting by member type');
+same(array('letter', 'letter'), array_column(VereineMeetingRules::recipients('general', array($people[0], $people[4]), array('invite_channels' => array('letter')) + $meetingRules), 'channel'),
+	'statutes without e-mail invite everyone by letter');
+same(array('', 'statutes', 'law', ''), array(VereineMeetingRules::generalOverdue('2025-10-01', '2026-09-17', $meetingRules),
+	VereineMeetingRules::generalOverdue('2025-09-01', '2026-09-17', $meetingRules), VereineMeetingRules::generalOverdue('2021-09-01', '2026-09-17', array('general_years' => 5) + $meetingRules),
+	VereineMeetingRules::generalOverdue('', '2026-09-17', $meetingRules)), 'the next general assembly under the statutes and at the latest after five years');
+
 // ---------------------------------------------------------------- mailings
 
 $people = array(
@@ -1085,7 +1121,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
@@ -1097,6 +1133,14 @@ $prefixes = array(
 	'VereineStatuteTextWording_' => array('none_bmi', 'bao_base', 'bao_a', 'bao_b', 'bao_c', 'donation_1', 'donation_2', 'donation_3', 'donation_4'),
 	'VereineStatuteTextProblem_' => array('purpose', 'activities', 'funds', 'board', 'board_term', 'board_terms_differ', 'auditors', 'assets', 'nonprofit'),
 	'VereineStatuteSource_' => array('generated', 'uploaded'),
+	'VereineMeetingKind_' => VereineMeetingRules::KINDS,
+	'VereineMeetingStatus_' => VereineMeetingRules::STATUSES,
+	'VereineMeetingFormat_' => VereineMeetingRules::FORMATS,
+	'VereineMeetingChannel_' => array(VereineMeetingRules::CHANNEL_EMAIL, VereineMeetingRules::CHANNEL_LETTER),
+	'VereineMeetingRecipientsHelp_' => VereineMeetingRules::KINDS,
+	'VereineMeetingMailIntro_' => VereineMeetingRules::KINDS,
+	'VereineMeetingMailFormat_' => array(VereineMeetingRules::FORMAT_VIRTUAL, VereineMeetingRules::FORMAT_HYBRID),
+	'VereineMeetingGeneralOverdue_' => array('statutes', 'law'),
 	'VereineLetterKind_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
 	'VereineLetterTitle_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
 	'VereineLetterHelp_' => VereineAuthorityRules::KINDS,

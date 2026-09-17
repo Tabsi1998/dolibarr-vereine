@@ -104,6 +104,9 @@ Vereinswebsite mit.
   ausgefüllt aus dem Modul; geprüft, als Vorschau und als Fassungen mit PDF,
   bestehende Statuten hochladen. Eine Änderung zeigt alt neben neu, als PDF für
   die Einladung, und erstellt die Anzeige an die Behörde (0.5.3).
+- **Sitzungen** (0.5.4): Vorstandssitzungen und Generalversammlungen mit
+  Tagesordnung; genau der Vorstand oder alle Mitglieder per E-Mail oder Brief
+  eingeladen, mit den Fristen der Statuten und Nachweis je Person.
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

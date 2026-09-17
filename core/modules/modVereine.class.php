@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '0.5.3-beta';
+		$this->version = '0.5.4-beta';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -203,6 +203,20 @@ class modVereine extends DolibarrModules
 			'mainmenu' => 'members',
 			'leftmenu' => 'vereine_functions',
 			'url' => '/vereine/functions.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->hasRight("vereine", "association", "read") && $user->hasRight("adherent", "lire")',
+			'target' => '',
+			'user' => 0,
+		);
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
+			'titre' => 'VereineMenuMeetings',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_meetings',
+			'url' => '/vereine/meetings.php',
 			'langs' => 'vereine@vereine',
 			'position' => 1100 + $r,
 			'enabled' => 'isModEnabled("vereine")',
