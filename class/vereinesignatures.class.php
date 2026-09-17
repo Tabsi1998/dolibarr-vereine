@@ -21,8 +21,9 @@
  * \brief   Signature runs of a document: who has to sign, who signed when and how, and the signature sheet.
  *
  * A run freezes the document with its SHA-256. Signing in Dolibarr asks the person for the password
- * of its own user; a scan of the signed paper finishes the run as well. A changed document needs a
- * new run, so a signature always belongs to exactly the file that was signed.
+ * of its own user, checked the way Dolibarr's login checks it; a scan of the signed paper finishes
+ * the run as well. A changed document needs a new run, so a signature always belongs to exactly the
+ * file that was signed.
  */
 
 require_once __DIR__.'/vereinesignaturerules.class.php';
@@ -288,7 +289,9 @@ class VereineSignatures
 	 */
 	public function sign($id, $password, $file, $user, $outputlangs)
 	{
-		require_once DOL_DOCUMENT_ROOT.'/core/lib/security.lib.php';
+		global $conf, $dolibarr_main_authentication;
+
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/security2.lib.php';
 
 		$this->errors = array();
 		$run = $this->fetch($id);
@@ -310,11 +313,19 @@ class VereineSignatures
 			$this->errors[] = 'VereineSignatureErrorNotYours';
 			return 0;
 		}
-		if ((string) $user->pass_indatabase_crypted === '') {
+		// The password is checked the way Dolibarr's login checks it, but only with the modes that
+		// really ask for a password. Web server or forced authentication would confirm anything.
+		$modes = array();
+		foreach (explode(',', (string) $dolibarr_main_authentication) as $mode) {
+			if (in_array(trim($mode), array('dolibarr', 'ldap'), true)) {
+				$modes[] = trim($mode);
+			}
+		}
+		if (!$modes) {
 			$this->errors[] = 'VereineSignatureErrorNoPassword';
 			return 0;
 		}
-		if ((string) $password === '' || !dol_verifyHash($password, $user->pass_indatabase_crypted)) {
+		if ((string) $password === '' || strtolower((string) checkLoginPassEntity($user->login, $password, $conf->entity, $modes)) !== strtolower((string) $user->login)) {
 			$this->errors[] = 'VereineSignatureErrorPassword';
 			return 0;
 		}

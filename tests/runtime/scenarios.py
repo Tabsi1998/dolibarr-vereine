@@ -2563,7 +2563,8 @@ def signatures(stack: Stack) -> str:
                         " WHERE f.code = 'obmann' AND t.date_end IS NULL ORDER BY t.rowid DESC LIMIT 1")
     expect(chair is not None, "the functions scenario should leave a chair in office")
     stack.sql(f"UPDATE llx_user SET fk_member = {chair} WHERE login = 'admin'")
-    page_ok(browser.submit(page.form(name="vereinesignaturerules"), {"rule[letter][roles][]": "obmann", "rule[letter][mode]": "all"}), "letters are signed by the chair")
+    page_ok(browser.submit(page.form(name="vereinesignaturerules"), {"rule[letter][roles][]": "obmann", "rule[letter][mode]": "all"},
+                            drop=("rule[letter][roles][]",)), "letters are signed by the chair")
     stored = json.loads(stack.const("VEREINE_SIGNATURE_RULES") or "{}")
     expect(stored.get("letter", {}).get("roles") == ["obmann"], f"stored signature rules: {stored.get('letter')}")
 
