@@ -53,6 +53,7 @@ require_once $root.'/class/vereinestatuterules.class.php';
 require_once $root.'/class/vereineauthorityrules.class.php';
 require_once $root.'/class/vereinestatutetext.class.php';
 require_once $root.'/class/vereinemeetingrules.class.php';
+require_once $root.'/class/vereineattendancerules.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -873,6 +874,8 @@ $statuteText = VereineStatuteText::normalize(array('activities' => "Turniere\n\n
 same(array(array('Turniere', 'Training'), array('Mitgliedsbeiträge'), 'bao', 'base', 3, true, false), array($statuteText['activities'], $statuteText['funds'], $statuteText['tax'],
 	$statuteText['asset'], $statuteText['arrears_months'], $statuteText['branches'], isset($statuteText['unknown'])), 'lists one entry per line, once; an unknown wording is the first of its kind');
 same(VereineStatuteText::defaults(), VereineStatuteText::normalize(array('tax' => array('bao'))), 'a tax kind is a text');
+same(array(1000, 500), array(mb_strlen(VereineStatuteText::normalize(array('asset_purpose' => str_repeat('Förderung ', 150)))['asset_purpose'], 'UTF-8'),
+	mb_strlen(VereineStatuteText::normalize(array('asset_recipient' => str_repeat('Verein ', 100)))['asset_recipient'], 'UTF-8')), 'a purpose of the assets up to 1000 characters, a recipient up to 500');
 same(array(), VereineStatuteText::validate(array('arrears_months' => '6', 'tax' => 'donation', 'asset' => '3')), 'valid text fields');
 same(array('VereineStatuteTextErrorArrears', 'VereineStatuteTextErrorAsset'), VereineStatuteText::validate(array('arrears_months' => '0', 'tax' => 'none', 'asset' => 'a')),
 	'no exclusion without months, and a tax wording without tax privilege');
@@ -974,6 +977,35 @@ same(array('letter', 'letter'), array_column(VereineMeetingRules::recipients('ge
 same(array('', 'statutes', 'law', ''), array(VereineMeetingRules::generalOverdue('2025-10-01', '2026-09-17', $meetingRules),
 	VereineMeetingRules::generalOverdue('2025-09-01', '2026-09-17', $meetingRules), VereineMeetingRules::generalOverdue('2021-09-01', '2026-09-17', array('general_years' => 5) + $meetingRules),
 	VereineMeetingRules::generalOverdue('', '2026-09-17', $meetingRules)), 'the next general assembly under the statutes and at the latest after five years');
+
+// -------------------------------------------------------------- attendance
+
+$proxyRules = array('proxy' => true, 'general_quorum' => 50) + $meetingRules;
+$voting = array(1 => true, 2 => true, 3 => true, 4 => true, 5 => false);
+$rows = VereineAttendanceRules::normalize(array(
+	1 => array('state' => 'present', 'arrived' => '18:30', 'left' => '20:00'),
+	2 => array('state' => 'represented', 'holder' => '1'),
+	3 => array('state' => 'present', 'holder' => '9', 'arrived' => 'x'),
+	5 => array('state' => 'nonsense'),
+), array(1, 2, 3, 4, 5));
+same(array('present', 'represented', 'present', 'absent', 'absent'), array_column($rows, 'state'), 'every invited member once, unknown states absent');
+same(array(1, 0, ''), array($rows[2]['holder'], $rows[3]['holder'], $rows[3]['arrived']), 'a holder only for a proxy, times only when valid');
+same(array(), VereineAttendanceRules::validate('general', $rows, $voting, $proxyRules), 'a proxy to a present voting member');
+same(array(2 => array('VereineAttendanceErrorProxyStatutes')), VereineAttendanceRules::validate('general', $rows, $voting, array('proxy' => false) + $proxyRules), 'no proxy without the statutes');
+same(array(2 => array('VereineAttendanceErrorProxyBoard')), VereineAttendanceRules::validate('board', $rows, $voting, $proxyRules), 'no proxy on the board');
+same(array(5 => array('VereineAttendanceErrorProxyHolder'), 4 => array('VereineAttendanceErrorProxyAbsent')), VereineAttendanceRules::validate('general', array(
+	5 => array('state' => 'represented', 'holder' => 1, 'arrived' => '', 'left' => ''), 4 => array('state' => 'represented', 'holder' => 2, 'arrived' => '', 'left' => ''),
+) + $rows, $voting, $proxyRules), 'a member without vote cannot give a proxy, and the holder has to be present');
+same(array(1 => array('VereineAttendanceErrorTimes')), VereineAttendanceRules::validate('general', array(1 => array('left' => '18:00') + $rows[1]) + $rows, $voting, $proxyRules),
+	'leaving before arriving');
+$quorum = VereineAttendanceRules::quorum('general', $rows, $voting, $proxyRules, '19:00');
+same(array(4, 2, 1, 3, 2, true), array($quorum['eligible'], $quorum['present'], $quorum['represented'], $quorum['votes'], $quorum['required'], $quorum['reached']),
+	'at 19:00 two present and one represented of four voting members, half needed');
+$quorum = VereineAttendanceRules::quorum('general', $rows, $voting, $proxyRules, '20:30');
+same(array(1, 0, 1, false), array($quorum['present'], $quorum['represented'], $quorum['votes'], $quorum['reached']), 'after the holder left, the proxy counts no more and the quorum is gone');
+same(true, VereineAttendanceRules::quorum('general', $rows, $voting, array('general_quorum' => 0) + $proxyRules, '20:30')['reached'], 'regardless of the number present');
+$board = VereineAttendanceRules::quorum('board', $rows, $voting, $proxyRules, '19:00');
+same(array(2, 0, 2, true), array($board['present'], $board['represented'], $board['required'], $board['reached']), 'the board counts only who is present, half of four');
 
 // ---------------------------------------------------------------- mailings
 
@@ -1121,7 +1153,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
@@ -1141,6 +1173,8 @@ $prefixes = array(
 	'VereineMeetingMailIntro_' => VereineMeetingRules::KINDS,
 	'VereineMeetingMailFormat_' => array(VereineMeetingRules::FORMAT_VIRTUAL, VereineMeetingRules::FORMAT_HYBRID),
 	'VereineMeetingGeneralOverdue_' => array('statutes', 'law'),
+	'VereineAttendanceState_' => VereineAttendanceRules::STATES,
+	'VereineAttendanceHowTo_' => array('board', 'general'),
 	'VereineLetterKind_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
 	'VereineLetterTitle_' => array_merge(array(VereineAuthorityRules::KIND_REPRESENTATIVES), VereineAuthorityRules::KINDS),
 	'VereineLetterHelp_' => VereineAuthorityRules::KINDS,

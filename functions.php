@@ -247,7 +247,7 @@ if ($canWrite) {
 		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?day='.urlencode($day).'" name="vereinemarkreported" class="inline-block">';
 		print '<input type="hidden" name="token" value="'.newToken().'">';
 		print '<input type="hidden" name="action" value="markreported">';
-		print '<label for="reported_on">'.$langs->trans('VereineReportReportedOn').'</label> <input type="date" id="reported_on" name="reported_on" value="'.$today.'"> ';
+		print '<label for="reported_on" class="fieldrequired">'.$langs->trans('VereineReportReportedOn').'</label> <input type="date" id="reported_on" name="reported_on" value="'.$today.'"> ';
 		print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineReportMark')).'">';
 		print '</form>';
 	}

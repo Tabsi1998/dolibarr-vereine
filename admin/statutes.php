@@ -126,8 +126,8 @@ if ($action === 'saverules') {
 
 if ($action === 'savetext') {
 	$wording = explode(':', GETPOST('wording', 'alphanohtml').':');
-	$shownText = array('area' => GETPOST('area', 'alphanohtml'), 'admission' => GETPOST('admission', 'alphanohtml'), 'asset_purpose' => GETPOST('asset_purpose', 'alphanohtml'),
-		'asset_recipient' => GETPOST('asset_recipient', 'alphanohtml'), 'activities' => GETPOST('activities', 'restricthtml'), 'funds' => GETPOST('funds', 'restricthtml'),
+	$shownText = array('area' => GETPOST('area', 'alphanohtml'), 'admission' => GETPOST('admission', 'alphanohtml'), 'asset_purpose' => GETPOST('asset_purpose', 'restricthtml'),
+		'asset_recipient' => GETPOST('asset_recipient', 'restricthtml'), 'activities' => GETPOST('activities', 'restricthtml'), 'funds' => GETPOST('funds', 'restricthtml'),
 		'branches' => GETPOSTISSET('branches') ? 1 : 0, 'legal_persons' => GETPOSTISSET('legal_persons') ? 1 : 0, 'arrears_months' => GETPOST('arrears_months', 'alphanohtml'),
 		'tax' => $wording[0], 'asset' => $wording[1]);
 	$result = $statutes->saveText($shownText, $user);
@@ -248,7 +248,7 @@ print '<input type="hidden" name="action" value="saverules">';
 
 print load_fiche_titre($langs->trans('VereineStatutesMembership'), '', '');
 print '<table class="border centpercent">';
-print '<tr><td class="titlefieldcreate"><label for="min_age">'.$langs->trans('VereineStatuteMinAge').'</label></td>';
+print '<tr><td class="titlefieldcreate fieldrequired"><label for="min_age">'.$langs->trans('VereineStatuteMinAge').'</label></td>';
 print '<td>'.$number('min_age', $shown['min_age'], 99).' <span class="opacitymedium small">'.$langs->trans('VereineStatuteMinAgeHelp').'</span></td></tr>';
 print '<tr><td>'.$langs->trans('VereineStatuteVotingTypes').'</td><td>';
 $feeModel = new VereineFeeModel($db);
@@ -265,34 +265,34 @@ print '</table><br>';
 
 print load_fiche_titre($langs->trans('VereineStatutesGeneral'), '', '');
 print '<table class="border centpercent">';
-print '<tr><td class="titlefieldcreate"><label for="general_years">'.$langs->trans('VereineStatuteGeneralYears').'</label></td>';
+print '<tr><td class="titlefieldcreate fieldrequired"><label for="general_years">'.$langs->trans('VereineStatuteGeneralYears').'</label></td>';
 print '<td>'.$number('general_years', $shown['general_years'], VereineStatuteRules::GENERAL_MAX_YEARS).' '.$langs->trans('VereineStatuteGeneralYearsUnit').'</td></tr>';
-print '<tr><td><label for="invite_days">'.$langs->trans('VereineStatuteInviteDays').'</label></td>';
+print '<tr><td class="fieldrequired"><label for="invite_days">'.$langs->trans('VereineStatuteInviteDays').'</label></td>';
 print '<td>'.$number('invite_days', $shown['invite_days'], VereineStatuteRules::MAX_DAYS).' '.$langs->trans('VereineStatuteDaysBefore').'</td></tr>';
-print '<tr><td>'.$langs->trans('VereineStatuteInviteChannels').'</td><td>';
+print '<tr><td class="fieldrequired">'.$langs->trans('VereineStatuteInviteChannels').'</td><td>';
 $channels = is_array($shown['invite_channels']) ? $shown['invite_channels'] : array();
 foreach (VereineStatuteRules::CHANNELS as $channel) {
 	print '<label class="paddingright"><input type="checkbox" name="invite_channels[]" value="'.$channel.'"'.$checked(in_array($channel, $channels, true)).'> ';
 	print $langs->trans('VereineStatuteChannel_'.$channel).'</label> ';
 }
 print '</td></tr>';
-print '<tr><td><label for="motion_days">'.$langs->trans('VereineStatuteMotionDays').'</label></td>';
+print '<tr><td class="fieldrequired"><label for="motion_days">'.$langs->trans('VereineStatuteMotionDays').'</label></td>';
 print '<td>'.$number('motion_days', $shown['motion_days'], VereineStatuteRules::MAX_DAYS).' '.$langs->trans('VereineStatuteDaysBefore').'</td></tr>';
 print '<tr><td></td><td><label><input type="checkbox" id="proxy" name="proxy" value="1"'.$checked($shown['proxy']).'> '.$langs->trans('VereineStatuteProxy').'</label></td></tr>';
-print '<tr><td><label for="general_quorum">'.$langs->trans('VereineStatuteGeneralQuorum').'</label></td>';
+print '<tr><td class="fieldrequired"><label for="general_quorum">'.$langs->trans('VereineStatuteGeneralQuorum').'</label></td>';
 print '<td>'.$number('general_quorum', $shown['general_quorum'], 100).' <span class="opacitymedium small">'.$langs->trans('VereineStatuteGeneralQuorumHelp').'</span></td></tr>';
-print '<tr><td><label for="statute_majority">'.$langs->trans('VereineStatuteStatuteMajority').'</label></td>';
+print '<tr><td class="fieldrequired"><label for="statute_majority">'.$langs->trans('VereineStatuteStatuteMajority').'</label></td>';
 print '<td>'.$select('statute_majority', VereineStatuteRules::MAJORITIES, 'VereineStatuteMajority_', $shown['statute_majority']).'</td></tr>';
-print '<tr><td><label for="dissolution_majority">'.$langs->trans('VereineStatuteDissolutionMajority').'</label></td>';
+print '<tr><td class="fieldrequired"><label for="dissolution_majority">'.$langs->trans('VereineStatuteDissolutionMajority').'</label></td>';
 print '<td>'.$select('dissolution_majority', VereineStatuteRules::MAJORITIES, 'VereineStatuteMajority_', $shown['dissolution_majority']).'</td></tr>';
-print '<tr><td><label for="virtual">'.$langs->trans('VereineStatuteVirtual').'</label></td>';
+print '<tr><td class="fieldrequired"><label for="virtual">'.$langs->trans('VereineStatuteVirtual').'</label></td>';
 print '<td>'.$select('virtual', VereineStatuteRules::VIRTUALS, 'VereineStatuteVirtual_', $shown['virtual']);
 print '<br><span class="opacitymedium small">'.$langs->trans('VereineStatuteVirtualHelp').'</span></td></tr>';
 print '</table><br>';
 
 print load_fiche_titre($langs->trans('VereineStatutesBoard'), '', '');
 print '<table class="border centpercent">';
-print '<tr><td class="titlefieldcreate"><label for="board_quorum">'.$langs->trans('VereineStatuteBoardQuorum').'</label></td>';
+print '<tr><td class="titlefieldcreate fieldrequired"><label for="board_quorum">'.$langs->trans('VereineStatuteBoardQuorum').'</label></td>';
 print '<td>'.$number('board_quorum', $shown['board_quorum'], 100).' '.$langs->trans('VereineStatuteBoardQuorumUnit').'</td></tr>';
 print '<tr><td></td><td><label><input type="checkbox" id="board_tie_chair" name="board_tie_chair" value="1"'.$checked($shown['board_tie_chair']).'> ';
 print $langs->trans('VereineStatuteBoardTieChair').'</label></td></tr>';
@@ -355,9 +355,9 @@ print '<tr><td><label for="admission">'.$langs->trans('VereineStatuteTextAdmissi
 print '<td><input type="text" id="admission" name="admission" class="minwidth300" maxlength="255" value="'.dol_escape_htmltag($shownText['admission']).'">';
 print ' <span class="opacitymedium small">'.$langs->trans('VereineStatuteTextAdmissionHelp').'</span></td></tr>';
 print '<tr><td></td><td><label><input type="checkbox" name="legal_persons" value="1"'.$checked($shownText['legal_persons']).'> '.$langs->trans('VereineStatuteTextLegalPersons').'</label></td></tr>';
-print '<tr><td><label for="arrears_months">'.$langs->trans('VereineStatuteTextArrears').'</label></td>';
+print '<tr><td class="fieldrequired"><label for="arrears_months">'.$langs->trans('VereineStatuteTextArrears').'</label></td>';
 print '<td>'.$number('arrears_months', $shownText['arrears_months'], 24).' '.$langs->trans('VereineStatuteTextArrearsUnit').'</td></tr>';
-print '<tr><td class="tdtop"><label for="wording">'.$langs->trans('VereineStatuteTextWording').'</label></td><td><select id="wording" name="wording" class="minwidth300">';
+print '<tr><td class="tdtop fieldrequired"><label for="wording">'.$langs->trans('VereineStatuteTextWording').'</label></td><td><select id="wording" name="wording" class="minwidth300">';
 foreach (VereineStatuteText::ASSETS as $tax => $assets) {
 	print '<optgroup label="'.dol_escape_htmltag($langs->trans('VereineStatuteTextTax_'.$tax)).'">';
 	foreach ($assets as $asset) {
@@ -367,10 +367,10 @@ foreach (VereineStatuteText::ASSETS as $tax => $assets) {
 	print '</optgroup>';
 }
 print '</select><div class="opacitymedium small">'.$langs->trans('VereineStatuteTextWordingHelp').'</div></td></tr>';
-print '<tr><td><label for="asset_purpose">'.$langs->trans('VereineStatuteTextAssetPurpose').'</label></td>';
-print '<td><input type="text" id="asset_purpose" name="asset_purpose" class="minwidth300" maxlength="255" value="'.dol_escape_htmltag($shownText['asset_purpose']).'"></td></tr>';
-print '<tr><td><label for="asset_recipient">'.$langs->trans('VereineStatuteTextAssetRecipient').'</label></td>';
-print '<td><input type="text" id="asset_recipient" name="asset_recipient" class="minwidth300" maxlength="255" value="'.dol_escape_htmltag($shownText['asset_recipient']).'"></td></tr>';
+print '<tr><td class="tdtop"><label for="asset_purpose">'.$langs->trans('VereineStatuteTextAssetPurpose').'</label></td>';
+print '<td><textarea id="asset_purpose" name="asset_purpose" rows="3" class="centpercent" maxlength="1000">'.dol_escape_htmltag($shownText['asset_purpose'], 0, 1).'</textarea></td></tr>';
+print '<tr><td class="tdtop"><label for="asset_recipient">'.$langs->trans('VereineStatuteTextAssetRecipient').'</label></td>';
+print '<td><textarea id="asset_recipient" name="asset_recipient" rows="2" class="centpercent" maxlength="500">'.dol_escape_htmltag($shownText['asset_recipient'], 0, 1).'</textarea></td></tr>';
 print '</table>';
 print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'"></div>';
 print '</form><br>';
@@ -394,7 +394,7 @@ print '<h3 class="center">'.dol_escape_htmltag('Statuten des Vereins „'.$conte
 foreach (VereineStatuteText::sections($rules, $text, $context) as $section) {
 	print '<h4 data-section-number="'.$section['number'].'">§ '.$section['number'].': '.dol_escape_htmltag($section['title']).'</h4>';
 	foreach ($section['paragraphs'] as $paragraph) {
-		print '<p>'.nl2br(dol_escape_htmltag($paragraph)).'</p>';
+		print vereineStatuteParagraphHtml($paragraph);
 	}
 }
 print '</div>';
@@ -423,8 +423,8 @@ if ($comparison['state'] === 'none') {
 	foreach ($comparison['changes'] as $change) {
 		print '<tr class="oddeven tdtop" data-changed-section="'.dol_escape_htmltag($change['title']).'">';
 		foreach (array('old' => 'old_number', 'new' => 'new_number') as $side => $number) {
-			print '<td class="tdtop">'.($change[$number] > 0 ? '<strong>§ '.$change[$number].': '.dol_escape_htmltag($change['title']).'</strong><br>'
-				.nl2br(dol_escape_htmltag(implode("\n", $change[$side]))) : '<span class="opacitymedium">-</span>').'</td>';
+			print '<td class="tdtop">'.($change[$number] > 0 ? '<strong>§ '.$change[$number].': '.dol_escape_htmltag($change['title']).'</strong>'
+				.implode('', array_map('vereineStatuteParagraphHtml', $change[$side])) : '<span class="opacitymedium">-</span>').'</td>';
 		}
 		print '</tr>';
 	}

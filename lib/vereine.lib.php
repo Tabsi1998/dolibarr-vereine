@@ -36,6 +36,33 @@ function vereineFormatDay($date)
 }
 
 /**
+ * A paragraph of the statutes as HTML: its number hanging, list items one per line and indented.
+ *
+ * @param string $paragraph Paragraph of VereineStatuteText::sections(), list items after line breaks
+ * @return string HTML
+ */
+function vereineStatuteParagraphHtml($paragraph)
+{
+	$lines = explode("\n", (string) $paragraph);
+	$first = array_shift($lines);
+	if (preg_match('/^(\(\d+\)) (.*)$/s', $first, $parts)) {
+		$html = '<div class="statute-paragraph" style="display:flex; margin:0.4em 0;"><span style="flex:0 0 2.5em;">'.dol_escape_htmltag($parts[1]).'</span>';
+		$html .= '<span style="flex:1;">'.dol_escape_htmltag($parts[2]);
+	} else {
+		$html = '<div class="statute-paragraph" style="display:flex; margin:0.4em 0;"><span style="flex:1;">'.dol_escape_htmltag($first);
+	}
+	foreach ($lines as $line) {
+		if (preg_match('/^([a-z]\)) (.*)$/s', $line, $parts)) {
+			$html .= '<span class="statute-item" data-statute-item="1" style="display:flex; margin-top:0.2em;"><span style="flex:0 0 2em; padding-left:0.5em;">'.dol_escape_htmltag($parts[1]).'</span>';
+			$html .= '<span style="flex:1;">'.dol_escape_htmltag($parts[2]).'</span></span>';
+		} else {
+			$html .= '<br>'.dol_escape_htmltag($line);
+		}
+	}
+	return $html.'</span></div>';
+}
+
+/**
  * The ages of a discount rule in plain words.
  *
  * @param array<string,mixed> $rule Discount rule

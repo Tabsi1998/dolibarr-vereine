@@ -7,6 +7,41 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.5.5-beta] - 2026-09-17
+
+Attendance, proxies and quorum (issue #95, second part of #9), the layout of the
+statutes (issue #101) and required fields in bold (issue #102).
+
+### Added
+
+- Meetings that were invited to get an attendance list of the invited members:
+  present with arrival and leaving time, excused, absent, or represented by a
+  written proxy.
+- **Proxies** only where the statutes allow them, from a voting member to
+  another voting member who is present, and never on the board: board functions
+  are exercised in person.
+- **Quorum**, shown at any time of the meeting: for a general assembly the votes
+  of the members present plus their proxies against the share of the statutes
+  (or regardless of the number present), for the board the members present
+  against the share of the statutes. When a proxy holder leaves, the proxy no
+  longer counts.
+
+### Fixed
+
+- The preview of the statutes and the comparison of a change showed the lists
+  in one line with a written `\n`. Lists are one item per line now, indented,
+  and paragraph numbers hang in front of their text, in the PDF too.
+- The purpose the assets go to on dissolution takes up to 1000 characters in a
+  larger field, the recipient up to 500.
+- Required fields are bold, as everywhere in Dolibarr: rules and text of the
+  statutes, fee settings, letters to the authority, exit and function on the
+  member, day of the report (issue #102).
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once. That creates the
+table of the attendance.
+
 ## [0.5.4-beta] - 2026-09-17
 
 Meetings and their invitations (issue #94, first part of #9).
@@ -842,7 +877,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.4-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.5-beta...HEAD
+[0.5.5-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.5-beta
 [0.5.4-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.4-beta
 [0.5.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.3-beta
 [0.5.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.2-beta

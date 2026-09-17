@@ -136,6 +136,25 @@ if ($action === 'savemeeting' && $canWrite) {
 		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id);
 		exit;
 	}
+} elseif ($action === 'saveattendance' && $canWrite) {
+	$result = $meetings->saveAttendance($id, (array) GETPOST('attendance', 'array'), $user);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineAttendanceSaved'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id.'#vereineattendance');
+		exit;
+	}
+	if ($result < 0) {
+		setEventMessages($meetings->error, null, 'errors');
+	} else {
+		$names = $meetings->attendance($id)['names'];
+		$messages = array_map(array($langs, 'trans'), $meetings->errors);
+		foreach ($meetings->rowErrors as $memberId => $keys) {
+			foreach ($keys as $key) {
+				$messages[] = $langs->trans('VereineAttendanceErrorRow', isset($names[$memberId]) ? $names[$memberId] : $memberId, $langs->transnoentitiesnoconv($key));
+			}
+		}
+		setEventMessages(null, $messages, 'errors');
+	}
 } elseif ($action === 'letters') {
 	$file = VereineMeetings::lettersPath($id);
 	if ($meetings->fetch($id) === null || !is_file($file)) {
@@ -312,6 +331,61 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 	if (is_file(VereineMeetings::lettersPath($meeting['id']))) {
 		print '<div class="paddingtop"><a href="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'&amp;action=letters&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineMeetingLetters').'</a></div>';
 	}
+	// Attendance, proxies and quorum.
+	$attendance = $meetings->attendance($meeting['id']);
+	$at = GETPOST('at', 'alpha');
+	$at = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $at) ? $at : '';
+	$quorum = VereineAttendanceRules::quorum($meeting['kind'], $attendance['rows'], $attendance['voting'], $rules, $at);
+	print '<br>'.load_fiche_titre($langs->trans('VereineAttendance'), '', '', 0, 'vereineattendance');
+	print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineAttendanceHowTo_'.($meeting['kind'] === VereineMeetingRules::KIND_BOARD ? 'board' : 'general')).'</div>';
+	print '<div class="'.($quorum['reached'] ? 'ok' : 'warning').'" data-quorum-reached="'.($quorum['reached'] ? 1 : 0).'" data-votes="'.$quorum['votes'].'" data-present="'.$quorum['present'].'"';
+	print ' data-represented="'.$quorum['represented'].'" data-eligible="'.$quorum['eligible'].'" data-required="'.$quorum['required'].'" data-at="'.$at.'">';
+	print $langs->trans($quorum['reached'] ? 'VereineAttendanceReached' : 'VereineAttendanceMissing').' ';
+	print $meeting['kind'] === VereineMeetingRules::KIND_BOARD ? $langs->trans('VereineAttendanceQuorumBoard', $quorum['present'], $quorum['eligible'], max(1, $quorum['required']))
+		: $langs->trans('VereineAttendanceQuorumGeneral', $quorum['votes'], $quorum['present'], $quorum['represented'], $quorum['required']).' '.$langs->trans('VereineAttendanceEligible', $quorum['eligible']);
+	print '</div>';
+	print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'#vereineattendance" name="vereinequorumat" class="paddingtop paddingbottom">';
+	print '<input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="id" value="'.$meeting['id'].'">';
+	print '<label>'.$langs->trans('VereineAttendanceAt').' <input type="time" name="at" value="'.dol_escape_htmltag($at).'"></label> ';
+	print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineAttendanceAtShow')).'">';
+	print '</form>';
+	if ($canWrite) {
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'#vereineattendance" name="vereineattendance">';
+		print '<input type="hidden" name="token" value="'.newToken().'">';
+		print '<input type="hidden" name="action" value="saveattendance">';
+	}
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+	print '<tr class="liste_titre"><td>'.$langs->trans('Name').'</td><td>'.$langs->trans('VereineMeetingVoting').'</td><td>'.$langs->trans('Status').'</td>';
+	print '<td>'.$langs->trans('VereineAttendanceHolder').'</td><td>'.$langs->trans('VereineAttendanceArrived').'</td><td>'.$langs->trans('VereineAttendanceLeft').'</td></tr>';
+	foreach ($attendance['rows'] as $memberId => $row) {
+		print '<tr class="oddeven" data-attendance="'.$memberId.'" data-state="'.$row['state'].'" data-voting="'.(!empty($attendance['voting'][$memberId]) ? 1 : 0).'">';
+		print '<td>'.dol_escape_htmltag($attendance['names'][$memberId]).'</td><td>'.yn(!empty($attendance['voting'][$memberId])).'</td>';
+		if (!$canWrite) {
+			print '<td>'.$langs->trans('VereineAttendanceState_'.$row['state']).'</td><td>'.($row['holder'] > 0 && isset($attendance['names'][$row['holder']]) ? dol_escape_htmltag($attendance['names'][$row['holder']]) : '').'</td>';
+			print '<td>'.dol_escape_htmltag($row['arrived']).'</td><td>'.dol_escape_htmltag($row['left']).'</td></tr>';
+			continue;
+		}
+		print '<td><select name="attendance['.$memberId.'][state]">';
+		foreach (VereineAttendanceRules::STATES as $state) {
+			print '<option value="'.$state.'"'.($row['state'] === $state ? ' selected' : '').'>'.$langs->trans('VereineAttendanceState_'.$state).'</option>';
+		}
+		print '</select></td><td><select name="attendance['.$memberId.'][holder]"><option value="0"></option>';
+		foreach ($attendance['names'] as $holderId => $name) {
+			if ($holderId !== $memberId && !empty($attendance['voting'][$holderId])) {
+				print '<option value="'.$holderId.'"'.($row['holder'] === $holderId ? ' selected' : '').'>'.dol_escape_htmltag($name).'</option>';
+			}
+		}
+		print '</select></td>';
+		print '<td><input type="time" name="attendance['.$memberId.'][arrived]" value="'.dol_escape_htmltag($row['arrived']).'"></td>';
+		print '<td><input type="time" name="attendance['.$memberId.'][left]" value="'.dol_escape_htmltag($row['left']).'"></td></tr>';
+	}
+	print '</table></div>';
+	if ($canWrite) {
+		print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('VereineAttendanceSave')).'"></div>';
+		print '</form>';
+	}
+
 	if ($canWrite && $meeting['status'] === VereineMeetingRules::STATUS_INVITED) {
 		print '<div class="center paddingtop">';
 		foreach (array('held' => 'VereineMeetingMarkHeld', 'cancel' => 'VereineMeetingMarkCancelled') as $status => $label) {

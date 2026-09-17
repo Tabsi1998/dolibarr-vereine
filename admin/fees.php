@@ -396,7 +396,7 @@ print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereinesepa">
 print '<input type="hidden" name="token" value="'.newToken().'">';
 print '<input type="hidden" name="action" value="savesepa">';
 print '<table class="border centpercent">';
-print '<tr><td class="titlefieldcreate"><label for="sepa_notice_days">'.$langs->trans('VereineSepaNoticeDays').'</label></td>';
+print '<tr><td class="titlefieldcreate fieldrequired"><label for="sepa_notice_days">'.$langs->trans('VereineSepaNoticeDays').'</label></td>';
 print '<td><input type="number" min="1" max="'.VereineSepa::MAX_NOTICE_DAYS.'" id="sepa_notice_days" name="sepa_notice_days" class="width50" value="'.dol_escape_htmltag($sepaDays).'">';
 print ' <span class="opacitymedium small">'.$langs->trans('VereineSepaNoticeDaysHelp').'</span></td></tr>';
 print '</table>';
@@ -422,7 +422,7 @@ print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereineexitru
 print '<input type="hidden" name="token" value="'.newToken().'">';
 print '<input type="hidden" name="action" value="saveexitrule">';
 print '<table class="border centpercent">';
-print '<tr><td class="titlefieldcreate"><label for="exit_months">'.$langs->trans('VereineExitMonths').'</label></td>';
+print '<tr><td class="titlefieldcreate fieldrequired"><label for="exit_months">'.$langs->trans('VereineExitMonths').'</label></td>';
 print '<td><input type="number" min="0" max="'.VereineExitRules::MAX_MONTHS.'" id="exit_months" name="exit_months" class="width50" value="'.dol_escape_htmltag((string) $exitEdit['months']).'"></td></tr>';
 print '<tr><td><label for="exit_at">'.$langs->trans('VereineExitAt').'</label></td><td>'.Form::selectarray('exit_at', $atOptions, $exitEdit['at'], 0, 0, 0, '', 0, 0, 0, '', 'minwidth200').'</td></tr>';
 print '<tr><td><label for="exit_start_month">'.$langs->trans('VereineExitStartMonth').'</label></td><td>'.Form::selectarray('exit_start_month', $monthOptions, $exitEdit['start_month'], 0, 0, 0, '', 0, 0, 0, '', 'minwidth200').'</td></tr>';
