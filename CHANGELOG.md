@@ -7,6 +7,26 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.4.2-beta] - 2026-09-17
+
+Officers, part 3 (issue #78): the board for a website.
+
+### Added
+
+- `GET /vereine/board`: the functions with their holders today. A name comes
+  only with the holder's consent (a consent text chosen in the setup), or for
+  the board always when the website must disclose it (§ 25 (2) MedienG); other
+  names stay `null`.
+- Setup tab *Functions*, section *Board on the website*: names only with consent
+  or board always with names, and the consent text, with an explanation of the
+  disclosure duty.
+- The member summary lists the member's own functions (`functions`); a function
+  that starts or ends counts as a change for `changed_since`.
+
+### Upgrade
+
+Deploy the new ZIP. Nothing to activate again.
+
 ## [0.4.1-beta] - 2026-09-17
 
 Officers, part 2 (issue #77): report to the association authority within four
@@ -634,7 +654,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.4.1-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.4.2-beta...HEAD
+[0.4.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.2-beta
 [0.4.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.1-beta
 [0.4.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.0-beta
 [0.3.11-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.11-beta

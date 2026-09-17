@@ -1945,6 +1945,56 @@ def authority(stack: Stack) -> str:
             "noted as reported: no open report, agenda event done, letter without new marks")
 
 
+def board(stack: Stack) -> str:
+    """A website reads the board: names only with consent, or for the board always when it must be disclosed."""
+    site = stack.notes["website"]
+    key, members = site["key"], site["members"]
+    karl = int(stack.value("SELECT rowid FROM llx_adherent WHERE firstname = 'Karl' AND lastname = 'Austritt'"))
+    browser = stack.browser()
+
+    def holders() -> dict:
+        status, body = stack.api("vereine/board", key)
+        expect(status == 200 and isinstance(body, list), f"GET vereine/board answered HTTP {status}: {body}")
+        return {function["code"]: [holder["name"] for holder in function["holders"]] for function in body}
+
+    before = holders()
+    expect(before["obmann"] == [None] and before["kassier"] == [None] and set(before["rechnungspruefung"]) == {None},
+           f"names without any setting: {before}")
+    for who, name in ((stack.reader_key, "a user without the website right"), (stack.nobody_key, "a user without rights")):
+        status, _ = stack.api("vereine/board", who)
+        expect(status == 403, f"{name} got HTTP {status} for the board, expected 403")
+
+    page = page_ok(browser.get("/custom/vereine/admin/consents.php"), "consent setup")
+    page_ok(browser.submit(page.form(name="vereineconsenttext"), {"code": "vorstand_website", "label": "Auf der Website genannt werden",
+                                                                   "text": "Mein Name und meine Funktion dürfen auf der Website des Vereins stehen."}),
+            "store the consent text for the website")
+    setup = page_ok(browser.get("/custom/vereine/admin/functions.php"), "function setup")
+    expect('data-board-howto="1"' in setup.text, "the function setup does not explain the board on the website")
+    page_ok(browser.submit(setup.form(name="vereineboard"), {"board_names": "consent", "board_consent": "vorstand_website"}), "names with consent")
+    expect((stack.const("VEREINE_BOARD_NAMES"), stack.const("VEREINE_BOARD_CONSENT")) == ("consent", "vorstand_website"), "the board setting was not stored")
+
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={members['paid']}"), "association tab of the chair")
+    record = next((form for form in tab.forms() if form.value("action") == "recordconsent" and form.value("consent_code") == "vorstand_website"), None)
+    expect(record is not None, "the chair's tab offers no consent to be named on the website")
+    page_ok(browser.submit(record), "the chair consents to be named")
+    named = holders()
+    expect(named["obmann"] == ["Paula Bezahlt"] and named["kassier"] == [None] and named["kassier_stv"] == [None],
+           f"names with the chair's consent: {named}")
+
+    page = page_ok(browser.get("/custom/vereine/admin/functions.php"), "function setup")
+    page_ok(browser.submit(page.form(name="vereineboard"), {"board_names": "disclosure", "board_consent": "vorstand_website"}), "board always named")
+    disclosed = holders()
+    expect(disclosed["obmann"] == ["Paula Bezahlt"] and disclosed["kassier"] == ["Emil Abgelaufen"] and disclosed["kassier_stv"] == ["Karl Austritt"]
+           and None in disclosed["rechnungspruefung"] and "Nina Neu" not in disclosed["rechnungspruefung"] and set(disclosed["jugendleitung"]) == {None},
+           f"names with disclosure of the board: {disclosed}")
+
+    status, summary = stack.api(f"vereine/members/{karl}/summary", key)
+    codes = sorted(function["code"] for function in summary.get("functions", [])) if status == 200 else []
+    expect(codes == ["jugendleitung", "kassier_stv"], f"Karl's functions in his summary: {summary.get('functions') if status == 200 else status}")
+    return ("without setting no names; consent text chosen, the chair consents: only her name; disclosure: the board named, auditors and "
+            "youth leaders without consent not; other users 403; a member's own functions in the summary")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -2027,7 +2077,8 @@ SCENARIOS = (
     ("applications", "Consent texts with versions and membership applications through the API", applications, ("sepa",)),
     ("functions", "Function catalogue, terms of office and what does not fit on a day", functions, ("applications",)),
     ("authority", "Report of new representatives to the association authority: deadline, agenda, letter, noted as reported", authority, ("functions",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("authority",)),
+    ("board", "Board for a website: names with consent or disclosure, functions in the summary", board, ("authority",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("board",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

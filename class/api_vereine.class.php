@@ -305,6 +305,30 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Board and functions
+	 *
+	 * The functions of the association with their holders today, in their order - for a board
+	 * page on a website. A name is given only as the association set it: with the holder's
+	 * consent, or for board functions always when the website must disclose the board. Needs
+	 * the right to read member summaries for a website.
+	 *
+	 * @return array List of functions as documented in docs/API.md
+	 *
+	 * @url GET board
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getBoard()
+	{
+		$this->checkAccess();
+		$this->checkWebsiteRight();
+		dol_include_once('/vereine/class/vereinefunctions.class.php');
+		$functions = new VereineFunctions($this->db);
+		return $functions->board(dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+	}
+
+	/**
 	 * Members for a website sync
 	 *
 	 * Summaries of the members, by id. With changed_since only the members whose summary

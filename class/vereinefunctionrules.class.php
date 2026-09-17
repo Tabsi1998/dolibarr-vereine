@@ -43,6 +43,24 @@ class VereineFunctionRules
 	/** Days to report a new representative: four weeks (§ 14 (2) VerG). */
 	const REPORT_DAYS = 28;
 
+	/** The website shows a holder's name only with the holder's consent. */
+	const NAMES_CONSENT = 'consent';
+	/** The website shows the names of the board always (disclosure under § 25 (2) MedienG), other names with consent. */
+	const NAMES_DISCLOSURE = 'disclosure';
+
+	/**
+	 * Whether the website may show the name of a holder.
+	 *
+	 * @param string $mode       One of the NAMES constants
+	 * @param bool   $board      The function belongs to the board
+	 * @param bool   $hasConsent The holder consented to be shown
+	 * @return bool
+	 */
+	public static function showName($mode, $board, $hasConsent)
+	{
+		return $hasConsent || ($mode === self::NAMES_DISCLOSURE && $board);
+	}
+
 	/**
 	 * Functions suggested for Austria: code, label, board, represents the association, auditor, min, max.
 	 *

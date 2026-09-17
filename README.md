@@ -76,7 +76,9 @@ with a REST API for the association's website.
 - **Board and functions** (0.4.0): function catalogue suggested for Austria,
   terms of office on the member and an overview of what does not fit the
   Associations Act; new representatives get a report deadline, an agenda event
-  and the report letter to the association authority as PDF (0.4.1).
+  and the report letter to the association authority as PDF (0.4.1); the board
+  for a website through the API, names only with consent or where disclosure
+  requires them (0.4.2).
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 

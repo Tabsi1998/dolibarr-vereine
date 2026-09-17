@@ -731,3 +731,19 @@ VereineReportBirth=Birth date
 VereineReportAddress=Address for service
 VereineReportStart=Start of the power of representation
 VereineReportSignature=For the association
+
+#
+# Board on the website
+#
+VereineBoardTitle=Board on the website
+VereineBoardHowToConsent=<strong>With consent:</strong> the website shows a person's name only when the person consented. Create a consent text for it, for example "Be named with name and function on the website", and choose it here.
+VereineBoardHowToDisclosure=<strong>Disclosure:</strong> when the website goes beyond presenting the association, for example with news able to influence public opinion, it must name the board (§ 25 (2) MedienG). Then choose "Board always with names". A website only presenting the association needs name and seat (§ 25 (5) MedienG).
+VereineBoardHowToApi=The website reads the functions with <code>GET /vereine/board</code>. Without permission a function comes without name.
+VereineBoardNames=Names on the website
+VereineBoardNames_consent=only with consent
+VereineBoardNames_disclosure=board always with names (disclosure), others with consent
+VereineBoardConsent=Consent text
+VereineBoardNoConsent=none
+VereineBoardSaved=Board setting for the website saved.
+VereineBoardErrorMode=Please choose when names are shown.
+VereineBoardErrorConsent=Please choose a valid consent text.

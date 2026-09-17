@@ -763,6 +763,13 @@ same(array(array('missing', 3)), array_map(function ($problem) {
 	return array($problem['kind'], $problem['function_id']);
 }, $check['problems']), 'on 1 October: treasurer on board, the ended auditor term leaves one auditor');
 
+same(array(false, true, true, false, true), array(
+	VereineFunctionRules::showName('consent', true, false),
+	VereineFunctionRules::showName('consent', false, true),
+	VereineFunctionRules::showName('disclosure', true, false),
+	VereineFunctionRules::showName('disclosure', false, false),
+	VereineFunctionRules::showName('disclosure', false, true),
+), 'names on the website: with consent, and the board always when it must be disclosed');
 same(array('2026-10-15', '2027-01-28'), array(VereineFunctionRules::reportDeadline('2026-09-17'), VereineFunctionRules::reportDeadline('2026-12-31')),
 	'a new representative is reported within four weeks');
 same(array('birth', 'birth_place', 'address'), VereineFunctionRules::missingForReport(array('birth' => '', 'birth_place' => ' ', 'address' => 'Hauptplatz 1', 'zip' => '', 'town' => 'Innsbruck')),

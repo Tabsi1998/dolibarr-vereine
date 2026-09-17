@@ -731,3 +731,19 @@ VereineReportBirth=Geburtsdatum
 VereineReportAddress=Zustellanschrift
 VereineReportStart=Beginn der Vertretungsbefugnis
 VereineReportSignature=Für den Verein
+
+#
+# Vorstand auf der Website
+#
+VereineBoardTitle=Vorstand auf der Website
+VereineBoardHowToConsent=<strong>Mit Einwilligung:</strong> Die Website zeigt den Namen einer Person nur, wenn sie eingewilligt hat. Dafür einen Einwilligungstext anlegen, zum Beispiel „Mit Name und Funktion auf der Website genannt werden“, und hier wählen.
+VereineBoardHowToDisclosure=<strong>Offenlegung:</strong> Geht die Website über die Vorstellung des Vereins hinaus, etwa mit Neuigkeiten, die die öffentliche Meinung beeinflussen können, muss sie den Vorstand nennen (§ 25 Abs. 2 MedienG). Dann „Vorstand immer mit Namen“ wählen. Bei einer reinen Vorstellung des Vereins reichen Name und Sitz (§ 25 Abs. 5 MedienG).
+VereineBoardHowToApi=Die Website liest die Funktionen über <code>GET /vereine/board</code>. Ohne Freigabe kommt die Funktion ohne Namen.
+VereineBoardNames=Namen auf der Website
+VereineBoardNames_consent=nur mit Einwilligung
+VereineBoardNames_disclosure=Vorstand immer mit Namen (Offenlegung), sonst mit Einwilligung
+VereineBoardConsent=Einwilligungstext
+VereineBoardNoConsent=keiner
+VereineBoardSaved=Einstellung für den Vorstand auf der Website gespeichert.
+VereineBoardErrorMode=Bitte wählen, wann Namen gezeigt werden.
+VereineBoardErrorConsent=Bitte einen gültigen Einwilligungstext wählen.

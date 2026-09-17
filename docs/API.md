@@ -241,6 +241,37 @@ Needs the website right.
 Example: `amount` 60, a year from January, prorated, joining on 15 March - the
 first fee covers March to December, 10 of 12 months, 50 plus the admission fee.
 
+## GET /vereine/board
+
+The functions of the association with their holders today, in the order of the
+function catalogue - for a board page. Needs the right to read member summaries
+for a website.
+
+```json
+[
+  {
+    "code": "obmann", "label": "Obmann/Obfrau", "board": true, "represents": true, "auditor": false,
+    "holders": [{ "name": "Paula Beispiel", "since": "2026-09-17" }]
+  },
+  {
+    "code": "rechnungspruefung", "label": "Rechnungsprüfer:in", "board": false, "represents": false, "auditor": true,
+    "holders": [{ "name": null, "since": "2025-03-01" }, { "name": null, "since": "2025-03-01" }]
+  }
+]
+```
+
+A `name` is `null` unless the website may show it, as set under *Setup > Vereine
+> Functions*:
+
+- **only with consent** (default): the holder's latest consent for the chosen
+  consent text is given;
+- **board always with names**: for functions of the board also without consent,
+  for a website that must disclose the board (§ 25 (2) MedienG, websites going
+  beyond presenting the association); other functions still need consent.
+
+An empty `holders` list means the function is vacant. Show the function without
+name where `name` is `null`.
+
 ## GET /vereine/consents
 
 The consent texts a person can agree to now - one per purpose, in its newest
@@ -324,6 +355,7 @@ A summary counts as changed - and its `updated_at` moves - when
 - a payment on such an invoice is added or changed;
 - the member's fee fields change: exemption, proof, payer (*Fees paid by*);
 - an exit is recorded, carried out or taken back;
+- a function of the member starts or ends;
 - a fee becomes due or an invoice overdue by the date alone: the summary changes
   at midnight (server time) of the day after the period or the due date.
 
@@ -361,6 +393,7 @@ in Dolibarr (the number in the address of the member card).
   "status": "active",
   "member_since": "2023-01-01",
   "paid_until": "2026-12-31",
+  "functions": [{ "code": "kassier", "label": "Kassier:in", "since": "2026-03-01" }],
   "membership_ends": "",
   "currency": "EUR",
   "fee": {
@@ -398,6 +431,7 @@ in Dolibarr (the number in the address of the member card).
 | `status` | `draft` (not yet validated), `active`, `terminated` (resiliated in Dolibarr), `excluded` |
 | `member_since` | Start of the first subscription period or the validation date, whichever is earlier; empty for drafts |
 | `paid_until` | End of the last paid subscription period, the whole day included: a period without fee invoice (recorded as paid on the member card) or with its fee invoice paid. Empty when the member never paid |
+| `functions` | Functions the member holds today, each with `code`, `label` and `since`; the member's own data, so no consent is needed |
 | `membership_ends` | Last day of the membership after a recorded exit: a resignation with the notice period of the statutes, an exclusion, death or being struck off. `status` stays `active` until that day. Empty without exit or after an exit was taken back |
 | `fee.required` | Whether the member type needs a subscription |
 | `fee.status` | `paid` (a paid period covers today), `invoiced` (the period covering today has a fee invoice that is not paid yet, see `open_invoices`), `due` (never paid, or the last period has ended), `not_required` (member type without subscription), `inactive` (draft, terminated or excluded) |
