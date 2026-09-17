@@ -324,8 +324,8 @@ def enable(stack: Stack) -> str:
     expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"], ["49210003", "website", "read"],
                       ["49210004", "application", "write"]], f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
-    expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_feerun", "/vereine/fees_run.php"],
-                    ["members", "vereine_functions", "/vereine/functions.php"],
+    expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_authority", "/vereine/authority.php"],
+                    ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"]],
            f"menu entries after enabling: {menu}")
     expect(stack.sql("SHOW TABLES LIKE 'llx_vereine_log'") == [["llx_vereine_log"]], "the log table was not created")
@@ -340,7 +340,7 @@ def enable(stack: Stack) -> str:
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
     return (f"module {stack.module_version} on with Members, third parties and categories; profile AT; "
-            "4 rights, 5 menu entries, log table, 3 categories")
+            "4 rights, 6 menu entries, log table, 3 categories")
 
 
 def pages(stack: Stack) -> str:
@@ -2146,6 +2146,86 @@ def statutes(stack: Stack) -> str:
             "election due in four years for the chair, not today; applications under 18 and without birth date refused, adult accepted; log")
 
 
+def letters(stack: Stack) -> str:
+    """Letters to the association authority: the responsible authority, one layout for every notice, deadline, agenda and a note once filed."""
+    today = stack.notes["website"]["dates"]["today"]
+    deadline = (datetime.date.fromisoformat(today) + datetime.timedelta(days=28)).isoformat()
+    yesterday = (datetime.date.fromisoformat(today) - datetime.timedelta(days=1)).isoformat()
+    browser = stack.browser()
+
+    def page() -> Page:
+        return page_ok(browser.get("/custom/vereine/authority.php"), "letters to the authority")
+
+    def write(kind: str, fields: dict, drop: tuple = ()) -> Page:
+        return page_ok(browser.submit(page().form(name=f"vereineletter{kind}"), fields, drop=drop), f"write {kind} with {fields}")
+
+    count = "SELECT COUNT(*) FROM llx_vereine_authority_letter"
+    start = page()
+    expect('data-authority-kind="police"' in start.text and "data-authority-mismatch" not in start.text,
+           "for a seat in Innsbruck the Landespolizeidirektion is not named as authority")
+    refused = write("statutes", {"date": today})
+    expect("Behörde mit Anschrift" in html.unescape(refused.text) and stack.value(count) == "0", "a letter without the authority's address was written")
+
+    page_ok(browser.submit(page().form(name="vereineauthoritypick"), {"authority_code": "bh_innsbruck"}), "take BH Innsbruck")
+    expect(stack.const("VEREINE_AUTHORITY") == "Bezirkshauptmannschaft Innsbruck" and "Gilmstra" in (stack.const("VEREINE_AUTHORITY_ADDRESS") or ""),
+           "the suggested authority was not taken")
+    expect('data-authority-mismatch="1"' in page().text, "a district authority for a seat in Innsbruck is not questioned")
+    refused = page_ok(browser.submit(page().form(name="vereineauthority"), {"authority_gz": "VR-2026/42", "authority_email": "bh at tirol"}), "authority with a bad e-mail")
+    expect("E-Mail-Adresse der Behörde ist ungültig" in html.unescape(refused.text) and not stack.const("VEREINE_AUTHORITY_GZ"), "a bad e-mail of the authority was stored")
+    page_ok(browser.submit(page().form(name="vereineauthority"), {"authority_gz": "VR-2026/42"}), "store the file number")
+    expect(stack.const("VEREINE_AUTHORITY_GZ") == "VR-2026/42", "the file number was not stored")
+
+    write("statutes", {"date": today})
+    rows = stack.sql("SELECT kind, event_date, deadline, filed_on, fk_actioncomm FROM llx_vereine_authority_letter ORDER BY rowid")
+    expect(len(rows) == 1 and rows[0][:4] == ["statutes", today, deadline, "NULL"] and rows[0][4] not in ("", "NULL"), f"letters after the change of statutes: {rows}")
+    event = stack.sql(f"SELECT DATE(datep), percent FROM llx_actioncomm WHERE id = {int(rows[0][4])}")
+    expect(event == [[deadline, "0"]], f"agenda event of the notice: {event}")
+    text = pdf_text(stack, "vereine/authority")
+    for word in ("Runtime Verein", "Bezirkshauptmannschaft Innsbruck", "Gilmstra", "VR-2026/42", "Generalversammlung", "Statuten", "123456789", "Obmann"):
+        expect(word in text, f"the notice of the change of statutes lacks {word!r}")
+
+    refused = write("dissolution", {"date": today, "assets": "1", "liquidator_name": "Anna Abwicklerin"})
+    expect("Abwicklers" in html.unescape(refused.text) and stack.value(count) == "1", "a dissolution with assets but without the liquidator's details was written")
+    write("dissolution", {"date": today}, drop=("assets",))
+    text = pdf_text(stack, "vereine/authority")
+    # Single words: a line break may fall between two words of the letter.
+    expect("sofortiger" in text and "vorhanden" in text and "Protokollauszug" in text, "the notice of dissolution lacks effect, assets or attachment")
+
+    refused = write("extract", {"extract": "at", "date": ""})
+    expect("für den der Auszug gelten soll" in html.unescape(refused.text) and stack.value(count) == "2", "an extract of an earlier day without the day was written")
+    write("extract", {"extract": "full", "date": ""})
+    text = pdf_text(stack, "vereine/authority")
+    expect("Daten" in text and "Vereinsregisterauszugs" in text, "the application for a full extract lacks its wording")
+    expect(stack.value("SELECT deadline FROM llx_vereine_authority_letter WHERE kind = 'extract'") == "NULL", "an application got a deadline")
+
+    letter_ids = dict(stack.sql("SELECT kind, rowid FROM llx_vereine_authority_letter"))
+    stack.sql(f"UPDATE llx_vereine_authority_letter SET deadline = '{yesterday}' WHERE rowid = {int(letter_ids['dissolution'])}")
+    listing = page()
+    expect(f'data-letter="{letter_ids["dissolution"]}" data-kind="dissolution" data-deadline="{yesterday}" data-filed="" data-overdue="1"' in listing.text,
+           "a letter past its deadline is not marked overdue")
+    page_ok(browser.submit(listing.form(name=f"vereinemarkfiled{letter_ids['statutes']}"), {"filed_on": today}), "note the change of statutes as filed")
+    expect(stack.value(f"SELECT filed_on FROM llx_vereine_authority_letter WHERE rowid = {int(letter_ids['statutes'])}") == today
+           and stack.value(f"SELECT percent FROM llx_actioncomm WHERE id = {int(rows[0][4])}") == "100", "noting as filed did not store the day or finish the agenda event")
+    download = browser.get(f"/custom/vereine/authority.php?action=download&id={letter_ids['extract']}&token={token_of(listing)}")
+    expect(download.status == 200 and download.text.startswith("%PDF"), f"the letter did not download as PDF (HTTP {download.status})")
+
+    reader = stack.browser("rtreader")
+    reader_page = reader.get("/custom/vereine/authority.php")
+    if not denied(reader_page):
+        expect('name="vereineletterstatutes"' not in reader_page.text, "a user without the right to change members is offered letters")
+        reader.post("/custom/vereine/authority.php", [("token", token_of(reader_page)), ("action", "writeletter"), ("kind", "statutes"), ("date", today)])
+    expect(stack.value(count) == "3", "a user without the right to change members wrote a letter")
+    logged = dict(stack.sql("SELECT action, COUNT(*) FROM llx_vereine_log WHERE action LIKE 'authority_letter%' GROUP BY action"))
+    expect(logged == {"authority_letter": "3", "authority_letter_filed": "1"}, f"letter log: {logged}")
+    page_ok(browser.submit(page().form(name="vereineauthoritypick"), {"authority_code": "lpd_tirol"}), "take LPD Tirol again")
+    expect(stack.const("VEREINE_AUTHORITY") == "Landespolizeidirektion Tirol" and stack.const("VEREINE_AUTHORITY_GZ") == "VR-2026/42",
+           "taking a suggestion did not keep the file number")
+    return ("LPD named for Innsbruck; no letter without the authority's address; BH Innsbruck taken from the list and questioned, bad e-mail refused, file number stored; "
+            "change of statutes with deadline, agenda event and PDF with association, authority, file number and signers; dissolution with assets but no "
+            "liquidator refused, without assets written; extract of an earlier day without day refused, full extract without deadline; overdue marked, "
+            "filed noted, PDF download; reader cannot write; log")
+
+
 def openapi(stack: Stack) -> str:
     """Every documented endpoint answered 200 somewhere in the run, and every answer of the module matched docs/openapi.json."""
     missing = sorted(f"{method} {path}" for method, path, status in stack.openapi.operations()
@@ -2232,7 +2312,8 @@ SCENARIOS = (
     ("groups", "User groups through functions, changed only after an administrator confirms", groups, ("board",)),
     ("mailing", "E-mail campaign recipients by function, consent and guardians of minors", mailing, ("groups",)),
     ("statutes", "Rules of the statutes: checked, stored, election due and minimum age for applications", statutes, ("mailing",)),
-    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("statutes",)),
+    ("letters", "Letters to the association authority: responsible authority, notices with deadline, filed", letters, ("statutes",)),
+    ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("letters",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

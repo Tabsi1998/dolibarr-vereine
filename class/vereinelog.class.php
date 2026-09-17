@@ -55,6 +55,8 @@ class VereineLog
 	const FUNCTION_GROUP_ADD = 'function_group_add';
 	const FUNCTION_GROUP_REMOVE = 'function_group_remove';
 	const STATUTE_RULES = 'statute_rules';
+	const AUTHORITY_LETTER = 'authority_letter';
+	const AUTHORITY_LETTER_FILED = 'authority_letter_filed';
 
 	/**
 	 * Append one entry.
