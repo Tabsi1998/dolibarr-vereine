@@ -62,6 +62,8 @@ with a REST API for the association's website.
   then subscription period and linked invoice per member, once per period.
 - **Discounts** (0.3.7): by age, with proof (for example students) and
   exemptions (for example honorary members), applied by the fee run.
+- **Families** (0.3.8): members with the same payer, such as a parent, get one
+  invoice to the payer, with a discount per further member or a cap per fee year.
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 

@@ -191,3 +191,10 @@ raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
   `docs/openapi.json`; the last API scenario fails when a documented endpoint
   never answered 200. Dolibarr's answer for a disabled module is not covered
   (`check=False`).
+- An extra field of type `link` refuses to store an id whose object does not
+  exist (`insertExtraFields`), but deleting the third party later leaves the id
+  behind: the fee run reports such a payer as `no_payer`. A runtime fixture has
+  to write a dangling id with SQL.
+- `Adherent::update()` sets no modification date of its own, and a change of
+  extra fields alone does not touch `llx_adherent`; the extra fields row has its
+  own `tms`, which the website sync reads.

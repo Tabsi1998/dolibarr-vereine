@@ -492,3 +492,35 @@ VereineDiscountApplied=Discount "%s", instead of %s
 VereineDiscountOnInvoice=discount: %s
 VereineFeeRunPeriodOnly=Subscription period recorded without invoice
 VereineLog_fee_period=Subscription period recorded without invoice
+
+#
+# Families
+#
+VereineFamilyTitle=Families
+VereineFamilyHowToPayer=<strong>Payer:</strong> on the member, choose in "Fees paid by" the third party that gets the invoices, for example a parent. That can be the third party of another member or one that is no member itself. Members with the same payer are a family. Without an entry the member pays itself.
+VereineFamilyHowToInvoice=<strong>Invoice:</strong> fees of a family that start on the same day share one invoice to the payer, with one line per member. Every member keeps its own third party or none.
+VereineFamilyHowToPercent=<strong>Discount per further member:</strong> the member with the highest fee pays in full, every further member the set percentage less. Example 20 %%: parent 60 €, two children 48 € each.
+VereineFamilyHowToCap=<strong>Cap per fee year:</strong> the fees of a family cost at most this amount together in a fee year. What was already charged in the fee year counts. Above it, the new fees are lowered in proportion. Example 120 €: a parent and two children at 60 € each pay 40 € each. A child joining later in the same fee year then pays nothing.
+VereineFamilyHowToOrder=The family rule comes after the discount of the single member (exemption, proof, age). It applies only from two members that pay a fee. The admission fee stays the same.
+VereineFamilyMode=Family rule
+VereineFamilyMode_none=no discount, shared invoice only
+VereineFamilyMode_percent=discount per further member in percent
+VereineFamilyMode_cap=cap per fee year
+VereineFamilyValueHelp=percent or amount; leave empty for "no discount"
+VereineFamilySaved=Family rule saved.
+VereineFamilyErrorMode=Please choose the family rule.
+VereineFamilyErrorPercent=Enter a percentage between 0 and 100.
+VereineFamilyErrorCap=Enter a cap above 0.
+VereineFamilyNone=No family yet. Fill in "Fees paid by" on the member.
+VereineFamilyMembers=Members
+VereineFamilyPayer=Fees paid by
+VereineFamilyPayerHelp=Third party that gets the fee invoices of this member, for example a parent. Empty: the member pays itself. Members with the same payer are a family.
+VereineFamilyPayerMissing=The payer does not exist any more.
+VereineFamilyInvoiceTo=Invoice to %s
+VereineFamilyPercentNote=Family with %s paying members: %s %% less, instead of %s
+VereineFamilyCapNote=Family cap %s in the fee year from %s, already charged %s: instead of %s
+VereineFamilyOnInvoicePercent=family discount %s %%
+VereineFamilyOnInvoiceCap=family cap
+VereineFeeRunLineFor=%s: %s
+VereineFeeRunStatus_no_payer=the payer does not exist any more: correct "Fees paid by" on the member
+VereineFeeRunSkip_no_payer=payer missing

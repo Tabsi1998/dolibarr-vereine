@@ -492,3 +492,35 @@ VereineDiscountApplied=Ermäßigung „%s“, statt %s
 VereineDiscountOnInvoice=Ermäßigung: %s
 VereineFeeRunPeriodOnly=Beitragsperiode ohne Rechnung angelegt
 VereineLog_fee_period=Beitragsperiode ohne Rechnung angelegt
+
+#
+# Familien
+#
+VereineFamilyTitle=Familien
+VereineFamilyHowToPayer=<strong>Zahler:</strong> Am Mitglied bei „Beiträge zahlt“ den Geschäftspartner wählen, der die Rechnungen bekommt, zum Beispiel ein Elternteil. Das kann der Geschäftspartner eines anderen Mitglieds sein oder einer, der selbst kein Mitglied ist. Mitglieder mit demselben Zahler sind eine Familie. Ohne Eintrag zahlt das Mitglied selbst.
+VereineFamilyHowToInvoice=<strong>Rechnung:</strong> Beiträge einer Familie, die am selben Tag beginnen, kommen auf eine gemeinsame Rechnung an den Zahler, mit einer Zeile je Mitglied. Jedes Mitglied behält seinen eigenen oder keinen Geschäftspartner.
+VereineFamilyHowToPercent=<strong>Rabatt je weiterem Mitglied:</strong> Das Mitglied mit dem höchsten Beitrag zahlt voll, jedes weitere den eingestellten Prozentsatz weniger. Beispiel 20 %%: Elternteil 60 €, zwei Kinder je 48 €.
+VereineFamilyHowToCap=<strong>Höchstbetrag je Beitragsjahr:</strong> Die Beiträge einer Familie kosten in einem Beitragsjahr zusammen höchstens diesen Betrag. Was im Beitragsjahr schon verrechnet wurde, zählt mit. Darüber werden die neuen Beiträge im gleichen Verhältnis gesenkt. Beispiel 120 €: Elternteil und zwei Kinder zu je 60 € zahlen je 40 €. Ein Kind, das später im selben Beitragsjahr dazukommt, zahlt dann nichts mehr.
+VereineFamilyHowToOrder=Die Familienregel kommt nach der Ermäßigung des einzelnen Mitglieds (Befreiung, Nachweis, Alter). Sie gilt erst ab zwei Mitgliedern, die Beitrag zahlen. Die Aufnahmegebühr bleibt gleich.
+VereineFamilyMode=Familienregel
+VereineFamilyMode_none=keine Ermäßigung, nur gemeinsame Rechnung
+VereineFamilyMode_percent=Rabatt je weiterem Mitglied in Prozent
+VereineFamilyMode_cap=Höchstbetrag je Beitragsjahr
+VereineFamilyValueHelp=Prozent oder Betrag; bei „keine Ermäßigung“ leer lassen
+VereineFamilySaved=Familienregel gespeichert.
+VereineFamilyErrorMode=Bitte die Familienregel wählen.
+VereineFamilyErrorPercent=Prozent zwischen 0 und 100 eintragen.
+VereineFamilyErrorCap=Einen Höchstbetrag über 0 eintragen.
+VereineFamilyNone=Noch keine Familie. Am Mitglied „Beiträge zahlt“ ausfüllen.
+VereineFamilyMembers=Mitglieder
+VereineFamilyPayer=Beiträge zahlt
+VereineFamilyPayerHelp=Geschäftspartner, der die Beitragsrechnungen dieses Mitglieds bekommt, zum Beispiel ein Elternteil. Leer: Das Mitglied zahlt selbst. Mitglieder mit demselben Zahler sind eine Familie.
+VereineFamilyPayerMissing=Der Zahler existiert nicht mehr.
+VereineFamilyInvoiceTo=Rechnung an %s
+VereineFamilyPercentNote=Familie mit %s zahlenden Mitgliedern: %s %% weniger, statt %s
+VereineFamilyCapNote=Familienhöchstbetrag %s im Beitragsjahr ab %s, davon schon verrechnet %s: statt %s
+VereineFamilyOnInvoicePercent=Familienermäßigung %s %%
+VereineFamilyOnInvoiceCap=Familienhöchstbetrag
+VereineFeeRunLineFor=%s: %s
+VereineFeeRunStatus_no_payer=Den Zahler gibt es nicht mehr: am Mitglied „Beiträge zahlt“ korrigieren
+VereineFeeRunSkip_no_payer=Zahler fehlt

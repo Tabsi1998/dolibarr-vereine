@@ -861,7 +861,7 @@
           "fee": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["required", "status", "next_due", "amount", "discount", "payment_url"],
+            "required": ["required", "status", "next_due", "amount", "discount", "payer", "payment_url"],
             "properties": {
               "required": {
                 "type": "boolean",
@@ -877,7 +877,7 @@
               "amount": {
                 "type": "number",
                 "nullable": true,
-                "description": "Amount of a whole period for this member: the member type's amount after the member's discount; null when the type sets none or needs no subscription"
+                "description": "Amount of a whole period for this member: the member type's amount after the member's discount, before a family discount; null when the type sets none or needs no subscription"
               },
               "discount": {
                 "type": "object",
@@ -894,9 +894,14 @@
                   }
                 }
               },
+              "payer": {
+                "type": "string",
+                "enum": ["self", "other"],
+                "description": "Who gets the fee invoices: the member's own third party, or another one named as payer, such as a parent; the invoices of a payer are not listed for the member"
+              },
               "payment_url": {
                 "type": "string",
-                "description": "Dolibarr's online payment page for the fee; empty unless the fee is due and an online payment service is set up"
+                "description": "Dolibarr's online payment page for the fee; empty unless the fee is due, the member pays itself and an online payment service is set up"
               }
             }
           },

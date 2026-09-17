@@ -7,6 +7,34 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.3.8-beta] - 2026-09-17
+
+Membership fees, part 3b (issue #62): families with one payer.
+
+### Added
+
+- Dolibarr's member card gets *Fees paid by*: the third party that gets the
+  member's fee invoices, for example a parent - the third party of another
+  member or one that is no member. Members with the same payer are a family;
+  every member keeps its own third party or none.
+- Setup tab *Fees*, section *Families*: the family rule - no discount, a
+  discount in percent for every member after the one with the highest fee, or a
+  cap per fee year that counts what was already charged in that year - and the
+  list of families.
+- The fee run puts fees of a family starting on the same day on one invoice to
+  the payer, with one line per member, linked to every subscription period. The
+  family rule comes after the member's own discount; the preview names it and
+  the payer, and reports a payer that no longer exists.
+- The member summary of the website API says who gets the fee invoices
+  (`fee.payer`: `self` or `other`) and offers no online payment of the fee when
+  a payer gets them. Paying a family invoice counts as a change for every member
+  on it, for `changed_since` and for webhooks.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that creates the member field *Fees paid by*.
+
 ## [0.3.7-beta] - 2026-09-17
 
 Membership fees, part 3a (issue #62): discounts by age, with proof, and
@@ -488,7 +516,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.7-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.3.8-beta...HEAD
+[0.3.8-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.8-beta
 [0.3.7-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.7-beta
 [0.3.6-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.6-beta
 [0.3.5-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.3.5-beta
