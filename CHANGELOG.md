@@ -7,6 +7,28 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.4.3-beta] - 2026-09-17
+
+Officers, part 4 (issue #79): user groups through functions, only after
+confirmation.
+
+### Added
+
+- Setup tab *Functions*: a function can name a Dolibarr user group, for example
+  the treasurer the group with rights on invoices and bank.
+- *Members > Board and functions*, section *Rights through functions*: the
+  module suggests adding holders with a Dolibarr user to the group of their
+  function and removing them after it ended. Nothing changes until an
+  administrator confirms; groups without function and users without member are
+  never touched.
+- Holders without Dolibarr user are listed, and which user has which rights
+  through which function, for the auditors.
+
+### Upgrade
+
+Deploy the new ZIP, then disable and enable the module once in the module list:
+that adds the user group column to the functions.
+
 ## [0.4.2-beta] - 2026-09-17
 
 Officers, part 3 (issue #78): the board for a website.
@@ -654,7 +676,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.4.2-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.4.3-beta...HEAD
+[0.4.3-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.3-beta
 [0.4.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.2-beta
 [0.4.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.1-beta
 [0.4.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.4.0-beta

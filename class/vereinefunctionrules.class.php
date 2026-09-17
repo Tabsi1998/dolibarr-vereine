@@ -49,6 +49,54 @@ class VereineFunctionRules
 	const NAMES_DISCLOSURE = 'disclosure';
 
 	/**
+	 * Changes of Dolibarr user groups the functions ask for on a day. Nothing is changed here.
+	 *
+	 * A user linked to a member belongs to the group of every function the member holds; a
+	 * group no active function names is never touched, and neither is a user without member.
+	 *
+	 * @param array<int,array<string,mixed>> $functions   Active functions, keys id, group_id (0 for none)
+	 * @param array<int,array<string,mixed>> $terms       Terms, keys function_id, member_id, member_status, start, end
+	 * @param array<int,int>                 $memberUsers Dolibarr user id by member id
+	 * @param array<int,int[]>               $memberships Group ids by user id
+	 * @param string                         $day         Day
+	 * @return array<int,array{action:string,user_id:int,member_id:int,group_id:int}> Additions first, then removals
+	 */
+	public static function groupChanges(array $functions, array $terms, array $memberUsers, array $memberships, $day)
+	{
+		$groups = array();
+		$managed = array();
+		foreach ($functions as $function) {
+			if ((int) $function['group_id'] > 0) {
+				$groups[(int) $function['id']] = (int) $function['group_id'];
+				$managed[(int) $function['group_id']] = true;
+			}
+		}
+		$wanted = array();
+		foreach ($terms as $term) {
+			$memberId = (int) $term['member_id'];
+			if (isset($groups[(int) $term['function_id']], $memberUsers[$memberId]) && (int) $term['member_status'] === 1 && self::isActive($term, $day)) {
+				$wanted[$memberUsers[$memberId]][$groups[(int) $term['function_id']]] = $memberId;
+			}
+		}
+		$add = array();
+		$remove = array();
+		foreach ($memberUsers as $memberId => $userId) {
+			$has = isset($memberships[$userId]) ? array_map('intval', $memberships[$userId]) : array();
+			foreach (isset($wanted[$userId]) ? $wanted[$userId] : array() as $groupId => $holder) {
+				if (!in_array($groupId, $has, true)) {
+					$add[] = array('action' => 'add', 'user_id' => (int) $userId, 'member_id' => (int) $holder, 'group_id' => $groupId);
+				}
+			}
+			foreach ($has as $groupId) {
+				if (isset($managed[$groupId]) && !isset($wanted[$userId][$groupId])) {
+					$remove[] = array('action' => 'remove', 'user_id' => (int) $userId, 'member_id' => (int) $memberId, 'group_id' => $groupId);
+				}
+			}
+		}
+		return array_merge($add, $remove);
+	}
+
+	/**
 	 * Whether the website may show the name of a holder.
 	 *
 	 * @param string $mode       One of the NAMES constants

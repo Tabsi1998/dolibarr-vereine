@@ -105,6 +105,21 @@ if ($action === 'reportpdf' && $canWrite) {
 		readfile($file);
 		exit;
 	}
+} elseif ($action === 'applygroups' && !empty($user->admin)) {
+	$done = 0;
+	foreach ((array) GETPOST('changes', 'array') as $change) {
+		if (!preg_match('/^(add|remove):(\d+):(\d+)$/', (string) $change, $parts)) {
+			continue;
+		}
+		$result = $store->applyGroupChange($parts[1], (int) $parts[2], (int) $parts[3], $today, $user);
+		if ($result < 0) {
+			setEventMessages($store->error, null, 'errors');
+		}
+		$done += $result > 0 ? 1 : 0;
+	}
+	setEventMessages($langs->trans('VereineGroupsApplied', $done), null, 'mesgs');
+	header('Location: '.$_SERVER['PHP_SELF'].'#vereinegroups');
+	exit;
 } elseif ($action === 'markreported' && $canWrite) {
 	$result = $store->markReported(GETPOST('reported_on', 'alpha'), $user);
 	if ($result < 0) {
@@ -237,6 +252,83 @@ if ($canWrite) {
 		print '</form>';
 	}
 }
+
+print '<br>';
+
+// Rights through functions: group changes the functions ask for, only after an administrator confirms them.
+print load_fiche_titre($langs->trans('VereineGroupsTitle'), '', '', 0, 'vereinegroups');
+print '<div class="info" data-groups-howto="1">'.$langs->trans('VereineGroupsHowTo').'</div>';
+$groupNames = $store->userGroups();
+$memberUsers = $store->memberUsers();
+$functionsById = array();
+foreach ($functions as $function) {
+	$functionsById[$function['id']] = $function;
+}
+$changes = $store->groupChanges($today);
+$memberNames = array();
+foreach ($terms as $term) {
+	$memberNames[$term['member_id']] = $term['member_name'];
+}
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereineapplygroups">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="applygroups">';
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+print '<tr class="liste_titre"><td></td><td>'.$langs->trans('Member').'</td><td>'.$langs->trans('Login').'</td><td>'.$langs->trans('VereineFunctionGroup').'</td>';
+print '<td>'.$langs->trans('VereineGroupsChange').'</td></tr>';
+if (!$changes) {
+	print '<tr class="oddeven"><td colspan="5"><span class="opacitymedium">'.$langs->trans('VereineGroupsNone').'</span></td></tr>';
+}
+foreach ($changes as $change) {
+	$value = $change['action'].':'.$change['user_id'].':'.$change['group_id'];
+	print '<tr class="oddeven" data-group-change="'.dol_escape_htmltag($value).'"><td>';
+	if (!empty($user->admin)) {
+		print '<input type="checkbox" name="changes[]" value="'.dol_escape_htmltag($value).'" checked>';
+	}
+	print '</td><td>'.dol_escape_htmltag(isset($memberNames[$change['member_id']]) ? $memberNames[$change['member_id']] : '#'.$change['member_id']).'</td>';
+	print '<td>'.dol_escape_htmltag(isset($memberUsers['logins'][$change['user_id']]) ? $memberUsers['logins'][$change['user_id']] : '#'.$change['user_id']).'</td>';
+	print '<td>'.dol_escape_htmltag(isset($groupNames[$change['group_id']]) ? $groupNames[$change['group_id']] : '#'.$change['group_id']).'</td>';
+	print '<td>'.$langs->trans('VereineGroupsChange_'.$change['action']).'</td></tr>';
+}
+print '</table></div>';
+if ($changes) {
+	print !empty($user->admin) ? '<div class="center"><input type="submit" class="button" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineGroupsApply')).'"></div>'
+		: '<span class="opacitymedium">'.$langs->trans('VereineGroupsAdminOnly').'</span>';
+}
+print '</form>';
+
+// Holders without Dolibarr user, and which rights come through which function.
+$withoutUser = array();
+$rights = array();
+foreach ($terms as $term) {
+	if ($term['member_status'] !== 1 || !isset($functionsById[$term['function_id']]) || !VereineFunctionRules::isActive($term, $today)) {
+		continue;
+	}
+	$function = $functionsById[$term['function_id']];
+	if (!isset($memberUsers['by_member'][$term['member_id']])) {
+		$withoutUser[$term['member_id']] = $term['member_name'];
+	} elseif ($function['group_id'] > 0) {
+		$rights[] = array('group' => isset($groupNames[$function['group_id']]) ? $groupNames[$function['group_id']] : '#'.$function['group_id'],
+			'function' => $function['label'], 'login' => $memberUsers['logins'][$memberUsers['by_member'][$term['member_id']]]);
+	}
+}
+if ($withoutUser) {
+	print '<br><div class="opacitymedium" data-without-user="'.count($withoutUser).'">'.$langs->trans('VereineGroupsWithoutUser').' ';
+	$links = array();
+	foreach ($withoutUser as $memberId => $name) {
+		$links[] = '<a href="'.DOL_URL_ROOT.'/adherents/card.php?rowid='.((int) $memberId).'" data-without-user-member="'.((int) $memberId).'">'.dol_escape_htmltag($name).'</a>';
+	}
+	print implode(', ', $links).'</div>';
+}
+print '<br><div class="div-table-responsive-no-min"><table class="noborder centpercent" data-rights="'.count($rights).'">';
+print '<tr class="liste_titre"><td>'.$langs->trans('VereineFunctionGroup').'</td><td>'.$langs->trans('VereineFunctionLabel').'</td><td>'.$langs->trans('Login').'</td></tr>';
+if (!$rights) {
+	print '<tr class="oddeven"><td colspan="3"><span class="opacitymedium">'.$langs->trans('VereineGroupsNoRights').'</span></td></tr>';
+}
+foreach ($rights as $right) {
+	print '<tr class="oddeven" data-right="'.dol_escape_htmltag($right['login']).'"><td>'.dol_escape_htmltag($right['group']).'</td><td>'.dol_escape_htmltag($right['function']).'</td>';
+	print '<td>'.dol_escape_htmltag($right['login']).'</td></tr>';
+}
+print '</table></div>';
 
 llxFooter();
 $db->close();

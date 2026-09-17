@@ -113,6 +113,113 @@ class VereineFunctions
 	}
 
 	/**
+	 * User groups of this entity.
+	 *
+	 * @return array<int,string> Name by id
+	 */
+	public function userGroups()
+	{
+		global $conf;
+
+		$resql = $this->db->query("SELECT rowid, nom FROM ".MAIN_DB_PREFIX."usergroup WHERE entity IN (0, ".((int) $conf->entity).") ORDER BY nom");
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return array();
+		}
+		$groups = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$groups[(int) $obj->rowid] = (string) $obj->nom;
+		}
+		$this->db->free($resql);
+		return $groups;
+	}
+
+	/**
+	 * Dolibarr users linked to members, their login and groups.
+	 *
+	 * @return array{by_member:array<int,int>,logins:array<int,string>,groups:array<int,int[]>}
+	 */
+	public function memberUsers()
+	{
+		global $conf;
+
+		$result = array('by_member' => array(), 'logins' => array(), 'groups' => array());
+		$resql = $this->db->query("SELECT rowid, login, fk_member FROM ".MAIN_DB_PREFIX."user WHERE fk_member > 0 AND statut = 1 AND entity IN (0, ".((int) $conf->entity).")");
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return $result;
+		}
+		while ($obj = $this->db->fetch_object($resql)) {
+			$result['by_member'][(int) $obj->fk_member] = (int) $obj->rowid;
+			$result['logins'][(int) $obj->rowid] = (string) $obj->login;
+		}
+		$this->db->free($resql);
+		if ($result['logins']) {
+			$sql = "SELECT fk_user, fk_usergroup FROM ".MAIN_DB_PREFIX."usergroup_user WHERE entity IN (0, ".((int) $conf->entity).")";
+			$sql .= " AND fk_user IN (".implode(', ', array_keys($result['logins'])).")";
+			$resql = $this->db->query($sql);
+			if ($resql) {
+				while ($obj = $this->db->fetch_object($resql)) {
+					$result['groups'][(int) $obj->fk_user][] = (int) $obj->fk_usergroup;
+				}
+				$this->db->free($resql);
+			}
+		}
+		return $result;
+	}
+
+	/**
+	 * Changes of user groups the functions ask for today, see VereineFunctionRules::groupChanges().
+	 *
+	 * @param string $day Day
+	 * @return array<int,array{action:string,user_id:int,member_id:int,group_id:int}>
+	 */
+	public function groupChanges($day)
+	{
+		$users = $this->memberUsers();
+		return VereineFunctionRules::groupChanges($this->fetchAll(true), $this->terms(), $users['by_member'], $users['groups'], $day);
+	}
+
+	/**
+	 * Carry out one change the functions ask for, after an administrator confirmed it.
+	 *
+	 * @param string $action  'add' or 'remove'
+	 * @param int    $userId  Dolibarr user
+	 * @param int    $groupId User group
+	 * @param string $day     Day the change is asked for
+	 * @param User   $user    Administrator
+	 * @return int 1 if done, 0 when the functions do not ask for it (any more), <0 on error
+	 */
+	public function applyGroupChange($action, $userId, $groupId, $day, $user)
+	{
+		global $conf;
+
+		require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
+
+		$asked = null;
+		foreach ($this->groupChanges($day) as $change) {
+			if ($change['action'] === $action && $change['user_id'] === (int) $userId && $change['group_id'] === (int) $groupId) {
+				$asked = $change;
+			}
+		}
+		if ($asked === null) {
+			return 0;
+		}
+		$target = new User($this->db);
+		if ($target->fetch((int) $userId) <= 0) {
+			$this->error = 'user '.$userId.': '.$target->error;
+			return -1;
+		}
+		$result = $action === 'add' ? $target->SetInGroup((int) $groupId, (int) $conf->entity) : $target->RemoveFromGroup((int) $groupId, (int) $conf->entity);
+		if ($result < 0) {
+			$this->error = 'user '.$userId.': '.$target->error;
+			return -1;
+		}
+		VereineLog::add($this->db, $user, $action === 'add' ? VereineLog::FUNCTION_GROUP_ADD : VereineLog::FUNCTION_GROUP_REMOVE, $asked['member_id'], 0, $target->login.' / '.$groupId);
+		return 1;
+	}
+
+	/**
 	 * The functions a member holds on a day.
 	 *
 	 * @param int    $memberId Member
@@ -203,7 +310,7 @@ class VereineFunctions
 	{
 		global $conf;
 
-		$sql = "SELECT rowid, code, label, board, represents, auditor, min_count, max_count, position, active FROM ".MAIN_DB_PREFIX."vereine_function";
+		$sql = "SELECT * FROM ".MAIN_DB_PREFIX."vereine_function";
 		$sql .= " WHERE entity = ".((int) $conf->entity).($activeOnly ? " AND active = 1" : "")." ORDER BY position, rowid";
 		// The table exists only after the module was enabled with 0.4.0.
 		$resql = $this->db->query($sql);
@@ -215,7 +322,9 @@ class VereineFunctions
 		while ($obj = $this->db->fetch_object($resql)) {
 			$functions[] = array('id' => (int) $obj->rowid, 'code' => (string) $obj->code, 'label' => (string) $obj->label, 'board' => (int) $obj->board === 1,
 				'represents' => (int) $obj->represents === 1, 'auditor' => (int) $obj->auditor === 1, 'min' => (int) $obj->min_count, 'max' => (int) $obj->max_count,
-				'position' => (int) $obj->position, 'active' => (int) $obj->active === 1);
+				'position' => (int) $obj->position, 'active' => (int) $obj->active === 1,
+				// The column exists only after the module was enabled with 0.4.3.
+				'group_id' => isset($obj->fk_usergroup) ? (int) $obj->fk_usergroup : 0);
 		}
 		$this->db->free($resql);
 		return $functions;
@@ -252,6 +361,9 @@ class VereineFunctions
 		$fields = "label = '".$this->db->escape(trim((string) $data['label']))."', board = ".(empty($data['board']) ? 0 : 1).", represents = ".(empty($data['represents']) ? 0 : 1);
 		$fields .= ", auditor = ".(empty($data['auditor']) ? 0 : 1).", min_count = ".((int) $data['min']).", max_count = ".((int) $data['max']);
 		$fields .= ", position = ".((int) $data['position']).", active = ".(empty($data['active']) ? 0 : 1).", fk_user_modif = ".((int) $user->id);
+		if (isset($data['group_id'])) {
+			$fields .= ", fk_usergroup = ".max(0, (int) $data['group_id']);
+		}
 		if ($current !== null) {
 			if (!$this->db->query("UPDATE ".MAIN_DB_PREFIX."vereine_function SET ".$fields." WHERE rowid = ".((int) $id)." AND entity = ".((int) $conf->entity))) {
 				$this->error = $this->db->lasterror();

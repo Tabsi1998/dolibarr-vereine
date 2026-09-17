@@ -919,6 +919,30 @@ if ($stage === 'reportpeople') {
 	exit(0);
 }
 
+// A user group for the treasury and a Dolibarr user created from the member RT_MEMBER_ID.
+if ($stage === 'groupuser') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/user/class/usergroup.class.php';
+	$group = new UserGroup($db);
+	$group->name = 'RT Kassa';
+	$group->nom = 'RT Kassa';
+	$group->entity = 1;
+	if ($group->create() <= 0) {
+		rt_fail('user group: '.$group->error);
+	}
+	$member = new Adherent($db);
+	if ($member->fetch((int) rt_env('RT_MEMBER_ID')) <= 0) {
+		rt_fail('member for the user: '.$member->error);
+	}
+	$account = new User($db);
+	$userId = $account->create_from_member($member, 'rtkassier');
+	if ($userId <= 0) {
+		rt_fail('user from member: '.$account->error.' '.implode(' | ', (array) $account->errors));
+	}
+	print json_encode(array('group' => (int) $group->id, 'user' => (int) $userId))."\n";
+	exit(0);
+}
+
 // A user for the website's membership form: may read the association and send applications, nothing else.
 if ($stage === 'applicationuser') {
 	$form = new User($db);
@@ -1076,4 +1100,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, resiliate, guardian or reset');

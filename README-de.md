@@ -85,7 +85,8 @@ Vereinswebsite mit.
   Vereinsgesetz passt; neue Vertreter:innen bekommen eine Meldefrist, einen
   Agenda-Termin und das Meldungsschreiben an die Vereinsbehörde als PDF (0.4.1);
   der Vorstand für die Website über die API, Namen nur mit Einwilligung oder wo
-  die Offenlegung sie verlangt (0.4.2).
+  die Offenlegung sie verlangt (0.4.2); Benutzergruppen über Funktionen, geändert
+  erst nach Bestätigung durch einen Admin (0.4.3).
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

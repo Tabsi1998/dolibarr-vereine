@@ -323,6 +323,14 @@ CONTRACTS = (
     ("htdocs/core/lib/pdf.lib.php", "function pdf_getInstance($format = '', $metric = 'mm', $pagetype = 'P')", "the report letter as PDF"),
     ("htdocs/core/lib/pdf.lib.php", "function pdf_getPDFFont($outputlangs)", "font of the report letter"),
     ("htdocs/core/lib/functions.lib.php", "function dolChmod($filepath, $newmask = '')", "permissions of the stored report letter"),
+    # User groups through functions (issue #79)
+    ("htdocs/user/class/user.class.php", "public function SetInGroup($group, $entity, $notrigger = 0)", "a confirmed suggestion adds the holder's user to the group"),
+    ("htdocs/user/class/user.class.php", "public function RemoveFromGroup($group, $entity, $notrigger = 0)", "a confirmed suggestion removes the user after the term ended"),
+    ("htdocs/user/class/user.class.php", "public function create_from_member($member, $login = '')", "the member card creates a user linked to the member, which the runtime test uses"),
+    ("htdocs/install/mysql/tables/llx_user.sql", "fk_member", "users are linked to members"),
+    ("htdocs/install/mysql/tables/llx_usergroup_user.sql", "fk_usergroup", "group memberships are read to suggest changes"),
+    ("htdocs/core/lib/admin.lib.php", "'DB_ERROR_COLUMN_ALREADY_EXISTS',", "update files may add a column that exists already"),
+    ("htdocs/core/modules/DolibarrModules.class.php", "substr($file, 0, 6) == 'update'", "update files of the module run on every activation"),
 )
 
 LANG_KEYS = {
