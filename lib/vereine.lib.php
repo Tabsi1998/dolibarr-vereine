@@ -239,3 +239,34 @@ function vereineThresholdRows(array $report)
 	}
 	return $rows;
 }
+/**
+ * The cash register duty per sphere as rows for the overview, in plain words.
+ *
+ * @param array<string,mixed> $cashRegister cash_register part of VereineThresholdReport::report()
+ * @return array<int,array{sphere:string,label:string,status:string,badge:string,text:string}>
+ */
+function vereineCashRegisterRows(array $cashRegister)
+{
+	global $langs;
+
+	$langs->load('vereine@vereine');
+	$badges = array('not_relevant' => 'secondary', 'exempt' => 'success', 'exempt_festival' => 'success', 'ok' => 'success', 'near' => 'warning', 'required' => 'danger');
+	$rows = array();
+	foreach ($cashRegister['spheres'] as $sphere) {
+		$status = $sphere['status'];
+		$turnover = price($sphere['turnover'], 0, $langs, 1, -1, 2);
+		$cash = price($sphere['cash'], 0, $langs, 1, -1, 2);
+		$text = $langs->trans('VereineCashText_'.$status, $turnover, $cash);
+		if ($sphere['sphere'] === 'harmful') {
+			$text .= ' '.$langs->trans('VereineCashSmallCanteen', $cashRegister['small_canteen_days'], price($cashRegister['small_canteen_limit'], 0, $langs, 1, -1, 0));
+		}
+		$rows[] = array(
+			'sphere' => $sphere['sphere'],
+			'label' => $langs->trans('VereineSphere_'.$sphere['sphere']),
+			'status' => $status,
+			'badge' => dolGetBadge($langs->trans('VereineCashStatus_'.$status), '', $badges[$status]),
+			'text' => $text,
+		);
+	}
+	return $rows;
+}

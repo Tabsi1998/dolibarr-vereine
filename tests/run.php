@@ -38,6 +38,7 @@ require_once $root.'/class/vereineorganization.class.php';
 require_once $root.'/class/vereinepartnerrules.class.php';
 require_once $root.'/class/vereinetaxrules.class.php';
 require_once $root.'/class/vereinethresholds.class.php';
+require_once $root.'/class/vereinecashregister.class.php';
 
 $failures = array();
 $assertions = 0;
@@ -414,6 +415,26 @@ same(34000.0, $result[0]['amount'], 'until 2024 the small business limit counts 
 same('near', $result[0]['status'], '34,000 net of 35,000 is yellow');
 same(array(), VereineThresholds::evaluate(2015, $income2025, array()), 'no thresholds are known for 2015');
 
+// ---------------------------------------------------------- cash register
+
+same('not_relevant', VereineCashRegister::status('ideal', 90000, 90000), 'fees and donations raise no cash register question');
+same('exempt', VereineCashRegister::status('essential', 90000, 90000), 'an indispensable auxiliary business needs no cash register (§ 3 (1) BarUV)');
+same('exempt_festival', VereineCashRegister::status('festival', 90000, 90000), 'a small festival needs no cash register (§ 3 (2) BarUV)');
+same('near', VereineCashRegister::status('harmful', 15000, 90000), 'exactly 15,000 turnover does not exceed the limit, but is close');
+same('near', VereineCashRegister::status('harmful', 90000, 7500), 'exactly 7,500 cash does not exceed the limit, but is close');
+same('ok', VereineCashRegister::status('harmful', 90000, 5000), 'plenty of turnover with little cash needs no register');
+same('required', VereineCashRegister::status('harmful', 15000.01, 7500.01), 'both limits exceeded needs a cash register');
+same('near', VereineCashRegister::status('auxiliary', 12000, 6000), '80 % of both limits is close');
+same('ok', VereineCashRegister::status('auxiliary', 12000, 5999.99), 'close needs both limits near');
+same(45000.0, VereineCashRegister::smallCanteenLimit(2026), 'small canteen limit from 2026');
+same(30000.0, VereineCashRegister::smallCanteenLimit(2025), 'small canteen limit until 2025');
+same(array('harmful' => 14888.34, 'ideal' => 4962.78, '' => 148.88),
+	VereineCashRegister::allocate(array('harmful' => 60000.0, 'ideal' => 20000.0, '' => 600.0), 20000),
+	'cash of an invoice is shared out over its spheres');
+same(array(), VereineCashRegister::allocate(array(), 100), 'an invoice without lines shares out nothing');
+expect(in_array('LIQ', VereineCashRegister::CASH_PAYMENT_CODES, true) && in_array('CB', VereineCashRegister::CASH_PAYMENT_CODES, true), 'cash and card count as cash turnover');
+expect(!in_array('VIR', VereineCashRegister::CASH_PAYMENT_CODES, true), 'a bank transfer is no cash turnover');
+
 // ------------------------------------------------------------ language files
 
 $english = langEntries($root.'/langs/en_US/vereine.lang');
@@ -483,6 +504,8 @@ $prefixes = array(
 	'VereineThresholdStatus_' => array('ok', 'near', 'tolerance', 'exceeded'),
 	'VereineThresholdText_' => array('ok', 'near'),
 	'VereineThresholdText_exceeded_' => array('small_business', 'harmful_business'),
+	'VereineCashStatus_' => array('not_relevant', 'exempt', 'exempt_festival', 'ok', 'near', 'required'),
+	'VereineCashText_' => array('not_relevant', 'exempt', 'exempt_festival', 'ok', 'near', 'required'),
 	'VereineTreatmentHelp_' => array_keys(VereineTaxRules::treatments()),
 );
 foreach (array_keys($used) as $key) {

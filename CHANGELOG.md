@@ -7,6 +7,31 @@ The section of a version is the text of its GitHub release.
 
 ## [Unreleased]
 
+## [0.2.8-beta] - 2026-09-17
+
+Cash register check and the 13 % VAT rate, part 5 of 5 (issue #3).
+
+### Added
+
+- The overview says per sphere whether a cash register is needed, in plain
+  words: indispensable auxiliary businesses and small association festivals
+  need none (§ 3 Barumsatzverordnung 2015); other businesses need one above
+  15,000 EUR turnover when more than 7,500 EUR of it is paid in cash or by card
+  (§ 131b BAO), from the fourth month after the VAT return period in which both
+  were first exceeded. The exception for small association canteens (at most 52
+  days, 45,000 EUR from 2026) is explained.
+- Cash counts payments in cash, by card, cheque or online, shared out over the
+  spheres of the paid invoice; the module says that cash sales without invoice
+  in Dolibarr are missing and that it is no cash register itself.
+- `GET /vereine/thresholds` returns the cash register check as `cash_register`.
+- The *Tax profiles* tab offers to add the reduced rate of 13 % (§ 10 (3) UStG)
+  to Dolibarr's VAT dictionary for Austria, which ships 0, 10 and 20 % only.
+  Adding it twice changes nothing.
+
+### Upgrade
+
+Deploy the new ZIP. Disabling and enabling is not needed.
+
 ## [0.2.7-beta] - 2026-09-16
 
 Thresholds and traffic light, part 4 of 5 (issue #3).
@@ -257,7 +282,8 @@ First pre-release: the foundation every later version builds on.
 - Release tooling: packages are built and published locally and re-verified by
   GitHub against the tagged commit.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.7-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.2.8-beta...HEAD
+[0.2.8-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.8-beta
 [0.2.7-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.7-beta
 [0.2.6-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.6-beta
 [0.2.5-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.2.5-beta

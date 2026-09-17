@@ -49,6 +49,8 @@ Vereinswebsite mit.
 - **Grenzen als Ampel** (0.2.7): Kleinunternehmer-Grenze und § 45a BAO je
   Kalenderjahr aus den Rechnungen, auf der Übersicht, als Startseiten-Widget und
   in der API.
+- **Registrierkassen-Check** je Bereich und der fehlende **13-%-Satz** für
+  Österreich auf Knopfdruck (0.2.8).
 - Dolibarrs eigene Knöpfe auf der Mitgliedskarte (*Geschäftspartner anlegen*,
   *Verknüpfung mit Geschäftspartner*) funktionieren ebenso: Das Modul bringt den
   Geschäftspartner sofort in Ordnung.

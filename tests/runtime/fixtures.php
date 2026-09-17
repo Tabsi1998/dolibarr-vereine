@@ -26,6 +26,7 @@
  * php fixtures.php cardmember  a validated member without third party, for the member card
  * php fixtures.php invoicing  products, a customer and a supplier invoice with tax profiles
  * php fixtures.php turnover  validated invoices at the turn of 2025 to 2026; the reader may read invoices
+ * php fixtures.php cashpayments  cash and bank payments on the invoice of 2026
  *
  * Prints one JSON object. Passwords and API keys come from the environment only.
  */
@@ -377,6 +378,28 @@ if ($stage === 'turnover') {
 	exit(0);
 }
 
+// Payments on the 2026 invoice: one in cash, one by bank transfer.
+if ($stage === 'cashpayments') {
+	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/paiement/class/paiement.class.php';
+	$invoiceId = (int) rt_env('RT_INVOICE_ID');
+	$ids = array();
+	foreach (array('LIQ' => 20000, 'VIR' => 5000) as $code => $amount) {
+		$payment = new Paiement($db);
+		$payment->datepaye = dol_mktime(12, 0, 0, 2, 1, 2026);
+		$payment->date = $payment->datepaye;
+		$payment->amounts = array($invoiceId => $amount);
+		$payment->paiementid = (int) rt_value($db, "SELECT id FROM ".MAIN_DB_PREFIX."c_paiement WHERE code = '".$code."' AND entity IN (0, 1) ORDER BY entity DESC");
+		$payment->paiementcode = $code;
+		if ($payment->create($admin) <= 0) {
+			rt_fail('payment '.$code.': '.$payment->error.' '.implode(' | ', (array) $payment->errors));
+		}
+		$ids[$code] = (int) $payment->id;
+	}
+	print json_encode(array('payments' => $ids))."\n";
+	exit(0);
+}
+
 if ($stage === 'resiliate') {
 	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
 	$member = new Adherent($db);
@@ -434,4 +457,4 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, resiliate, guardian or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, resiliate, guardian or reset');

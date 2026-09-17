@@ -45,6 +45,8 @@ with a REST API for the association's website.
   and the ZVR number (0.2.6).
 - **Thresholds as traffic light** (0.2.7): small business limit and § 45a BAO per
   calendar year from the invoices, on the overview, as home page box and in the API.
+- **Cash register check** per sphere and the missing **13 % VAT rate** for Austria
+  added on request (0.2.8).
 - Dolibarr's own buttons on the member card (*Create third party*, *Linked third
   party*) work too: the module brings the third party in line right away.
 

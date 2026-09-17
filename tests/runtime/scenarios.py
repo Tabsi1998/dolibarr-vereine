@@ -851,6 +851,7 @@ def thresholds(stack: Stack) -> str:
     """Thresholds per calendar year from validated invoices, as traffic light on the overview, the home page and the API."""
     data = stack.php_fixture("turnover")
     expect(len(data.get("invoices", {})) == 3, f"turnover fixture returned {data}")
+    stack.notes["invoice_2026"] = data["invoices"]["2026"]
 
     status, body = stack.api("vereine/thresholds?year=2026", stack.reader_key)
     expect(status == 200 and isinstance(body, dict), f"GET vereine/thresholds?year=2026 answered HTTP {status}: {body}")
@@ -872,7 +873,7 @@ def thresholds(stack: Stack) -> str:
     browser = stack.browser()
     overview = page_ok(browser.get("/custom/vereine/vereineindex.php?year=2026"), "overview with thresholds")
     rows = dict(re.findall(r'data-threshold="([a-z_]+)" data-status="([a-z]+)"', overview.text))
-    expect(rows == {"small_business": "tolerance", "harmful_business": "ok", "cash_register": "unchecked", "festival_hours": "unchecked"},
+    expect(rows == {"small_business": "tolerance", "harmful_business": "ok", "festival_hours": "unchecked"},
            f"traffic light on the overview: {rows}")
     text = html.unescape(overview.text)
     expect("innerhalb der 10 % Toleranz" in text and 'data-thresholds-unassigned="1"' in overview.text,
@@ -886,6 +887,44 @@ def thresholds(stack: Stack) -> str:
     expect("data-box-threshold" not in reader_home.text, "a user without rights sees the thresholds box")
     return ("calendar years counted on their own; draft and lines without profile left out and reported; tolerance, "
             "§ 45a status on overview, home page box and API with and without rights")
+
+
+def cashregister(stack: Stack) -> str:
+    """Cash register duty per sphere from invoices and cash payments; the 13 % VAT rate is added once."""
+    stack.php_fixture("cashpayments", RT_INVOICE_ID=str(stack.notes["invoice_2026"]))
+    status, body = stack.api("vereine/thresholds?year=2026", stack.reader_key)
+    expect(status == 200, f"GET vereine/thresholds?year=2026 answered HTTP {status}: {body}")
+    register = body.get("cash_register", {})
+    spheres = {entry["sphere"]: entry for entry in register.get("spheres", [])}
+    harmful, ideal = spheres.get("harmful", {}), spheres.get("ideal", {})
+    # 20,000 in cash on an invoice of 60,000 canteen, 20,000 fees and 600 without profile; the transfer does not count.
+    expect(harmful.get("turnover") == 60000 and abs(harmful.get("cash", 0) - 14888.34) < 0.011 and harmful.get("status") == "required",
+           f"canteen: {harmful}")
+    expect(ideal.get("status") == "not_relevant" and abs(ideal.get("cash", 0) - 4962.78) < 0.011, f"membership fees: {ideal}")
+    expect(abs(register.get("unassigned_cash", 0) - 148.88) < 0.011 and register.get("small_canteen_limit") == 45000,
+           f"cash without tax profile and small canteen limit: {register}")
+
+    browser = stack.browser()
+    overview = page_ok(browser.get("/custom/vereine/vereineindex.php?year=2026"), "overview with cash register")
+    rows = dict(re.findall(r'data-cash-sphere="([a-z]+)" data-status="([a-z_]+)"', overview.text))
+    expect(rows.get("harmful") == "required" and rows.get("ideal") == "not_relevant", f"cash register on the overview: {rows}")
+    text = html.unescape(overview.text)
+    expect("vierten Monat" in text and "52 Tagen" in text and "45.000" in text, "the overview does not explain the duty and the small canteen in German")
+
+    def rate13() -> str:
+        return stack.value("SELECT COUNT(*) FROM llx_c_tva as t INNER JOIN llx_c_country as c ON c.rowid = t.fk_pays "
+                           "WHERE c.code = 'AT' AND t.taux = 13")
+
+    expect(rate13() == "0", "Dolibarr already had 13 % for Austria, the test proves nothing")
+    page = page_ok(browser.get("/custom/vereine/admin/taxprofiles.php"), "tax profiles without 13 %")
+    expect('data-vat13="missing"' in page.text, "the tax profile setup does not say that 13 % is missing")
+    page_ok(browser.submit(page.form(name="vereinevat13")), "add 13 %")
+    expect(rate13() == "1", f"adding 13 % created {rate13()} entries")
+    page = page_ok(browser.get("/custom/vereine/admin/taxprofiles.php"), "tax profiles with 13 %")
+    expect('data-vat13="present"' in page.text and 'name="vereinevat13"' not in page.text, "the 13 % hint stays after adding it")
+    page_ok(browser.post("/custom/vereine/admin/taxprofiles.php", [("token", token_of(page)), ("action", "addvat13")]), "add 13 % again")
+    expect(rate13() == "1", f"adding 13 % a second time left {rate13()} entries")
+    return "canteen needs a cash register (cash shared out per sphere, transfer left out), fees no topic, 13 % added exactly once"
 
 
 def action_link_for(page: Page, action: str, row_id: str | None) -> str:
@@ -946,6 +985,7 @@ SCENARIOS = (
     ("taxassign", "Tax profiles on products and invoice lines, and a warning for differing VAT", taxassign, ("taxprofiles",)),
     ("invoicepdf", "The invoice PDF shows tax profile notes and the ZVR number", invoicepdf, ("taxassign",)),
     ("thresholds", "Thresholds of a calendar year as traffic light on overview, home page and API", thresholds, ("invoicepdf",)),
+    ("cashregister", "Cash register duty per sphere and the missing 13 % VAT rate", cashregister, ("thresholds",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

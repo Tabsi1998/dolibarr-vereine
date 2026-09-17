@@ -185,6 +185,16 @@ CONTRACTS = (
     ("htdocs/core/boxes/modules_boxes.php", "public function showBox($head = null, $contents = null, $nooutput = 0)", "home page box output"),
     ("htdocs/core/modules/DolibarrModules.class.php", "public function insert_boxes(", "the box is registered on activation"),
     ("htdocs/core/lib/functions.lib.php", "function price(", "amounts in the traffic light"),
+    # Cash register check and the 13 % VAT rate (issue #40)
+    ("htdocs/install/mysql/data/llx_c_paiement.sql", "( 4, 'LIQ', 'Cash',", "cash payments"),
+    ("htdocs/install/mysql/data/llx_c_paiement.sql", "( 6, 'CB',  'Credit card',", "card payments"),
+    ("htdocs/install/mysql/data/llx_c_paiement.sql", "( 7, 'CHQ', 'Cheque',", "cheque payments"),
+    ("htdocs/install/mysql/data/llx_c_paiement.sql", "(50, 'VAD', 'Online payment',", "online payments"),
+    ("htdocs/install/mysql/tables/llx_paiement.sql", "datep", "payment date decides the year"),
+    ("htdocs/install/mysql/tables/llx_paiement.sql", "fk_paiement      integer NOT NULL", "payment type of a payment"),
+    ("htdocs/install/mysql/tables/llx_paiement_facture.sql", "fk_facture", "payment shared out to invoices"),
+    ("htdocs/install/mysql/tables/llx_c_tva.key.sql", "uk_c_tva_id (entity, fk_pays, code, taux, recuperableonly)", "adding 13 % twice is impossible"),
+    ("htdocs/compta/paiement/class/paiement.class.php", "public function create($user, $closepaidinvoices = 0, $thirdparty = null)", "runtime fixture pays an invoice in cash"),
 )
 
 LANG_KEYS = {

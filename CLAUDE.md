@@ -154,3 +154,8 @@ raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
   `$this->hidden` decides per user whether the box shows.
 - Apply scripts must be idempotent: an interrupted run left half a feature in
   place once. Check whether a change is already there before applying it.
+- `Paiement::create()` needs the class `Facture` loaded and, when
+  `multicurrency_amounts` is set, a `multicurrency_code` per invoice; the
+  runtime fixture leaves the foreign currency out.
+- A fixture that fails prints its PHP error in "What failed, in full" at the end
+  of the local check log, not in the step line.
