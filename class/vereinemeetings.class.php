@@ -27,6 +27,7 @@ require_once __DIR__.'/vereinevoterules.class.php';
 require_once __DIR__.'/vereineminutesrules.class.php';
 require_once __DIR__.'/vereinestatutes.class.php';
 require_once __DIR__.'/vereinefunctions.class.php';
+require_once __DIR__.'/vereineresolutions.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 
 /**
@@ -565,6 +566,11 @@ class VereineMeetings
 			return -1;
 		}
 		$voteId = (int) $this->db->last_insert_id(MAIN_DB_PREFIX.'vereine_meeting_vote');
+		$register = new VereineResolutions($this->db);
+		if ($register->addFromVote($meeting, $voteId, $vote + array('majority' => $majority, 'passed' => $result['passed'], 'applied' => $applied), $user) < 0) {
+			$this->error = $register->error;
+			return -1;
+		}
 		VereineLog::add($this->db, $user, VereineLog::MEETING_VOTE, $vote['candidate_id'], 0, $vote['title'].': '.($result['passed'] ? 'passed' : 'rejected').($applied !== '' ? ' ('.$applied.')' : ''));
 		return $voteId;
 	}

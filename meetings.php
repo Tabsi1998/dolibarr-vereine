@@ -65,6 +65,7 @@ if (!$res) {
 
 require_once __DIR__.'/class/vereinemeetings.class.php';
 require_once __DIR__.'/class/vereineminutes.class.php';
+require_once __DIR__.'/class/vereineresolutions.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('members', 'vereine@vereine'));
@@ -82,6 +83,7 @@ if (!$user->hasRight('vereine', 'association', 'read') || !$user->hasRight('adhe
 $today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
 $meetings = new VereineMeetings($db);
 $minutes = new VereineMinutes($db);
+$register = new VereineResolutions($db);
 $signatures = new VereineSignatures($db);
 $statutes = new VereineStatutes($db);
 $rules = $statutes->rules();
@@ -102,6 +104,16 @@ if ($action === 'savemeeting' && $canWrite) {
 	}
 	foreach (array('access', 'agenda') as $key) {
 		$entered[$key] = GETPOST($key, 'restricthtml');
+	}
+	$chosen = array();
+	foreach ($register->openTasks() as $task) {
+		if (in_array((string) $task['id'], (array) GETPOST('follow', 'array:aZ09'), true)) {
+			$chosen[] = $task;
+		}
+	}
+	if ($chosen) {
+		$items = VereineResolutionRules::suggestions($chosen, $langs);
+		$entered['agenda'] = trim(trim((string) $entered['agenda'])."\n".implode("\n", $items));
 	}
 	$result = $meetings->save($id, $entered, $user);
 	if ($result > 0) {
@@ -295,11 +307,12 @@ llxHeader('', $langs->trans('VereineMeetingsTitle'), '', '', 0, 0, '', '', '', '
 /**
  * The form of a meeting.
  *
- * @param array<string,mixed> $meeting Meeting to show
- * @param int                 $id      Meeting, 0 for a new one
+ * @param array<string,mixed>            $meeting     Meeting to show
+ * @param int                            $id          Meeting, 0 for a new one
+ * @param array<int,array<string,mixed>> $suggestions Open follow-ups of resolutions, offered as agenda items
  * @return void
  */
-function vereineMeetingForm(array $meeting, $id)
+function vereineMeetingForm(array $meeting, $id, array $suggestions = array())
 {
 	global $langs;
 
@@ -329,6 +342,14 @@ function vereineMeetingForm(array $meeting, $id)
 	print '<tr><td class="tdtop fieldrequired"><label for="agenda">'.$langs->trans('VereineMeetingAgenda').'</label></td>';
 	print '<td><textarea id="agenda" name="agenda" rows="6" class="centpercent">'.dol_escape_htmltag(implode("\n", $meeting['agenda']), 0, 1).'</textarea>';
 	print '<div class="opacitymedium small">'.$langs->trans('VereineMeetingAgendaHelp').'</div></td></tr>';
+	if ($suggestions) {
+		print '<tr><td class="tdtop">'.$langs->trans('VereineResolutionOpenTitle').'</td><td>';
+		foreach ($suggestions as $task) {
+			print '<div><label data-follow="'.((int) $task['id']).'"><input type="checkbox" name="follow[]" value="'.((int) $task['id']).'"> ';
+			print dol_escape_htmltag($task['label']).' <span class="opacitymedium small">'.dol_escape_htmltag($task['ref']).'</span></label></div>';
+		}
+		print '<div class="opacitymedium small">'.$langs->trans('VereineResolutionOpenHelp').'</div></td></tr>';
+	}
 	print '</table>';
 	print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'"></div>';
 	print '</form>';
@@ -525,7 +546,7 @@ if ($meeting === null) {
 			$entered = VereineMeetingRules::normalize(array('kind' => $template, 'title' => $langs->transnoentitiesnoconv('VereineMeetingKind_'.$template).' '.substr($today, 0, 4),
 				'agenda' => implode("\n", VereineMinutesRules::agenda($meetings->templates(), $template))));
 		}
-		vereineMeetingForm($entered !== null ? $entered : VereineMeetingRules::normalize(array()), 0);
+		vereineMeetingForm($entered !== null ? $entered : VereineMeetingRules::normalize(array()), 0, $register->openTasks());
 	}
 	llxFooter();
 	$db->close();
