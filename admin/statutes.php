@@ -131,7 +131,17 @@ if ($action === 'savetext') {
 		'asset_recipient' => GETPOST('asset_recipient', 'restricthtml'), 'activities' => GETPOST('activities', 'restricthtml'), 'funds' => GETPOST('funds', 'restricthtml'),
 		'branches' => GETPOSTISSET('branches') ? 1 : 0, 'legal_persons' => GETPOSTISSET('legal_persons') ? 1 : 0, 'arrears_months' => GETPOST('arrears_months', 'alphanohtml'),
 		'tax' => $wording[0], 'asset' => $wording[1]);
-	$result = $statutes->saveText($shownText, $user);
+	$purpose = trim(GETPOST('VEREINE_PURPOSE', 'alphanohtml'));
+	$purposeError = VereineAssociationRules::validatePurpose($purpose);
+	if ($purposeError !== '') {
+		setEventMessages(null, array($langs->trans($purposeError, VereineAssociationRules::PURPOSE_MAX_LENGTH)), 'errors');
+		$result = 0;
+	} elseif (dolibarr_set_const($db, 'VEREINE_PURPOSE', $purpose, 'chaine', 0, '', $conf->entity) <= 0) {
+		setEventMessages($db->lasterror(), null, 'errors');
+		$result = -1;
+	} else {
+		$result = $statutes->saveText($shownText, $user);
+	}
 	if ($result > 0) {
 		setEventMessages($langs->trans('VereineStatuteTextSaved'), null, 'mesgs');
 		header('Location: '.$_SERVER['PHP_SELF'].'#vereinestatutetext');
@@ -344,17 +354,16 @@ foreach (array('VereineStatuteTextHowToModel', 'VereineStatuteTextHowToComplete'
 	print '<li>'.$langs->trans($line).'</li>';
 }
 print '</ul></div>';
-// The purpose of the association comes from the tab Association; shown here so it is not mistaken for the purpose of the assets.
-$purposeLink = dol_buildpath('/vereine/admin/setup.php', 1).'#VEREINE_PURPOSE';
-$associationPurpose = trim(getDolGlobalString('VEREINE_PURPOSE'));
-print '<table class="border centpercent" data-association-purpose="'.($associationPurpose !== '' ? 1 : 0).'"><tr><td class="titlefieldcreate tdtop">'.$langs->trans('VereinePurpose').'</td><td>';
-print ($associationPurpose !== '' ? nl2br(dol_escape_htmltag($associationPurpose, 0, 1)) : '<span class="opacitymedium">'.$langs->trans('VereineStatutePurposeEmpty').'</span>');
-print ' <a href="'.$purposeLink.'">'.img_picto($langs->trans('Modify'), 'edit').' '.$langs->trans('VereineStatutePurposeEdit').'</a>';
-print '<div class="opacitymedium small">'.$langs->trans('VereineStatutePurposeHelp').'</div></td></tr></table><br>';
+$associationPurpose = GETPOSTISSET('VEREINE_PURPOSE') && $action === 'savetext' ? trim(GETPOST('VEREINE_PURPOSE', 'alphanohtml')) : trim(getDolGlobalString('VEREINE_PURPOSE'));
 print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereinestatutetext" name="vereinestatutetext">';
 print '<input type="hidden" name="token" value="'.newToken().'">';
 print '<input type="hidden" name="action" value="savetext">';
-print '<table class="border centpercent">';
+print '<table class="border centpercent" data-association-purpose="'.($associationPurpose !== '' ? 1 : 0).'">';
+// § 2 of the statutes: the purpose of the association, entered here because it belongs to the statutes.
+print '<tr><td class="titlefieldcreate tdtop fieldrequired"><label for="VEREINE_PURPOSE">'.$langs->trans('VereinePurpose').'</label></td><td>';
+print '<textarea id="VEREINE_PURPOSE" name="VEREINE_PURPOSE" rows="3" class="centpercent" maxlength="'.VereineAssociationRules::PURPOSE_MAX_LENGTH.'">';
+print dol_escape_htmltag($associationPurpose, 0, 1).'</textarea>';
+print '<div class="opacitymedium small">'.$langs->trans('VereineStatutePurposeHelp').'</div></td></tr>';
 print '<tr><td class="titlefieldcreate"><label for="area">'.$langs->trans('VereineStatuteTextArea').'</label></td>';
 print '<td><input type="text" id="area" name="area" class="minwidth300" maxlength="255" value="'.dol_escape_htmltag($shownText['area']).'">';
 print ' <span class="opacitymedium small">'.$langs->trans('VereineStatuteTextAreaHelp').'</span></td></tr>';
@@ -405,6 +414,18 @@ if ($problems) {
 }
 
 // Preview of the statutes as they would be generated now.
+print load_fiche_titre($langs->trans('VereineStatuteSourcesTitle'), '', '', 0, 'vereinestatutesources');
+print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineStatuteSourcesHowTo').'</div>';
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+print '<tr class="liste_titre"><td>'.$langs->trans('VereineStatuteSourcesSection').'</td><td>'.$langs->trans('VereineStatuteSourcesFrom').'</td></tr>';
+$sources = VereineStatuteText::sources();
+foreach (VereineStatuteText::sections($rules, $text, $context) as $section) {
+	print '<tr class="oddeven" data-statute-source="'.$section['number'].'">';
+	print '<td>§ '.$section['number'].' '.dol_escape_htmltag($section['title']).'</td>';
+	print '<td>'.dol_escape_htmltag(isset($sources[$section['title']]) ? $sources[$section['title']] : '').'</td></tr>';
+}
+print '</table></div><br>';
+
 print load_fiche_titre($langs->trans('VereineStatutePreview'), '', '', 0, 'vereinestatutepreview');
 print '<div class="statute-preview" data-statute-preview="1" style="max-height: 40em; overflow: auto; padding: 1em; border: 1px solid #ddd;">';
 print '<h3 class="center">'.dol_escape_htmltag('Statuten des Vereins „'.$context['name'].'“').'</h3>';

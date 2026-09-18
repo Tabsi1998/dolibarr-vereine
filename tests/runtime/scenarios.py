@@ -400,11 +400,15 @@ def setup(stack: Stack) -> str:
     expect(not stack.const("VEREINE_REGISTER_NUMBER"), "a bad ZVR number was stored")
 
     # Dolibarr's own injection filter (main.inc.php) refuses a script before the
-    # module sees it; nothing may be stored.
-    form = browser.get("/custom/vereine/admin/setup.php").form(name="vereinesetup")
-    blocked = browser.submit(form, {"VEREINE_PURPOSE": "Zweck <script>alert(1)</script>"})
+    # module sees it; nothing may be stored. The purpose lives with the statutes, so it is tried there.
+    statutes_form = page_ok(browser.get("/custom/vereine/admin/statutes.php"), "statutes before the purpose").form(name="vereinestatutetext")
+    blocked = browser.submit(statutes_form, {"VEREINE_PURPOSE": "Zweck <script>alert(1)</script>"})
     expect(blocked.status == 403, f"a script in the purpose was not refused by Dolibarr (HTTP {blocked.status})")
     expect(not stack.const("VEREINE_PURPOSE"), "a refused request stored a purpose")
+    setup_page = page_ok(browser.get("/custom/vereine/admin/setup.php"), "setup without the purpose field")
+    expect('name="VEREINE_PURPOSE"' not in setup_page.text and 'data-purpose-here="0"' in setup_page.text
+           and "admin/statutes.php#vereinestatutetext" in setup_page.text,
+           "the general setup still offers the purpose instead of linking to the statutes")
 
     # Markup Dolibarr lets through is the module's to strip and escape.
     form = browser.get("/custom/vereine/admin/setup.php").form(name="vereinesetup")
@@ -413,16 +417,20 @@ def setup(stack: Stack) -> str:
         "VEREINE_AUTHORITY": "Landespolizeidirektion Tirol",
         "foundedday": "1", "foundedmonth": "3", "foundedyear": "2019",
         "VEREINE_NONPROFIT": "1",
-        "VEREINE_PURPOSE": 'Förderung des E-Sports <i>im Verein</i> & "gemeinsam"',
     })
     page_ok(saved, "setup after saving")
     expected = {"VEREINE_REGISTER_NUMBER": "123456789", "VEREINE_AUTHORITY": "Landespolizeidirektion Tirol",
                 "VEREINE_FOUNDED": "2019-03-01", "VEREINE_NONPROFIT": "1"}
     stored = {name: stack.const(name) for name in expected}
     expect(stored == expected, f"stored {stored}, expected {expected}")
+    statutes_form = page_ok(browser.get("/custom/vereine/admin/statutes.php"), "statutes for the purpose").form(name="vereinestatutetext")
+    page_ok(browser.submit(statutes_form, {"VEREINE_PURPOSE": 'Förderung des E-Sports <i>im Verein</i> & "gemeinsam"', "arrears_months": "3"}),
+            "the purpose saved with the statutes")
     purpose = stack.const("VEREINE_PURPOSE") or ""
     expect(purpose.startswith("Förderung des E-Sports"), f"the purpose lost its text or its umlaut: {purpose!r}")
     expect("<i>" not in purpose, f"markup was stored in the purpose: {purpose!r}")
+    shown = page_ok(browser.get("/custom/vereine/admin/setup.php"), "setup showing the purpose")
+    expect("Förderung des E-Sports" in html.unescape(shown.text), "the general setup does not show the purpose entered with the statutes")
 
     overview = page_ok(browser.get("/custom/vereine/vereineindex.php"), "overview after saving")
     expect(data_status(overview, "register") == "ok", "the overview still reports the ZVR number as missing")
@@ -2247,8 +2255,10 @@ def statutetext(stack: Stack) -> str:
     expect("activities" in problems and 'data-statute-preview="1"' in start.text, f"problems of the empty text: {problems}")
     purpose = stack.const("VEREINE_PURPOSE") or ""
     shown_purpose = re.search(r'data-association-purpose="(\d)"', start.text)
-    expect(shown_purpose is not None and shown_purpose.group(1) == ("1" if purpose else "0") and "admin/setup.php#VEREINE_PURPOSE" in start.text,
-           f"the statutes page does not show the purpose of the association with a link to it (stored: {purpose!r})")
+    expect(shown_purpose is not None and shown_purpose.group(1) == ("1" if purpose else "0") and 'name="VEREINE_PURPOSE"' in start.text,
+           f"the statutes page does not offer the purpose of the association (stored: {purpose!r})")
+    origins = re.findall(r'data-statute-source="(\d+)"', start.text)
+    expect(len(origins) >= 16, f"the table of origins names {len(origins)} paragraphs")
     if not purpose:
         expect("purpose" in problems and 'data-purpose-link="1"' in start.text and "nicht der Zweck, dem das Verm" in html.unescape(start.text),
                "without a purpose of the association the problem does not name it or link to it")
@@ -2628,7 +2638,7 @@ def signatures(stack: Stack) -> str:
     base = "/custom/vereine/authority.php"
     page = page_ok(browser.get(setup), "signature setup")
     kinds = re.findall(r'data-rule="([a-z_]+)" data-roles="(\d+)" data-mode="(all|min)"', page.text)
-    expect([kind for kind, _, _ in kinds] == ["letter", "minutes", "resolution", "audit_report"], f"kinds of document: {kinds}")
+    expect([kind for kind, _, _ in kinds] == ["letter", "minutes", "resolution", "money", "audit_report"], f"kinds of document: {kinds}")
     expect(denied(stack.browser("rtreader").get(setup)), "a non-administrator opens the signature setup")
 
     # The chair signs letters; the runtime admin gets the chair's member, so it can sign in Dolibarr.
@@ -2681,7 +2691,7 @@ def signatures(stack: Stack) -> str:
     stack.shell(f"echo x >> /var/www/documents/vereine/authority/{name}")
     changed = page_ok(browser.get(base), "letters after the document changed")
     expect('data-signature-changed="1"' in changed.text, "a changed document is not reported")
-    return ("4 kinds of document; letters signed by the chair; wrong password refused, signing in Dolibarr stored with the checksum and the sheet built; "
+    return ("5 kinds of document; letters signed by the chair; wrong password refused, signing in Dolibarr stored with the checksum and the sheet built; "
             "paper way: only PDF accepted, scan finishes the run; a changed document asks for new signatures")
 
 
@@ -2882,6 +2892,20 @@ def resolutiondocs(stack: Stack) -> str:
             "sign the resolution in Dolibarr")
     signed = stack.sql(f"SELECT way, signed_at IS NOT NULL FROM llx_vereine_signature_person WHERE fk_signature = {run[0][0]} AND signed_at IS NOT NULL")
     expect(signed == [["click", "1"]], f"after signing in Dolibarr: {signed}")
+
+    # A money matter is signed by the kind of document that asks for the treasurer as well.
+    money = stack.value("SELECT rowid FROM llx_vereine_resolution WHERE kind = 'election'")
+    page = page_ok(browser.get(f"{base}?id={money}"), "the election as a money matter")
+    page_ok(browser.submit(page.form(name="vereineresolution"), {"money": "1", "wording": "Anschaffung von Trikots"}), "mark it as a money matter")
+    expect(stack.value(f"SELECT money FROM llx_vereine_resolution WHERE rowid = {money}") == "1", "the money matter was not stored")
+    page = page_ok(browser.get(f"{base}?id={money}"), "the money matter")
+    page_ok(browser.submit(page.form(name="vereineresolutionbuild")), "build the PDF of the money matter")
+    page = page_ok(browser.get(f"{base}?id={money}"), "the money matter with its PDF")
+    page_ok(browser.submit(page.form(name=f"vereinestartsignresolution{money}")), "start the signature run of the money matter")
+    money_run = stack.sql(f"SELECT rowid, kind FROM llx_vereine_signature WHERE fk_object = {money} AND kind = 'money'")
+    expect(len(money_run) == 1, f"the money matter did not get its own kind of signature run: {money_run}")
+    money_roles = sorted(row[0] for row in stack.sql(f"SELECT function_code FROM llx_vereine_signature_person WHERE fk_signature = {money_run[0][0]}"))
+    expect("kassier" in money_roles, f"a money matter is signed by {money_roles}, expected the treasurer among them")
 
     # A PDF built again is a new document, so the run asks for new signatures.
     page = page_ok(browser.get(f"{base}?id={entry}"), "the signed resolution")

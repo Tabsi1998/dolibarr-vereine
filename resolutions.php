@@ -100,6 +100,17 @@ $filters = VereineResolutionRules::filters(array(
 
 
 /**
+ * Which kind of document a resolution is signed as: a money matter asks for the treasurer as well.
+ *
+ * @param array<string,mixed>|null $row Resolution of the register
+ * @return string One of the VereineSignatureRules KIND constants
+ */
+function vereineResolutionSignatureKind($row)
+{
+	return is_array($row) && !empty($row['money']) ? VereineSignatureRules::KIND_MONEY : VereineSignatureRules::KIND_RESOLUTION;
+}
+
+/**
  * The names of the active members, for the responsible person of a task.
  *
  * @param DoliDB $db Database handler
@@ -179,7 +190,7 @@ if ($action === 'export') {
 } elseif ($action === 'sheet' || $action === 'signed') {
 	$run = $signatures->fetch(GETPOSTINT('signature'));
 	$file = '';
-	if ($run !== null && $run['kind'] === VereineSignatureRules::KIND_RESOLUTION) {
+	if ($run !== null && in_array($run['kind'], array(VereineSignatureRules::KIND_RESOLUTION, VereineSignatureRules::KIND_MONEY), true)) {
 		$file = $action === 'sheet' ? VereineSignatures::sheetPath($run['id']) : VereineSignatures::scanPath($run);
 	}
 	if ($file === '' || !is_file($file)) {
@@ -220,7 +231,8 @@ if ($action === 'export') {
 	}
 } elseif ($action === 'startsign' && $canWrite) {
 	$objectId = GETPOSTINT('object');
-	$result = $signatures->start(VereineSignatureRules::KIND_RESOLUTION, $objectId, VereineResolutionDocs::path($objectId),
+	$signed = $register->fetch($objectId);
+	$result = $signatures->start(vereineResolutionSignatureKind($signed), $objectId, VereineResolutionDocs::path($objectId),
 		dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'), $user);
 	if ($result > 0) {
 		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$objectId.'#vereineresolutionpdf');
@@ -252,6 +264,7 @@ if ($action === 'export') {
 	foreach (array('category', 'valid_from', 'valid_to', 'member_id', 'invoice_id') as $key) {
 		$entered[$key] = GETPOST($key, 'alphanohtml');
 	}
+	$entered['money'] = GETPOSTISSET('money');
 	foreach (array('wording', 'note') as $key) {
 		$entered[$key] = GETPOST($key, 'restricthtml');
 	}
@@ -447,6 +460,14 @@ if ($canWrite) {
 	print '<a href="'.dol_buildpath('/compta/facture/card.php', 1).'?facid='.$row['invoice_id'].'">'.$row['invoice_id'].'</a>';
 }
 print '</td></tr>';
+print '<tr><td>'.$langs->trans('VereineResolutionMoney').'</td><td>';
+if ($canWrite) {
+	print '<label><input type="checkbox" name="money" value="1"'.(!empty($row['money']) ? ' checked' : '').'> '.$langs->trans('VereineResolutionMoneyLabel').'</label>';
+	print '<div class="opacitymedium small">'.$langs->trans('VereineResolutionMoneyHelp').'</div>';
+} else {
+	print '<span data-resolution-money="'.(!empty($row['money']) ? 1 : 0).'">'.$langs->trans(!empty($row['money']) ? 'VereineResolutionMoneyLabel' : 'VereineResolutionMoneyNo').'</span>';
+}
+print '</td></tr>';
 print '<tr><td class="tdtop">'.$langs->trans('VereineResolutionNote').'</td><td>';
 if ($canWrite) {
 	print '<textarea name="note" rows="2" class="centpercent">'.dol_escape_htmltag($row['note'], 0, 1).'</textarea>';
@@ -473,7 +494,7 @@ if ($canWrite) {
 	print '</form>';
 }
 print '<div class="paddingtop">';
-vereineSignatureBlock($signatures, VereineSignatureRules::KIND_RESOLUTION, $row['id'], $pdfFile, $canWrite, 'vereineresolutionpdf');
+vereineSignatureBlock($signatures, vereineResolutionSignatureKind($row), $row['id'], $pdfFile, $canWrite, 'vereineresolutionpdf');
 print '</div></div>';
 
 print '<br>'.load_fiche_titre($langs->trans('VereineResolutionTasks'), '', '', 0, 'vereineresolutiontasks');

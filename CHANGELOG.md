@@ -7,6 +7,33 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Behoben
+
+- **Statuten: der Vorstand wird nicht mehr starr festgeschrieben** (#149): Bisher
+  stand dort „Der Vorstand besteht aus sechs Mitgliedern, und zwar aus: …" –
+  auch dann, wenn es die Stellvertretungen gar nicht gibt. Jetzt richtet sich
+  der Satz nach dem Funktionskatalog: Funktionen mit Mindestanzahl 1 sind
+  Vorstandsmitglieder, alles andere kommt als *„und bei Bedarf …"* dazu, und
+  eine Zahl steht nur dort, wo sie wirklich feststeht. Das Musterstatut des
+  Innenministeriums (sechs Mitglieder mit Stellvertretungen) lässt sich damit
+  genauso abbilden wie ein Verein mit drei Pflichtfunktionen. Der Absatz zur
+  Vertretung im Verhinderungsfall steht nur noch dort, wo es Stellvertretungen
+  gibt; die **Schriftführung** ist im Vorschlag jetzt Pflichtfunktion.
+- **Geldangelegenheiten brauchen den Kassier** (#151): Neue Dokumentart
+  *Geldangelegenheit*, vorbelegt mit Obmann/Obfrau und Kassier:in – wie es § 13
+  Abs. 2 der Musterstatuten verlangt. Ein Beschluss lässt sich als *Beschluss
+  mit Geldwirkung* kennzeichnen; sein PDF holt dann diese Unterschriften und
+  sagt es auch im Dokument.
+
+### Geändert
+
+- **Der Zweck wird dort eingetragen, wo er hingehört** (#150): bei den Statuten,
+  nicht mehr unter *Allgemein*. Dort steht er weiterhin, aber nur zum Nachlesen
+  mit einem Link – gespeichert wird er an genau einer Stelle.
+- **Neue Tabelle „Woher die Paragrafen kommen"** am Reiter *Statuten*: Sie nennt
+  für jeden Paragrafen die Einstellung, aus der er entsteht. Ein Test hält die
+  Tabelle mit den erzeugten Abschnitten in Schritt.
+
 ## [0.5.11-beta] - 2026-09-18
 
 Unterlagen zu Abstimmungen und Wahlen, und Einstellungen, die im Formular

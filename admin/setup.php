@@ -85,7 +85,6 @@ $action = GETPOST('action', 'aZ09');
 if ($action == 'update') {
 	$registerNumber = VereineAssociationRules::normalizeZvr(GETPOST('VEREINE_REGISTER_NUMBER', 'alphanohtml'));
 	$authority = trim(GETPOST('VEREINE_AUTHORITY', 'alphanohtml'));
-	$purpose = trim(GETPOST('VEREINE_PURPOSE', 'alphanohtml'));
 	$nonprofit = GETPOSTINT('VEREINE_NONPROFIT') ? '1' : '0';
 	$pdfRegister = GETPOSTINT('VEREINE_PDF_REGISTER') ? '1' : '0';
 	$foundedYear = GETPOSTINT('foundedyear');
@@ -96,10 +95,6 @@ if ($action == 'update') {
 	$error = VereineAssociationRules::validateZvr($registerNumber);
 	if ($error !== '') {
 		$errors[] = $langs->trans($error);
-	}
-	$error = VereineAssociationRules::validatePurpose($purpose);
-	if ($error !== '') {
-		$errors[] = $langs->trans($error, VereineAssociationRules::PURPOSE_MAX_LENGTH);
 	}
 	$error = VereineAssociationRules::validateFoundingDate($foundedYear, $foundedMonth, $foundedDay, dol_now());
 	if ($error !== '') {
@@ -117,7 +112,6 @@ if ($action == 'update') {
 			'VEREINE_AUTHORITY' => $authority,
 			'VEREINE_FOUNDED' => $founded,
 			'VEREINE_NONPROFIT' => $nonprofit,
-			'VEREINE_PURPOSE' => $purpose,
 			'VEREINE_PDF_REGISTER' => $pdfRegister,
 		);
 		$db->begin();
@@ -152,7 +146,6 @@ if ($action == 'edit') {
 		'VEREINE_REGISTER_NUMBER' => GETPOST('VEREINE_REGISTER_NUMBER', 'alphanohtml'),
 		'VEREINE_AUTHORITY' => GETPOST('VEREINE_AUTHORITY', 'alphanohtml'),
 		'VEREINE_NONPROFIT' => GETPOSTINT('VEREINE_NONPROFIT') ? '1' : '0',
-		'VEREINE_PURPOSE' => GETPOST('VEREINE_PURPOSE', 'alphanohtml'),
 		'VEREINE_PDF_REGISTER' => GETPOSTINT('VEREINE_PDF_REGISTER') ? '1' : '0',
 	);
 	$foundedTimestamp = GETPOSTINT('foundedyear') ? dol_mktime(12, 0, 0, GETPOSTINT('foundedmonth'), GETPOSTINT('foundedday'), GETPOSTINT('foundedyear')) : '';
@@ -212,9 +205,13 @@ print '<input type="checkbox" id="VEREINE_NONPROFIT" name="VEREINE_NONPROFIT" va
 print ' <span class="opacitymedium small">'.$langs->trans('VereineNonprofitHelp').'</span>';
 print '</td></tr>';
 
-// Purpose
-print '<tr class="oddeven"><td class="tdtop"><label for="VEREINE_PURPOSE">'.$langs->trans('VereinePurpose').'</label></td><td>';
-print '<textarea id="VEREINE_PURPOSE" name="VEREINE_PURPOSE" class="quatrevingtpercent" rows="4" maxlength="'.VereineAssociationRules::PURPOSE_MAX_LENGTH.'">'.dol_escape_htmltag($current['VEREINE_PURPOSE'], 0, 1).'</textarea>';
+// The purpose belongs to the statutes (§ 3 Abs. 2 Z 2 VerG), so it is entered there and only shown here.
+print '<tr class="oddeven"><td class="tdtop" id="VEREINE_PURPOSE">'.$langs->trans('VereinePurpose').'</td><td>';
+print '<span data-purpose-here="0">';
+print $current['VEREINE_PURPOSE'] !== '' ? nl2br(dol_escape_htmltag($current['VEREINE_PURPOSE'], 0, 1))
+	: '<span class="opacitymedium">'.$langs->trans('VereineStatutePurposeEmpty').'</span>';
+print '</span> <a href="'.dol_buildpath('/vereine/admin/statutes.php', 1).'#vereinestatutetext">'.img_picto($langs->trans('Modify'), 'edit').' ';
+print $langs->trans('VereinePurposeInStatutes').'</a>';
 print '<div class="opacitymedium small">'.$langs->trans('VereinePurposeHelp').'</div>';
 print '</td></tr>';
 

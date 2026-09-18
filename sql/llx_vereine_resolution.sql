@@ -37,6 +37,7 @@ CREATE TABLE llx_vereine_resolution(
 	valid_to DATE,
 	fk_adherent INTEGER DEFAULT 0 NOT NULL,
 	fk_facture INTEGER DEFAULT 0 NOT NULL,
+	money SMALLINT DEFAULT 0 NOT NULL,
 	applied VARCHAR(64),
 	note TEXT,
 	datec DATETIME NOT NULL,

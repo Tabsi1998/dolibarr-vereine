@@ -38,8 +38,10 @@ class VereineSignatureRules
 	const KIND_RESOLUTION = 'resolution';
 	/** Report of the auditors. */
 	const KIND_AUDIT_REPORT = 'audit_report';
+	/** A money matter: a resolution with an effect on the assets of the association. */
+	const KIND_MONEY = 'money';
 	/** Kinds of document, in the order the setup page shows them. */
-	const KINDS = array('letter', 'minutes', 'resolution', 'audit_report');
+	const KINDS = array('letter', 'minutes', 'resolution', 'money', 'audit_report');
 
 	/** Everybody named has to sign. */
 	const MODE_ALL = 'all';
@@ -65,6 +67,9 @@ class VereineSignatureRules
 			self::KIND_LETTER => array('roles' => array('obmann', 'schriftfuehrung'), 'mode' => self::MODE_ALL, 'min' => 2),
 			self::KIND_MINUTES => array('roles' => array('obmann', 'schriftfuehrung'), 'mode' => self::MODE_ALL, 'min' => 2),
 			self::KIND_RESOLUTION => array('roles' => array('obmann', 'schriftfuehrung'), 'mode' => self::MODE_ALL, 'min' => 2),
+			// Money matters: chair and treasurer, as § 13 Abs. 2 of the model statutes puts it. Statutes that
+			// ask for the secretary as well are set up by adding that function here.
+			self::KIND_MONEY => array('roles' => array('obmann', 'kassier'), 'mode' => self::MODE_ALL, 'min' => 2),
 			// The auditors report themselves (§ 21 VerG).
 			self::KIND_AUDIT_REPORT => array('roles' => array('rechnungspruefung'), 'mode' => self::MODE_ALL, 'min' => 2),
 		);

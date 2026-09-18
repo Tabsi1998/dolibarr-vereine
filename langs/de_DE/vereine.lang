@@ -1554,3 +1554,18 @@ VereineMeetingDocSheetLeader=Wahlleitung
 VereineMeetingDocSheetCounter=Stimmzählung
 VereineMinutesPdfAttachments=Anlagen
 VereineLog_meeting_document=Unterlage einer Sitzung gespeichert
+
+# Geldangelegenheiten (#151)
+VereineResolutionMoney=Geldangelegenheit
+VereineResolutionMoneyLabel=Beschluss mit Geldwirkung
+VereineResolutionMoneyNo=keine Geldangelegenheit
+VereineResolutionMoneyHelp=Anschaffung, Zahlung, Förderantrag: Das PDF wird dann nach der Einstellung *Geldangelegenheit* unterschrieben – laut Musterstatuten von Obmann/Obfrau und Kassier:in.
+VereineSignatureKind_money=Geldangelegenheit
+VereineSignatureKindHelp_money=Beschlüsse mit Geldwirkung (vermögenswerte Dispositionen). Die Musterstatuten verlangen dafür die Unterschriften von Obmann/Obfrau und Kassier:in; verlangen deine Statuten zusätzlich die Schriftführung, hake sie hier an.
+VereinePurposeInStatutes=bei den Statuten eintragen
+
+# Herkunft der Paragrafen (#150)
+VereineStatuteSourcesTitle=Woher die Paragrafen kommen
+VereineStatuteSourcesHowTo=Jeder Paragraf entsteht aus Einstellungen. Hier steht, welche – damit du nichts suchen musst.
+VereineStatuteSourcesSection=Paragraf
+VereineStatuteSourcesFrom=Kommt aus

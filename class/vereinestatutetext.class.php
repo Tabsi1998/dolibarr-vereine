@@ -347,7 +347,7 @@ class VereineStatuteText
 				: 'Für die Beschlussfassung im Umlaufweg gelten die Mehrheitserfordernisse des Abs. 6.';
 		}
 		$add('Vorstand', array_values(array_filter(array(
-			'Der Vorstand besteht aus '.($context['board'] ? self::number(count($context['board'])).' Mitgliedern, und zwar aus: '.self::join($context['board']) : $blank).'.',
+			self::boardSentence($context, $blank),
 			'Der Vorstand wird von der Generalversammlung gewählt. Der Vorstand hat bei Ausscheiden eines gewählten Mitglieds das Recht, an seine Stelle ein anderes wählbares Mitglied zu kooptieren, wozu die nachträgliche Genehmigung in der nächstfolgenden Generalversammlung einzuholen ist. Fällt der Vorstand ohne Selbstergänzung durch Kooptierung überhaupt oder auf unvorhersehbar lange Zeit aus, so ist jeder Rechnungsprüfer verpflichtet, unverzüglich eine außerordentliche Generalversammlung zum Zweck der Neuwahl eines Vorstands einzuberufen. Sollten auch die Rechnungsprüfer handlungsunfähig sein, hat jedes Mitglied, das die Notsituation erkennt, unverzüglich die Bestellung eines Kurators beim zuständigen Gericht zu beantragen, der umgehend eine außerordentliche Generalversammlung einzuberufen hat.',
 			'Die Funktionsperiode des Vorstands beträgt '.($boardTerm > 0 ? self::years($boardTerm) : $blank.' Jahre').'. Erfolgt die Neuwahl nicht rechtzeitig vor ihrem Ablauf, so läuft sie bis zur Wahl eines neuen Vorstands weiter. Eine Wiederwahl ist möglich. Jede Funktion im Vorstand ist persönlich auszuüben.',
 			'Der Vorstand wird von '.$chair.', bei Verhinderung von der Stellvertretung, schriftlich oder mündlich einberufen. Ist auch diese auf unvorhersehbar lange Zeit verhindert, darf jedes sonstige Vorstandsmitglied den Vorstand einberufen.',
@@ -371,7 +371,9 @@ class VereineStatuteText
 		);
 		$add('Aufgaben des Vorstands', array('Dem Vorstand obliegt die Leitung des Vereins. Er ist das „Leitungsorgan“ im Sinne des Vereinsgesetzes 2002. Ihm kommen alle Aufgaben zu, die nicht durch die Statuten einem anderen Vereinsorgan zugewiesen sind. In seinen Wirkungsbereich fallen insbesondere folgende Angelegenheiten:'."\n".$letters($tasks)));
 
-		$add('Besondere Obliegenheiten einzelner Vorstandsmitglieder', array(
+		// The clause about deputies only makes sense where the board has any.
+		$deputies = !empty($context['board_optional']);
+		$add('Besondere Obliegenheiten einzelner Vorstandsmitglieder', array_values(array_filter(array(
 			$chair.' führt die laufenden Geschäfte des Vereins. '.$secretary.' unterstützt dabei.',
 			$chair.' vertritt den Verein nach außen. Schriftliche Ausfertigungen des Vereins bedürfen zu ihrer Gültigkeit der Unterschriften von '.$chair.' und '.$secretary
 				.', in Geldangelegenheiten (vermögenswerte Dispositionen) von '.$chair.' und '.$treasurer.'. Rechtsgeschäfte zwischen Vorstandsmitgliedern und Verein bedürfen der Zustimmung eines anderen Vorstandsmitglieds.',
@@ -380,8 +382,8 @@ class VereineStatuteText
 			$chair.' führt den Vorsitz in der Generalversammlung und im Vorstand.',
 			$secretary.' führt die Protokolle der Generalversammlung und des Vorstands.',
 			$treasurer.' ist für die ordnungsgemäße Geldgebarung des Vereins verantwortlich.',
-			'Im Fall der Verhinderung treten an die Stelle von '.$chair.', '.$secretary.' oder '.$treasurer.' ihre Stellvertretungen.',
-		));
+			$deputies ? 'Im Fall der Verhinderung treten an die Stelle von '.$chair.', '.$secretary.' oder '.$treasurer.' ihre Stellvertretungen.' : '',
+		), 'strlen')));
 
 		$auditors = max(2, (int) $context['auditors']);
 		$add('Rechnungsprüfer', array(
@@ -546,6 +548,61 @@ class VereineStatuteText
 		$names = array(VereineStatuteRules::MAJORITY_SIMPLE => 'einfachen Mehrheit', VereineStatuteRules::MAJORITY_TWO_THIRDS => 'Zweidrittelmehrheit',
 			VereineStatuteRules::MAJORITY_THREE_QUARTERS => 'Dreiviertelmehrheit');
 		return isset($names[$majority]) ? $names[$majority] : $names[VereineStatuteRules::MAJORITY_TWO_THIRDS];
+	}
+
+	/**
+	 * How the statutes name the board: the functions it must have, and the ones it may have.
+	 *
+	 * The model statutes of the Ministry of the Interior name six members because they expect a deputy for
+	 * every function. Where a deputy is not required, a number would be wrong - then the statutes name the
+	 * functions and add the rest with "bei Bedarf", as many associations write it.
+	 *
+	 * @param array<string,mixed> $context Context of the association
+	 * @param string              $blank   What stands where something is missing
+	 * @return string
+	 */
+	public static function boardSentence(array $context, $blank)
+	{
+		$required = isset($context['board_required']) ? $context['board_required'] : $context['board'];
+		$optional = isset($context['board_optional']) ? $context['board_optional'] : array();
+		if (!$required && !$optional) {
+			return 'Der Vorstand besteht aus '.$blank.'.';
+		}
+		if (!$optional) {
+			return 'Der Vorstand besteht aus '.self::number(count($required)).' Mitgliedern, und zwar aus: '.self::join($required).'.';
+		}
+		$named = $required ? self::join($required) : $blank;
+		return 'Der Vorstand besteht aus folgenden Mitgliedern: '.$named.' und bei Bedarf '.self::join($optional).'.';
+	}
+
+	/**
+	 * Where every paragraph of the statutes comes from, so nobody has to look for a setting.
+	 *
+	 * The keys are the titles of the sections; a test keeps this list and the sections in step.
+	 *
+	 * @return array<string,string> Source by title of the section
+	 */
+	public static function sources()
+	{
+		return array(
+			'Name, Sitz und Tätigkeitsbereich' => 'Unternehmensdaten von Dolibarr (Name, Ort) und das Feld Tätigkeitsbereich hier',
+			'Zweck' => 'Feld Zweck hier bei den Statuten',
+			'Mittel zur Erreichung des Vereinszwecks' => 'Felder Tätigkeiten und Mittel hier',
+			'Arten der Mitgliedschaft' => 'Mitgliedsarten von Dolibarr (Mitglieder – Einrichtung)',
+			'Erwerb der Mitgliedschaft' => 'Mindestalter und juristische Personen aus den Regeln hier',
+			'Beendigung der Mitgliedschaft' => 'Austrittsregel im Reiter Beiträge und Monate für den Ausschluss hier',
+			'Rechte und Pflichten der Mitglieder' => 'stimmberechtigte Mitgliedsarten aus den Regeln hier',
+			'Vereinsorgane' => 'fest, nach den Musterstatuten',
+			'Generalversammlung' => 'Regeln der Generalversammlung hier (Abstand, Fristen, Einladungswege, Vollmacht, Beschlussfähigkeit, Mehrheiten, virtuelle Versammlung)',
+			'Aufgaben der Generalversammlung' => 'fest, nach den Musterstatuten',
+			'Vorstand' => 'Funktionskatalog (Mitglieder – Funktionen) und die Regeln des Vorstands hier',
+			'Aufgaben des Vorstands' => 'fest, nach den Musterstatuten',
+			'Besondere Obliegenheiten einzelner Vorstandsmitglieder' => 'Funktionskatalog (Obmann/Obfrau, Schriftführung, Kassier:in) und ob es Stellvertretungen gibt',
+			'Rechnungsprüfer' => 'Funktionskatalog: Anzahl und Funktionsperiode der Rechnungsprüfung',
+			'Schiedsgericht' => 'fest, nach den Musterstatuten',
+			'Freiwillige Auflösung des Vereins' => 'Mehrheit für die Auflösung aus den Regeln hier',
+			'Verwendung des Vereinsvermögens bei Auflösung des Vereins oder bei Wegfall des begünstigten Zwecks' => 'Felder zum Vermögen hier und der Schalter gemeinnützig im Reiter Verein',
+		);
 	}
 
 	/**
