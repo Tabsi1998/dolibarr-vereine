@@ -79,6 +79,7 @@ class VereineLog
 	const CIRCULAR_REMINDED = 'circular_reminded';
 	const CIRCULAR_DECIDED = 'circular_decided';
 	const CIRCULAR_CANCELLED = 'circular_cancelled';
+	const MEETING_DOCUMENT = 'meeting_document';
 
 	/**
 	 * Append one entry.

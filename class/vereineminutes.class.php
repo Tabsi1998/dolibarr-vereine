@@ -26,6 +26,7 @@
 
 require_once __DIR__.'/vereinemeetings.class.php';
 require_once __DIR__.'/vereinesignatures.class.php';
+require_once __DIR__.'/vereinemeetingdocs.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 
 /**
@@ -481,6 +482,28 @@ class VereineMinutes
 		$pdf->Ln(2);
 		$line($outputlangs->transnoentities('VereineMinutesPdfResolutions'), 'B', 11);
 		$line($passed ? implode("\n", $passed) : $outputlangs->transnoentitiesnoconv('VereineVotesNone'));
+
+		// The attachments: what proves the votes and the proxies (#115).
+		$attachments = array();
+		$docs = new VereineMeetingDocs($this->db);
+		$voteTitles = array();
+		foreach ($votes as $vote) {
+			$voteTitles[$vote['id']] = $vote['title'];
+		}
+		foreach ($docs->all($meeting['id']) as $file) {
+			$what = $outputlangs->transnoentitiesnoconv('VereineMeetingDocKind_'.$file['kind']);
+			if ($file['vote_id'] > 0 && isset($voteTitles[$file['vote_id']])) {
+				$what .= ' - '.$voteTitles[$file['vote_id']];
+			} elseif ($file['member_id'] > 0 && isset($attendance['names'][$file['member_id']])) {
+				$what .= ' - '.$attendance['names'][$file['member_id']];
+			}
+			$attachments[] = $what.($file['label'] !== '' ? ': '.$file['label'] : '').' ('.$file['filename'].')';
+		}
+		if ($attachments) {
+			$pdf->Ln(4);
+			$line($outputlangs->transnoentities('VereineMinutesPdfAttachments'), 'B', 11);
+			$line(implode("\n", $attachments));
+		}
 		$pdf->Ln(8);
 
 		// Signature lines, for the paper way.

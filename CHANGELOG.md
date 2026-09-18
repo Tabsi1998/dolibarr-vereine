@@ -14,6 +14,24 @@ Umlaufbeschlüsse im Vorstand (#22, #122, #121).
 
 ### Neu
 
+- **Unterlagen einer Sitzung und Zählliste** (#115): Was eine Abstimmung
+  nachweist, hängt jetzt an der Abstimmung.
+  - **Zählliste als PDF** zum Ausdrucken vor der Sitzung: Frage oder Funktion
+    mit den Kandidaten, Spalten für Ja, Nein, Enthaltung und Vermerk, so viele
+    Zeilen zum Zählen wie du brauchst, Unterschriften für Wahlleitung und
+    Stimmzählung. Sie wird ausgeliefert und nicht behalten – ausgefüllt kommt
+    sie als Nachweis wieder herauf.
+  - **Nachweise hochladen** (PDF oder Bild, höchstens 10 MB): am Beschluss die
+    ausgefüllte Zählliste oder der Scan der Stimmzettel, am Anwesenheitseintrag
+    die unterschriebene **Vollmacht**, dazu sonstige Unterlagen der Sitzung.
+    Gespeichert wird mit Prüfsumme in den Dokumenten der Sitzung; nichts wird
+    überschrieben, eine Datei anderer Art abgelehnt.
+  - Herunterladen darf nur, wer die Sitzungen sehen darf; hochladen nur, wer
+    auch Abstimmungen einträgt.
+  - Das **Protokoll** nennt die Unterlagen als *Anlagen* (#21).
+
+### Neu
+
 - **Umlaufbeschluss im Vorstand** (#121): Der Vorstand beschließt zwischen
   zwei Sitzungen – sauber festgehalten statt per WhatsApp.
   - **Nur wenn die Statuten es erlauben**: neuer Schalter in den Regeln der
