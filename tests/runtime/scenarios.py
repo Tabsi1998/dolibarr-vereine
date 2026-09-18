@@ -330,6 +330,7 @@ def enable(stack: Stack) -> str:
                       ["49210004", "application", "write"]], f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_authority", "/vereine/authority.php"],
+                    ["members", "vereine_circulars", "/vereine/circulars.php"],
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
                     ["members", "vereine_meetings", "/vereine/meetings.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"],
@@ -347,7 +348,7 @@ def enable(stack: Stack) -> str:
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
     return (f"module {stack.module_version} on with Members, third parties and categories; no country profile; "
-            "4 rights, 8 menu entries, log table, 3 categories")
+            "4 rights, 9 menu entries, log table, 3 categories")
 
 
 def pages(stack: Stack) -> str:
@@ -2897,6 +2898,110 @@ def resolutiondocs(stack: Stack) -> str:
             "it was built again; an election names function, person and term; excerpt of two resolutions handed over and not kept")
 
 
+def circulars(stack: Stack) -> str:
+    """Circular resolutions: off unless the statutes allow them, only the board votes, the result lands in the register."""
+    browser = stack.browser()
+    base = "/custom/vereine/circulars.php"
+    setup = "/custom/vereine/admin/statutes.php"
+    mail = stack.mailpit()
+
+    # With the switch off there is no circular resolution at all.
+    page = page_ok(browser.get(base), "circular resolutions with the switch off")
+    expect('data-circular-allowed="0"' in page.text and "Statuten erlauben Umlaufbeschl" in html.unescape(page.text),
+           "with the switch off the page does not say that the statutes decide")
+    expect('name="vereinecircular"' not in page.text, "the page offers a new circular resolution although the statutes do not allow it")
+
+    # The statutes allow them, and ask that nobody objects to the procedure.
+    form = page_ok(browser.get(setup), "statute setup").form(name="vereinestatutes")
+    page_ok(browser.submit(form, {"circular": "1", "circular_no_objection": "1"}), "the statutes allow circular resolutions")
+    stored = json.loads(stack.const("VEREINE_STATUTE_RULES") or "{}")
+    expect(stored.get("circular") is True and stored.get("circular_no_objection") is True, f"stored rules: {stored.get('circular')}, {stored.get('circular_no_objection')}")
+
+    # Everybody of the board gets it by e-mail, with the link into Dolibarr.
+    mail.clear()
+    page = page_ok(browser.get(base), "circular resolutions with the switch on")
+    voters = int(re.search(r'data-circular-voters="(\d+)"', page.text).group(1))
+    expect(voters >= 2, f"the board should have at least two members who may vote, found {voters}")
+    refused = page_ok(browser.submit(page.form(name="vereinecircular"), {"title": "Trikots", "wording": "Der Vorstand kauft Trikots.", "deadline": "2020-01-01"}),
+                      "a deadline in the past")
+    expect("Frist" in html.unescape(refused.text) and stack.value("SELECT COUNT(*) FROM llx_vereine_circular") == "0",
+           "a circular resolution with a deadline in the past was started")
+    page = page_ok(browser.get(base), "circular resolutions before the start")
+    deadline = (datetime.date.today() + datetime.timedelta(days=10)).isoformat()
+    page_ok(browser.submit(page.form(name="vereinecircular"),
+                           {"title": "Trikots im Umlauf", "wording": "Der Vorstand kauft Trikots f\u00fcr 800 Euro.", "deadline": deadline}),
+            "start the circular resolution")
+    circular = stack.sql("SELECT rowid, status, deadline FROM llx_vereine_circular")
+    expect(len(circular) == 1 and circular[0][1] == "open" and circular[0][2] == deadline, f"the circular resolution: {circular}")
+    rows = stack.sql(f"SELECT COUNT(*), COUNT(invited_at) FROM llx_vereine_circular_vote WHERE fk_circular = {circular[0][0]}")
+    messages = mail.messages()
+    expect(rows == [[str(voters), str(len(messages))]] and messages, f"votes {rows}, {len(messages)} e-mails for {voters} board members")
+    body = mail.message(messages[0]["ID"])
+    expect("circulars.php" in json.dumps(body), "the e-mail carries no link to the circular resolution in Dolibarr")
+
+    # Only the board votes, and only once; the admin is linked to the chair's member by the signatures scenario.
+    identifier = circular[0][0]
+    page = page_ok(browser.get(f"{base}?id={identifier}"), "the circular resolution")
+    expect('name="vereinecircularvote"' in page.text, "the chair is not offered a vote")
+    page_ok(browser.submit(page.form(name="vereinecircularvote"), {"choice": "yes"}), "the chair votes yes")
+    chair = stack.value("SELECT fk_member FROM llx_user WHERE login = 'admin'")
+    mine = stack.sql(f"SELECT choice, voted_at IS NOT NULL FROM llx_vereine_circular_vote WHERE fk_circular = {identifier} AND fk_adherent = {chair}")
+    expect(mine == [["yes", "1"]], f"the stored vote of the chair: {mine}")
+    again = page_ok(browser.post(f"{base}?id={identifier}", [("token", token_of(page)), ("action", "vote"), ("choice", "no")]), "vote a second time")
+    expect("schon abgestimmt" in html.unescape(again.text), "somebody voted twice")
+    expect('name="vereinecircularvote"' not in page_ok(browser.get(f"{base}?id={identifier}"), "the circular resolution after the vote").text,
+           "the vote is offered again after it was given")
+
+    # Nothing is counted while the deadline runs and votes are missing; a reminder goes to those who are missing.
+    refused = page_ok(browser.post(f"{base}?id={identifier}", [("token", token_of(page)), ("action", "close")]), "count too early")
+    expect("noch nicht alle" in html.unescape(refused.text) and stack.value(f"SELECT status FROM llx_vereine_circular WHERE rowid = {identifier}") == "open",
+           "the result was counted although the deadline runs and votes are missing")
+    mail.clear()
+    page = page_ok(browser.get(f"{base}?id={identifier}"), "the circular resolution before the reminder")
+    page_ok(browser.submit(page.form(name="vereinecircularremind")), "remind the missing board members")
+    reminders = mail.messages()
+    expect(stack.value(f"SELECT reminded_at IS NOT NULL FROM llx_vereine_circular WHERE rowid = {identifier}") == "1" and reminders,
+           f"{len(reminders)} reminders sent")
+    expect(all("Erinnerung" in message.get("Subject", "") for message in reminders), f"subjects of the reminders: {[m.get('Subject') for m in reminders]}")
+
+    # The other board members vote, so the result can be counted and lands in the register.
+    others = [row[0] for row in stack.sql(f"SELECT fk_adherent FROM llx_vereine_circular_vote WHERE fk_circular = {identifier} AND voted_at IS NULL")]
+    expect(others, "every board member has voted already, the test proves nothing")
+    for index, member in enumerate(others):
+        choice = "yes" if index == 0 else "abstain"
+        stack.sql(f"UPDATE llx_vereine_circular_vote SET choice = '{choice}', voted_at = NOW() WHERE fk_circular = {identifier} AND fk_adherent = {member}")
+    page = page_ok(browser.get(f"{base}?id={identifier}"), "the circular resolution with every vote")
+    expect('data-ready="1"' in page.text, "with every vote given the result is still not ready")
+    page_ok(browser.submit(page.form(name="vereinecircularclose")), "count the result")
+    decided = stack.sql(f"SELECT status, passed, yes, no, abstain, fk_resolution FROM llx_vereine_circular WHERE rowid = {identifier}")
+    expect(decided and decided[0][0] == "decided" and decided[0][1] == "1" and int(decided[0][5]) > 0, f"after counting: {decided}")
+    entry = stack.sql(f"SELECT source, organ, passed, wording FROM llx_vereine_resolution WHERE rowid = {decided[0][5]}")
+    expect(entry and entry[0][0] == "circular" and entry[0][1] == "board" and entry[0][2] == "1" and "Trikots" in entry[0][3],
+           f"the register entry of the circular resolution: {entry}")
+    register = page_ok(browser.get(f"/custom/vereine/resolutions.php?id={decided[0][5]}"), "the circular resolution in the register")
+    page_ok(browser.submit(register.form(name="vereineresolutionbuild")), "build the PDF of the circular resolution")
+    pdf = pdf_bytes_text(browser.get(f"/custom/vereine/resolutions.php?action=pdf&id={decided[0][5]}&token={token_of(register)}", follow=False).body)
+    expect("Trikots" in pdf and "Vorstand" in pdf, f"the PDF of a circular resolution: {pdf[:300]!r}")
+
+    # One objection ends a circular resolution where the statutes ask that nobody objects.
+    page = page_ok(browser.get(base), "circular resolutions for the objection")
+    page_ok(browser.submit(page.form(name="vereinecircular"),
+                           {"title": "Zweite Anschaffung", "wording": "Der Vorstand kauft Ausr\u00fcstung.", "deadline": deadline}), "a second circular resolution")
+    second = stack.value("SELECT MAX(rowid) FROM llx_vereine_circular")
+    page = page_ok(browser.get(f"{base}?id={second}"), "the second circular resolution")
+    page_ok(browser.submit(page.form(name="vereinecircularvote"), {"choice": "objection"}), "object to the procedure")
+    page = page_ok(browser.get(f"{base}?id={second}"), "the second circular resolution after the objection")
+    expect('data-ready="1"' in page.text, "an objection does not end the circular resolution at once")
+    page_ok(browser.submit(page.form(name="vereinecircularclose")), "count the objection")
+    objected = stack.sql(f"SELECT status, passed, objection, fk_resolution FROM llx_vereine_circular WHERE rowid = {second}")
+    expect(objected == [["cancelled", "0", "1", "0"]], f"after the objection: {objected}")
+    logged = stack.value("SELECT COUNT(*) FROM llx_vereine_log WHERE action LIKE 'circular%'")
+    expect(int(logged) >= 6, f"{logged} entries in the log of the circular resolutions")
+    return (f"switch off: no circular resolution, the page says the statutes decide; on: {voters} board members invited by e-mail with the link, "
+            "a deadline in the past refused, nobody votes twice, nothing counted while votes are missing, reminder to the missing ones; "
+            "result counted, in the register as a resolution of the board and as PDF; one objection ends a circular resolution")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -3020,7 +3125,8 @@ SCENARIOS = (
     ("minutes", "Minutes: roles, draft PDF, final version with signatures, sent to the board", minutes, ("minutestexts", "signatures")),
     ("resolutions", "The register of resolutions: search, wording and validity, follow-ups as to-dos of Dolibarr, agenda suggestion", resolutions, ("minutes",)),
     ("resolutiondocs", "Every resolution as its own PDF, with its signature run and an excerpt of several", resolutiondocs, ("resolutions", "signatures")),
-    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("resolutiondocs",)),
+    ("circulars", "Circular resolutions of the board: only when the statutes allow, votes in Dolibarr, result in the register", circulars, ("resolutiondocs",)),
+    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("circulars",)),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )

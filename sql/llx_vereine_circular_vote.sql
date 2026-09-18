@@ -13,5 +13,17 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
-ALTER TABLE llx_vereine_resolution ADD INDEX idx_vereine_resolution_vote (entity, fk_vote);
-ALTER TABLE llx_vereine_resolution ADD INDEX idx_vereine_resolution_day (entity, resolution_day);
+-- Who of the board took part in a circular resolution, and how.
+CREATE TABLE llx_vereine_circular_vote(
+	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
+	entity INTEGER DEFAULT 1 NOT NULL,
+	fk_circular INTEGER NOT NULL,
+	fk_adherent INTEGER NOT NULL,
+	person_name VARCHAR(255) NOT NULL,
+	function_label VARCHAR(255),
+	email VARCHAR(255),
+	choice VARCHAR(16),
+	voted_at DATETIME,
+	invited_at DATETIME,
+	datec DATETIME NOT NULL
+) ENGINE=innodb;

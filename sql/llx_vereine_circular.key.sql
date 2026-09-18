@@ -13,5 +13,4 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
-ALTER TABLE llx_vereine_resolution ADD INDEX idx_vereine_resolution_vote (entity, fk_vote);
-ALTER TABLE llx_vereine_resolution ADD INDEX idx_vereine_resolution_day (entity, resolution_day);
+ALTER TABLE llx_vereine_circular ADD INDEX idx_vereine_circular_status (entity, status);

@@ -13,5 +13,23 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
-ALTER TABLE llx_vereine_resolution ADD INDEX idx_vereine_resolution_vote (entity, fk_vote);
-ALTER TABLE llx_vereine_resolution ADD INDEX idx_vereine_resolution_day (entity, resolution_day);
+-- A circular resolution of the board: the motion, the deadline and what came out of it.
+CREATE TABLE llx_vereine_circular(
+	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
+	entity INTEGER DEFAULT 1 NOT NULL,
+	title VARCHAR(255) NOT NULL,
+	wording TEXT NOT NULL,
+	deadline DATE NOT NULL,
+	status VARCHAR(16) NOT NULL,
+	started_on DATE NOT NULL,
+	reminded_at DATETIME,
+	decided_on DATE,
+	passed SMALLINT DEFAULT 0 NOT NULL,
+	yes INTEGER DEFAULT 0 NOT NULL,
+	no INTEGER DEFAULT 0 NOT NULL,
+	abstain INTEGER DEFAULT 0 NOT NULL,
+	objection INTEGER DEFAULT 0 NOT NULL,
+	fk_resolution INTEGER DEFAULT 0 NOT NULL,
+	datec DATETIME NOT NULL,
+	fk_user_modif INTEGER
+) ENGINE=innodb;

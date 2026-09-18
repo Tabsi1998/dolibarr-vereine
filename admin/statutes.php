@@ -100,6 +100,7 @@ $today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
 
 if ($action === 'saverules') {
 	$shown = array('proxy' => GETPOSTISSET('proxy') ? 1 : 0, 'board_tie_chair' => GETPOSTISSET('board_tie_chair') ? 1 : 0,
+		'circular' => GETPOSTISSET('circular') ? 1 : 0, 'circular_no_objection' => GETPOSTISSET('circular_no_objection') ? 1 : 0,
 		'invite_channels' => GETPOST('invite_channels', 'array'), 'voting_types' => GETPOST('voting_types', 'array'));
 	foreach (array('min_age', 'general_years', 'invite_days', 'motion_days', 'general_quorum', 'board_quorum') as $key) {
 		$shown[$key] = GETPOST($key, 'alphanohtml');
@@ -296,6 +297,11 @@ print '<tr><td class="titlefieldcreate fieldrequired"><label for="board_quorum">
 print '<td>'.$number('board_quorum', $shown['board_quorum'], 100).' '.$langs->trans('VereineStatuteBoardQuorumUnit').'</td></tr>';
 print '<tr><td></td><td><label><input type="checkbox" id="board_tie_chair" name="board_tie_chair" value="1"'.$checked($shown['board_tie_chair']).'> ';
 print $langs->trans('VereineStatuteBoardTieChair').'</label></td></tr>';
+print '<tr><td></td><td><label><input type="checkbox" id="circular" name="circular" value="1"'.$checked($shown['circular']).'> ';
+print $langs->trans('VereineStatuteCircular').'</label>';
+print '<div class="opacitymedium small">'.$langs->trans('VereineStatuteCircularHelp').'</div></td></tr>';
+print '<tr><td></td><td><label><input type="checkbox" id="circular_no_objection" name="circular_no_objection" value="1"'.$checked($shown['circular_no_objection']).'> ';
+print $langs->trans('VereineStatuteCircularNoObjection').'</label></td></tr>';
 print '</table><br>';
 
 print load_fiche_titre($langs->trans('VereineStatutesTerms'), '', '');

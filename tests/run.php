@@ -59,6 +59,7 @@ require_once $root.'/class/vereinetextrepair.class.php';
 require_once $root.'/class/vereineattendancerules.class.php';
 require_once $root.'/class/vereinevoterules.class.php';
 require_once $root.'/class/vereineresolutionrules.class.php';
+require_once $root.'/class/vereinecircularrules.class.php';
 require_once $root.'/class/vereineapirules.class.php';
 
 $failures = array();
@@ -1187,6 +1188,48 @@ same(array('Trikots bestellen (2026-1)'), VereineResolutionRules::suggestions(ar
 same(array('Trikots bestellen (2026-1)'), VereineResolutionRules::suggestions(array(array('label' => 'Trikots bestellen', 'ref' => '2026-1'),
 	array('label' => 'Trikots bestellen', 'ref' => '2026-1'), array('label' => '  ', 'ref' => '2026-2'))), 'the same item comes once, an empty one not at all');
 
+// --------------------------------------------------- circular resolutions of the board
+
+$statuteRules = VereineStatuteRules::defaults();
+expect(empty($statuteRules['circular']) && empty($statuteRules['circular_no_objection']),
+	'the model statutes know no circular resolution, so both switches start off');
+$allowing = array_merge($statuteRules, array('circular' => true));
+$circular = VereineCircularRules::normalize(array('title' => '  Trikots  ', 'wording' => ' Der Vorstand kauft Trikots. ', 'deadline' => '2026-10-01'));
+same(array('Trikots', 'Der Vorstand kauft Trikots.', '2026-10-01'), array($circular['title'], $circular['wording'], $circular['deadline']),
+	'a circular resolution is trimmed and typed');
+same('', VereineCircularRules::normalize(array('deadline' => '1.10.2026'))['deadline'], 'a deadline that is no day falls away');
+same(array(), VereineCircularRules::validate($circular, $allowing, '2026-09-18', 3), 'with the switch on, a motion with a deadline is fine');
+same(array('VereineCircularErrorNotAllowed'), VereineCircularRules::validate($circular, $statuteRules, '2026-09-18', 3),
+	'without the switch there is no circular resolution');
+same(array('VereineCircularErrorDeadline'), VereineCircularRules::validate($circular, $allowing, '2026-10-02', 3), 'a deadline in the past is refused');
+same(array('VereineCircularErrorTooLong'), VereineCircularRules::validate(VereineCircularRules::normalize(array('title' => 'x', 'wording' => 'y', 'deadline' => '2027-09-18')), $allowing, '2026-09-18', 3),
+	'a deadline more than 90 days away is refused');
+same(array('VereineCircularErrorText', 'VereineCircularErrorNobody'), VereineCircularRules::validate(VereineCircularRules::normalize(array('deadline' => '2026-10-01')), $allowing, '2026-09-18', 0),
+	'without a text and without a board nothing starts');
+same(13, VereineCircularRules::days('2026-09-18', '2026-10-01'), 'days between two days');
+
+$given = array(array('choice' => 'yes'), array('choice' => 'yes'), array('choice' => 'no'), array('choice' => 'abstain'), array('choice' => ''));
+same(array(2, 1, 1, 0, 4), array_values(VereineCircularRules::counts($given)), 'the votes are counted, an empty choice is nobody');
+$result = VereineCircularRules::result($given, $allowing);
+same(array(true, false, false, 'simple'), array($result['passed'], $result['tie'], $result['objected'], $result['majority']),
+	'two yes against one no is the simple majority, abstentions are no valid votes cast');
+$tie = VereineCircularRules::result(array(array('choice' => 'yes'), array('choice' => 'no')), array_merge($allowing, array('board_tie_chair' => true)));
+expect(!$tie['passed'] && $tie['tie'], 'a tie has no majority: nobody presides over a circular resolution, so there is no casting vote');
+expect(!VereineCircularRules::result(array(array('choice' => 'abstain')), $allowing)['passed'], 'only abstentions decide nothing');
+
+$objecting = array(array('choice' => 'yes'), array('choice' => 'objection'));
+expect(!VereineCircularRules::objected($objecting, $allowing), 'an objection counts only where the statutes ask that nobody objects');
+$strict = array_merge($allowing, array('circular_no_objection' => true));
+expect(VereineCircularRules::objected($objecting, $strict), 'with that rule one objection ends the circular resolution');
+$objected = VereineCircularRules::result($objecting, $strict);
+expect(!$objected['passed'] && $objected['objected'], 'a circular resolution somebody objected to never passes');
+
+$motion = array('deadline' => '2026-10-01');
+expect(!VereineCircularRules::ready($motion, 5, $given, $allowing, '2026-09-18'), 'while the deadline runs and somebody is missing, nothing is counted');
+expect(VereineCircularRules::ready($motion, 4, $given, $allowing, '2026-09-18'), 'when everybody voted, the result can be counted');
+expect(VereineCircularRules::ready($motion, 9, $given, $allowing, '2026-10-02'), 'after the deadline the result can be counted');
+expect(VereineCircularRules::ready($motion, 9, $objecting, $strict, '2026-09-18'), 'an objection ends it at once');
+
 // ------------------------------------------------------------------- openapi
 
 // Every endpoint of the API class is in docs/openapi.json, and the description lists no other.
@@ -1283,7 +1326,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
@@ -1312,6 +1355,8 @@ $prefixes = array(
 	'VereineSignatureMode_' => VereineSignatureRules::MODE_LIST,
 	'VereineSignatureWay_' => array('click', 'paper'),
 	'VereineResolutionCategory_' => VereineResolutionRules::CATEGORIES,
+	'VereineCircularChoice_' => VereineCircularRules::CHOICES,
+	'VereineCircularStatus_' => array('open', 'cancelled', 'objection'),
 	'VereineMinutesAudience_' => array('board', 'members'),
 	'VereineMinutesSend_' => array('board', 'members'),
 	'VereineApiEndpoint_' => array_column(VereineApiRules::endpoints($openapi), 'operation'),

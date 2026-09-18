@@ -95,6 +95,42 @@ class VereineResolutions
 	}
 
 	/**
+	 * Write the register entry of a circular resolution of the board.
+	 *
+	 * @param array<string,mixed> $circular Circular resolution with the day it was counted
+	 * @param array<string,mixed> $result   Result of VereineCircularRules::result()
+	 * @param User                $user     Who counts
+	 * @return int Id of the entry, -1 on error
+	 */
+	public function addFromCircular(array $circular, array $result, $user)
+	{
+		$counts = $result['counts'];
+		$entry = array(
+			'source' => VereineResolutionRules::SOURCE_CIRCULAR,
+			'meeting_id' => 0,
+			'vote_id' => 0,
+			'organ' => VereineMeetingRules::KIND_BOARD,
+			'kind' => VereineVoteRules::KIND_RESOLUTION,
+			'day' => (string) $circular['decided_on'],
+			'item' => 0,
+			'title' => (string) $circular['title'],
+			'category' => VereineResolutionRules::CATEGORY_OTHER,
+			'passed' => !empty($result['passed']),
+			'yes' => (int) $counts['yes'],
+			'no' => (int) $counts['no'],
+			'abstain' => (int) $counts['abstain'],
+			'majority' => (string) $result['majority'],
+			'member_id' => 0,
+			'applied' => 'circular:'.((int) $circular['id']),
+		);
+		$id = $this->insert($entry, $user);
+		if ($id > 0 && (string) $circular['wording'] !== '') {
+			$this->save($id, array('wording' => (string) $circular['wording'], 'category' => VereineResolutionRules::CATEGORY_OTHER), $user);
+		}
+		return $id;
+	}
+
+	/**
 	 * Write a register entry.
 	 *
 	 * @param array<string,mixed> $entry Facts of the resolution
