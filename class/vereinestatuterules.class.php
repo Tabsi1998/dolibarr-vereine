@@ -91,6 +91,8 @@ class VereineStatuteRules
 			'virtual' => self::VIRTUAL_NONE,
 			'board_quorum' => 50,
 			'board_tie_chair' => true,
+			'circular' => false,
+			'circular_no_objection' => false,
 		);
 	}
 
@@ -111,7 +113,7 @@ class VereineStatuteRules
 				$rules[$key] = (int) trim((string) $data[$key]);
 			}
 		}
-		foreach (array('proxy', 'board_tie_chair') as $key) {
+		foreach (array('proxy', 'board_tie_chair', 'circular', 'circular_no_objection') as $key) {
 			if (array_key_exists($key, $data)) {
 				$rules[$key] = !empty($data[$key]);
 			}

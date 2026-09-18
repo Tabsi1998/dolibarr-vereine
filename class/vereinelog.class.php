@@ -74,6 +74,11 @@ class VereineLog
 	const RESOLUTION_SAVED = 'resolution_saved';
 	const RESOLUTION_TASK = 'resolution_task';
 	const RESOLUTION_TASK_DONE = 'resolution_task_done';
+	const CIRCULAR_STARTED = 'circular_started';
+	const CIRCULAR_VOTE = 'circular_vote';
+	const CIRCULAR_REMINDED = 'circular_reminded';
+	const CIRCULAR_DECIDED = 'circular_decided';
+	const CIRCULAR_CANCELLED = 'circular_cancelled';
 
 	/**
 	 * Append one entry.

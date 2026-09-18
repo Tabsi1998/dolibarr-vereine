@@ -9,6 +9,25 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **Umlaufbeschluss im Vorstand** (#121): Der Vorstand beschließt zwischen
+  zwei Sitzungen – sauber festgehalten statt per WhatsApp.
+  - **Nur wenn die Statuten es erlauben**: neuer Schalter in den Regeln der
+    Statuten, standardmäßig aus. Das Vereinsgesetz regelt Umlaufbeschlüsse
+    nicht, und die Musterstatuten des Innenministeriums sehen sie nicht vor –
+    es gilt allein, was in deinen Statuten steht. Verlangen sie, dass niemand
+    dem Umlaufverfahren widerspricht, lässt sich auch das eintragen: ein
+    Widerspruch beendet den Umlauf.
+  - **Antrag mit Wortlaut und Frist** (längstens 90 Tage). Stimmberechtigt sind
+    die Vorstandsmitglieder des Tages; jedes bekommt eine E-Mail mit dem Link
+    und stimmt **in Dolibarr** ab (ja, nein, Enthaltung) – der Vorstand
+    entscheidet als Organ, deshalb nicht über die Website.
+  - **Erinnerung** an alle, die noch nicht abgestimmt haben. Das Ergebnis wird
+    festgestellt, sobald alle abgestimmt haben oder die Frist vorbei ist:
+    einfache Mehrheit der gültigen Stimmen, Stimmengleichheit gilt als
+    abgelehnt (bei einem Umlauf führt niemand den Vorsitz, also gibt es keinen
+    Stichentscheid).
+  - Der Beschluss landet im **Beschlussbuch** (#22) und kann dort als PDF
+    unterschrieben werden (#122).
 - **Beschluss als PDF** (#122): Jeder Beschluss lässt sich als eigenes
   Dokument erzeugen – mit Verein und ZVR-Zahl, Organ, Sitzung, Tag und
   Tagesordnungspunkt, Wortlaut, Ergebnis mit Stimmen und nötiger Mehrheit,

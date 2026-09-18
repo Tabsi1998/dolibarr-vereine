@@ -241,6 +241,20 @@ class modVereine extends DolibarrModules
 		$this->menu[$r++] = array(
 			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
 			'type' => 'left',
+			'titre' => 'VereineMenuCirculars',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_circulars',
+			'url' => '/vereine/circulars.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->hasRight("vereine", "association", "read") && $user->hasRight("adherent", "lire")',
+			'target' => '',
+			'user' => 0,
+		);
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
 			'titre' => 'VereineMenuLetters',
 			'mainmenu' => 'members',
 			'leftmenu' => 'vereine_authority',
