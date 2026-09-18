@@ -2833,6 +2833,70 @@ def resolutions(stack: Stack) -> str:
             "offered as an item of the next agenda, done in both places; CSV export")
 
 
+def resolutiondocs(stack: Stack) -> str:
+    """Every resolution as its own PDF: what it rests on, the signature run of its own, and an excerpt of several."""
+    browser = stack.browser()
+    base = "/custom/vereine/resolutions.php"
+    entry = stack.value("SELECT rowid FROM llx_vereine_resolution WHERE title = 'Anschaffung'")
+    page = page_ok(browser.get(f"{base}?id={entry}"), "a resolution without its PDF")
+    expect('data-resolution-pdf="0"' in page.text, "the resolution has a PDF before anybody built one")
+
+    page_ok(browser.submit(page.form(name="vereineresolutionbuild")), "build the PDF of the resolution")
+    page = page_ok(browser.get(f"{base}?id={entry}"), "the resolution with its PDF")
+    expect('data-resolution-pdf="1"' in page.text, "the PDF of the resolution was not built")
+    link = re.search(r'href="([^"]*action=pdf[^"]*)"', page.text)
+    expect(link is not None, "the resolution offers no download of its PDF")
+    document = browser.get(html.unescape(link.group(1)), follow=False)
+    expect(document.status == 200 and document.body[:5] == b"%PDF-", f"the download of the PDF answered HTTP {document.status}")
+    text = pdf_bytes_text(document.body)
+    ref = stack.value(f"SELECT ref FROM llx_vereine_resolution WHERE rowid = {entry}")
+    for word in (f"Beschluss {ref}", "Der Vorstand kauft Trikots.", "angenommen", "Vorstandssitzung", "Mehrheit"):
+        expect(word in text, f"the PDF of the resolution lacks {word!r}; it has {text[:400]!r}")
+
+    # It gets a signature run of its own, with the people the rules name for a resolution.
+    page = page_ok(browser.get(f"{base}?id={entry}"), "the resolution before its signature run")
+    page_ok(browser.submit(page.form(name=f"vereinestartsignresolution{entry}")), "start the signature run of the resolution")
+    run = stack.sql(f"SELECT rowid, status, doc_name FROM llx_vereine_signature WHERE kind = 'resolution' AND fk_object = {entry}")
+    expect(len(run) == 1 and run[0][1] == "open" and run[0][2] == f"beschluss-{entry}.pdf", f"the signature run of the resolution: {run}")
+    roles = sorted(row[0] for row in stack.sql(f"SELECT function_code FROM llx_vereine_signature_person WHERE fk_signature = {run[0][0]}"))
+    expect(roles == ["obmann"] or "obmann" in roles, f"a resolution is signed by these functions: {roles}")
+
+    page = page_ok(browser.get(f"{base}?id={entry}"), "the resolution with an open run")
+    page_ok(browser.post(base, [("token", token_of(page)), ("action", "sign"), ("signature", run[0][0]), ("password", stack.admin_password)]),
+            "sign the resolution in Dolibarr")
+    signed = stack.sql(f"SELECT way, signed_at IS NOT NULL FROM llx_vereine_signature_person WHERE fk_signature = {run[0][0]} AND signed_at IS NOT NULL")
+    expect(signed == [["click", "1"]], f"after signing in Dolibarr: {signed}")
+
+    # A PDF built again is a new document, so the run asks for new signatures.
+    page = page_ok(browser.get(f"{base}?id={entry}"), "the signed resolution")
+    page_ok(browser.submit(page.form(name="vereineresolutionbuild")), "build the PDF again")
+    changed = page_ok(browser.get(f"{base}?id={entry}"), "the resolution after the PDF changed")
+    expect('data-signature-changed="1"' in changed.text, "a rebuilt PDF is not reported as a changed document")
+
+    # The election names function, person and term of office.
+    election = stack.value("SELECT rowid FROM llx_vereine_resolution WHERE kind = 'election'")
+    page = page_ok(browser.get(f"{base}?id={election}"), "the election in the register")
+    page_ok(browser.submit(page.form(name="vereineresolutionbuild")), "build the PDF of the election")
+    election_pdf = pdf_bytes_text(browser.get(f"{base}?action=pdf&id={election}&token={token_of(page)}", follow=False).body)
+    expect("Wahl" in election_pdf and "Funktionsperiode" in election_pdf, f"the PDF of an election lacks its term: {election_pdf[:400]!r}")
+
+    # Several resolutions as one excerpt, which is handed over and not kept.
+    listing = page_ok(browser.get(base), "the register")
+    before = stack.shell("ls /var/www/documents/vereine/resolutions | wc -l").stdout.strip()
+    refused = page_ok(browser.post(base, [("token", token_of(listing)), ("action", "excerpt")]), "an excerpt without a choice")
+    expect("Wähle zuerst" in html.unescape(refused.text), "an excerpt without a chosen resolution was built")
+    excerpt = browser.post(base, [("token", token_of(listing)), ("action", "excerpt"), ("pick[]", entry), ("pick[]", election)], follow=False)
+    expect(excerpt.status == 200 and excerpt.body[:5] == b"%PDF-", f"the excerpt answered HTTP {excerpt.status}")
+    excerpt_text = pdf_bytes_text(excerpt.body)
+    election_ref = stack.value(f"SELECT ref FROM llx_vereine_resolution WHERE rowid = {election}")
+    expect("Beschluss-Auszug" in excerpt_text and f"Beschluss {ref}" in excerpt_text and f"Beschluss {election_ref}" in excerpt_text,
+           f"the excerpt does not carry both resolutions: {excerpt_text[:400]!r}")
+    after = stack.shell("ls /var/www/documents/vereine/resolutions | wc -l").stdout.strip()
+    expect(before == after, f"the excerpt stayed on the server: {before} files before, {after} after")
+    return ("PDF per resolution with wording, result, majority and quorum; downloaded, signed in Dolibarr and reported as changed after "
+            "it was built again; an election names function, person and term; excerpt of two resolutions handed over and not kept")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -2955,7 +3019,8 @@ SCENARIOS = (
     ("minutestexts", "Agenda templates and texts per item: required items, new meeting from a template, real numbers in the texts", minutestexts, ("votes",)),
     ("minutes", "Minutes: roles, draft PDF, final version with signatures, sent to the board", minutes, ("minutestexts", "signatures")),
     ("resolutions", "The register of resolutions: search, wording and validity, follow-ups as to-dos of Dolibarr, agenda suggestion", resolutions, ("minutes",)),
-    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("resolutions",)),
+    ("resolutiondocs", "Every resolution as its own PDF, with its signature run and an excerpt of several", resolutiondocs, ("resolutions", "signatures")),
+    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("resolutiondocs",)),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )

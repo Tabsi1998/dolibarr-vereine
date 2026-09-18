@@ -9,6 +9,20 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **Beschluss als PDF** (#122): Jeder Beschluss lässt sich als eigenes
+  Dokument erzeugen – mit Verein und ZVR-Zahl, Organ, Sitzung, Tag und
+  Tagesordnungspunkt, Wortlaut, Ergebnis mit Stimmen und nötiger Mehrheit,
+  Beschlussfähigkeit zur Uhrzeit der Abstimmung und, bei einer Wahl, Funktion,
+  Person und Funktionsperiode. So kannst du einen einzelnen Beschluss
+  weitergeben, etwa an die Bank oder an einen Fördergeber, ohne das ganze
+  Protokoll.
+  - **Unterschrieben** wird er wie jedes Dokument (#119): auf Papier mit Scan
+    zurück oder in Dolibarr mit dem eigenen Passwort. Wer unterschreibt, sagt
+    die Einstellung *Unterschriften* (vorbelegt Obmann/Obfrau und
+    Schriftführung). Wird das PDF neu erzeugt, verlangt der Lauf neue
+    Unterschriften.
+  - **Beschluss-Auszug**: mehrere Beschlüsse in einem Dokument, ausgewählt in
+    der Liste des Beschlussbuchs.
 - **Beschlussbuch** (#22): Der neue Menüpunkt *Beschlussbuch* zeigt jeden
   Beschluss an einer Stelle.
   - Jede Abstimmung einer Sitzung legt ihren Eintrag selbst an, mit Nummer
