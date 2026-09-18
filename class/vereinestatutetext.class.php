@@ -337,18 +337,28 @@ class VereineStatuteText
 
 		$boardTerm = $context['board_terms'] ? (int) max($context['board_terms']) : 0;
 		$quorum = (int) $rules['board_quorum'] === 50 ? 'die Hälfte' : ((int) $rules['board_quorum']).' %';
-		$add('Vorstand', array(
+		// A circular resolution is possible only where the statutes say so: the Associations Act does not
+		// provide for it, and the model statutes of the Ministry of the Interior do not know it either.
+		$circular = '';
+		if (!empty($rules['circular'])) {
+			$circular = 'Beschlüsse des Vorstands können auch außerhalb einer Sitzung im Umlaufweg gefasst werden, sofern jedes Vorstandsmitglied Gelegenheit zur Stimmabgabe erhält. ';
+			$circular .= !empty($rules['circular_no_objection'])
+				? 'Ein solcher Umlaufbeschluss kommt nur zustande, wenn kein Vorstandsmitglied dem Umlaufverfahren widerspricht; im Übrigen gelten die Mehrheitserfordernisse des Abs. 6.'
+				: 'Für die Beschlussfassung im Umlaufweg gelten die Mehrheitserfordernisse des Abs. 6.';
+		}
+		$add('Vorstand', array_values(array_filter(array(
 			'Der Vorstand besteht aus '.($context['board'] ? self::number(count($context['board'])).' Mitgliedern, und zwar aus: '.self::join($context['board']) : $blank).'.',
 			'Der Vorstand wird von der Generalversammlung gewählt. Der Vorstand hat bei Ausscheiden eines gewählten Mitglieds das Recht, an seine Stelle ein anderes wählbares Mitglied zu kooptieren, wozu die nachträgliche Genehmigung in der nächstfolgenden Generalversammlung einzuholen ist. Fällt der Vorstand ohne Selbstergänzung durch Kooptierung überhaupt oder auf unvorhersehbar lange Zeit aus, so ist jeder Rechnungsprüfer verpflichtet, unverzüglich eine außerordentliche Generalversammlung zum Zweck der Neuwahl eines Vorstands einzuberufen. Sollten auch die Rechnungsprüfer handlungsunfähig sein, hat jedes Mitglied, das die Notsituation erkennt, unverzüglich die Bestellung eines Kurators beim zuständigen Gericht zu beantragen, der umgehend eine außerordentliche Generalversammlung einzuberufen hat.',
 			'Die Funktionsperiode des Vorstands beträgt '.($boardTerm > 0 ? self::years($boardTerm) : $blank.' Jahre').'. Erfolgt die Neuwahl nicht rechtzeitig vor ihrem Ablauf, so läuft sie bis zur Wahl eines neuen Vorstands weiter. Eine Wiederwahl ist möglich. Jede Funktion im Vorstand ist persönlich auszuüben.',
 			'Der Vorstand wird von '.$chair.', bei Verhinderung von der Stellvertretung, schriftlich oder mündlich einberufen. Ist auch diese auf unvorhersehbar lange Zeit verhindert, darf jedes sonstige Vorstandsmitglied den Vorstand einberufen.',
 			'Der Vorstand ist beschlussfähig, wenn alle seine Mitglieder eingeladen wurden und mindestens '.$quorum.' von ihnen anwesend ist.',
 			'Der Vorstand fasst seine Beschlüsse mit einfacher Stimmenmehrheit'.($rules['board_tie_chair'] ? '; bei Stimmengleichheit gibt die Stimme der/des Vorsitzenden den Ausschlag.' : '; bei Stimmengleichheit gilt ein Antrag als abgelehnt.'),
+			$circular,
 			'Den Vorsitz führt '.$chair.', bei Verhinderung die Stellvertretung. Ist auch diese verhindert, obliegt der Vorsitz dem an Jahren ältesten anwesenden Vorstandsmitglied oder jenem Vorstandsmitglied, das die übrigen Vorstandsmitglieder mehrheitlich dazu bestimmen.',
 			'Außer durch den Tod und Ablauf der Funktionsperiode (Abs. 3) erlischt die Funktion eines Vorstandsmitglieds durch Enthebung (Abs. 9) und Rücktritt (Abs. 10).',
 			'Die Generalversammlung kann jederzeit den gesamten Vorstand oder einzelne seiner Mitglieder entheben. Die Enthebung tritt mit Bestellung des neuen Vorstands bzw. Vorstandsmitglieds in Kraft.',
 			'Die Vorstandsmitglieder können jederzeit schriftlich ihren Rücktritt erklären. Die Rücktrittserklärung ist an den Vorstand, im Falle des Rücktritts des gesamten Vorstands an die Generalversammlung zu richten. Der Rücktritt wird erst mit Wahl bzw. Kooptierung (Abs. 2) eines Nachfolgers wirksam.',
-		));
+		), 'strlen')));
 
 		$tasks = array(
 			'Einrichtung eines den Anforderungen des Vereins entsprechenden Rechnungswesens mit laufender Aufzeichnung der Einnahmen/Ausgaben und Führung eines Vermögensverzeichnisses als Mindesterfordernis;',
