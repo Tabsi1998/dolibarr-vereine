@@ -7,11 +7,6 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
-## [0.5.10-beta] - 2026-09-18
-
-Beschlüsse an einer Stelle: Beschlussbuch, Beschluss als PDF und
-Umlaufbeschlüsse im Vorstand (#22, #122, #121).
-
 ### Neu
 
 - **Unterlagen einer Sitzung und Zählliste** (#115): Was eine Abstimmung
@@ -29,6 +24,11 @@ Umlaufbeschlüsse im Vorstand (#22, #122, #121).
   - Herunterladen darf nur, wer die Sitzungen sehen darf; hochladen nur, wer
     auch Abstimmungen einträgt.
   - Das **Protokoll** nennt die Unterlagen als *Anlagen* (#21).
+
+## [0.5.10-beta] - 2026-09-18
+
+Beschlüsse an einer Stelle: Beschlussbuch, Beschluss als PDF und
+Umlaufbeschlüsse im Vorstand (#22, #122, #121).
 
 ### Neu
 
