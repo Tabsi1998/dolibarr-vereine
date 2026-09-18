@@ -1877,7 +1877,8 @@ def functions(stack: Stack) -> str:
     holders, problems = overview(today)
     expect(holders["obmann"] == 1 and holders["kassier"] == 1 and holders["rechnungspruefung"] == 2 and holders["jugendleitung"] == 2,
            f"holders today: {holders}")
-    expect(problems == [("auditor_on_board", ""), ("too_many", "jugendleitung")], f"problems today: {problems}")
+    # The secretary is a required function of the model statutes, so a vacant one is reported (#149).
+    expect(problems == [("auditor_on_board", ""), ("missing", "schriftfuehrung"), ("too_many", "jugendleitung")], f"problems today: {problems}")
 
     term = stack.value(f"SELECT t.rowid FROM llx_vereine_function_term as t INNER JOIN llx_vereine_function as f ON f.rowid = t.fk_function "
                        f"WHERE f.code = 'rechnungspruefung' AND t.fk_adherent = {int(members['paid'])}")
@@ -1888,7 +1889,7 @@ def functions(stack: Stack) -> str:
     _, problems_today = overview(today)
     holders_tomorrow, problems_tomorrow = overview(tomorrow)
     expect(("auditor_on_board", "") in problems_today and holders_tomorrow["rechnungspruefung"] == 1
-           and problems_tomorrow == [("missing", "rechnungspruefung"), ("too_many", "jugendleitung")],
+           and problems_tomorrow == [("missing", "schriftfuehrung"), ("missing", "rechnungspruefung"), ("too_many", "jugendleitung")],
            f"after ending the term: today {problems_today}, tomorrow {holders_tomorrow} {problems_tomorrow}")
     logged = dict(stack.sql("SELECT action, COUNT(*) FROM llx_vereine_log WHERE action LIKE 'function%' GROUP BY action"))
     expect(logged == {"function_start": "6", "function_end": "1"}, f"function log: {logged}")
