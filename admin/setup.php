@@ -208,7 +208,8 @@ print '</td></tr>';
 // The purpose belongs to the statutes (§ 3 Abs. 2 Z 2 VerG), so it is entered there and only shown here.
 print '<tr class="oddeven"><td class="tdtop" id="VEREINE_PURPOSE">'.$langs->trans('VereinePurpose').'</td><td>';
 print '<span data-purpose-here="0">';
-print $current['VEREINE_PURPOSE'] !== '' ? nl2br(dol_escape_htmltag($current['VEREINE_PURPOSE'], 0, 1))
+$shownPurpose = trim(getDolGlobalString('VEREINE_PURPOSE'));
+print $shownPurpose !== '' ? nl2br(dol_escape_htmltag($shownPurpose, 0, 1))
 	: '<span class="opacitymedium">'.$langs->trans('VereineStatutePurposeEmpty').'</span>';
 print '</span> <a href="'.dol_buildpath('/vereine/admin/statutes.php', 1).'#vereinestatutetext">'.img_picto($langs->trans('Modify'), 'edit').' ';
 print $langs->trans('VereinePurposeInStatutes').'</a>';

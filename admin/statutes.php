@@ -62,6 +62,7 @@ if (!$res) {
 
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once __DIR__.'/../lib/vereine.lib.php';
+require_once __DIR__.'/../class/vereineassociationrules.class.php';
 require_once __DIR__.'/../class/vereinestatutes.class.php';
 require_once __DIR__.'/../class/vereinefunctions.class.php';
 require_once __DIR__.'/../class/vereinefeemodel.class.php';
