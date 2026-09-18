@@ -188,7 +188,7 @@ if ($circular === null) {
 
 	if ($canWrite && $allowed) {
 		print load_fiche_titre($langs->trans('VereineCircularNew'), '', '', 0, 'vereinecircularnew');
-		$draft = $entered !== null ? $entered : VereineCircularRules::normalize(array());
+		$draft = $entered !== null ? $entered : VereineCircularRules::normalize(array('deadline' => dol_print_date(dol_time_plus_duree(dol_now(), 14, 'd'), '%Y-%m-%d', 'tzserver')));
 		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereinecircularnew" name="vereinecircular">';
 		print '<input type="hidden" name="token" value="'.newToken().'">';
 		print '<input type="hidden" name="action" value="start">';

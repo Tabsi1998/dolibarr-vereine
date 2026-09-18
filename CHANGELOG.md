@@ -35,6 +35,22 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
     auch Abstimmungen einträgt.
   - Das **Protokoll** nennt die Unterlagen als *Anlagen* (#21).
 
+### Geändert
+
+- **Einstellungen schlagen jetzt im Formular durch** (#145): Was in der
+  Einrichtung steht, wird vorgeschlagen, statt dass du es im Kopf ausrechnest.
+  - **Funktionsperiode**: Wird eine Funktion ohne End-Datum eingetragen, endet
+    sie automatisch nach den Jahren aus dem Funktionskatalog – am Tag vor dem
+    Jahrestag. Das gilt auch für eine **Wahl in der Versammlung**. Ein
+    eingetragenes Ende gewinnt immer.
+  - **Austritt**: Der *letzte Tag* steht auf dem Tag, den die Austrittsregel
+    ergibt, statt auf heute.
+  - **Neue Sitzung**: Der Tag steht auf dem frühesten Termin, der die
+    Einladungsfrist einhält.
+  - **Abstimmung**: Das Formular nennt die nötige Mehrheit je Art der
+    Abstimmung, bevor etwas eingetragen wird.
+  - **Umlaufbeschluss**: Die Frist steht auf zwei Wochen.
+
 ## [0.5.10-beta] - 2026-09-18
 
 Beschlüsse an einer Stelle: Beschlussbuch, Beschluss als PDF und

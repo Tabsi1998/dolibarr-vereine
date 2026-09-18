@@ -791,6 +791,12 @@ same(array('birth', 'birth_place', 'address'), VereineFunctionRules::missingForR
 same(array(), VereineFunctionRules::missingForReport(array('birth' => '1980-05-05', 'birth_place' => 'Innsbruck', 'address' => 'Hauptplatz 1', 'zip' => '6020', 'town' => 'Innsbruck')),
 	'nothing missing');
 
+same('2031-02-07', VereineFunctionRules::endOfTerm('2026-02-08', 5), 'a term of five years ends the day before the fifth anniversary');
+same('2029-12-31', VereineFunctionRules::endOfTerm('2027-01-01', 3), 'a term over the turn of the year ends on 31 December');
+same('', VereineFunctionRules::endOfTerm('2026-02-08', 0), 'without a term of office the end stays open');
+same('', VereineFunctionRules::endOfTerm('08.02.2026', 5), 'a start that is no day gives no end');
+same('2028-02-28', VereineFunctionRules::endOfTerm('2026-02-29', 2), 'a start on 29 February ends on the last day of February two years on');
+
 // ---------------------------------------------------------------- statutes
 
 $model = VereineStatuteRules::defaults();

@@ -181,6 +181,23 @@ class VereineFunctionRules
 	}
 
 	/**
+	 * The day a term of office ends when nobody says otherwise: as many years as the catalogue holds,
+	 * ending the day before the anniversary. Without a term of office it stays open.
+	 *
+	 * @param string $start Day the term starts as YYYY-MM-DD
+	 * @param int    $years Years of the term of office, 0 for none
+	 * @return string Day as YYYY-MM-DD, empty when the term stays open
+	 */
+	public static function endOfTerm($start, $years)
+	{
+		if ((int) $years < 1 || !preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', (string) $start, $parts)) {
+			return '';
+		}
+		$day = mktime(12, 0, 0, (int) $parts[2], (int) $parts[3], (int) $parts[1] + (int) $years);
+		return $day === false ? '' : date('Y-m-d', $day - 86400);
+	}
+
+	/**
 	 * Whether a term runs on a day.
 	 *
 	 * @param array<string,mixed> $term Keys start, end (empty while open)

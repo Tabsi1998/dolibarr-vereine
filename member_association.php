@@ -304,7 +304,9 @@ if ($planned) {
 	print '<table class="border centpercent">';
 	print '<tr><td class="titlefieldcreate fieldrequired"><label for="exit_reason">'.$langs->trans('VereineExitReason').'</label></td><td>'.Form::selectarray('exit_reason', $reasons, VereineExitRules::REASON_RESIGNATION, 0, 0, 0, '', 0, 0, 0, '', 'minwidth200').'</td></tr>';
 	print '<tr><td><label for="exit_notice_day">'.$langs->trans('VereineExitNoticeDay').'</label></td><td><input type="date" id="exit_notice_day" name="exit_notice_day" value="'.$today.'"></td></tr>';
-	print '<tr><td class="fieldrequired"><label for="exit_last_day">'.$langs->trans('VereineExitLastDay').'</label></td><td><input type="date" id="exit_last_day" name="exit_last_day" value="'.$today.'">';
+	$suggestedLastDay = (string) VereineExitRules::lastDay($today, $exitRule);
+	print '<tr><td class="fieldrequired"><label for="exit_last_day">'.$langs->trans('VereineExitLastDay').'</label></td>';
+	print '<td><input type="date" id="exit_last_day" name="exit_last_day" value="'.dol_escape_htmltag($suggestedLastDay !== '' ? $suggestedLastDay : $today).'">';
 	print ' <span class="opacitymedium small">'.$langs->trans('VereineExitLastDayHelp').'</span></td></tr>';
 	print '<tr><td><label for="exit_note">'.$langs->trans('VereineExitNote').'</label></td><td><input type="text" id="exit_note" name="exit_note" class="minwidth300" maxlength="255"></td></tr>';
 	print '</table>';
