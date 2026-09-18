@@ -60,6 +60,7 @@ require_once $root.'/class/vereineattendancerules.class.php';
 require_once $root.'/class/vereinevoterules.class.php';
 require_once $root.'/class/vereineresolutionrules.class.php';
 require_once $root.'/class/vereinecircularrules.class.php';
+require_once $root.'/class/vereinemeetingdocrules.class.php';
 require_once $root.'/class/vereineapirules.class.php';
 
 $failures = array();
@@ -1230,6 +1231,33 @@ expect(VereineCircularRules::ready($motion, 4, $given, $allowing, '2026-09-18'),
 expect(VereineCircularRules::ready($motion, 9, $given, $allowing, '2026-10-02'), 'after the deadline the result can be counted');
 expect(VereineCircularRules::ready($motion, 9, $objecting, $strict, '2026-09-18'), 'an objection ends it at once');
 
+// ------------------------------------------------ documents of a meeting and count sheet
+
+same(array(), VereineMeetingDocRules::check(array('name' => 'zaehlliste.pdf', 'tmp_name' => '/tmp/x', 'size' => 1000)), 'a scan as PDF is taken');
+same(array(), VereineMeetingDocRules::check(array('name' => 'Foto.JPG', 'tmp_name' => '/tmp/x', 'size' => 1000)), 'a photo is taken, whatever the case of its ending');
+same(array('VereineMeetingDocErrorMissing'), VereineMeetingDocRules::check(array('name' => '', 'tmp_name' => '', 'size' => 0)), 'nothing chosen, nothing taken');
+same(array('VereineMeetingDocErrorMissing'), VereineMeetingDocRules::check(null), 'an upload that is no upload is refused');
+same(array('VereineMeetingDocErrorSize'), VereineMeetingDocRules::check(array('name' => 'x.pdf', 'tmp_name' => '/tmp/x', 'size' => VereineMeetingDocRules::MAX_SIZE + 1)),
+	'a file larger than 10 MB is refused');
+same(array('VereineMeetingDocErrorKind'), VereineMeetingDocRules::check(array('name' => 'liste.txt', 'tmp_name' => '/tmp/x', 'size' => 10)), 'a text file is no proof');
+same(array('VereineMeetingDocErrorKind'), VereineMeetingDocRules::check(array('name' => 'liste', 'tmp_name' => '/tmp/x', 'size' => 10)), 'a file without an ending is refused');
+
+same('vote-7-20260918-191500.pdf', VereineMeetingDocRules::name('vote', 7, 'Zählliste Wahl.pdf', '20260918-191500'), 'the name says kind, what it belongs to and when');
+same('proxy-3-20260918-191500.jpg', VereineMeetingDocRules::name('proxy', 3, 'foto.JPG', '20260918-191500'), 'a photo keeps its kind of file');
+same('other-0-20260918-191500.pdf', VereineMeetingDocRules::name('unbekannt', -5, 'x.exe', '2026/09/18-19:15:00'),
+	'an unknown kind, a negative id and a strange ending fall back, and the moment holds only digits');
+same('Vollmacht', VereineMeetingDocRules::label('  Vollmacht  '), 'a label is trimmed');
+same('', VereineMeetingDocRules::label(array('x')), 'a label that is no text falls away');
+
+$sheet = VereineMeetingDocRules::sheet(array('item' => '3', 'question' => '  Wahl Kassier:in  ', 'candidates' => "Paula Beispiel\n\n  Sam Beispiel  \n", 'rows' => '5'));
+same(array(3, 'Wahl Kassier:in', array('Paula Beispiel', 'Sam Beispiel'), 5), array($sheet['item'], $sheet['question'], $sheet['candidates'], $sheet['rows']),
+	'the count sheet takes its question, one candidate per line, empty lines fall away');
+same(VereineMeetingDocRules::SHEET_ROWS, VereineMeetingDocRules::sheet(array('question' => 'x'))['rows'], 'without a number the count sheet gets its usual rows');
+same(array(1, VereineMeetingDocRules::SHEET_ROWS_MAX), array(VereineMeetingDocRules::sheet(array('rows' => '0'))['rows'], VereineMeetingDocRules::sheet(array('rows' => '999'))['rows']),
+	'the number of rows stays between one and the maximum');
+same(array(), VereineMeetingDocRules::validateSheet($sheet), 'a count sheet with a question is fine');
+same(array('VereineMeetingDocErrorQuestion'), VereineMeetingDocRules::validateSheet(VereineMeetingDocRules::sheet(array())), 'a count sheet without a question is refused');
+
 // ------------------------------------------------------------------- openapi
 
 // Every endpoint of the API class is in docs/openapi.json, and the description lists no other.
@@ -1326,7 +1354,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
@@ -1356,6 +1384,7 @@ $prefixes = array(
 	'VereineSignatureWay_' => array('click', 'paper'),
 	'VereineResolutionCategory_' => VereineResolutionRules::CATEGORIES,
 	'VereineCircularChoice_' => VereineCircularRules::CHOICES,
+	'VereineMeetingDocKind_' => VereineMeetingDocRules::KINDS,
 	'VereineCircularStatus_' => array('open', 'cancelled', 'objection'),
 	'VereineMinutesAudience_' => array('board', 'members'),
 	'VereineMinutesSend_' => array('board', 'members'),

@@ -3002,6 +3002,90 @@ def circulars(stack: Stack) -> str:
             "result counted, in the register as a resolution of the board and as PDF; one objection ends a circular resolution")
 
 
+def meetingdocs(stack: Stack) -> str:
+    """Documents of a meeting: the count sheet to print, proof of a vote, a signed proxy, and the attachments in the minutes."""
+    browser = stack.browser()
+    base = "/custom/vereine/meetings.php"
+    meeting = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting WHERE kind = 'general' AND status <> 'planned'")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the general assembly")
+
+    # The count sheet is a working paper: printed before the meeting, not kept on the server.
+    refused = page_ok(browser.submit(page.form(name="vereinemeetingsheet"), {"question": ""}), "a count sheet without a question")
+    expect("Frage" in html.unescape(refused.text), "a count sheet without a question was built")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the general assembly again")
+    sheet = browser.post(f"{base}?id={meeting}", [("token", token_of(page)), ("action", "countsheet"), ("item", "3"),
+                                                  ("question", "Wahl Kassier:in"), ("candidates", "Paula Beispiel\nSam Beispiel"), ("rows", "5")], follow=False)
+    expect(sheet.status == 200 and sheet.body[:5] == b"%PDF-", f"the count sheet answered HTTP {sheet.status}")
+    text = pdf_bytes_text(sheet.body)
+    for word in ("Z\u00e4hlliste", "Wahl Kassier:in", "Paula Beispiel", "Wahlleitung", "Enthaltung"):
+        expect(word in text, f"the count sheet lacks {word!r}; it has {text[:400]!r}")
+    kept = stack.shell(f"ls /var/www/documents/vereine/meetings/{meeting} 2>/dev/null | wc -l").stdout.strip()
+    expect(kept in ("0", ""), f"the count sheet stayed on the server: {kept} files")
+
+    # Proof of a vote: only a scan or a photo, kept with its checksum.
+    vote = stack.value(f"SELECT MIN(rowid) FROM llx_vereine_meeting_vote WHERE fk_meeting = {meeting}")
+    scanned = b"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the assembly before the upload")
+    refused = page_ok(browser.post_multipart(f"{base}?id={meeting}", [("token", token_of(page)), ("action", "updoc"), ("kind", "vote"),
+                                                                      ("object", vote), ("label", "Z\u00e4hlliste")],
+                                             [("doc_file", "liste.txt", b"kein Scan")]), "upload a text file")
+    expect("Nur PDF oder Bild" in html.unescape(refused.text) and stack.value("SELECT COUNT(*) FROM llx_vereine_meeting_document") == "0",
+           "a text file was taken as proof of a vote")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the assembly before the second upload")
+    page_ok(browser.post_multipart(f"{base}?id={meeting}", [("token", token_of(page)), ("action", "updoc"), ("kind", "vote"),
+                                                            ("object", vote), ("label", "Z\u00e4hlliste der Wahl")],
+                                   [("doc_file", "zaehlliste.pdf", scanned)]), "upload the filled count sheet")
+    stored = stack.sql(f"SELECT kind, fk_vote, fk_adherent, filename, LENGTH(doc_sha) FROM llx_vereine_meeting_document WHERE fk_meeting = {meeting}")
+    expect(stored == [["vote", vote, "0", f"vote-{vote}-" + stored[0][3].split("-", 2)[2], "64"]] if stored else False,
+           f"the stored proof of the vote: {stored}")
+    expect(stack.shell(f"test -f /var/www/documents/vereine/meetings/{meeting}/{stored[0][3]}").returncode == 0,
+           f"the file {stored[0][3]} is not below the documents of the meeting")
+
+    # A vote of another meeting takes nothing.
+    other = stack.value(f"SELECT MIN(rowid) FROM llx_vereine_meeting_vote WHERE fk_meeting <> {meeting}")
+    if other is not None:
+        page = page_ok(browser.get(f"{base}?id={meeting}"), "the assembly before the foreign vote")
+        refused = page_ok(browser.post_multipart(f"{base}?id={meeting}", [("token", token_of(page)), ("action", "updoc"), ("kind", "vote"), ("object", other)],
+                                                 [("doc_file", "fremd.pdf", scanned)]), "upload for a vote of another meeting")
+        expect("nicht zu dieser Sitzung" in html.unescape(refused.text), "a vote of another meeting took a document")
+
+    # A signed proxy hangs at the attendance entry of the member who gave it.
+    represented = stack.value(f"SELECT fk_adherent FROM llx_vereine_meeting_attendance WHERE fk_meeting = {meeting} AND state = 'represented' LIMIT 1")
+    expect(represented is not None, "the attendance scenario should leave a represented member")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the assembly before the proxy")
+    page_ok(browser.post_multipart(f"{base}?id={meeting}", [("token", token_of(page)), ("action", "updoc"), ("kind", "proxy"),
+                                                            ("object", represented), ("label", "Vollmacht")],
+                                   [("doc_file", "vollmacht.jpg", b"\xff\xd8\xff\xe0 kein echtes Bild")]), "upload the signed proxy")
+    proxy = stack.sql(f"SELECT kind, fk_adherent, filename FROM llx_vereine_meeting_document WHERE fk_meeting = {meeting} AND kind = 'proxy'")
+    expect(len(proxy) == 1 and proxy[0][1] == represented and proxy[0][2].endswith(".jpg"), f"the stored proxy: {proxy}")
+
+    # The documents are listed, downloadable with the right and refused without.
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the assembly with its documents")
+    listed = re.findall(r'data-document="(\d+)" data-kind="([a-z]+)"', page.text)
+    expect(len(listed) == 2 and sorted(kind for _, kind in listed) == ["proxy", "vote"], f"the documents of the meeting: {listed}")
+    expect(f'data-vote-document=' in page.text, "the proof is not shown at the vote it belongs to")
+    link = re.search(r'href="([^"]*action=document[^"]*)"', page.text)
+    download = browser.get(html.unescape(link.group(1)), follow=False)
+    expect(download.status == 200 and download.body[:5] == b"%PDF-", f"the download of a document answered HTTP {download.status}")
+    expect(denied(stack.browser("rtnobody").get(html.unescape(link.group(1)))), "somebody without rights downloads the documents of a meeting")
+    reader = page_ok(stack.browser("rtreader").get(f"{base}?id={meeting}"), "the assembly as reader")
+    expect('name="vereinemeetingdoc"' not in reader.text and 'action=document' in reader.text,
+           "the reader may upload documents or cannot see them at all")
+
+    # The minutes name the attachments.
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the assembly before the draft")
+    draft = browser.post(f"{base}?id={meeting}", [("token", token_of(page)), ("action", "draft")], follow=False)
+    expect(draft.status == 200 and draft.body[:5] == b"%PDF-", f"the draft of the minutes answered HTTP {draft.status}")
+    minutes = pdf_bytes_text(draft.body)
+    expect("Anlagen" in minutes and "Z\u00e4hlliste der Wahl" in minutes and "Vollmacht" in minutes,
+           f"the minutes do not name the attachments: {minutes[-600:]!r}")
+    logged = stack.value("SELECT COUNT(*) FROM llx_vereine_log WHERE action = 'meeting_document'")
+    expect(logged == "2", f"{logged} documents logged, expected 2")
+    return ("count sheet as PDF with question, candidates, columns and signature lines, handed over and not kept; a text file refused, the filled sheet kept "
+            "with its checksum at the vote, a vote of another meeting refused; signed proxy at the attendance entry; download with the right, refused without, "
+            "reader without upload; the minutes name both attachments")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -3126,7 +3210,8 @@ SCENARIOS = (
     ("resolutions", "The register of resolutions: search, wording and validity, follow-ups as to-dos of Dolibarr, agenda suggestion", resolutions, ("minutes",)),
     ("resolutiondocs", "Every resolution as its own PDF, with its signature run and an excerpt of several", resolutiondocs, ("resolutions", "signatures")),
     ("circulars", "Circular resolutions of the board: only when the statutes allow, votes in Dolibarr, result in the register", circulars, ("resolutiondocs",)),
-    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("circulars",)),
+    ("meetingdocs", "Documents of a meeting: count sheet, proof of a vote, signed proxy, attachments in the minutes", meetingdocs, ("circulars",)),
+    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("meetingdocs",)),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )

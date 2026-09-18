@@ -66,6 +66,7 @@ if (!$res) {
 require_once __DIR__.'/class/vereinemeetings.class.php';
 require_once __DIR__.'/class/vereineminutes.class.php';
 require_once __DIR__.'/class/vereineresolutions.class.php';
+require_once __DIR__.'/class/vereinemeetingdocs.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('members', 'vereine@vereine'));
@@ -84,6 +85,7 @@ $today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
 $meetings = new VereineMeetings($db);
 $minutes = new VereineMinutes($db);
 $register = new VereineResolutions($db);
+$docs = new VereineMeetingDocs($db);
 $signatures = new VereineSignatures($db);
 $statutes = new VereineStatutes($db);
 $rules = $statutes->rules();
@@ -97,7 +99,46 @@ $entered = null;
  * Actions
  */
 
-if ($action === 'savemeeting' && $canWrite) {
+if ($action === 'document') {
+	$row = $docs->fetch(GETPOSTINT('document'));
+	$file = $row !== null ? VereineMeetingDocs::path($row) : '';
+	if ($file === '' || !is_file($file)) {
+		accessforbidden();
+	}
+	$types = array('pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png');
+	$extension = strtolower((string) pathinfo($file, PATHINFO_EXTENSION));
+	header('Content-Type: '.(isset($types[$extension]) ? $types[$extension] : 'application/octet-stream'));
+	header('Content-Disposition: attachment; filename="'.basename($file).'"');
+	header('Content-Length: '.filesize($file));
+	readfile($file);
+	exit;
+} elseif ($action === 'updoc' && $canWrite) {
+	$upload = isset($_FILES['doc_file']) && is_array($_FILES['doc_file']) ? $_FILES['doc_file'] : array();
+	$result = $docs->upload($id, GETPOST('kind', 'aZ09'), GETPOSTINT('object'), GETPOST('label', 'alphanohtml'), $upload, $user);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineMeetingDocStored'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id.'#vereinemeetingdocs');
+		exit;
+	}
+	setEventMessages($result < 0 ? $docs->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $docs->errors), 'errors');
+} elseif ($action === 'countsheet' && $canWrite) {
+	$meetingOfSheet = $meetings->fetch($id);
+	$sheet = VereineMeetingDocRules::sheet(array('item' => GETPOST('item', 'alphanohtml'), 'question' => GETPOST('question', 'alphanohtml'),
+		'candidates' => GETPOST('candidates', 'restricthtml'), 'rows' => GETPOST('rows', 'alphanohtml')));
+	$file = VereineMeetingDocs::directory($id).'/zaehlliste-'.dol_print_date(dol_now(), '%Y%m%d-%H%M%S', 'tzserver').'.pdf';
+	if ($meetingOfSheet === null) {
+		setEventMessages($langs->trans('VereineMeetingDocErrorMeeting'), null, 'errors');
+	} elseif ($docs->buildSheet($meetingOfSheet, $sheet, $file, $langs) === '') {
+		setEventMessages($docs->error !== '' ? $docs->error : null, $docs->error !== '' ? null : array_map(array($langs, 'trans'), $docs->errors), 'errors');
+	} else {
+		header('Content-Type: application/pdf');
+		header('Content-Disposition: attachment; filename="'.basename($file).'"');
+		header('Content-Length: '.filesize($file));
+		readfile($file);
+		dol_delete_file($file);
+		exit;
+	}
+} elseif ($action === 'savemeeting' && $canWrite) {
 	$entered = array();
 	foreach (array('kind', 'title', 'day', 'time', 'place', 'format') as $key) {
 		$entered[$key] = GETPOST($key, 'alphanohtml');
@@ -352,6 +393,106 @@ function vereineMeetingForm(array $meeting, $id, array $suggestions = array())
 	}
 	print '</table>';
 	print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'"></div>';
+	print '</form>';
+}
+
+/**
+ * The documents of a meeting: proof of the votes, signed proxies, and the count sheet to print.
+ *
+ * @param VereineMeetingDocs  $docs     Documents
+ * @param VereineMeetings     $meetings Meetings
+ * @param array<string,mixed> $meeting  Meeting to show
+ * @param bool                $canWrite Whether the user may add documents
+ * @return void
+ */
+function vereineMeetingDocuments($docs, $meetings, array $meeting, $canWrite)
+{
+	global $langs;
+
+	$all = $docs->all($meeting['id']);
+	$attendance = $meetings->attendance($meeting['id']);
+	$titles = array();
+	foreach ($meetings->votes($meeting['id']) as $vote) {
+		$titles[$vote['id']] = $vote['title'];
+	}
+	print '<br>'.load_fiche_titre($langs->trans('VereineMeetingDocsTitle'), '', '', 0, 'vereinemeetingdocs');
+	print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineMeetingDocsHowTo').'</div>';
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+	print '<tr class="liste_titre"><td>'.$langs->trans('VereineMeetingDocKind_other').'</td><td>'.$langs->trans('VereineMeetingDocLabel').'</td>';
+	print '<td>'.$langs->trans('VereineMeetingDocFile').'</td><td>'.$langs->trans('Date').'</td></tr>';
+	if (!$all) {
+		print '<tr class="oddeven"><td colspan="4"><span class="opacitymedium">'.$langs->trans('VereineMeetingDocsNone').'</span></td></tr>';
+	}
+	foreach ($all as $row) {
+		$belongs = '';
+		if ($row['vote_id'] > 0 && isset($titles[$row['vote_id']])) {
+			$belongs = $titles[$row['vote_id']];
+		} elseif ($row['member_id'] > 0 && isset($attendance['names'][$row['member_id']])) {
+			$belongs = $attendance['names'][$row['member_id']];
+		}
+		print '<tr class="oddeven" data-document="'.$row['id'].'" data-kind="'.$row['kind'].'" data-vote="'.$row['vote_id'].'" data-member="'.$row['member_id'].'">';
+		print '<td>'.$langs->trans('VereineMeetingDocKind_'.$row['kind']).($belongs !== '' ? ' <span class="opacitymedium">('.dol_escape_htmltag($belongs).')</span>' : '').'</td>';
+		print '<td>'.dol_escape_htmltag($row['label']).'</td>';
+		print '<td><a href="'.$_SERVER['PHP_SELF'].'?action=document&amp;document='.$row['id'].'&amp;token='.newToken().'">'.img_picto('', 'file').' ';
+		print dol_escape_htmltag($row['filename']).'</a> <span class="opacitymedium small">'.substr($row['sha'], 0, 8).'</span></td>';
+		print '<td class="nowraponall">'.dol_print_date($row['date'], 'dayhour').'</td></tr>';
+	}
+	print '</table></div>';
+
+	if (!$canWrite) {
+		return;
+	}
+	$represented = array();
+	foreach ($attendance['rows'] as $memberId => $row) {
+		if ($row['state'] === VereineAttendanceRules::STATE_REPRESENTED) {
+			$represented[$memberId] = isset($attendance['names'][$memberId]) ? $attendance['names'][$memberId] : (string) $memberId;
+		}
+	}
+	if ($represented) {
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'#vereinemeetingdocs" name="vereinemeetingproxy" enctype="multipart/form-data" class="paddingtop">';
+		print '<input type="hidden" name="token" value="'.newToken().'">';
+		print '<input type="hidden" name="action" value="updoc">';
+		print '<input type="hidden" name="kind" value="'.VereineMeetingDocRules::KIND_PROXY.'">';
+		print '<span class="paddingright">'.$langs->trans('VereineMeetingDocProxyUpload').'</span>';
+		print '<select name="object">';
+		foreach ($represented as $memberId => $name) {
+			print '<option value="'.((int) $memberId).'">'.dol_escape_htmltag($name).'</option>';
+		}
+		print '</select> <input type="text" name="label" class="width100" maxlength="255" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineMeetingDocProxy')).'"> ';
+		print '<input type="file" name="doc_file" accept="application/pdf,image/jpeg,image/png"> ';
+		print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineMeetingDocUpload')).'">';
+		print '</form>';
+	}
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'#vereinemeetingdocs" name="vereinemeetingdoc" enctype="multipart/form-data" class="paddingtop">';
+	print '<input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="action" value="updoc">';
+	print '<input type="hidden" name="kind" value="'.VereineMeetingDocRules::KIND_OTHER.'">';
+	print '<span class="paddingright">'.$langs->trans('VereineMeetingDocKind_other').'</span>';
+	print '<input type="text" name="label" class="width200" maxlength="255" placeholder="'.dol_escape_htmltag($langs->trans('VereineMeetingDocLabel')).'"> ';
+	print '<input type="file" name="doc_file" accept="application/pdf,image/jpeg,image/png"> ';
+	print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineMeetingDocUpload')).'">';
+	print '</form>';
+	print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineMeetingDocFileHelp').'</div>';
+
+	// The count sheet to print before the meeting; it comes back filled in and is uploaded as proof.
+	print '<br>'.load_fiche_titre($langs->trans('VereineMeetingDocSheet'), '', '', 0, 'vereinemeetingsheet');
+	print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineMeetingDocSheetHowTo').'</div>';
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'#vereinemeetingsheet" name="vereinemeetingsheet">';
+	print '<input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="action" value="countsheet">';
+	print '<table class="border centpercent">';
+	print '<tr><td class="titlefieldcreate">'.$langs->trans('VereineVoteItem').'</td><td><select name="item"><option value="0"></option>';
+	foreach ($meeting['agenda'] as $index => $item) {
+		print '<option value="'.($index + 1).'">'.($index + 1).'. '.dol_escape_htmltag($item).'</option>';
+	}
+	print '</select></td></tr>';
+	print '<tr><td class="fieldrequired"><label for="question">'.$langs->trans('VereineMeetingDocSheetQuestionField').'</label></td>';
+	print '<td><input type="text" id="question" name="question" class="minwidth300" maxlength="255" value=""></td></tr>';
+	print '<tr><td class="tdtop"><label for="candidates">'.$langs->trans('VereineMeetingDocSheetCandidatesField').'</label></td>';
+	print '<td><textarea id="candidates" name="candidates" rows="3" class="centpercent"></textarea></td></tr>';
+	print '<tr><td><label for="rows">'.$langs->trans('VereineMeetingDocSheetRows').'</label></td>';
+	print '<td><input type="number" id="rows" name="rows" class="width50" min="1" max="'.VereineMeetingDocRules::SHEET_ROWS_MAX.'" value="'.VereineMeetingDocRules::SHEET_ROWS.'"></td></tr>';
+	print '</table><div class="center"><input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineMeetingDocSheetBuild')).'"></div>';
 	print '</form>';
 }
 
@@ -702,17 +843,35 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 	print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineVotesHowTo').'</div>';
 	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
 	print '<tr class="liste_titre"><td>'.$langs->trans('VereineVoteItem').'</td><td>'.$langs->trans('VereineVoteTitle').'</td><td>'.$langs->trans('VereineVoteCounts').'</td>';
-	print '<td>'.$langs->trans('VereineVoteMajority').'</td><td>'.$langs->trans('VereineVoteResult').'</td></tr>';
+	print '<td>'.$langs->trans('VereineVoteMajority').'</td><td>'.$langs->trans('VereineVoteResult').'</td>';
+	print '<td>'.$langs->trans('VereineMeetingDocsTitle').'</td></tr>';
 	$votes = $meetings->votes($meeting['id']);
 	if (!$votes) {
-		print '<tr class="oddeven"><td colspan="5"><span class="opacitymedium">'.$langs->trans('VereineVotesNone').'</span></td></tr>';
+		print '<tr class="oddeven"><td colspan="6"><span class="opacitymedium">'.$langs->trans('VereineVotesNone').'</span></td></tr>';
 	}
 	foreach ($votes as $vote) {
 		print '<tr class="oddeven" data-vote="'.$vote['id'].'" data-kind="'.$vote['kind'].'" data-passed="'.($vote['passed'] ? 1 : 0).'" data-applied="'.dol_escape_htmltag($vote['applied']).'">';
 		print '<td>'.$vote['item'].'</td><td>'.dol_escape_htmltag($vote['title']).($vote['kind'] === VereineVoteRules::KIND_ELECTION && isset($catalogue[$vote['function_id']])
 			? ' <span class="opacitymedium">('.dol_escape_htmltag($catalogue[$vote['function_id']]).')</span>' : '').($vote['secret'] ? ' '.dolGetBadge($langs->trans('VereineVoteSecret'), '', 'secondary') : '').'</td>';
 		print '<td>'.$langs->trans('VereineVoteCountsText', $vote['yes'], $vote['no'], $vote['abstain']).'</td><td>'.$langs->trans('VereineStatuteMajority_'.$vote['majority']).'</td>';
-		print '<td>'.dolGetBadge($langs->trans($vote['passed'] ? 'VereineVotePassed' : 'VereineVoteRejected'), '', $vote['passed'] ? 'success' : 'danger').'</td></tr>';
+		print '<td>'.dolGetBadge($langs->trans($vote['passed'] ? 'VereineVotePassed' : 'VereineVoteRejected'), '', $vote['passed'] ? 'success' : 'danger').'</td>';
+		print '<td>';
+		foreach ($docs->forVote($meeting['id'], $vote['id']) as $file) {
+			print '<div data-vote-document="'.$file['id'].'"><a href="'.$_SERVER['PHP_SELF'].'?action=document&amp;document='.$file['id'].'&amp;token='.newToken().'">';
+			print img_picto('', 'file').' '.dol_escape_htmltag($file['label'] !== '' ? $file['label'] : $file['filename']).'</a></div>';
+		}
+		if ($canWrite) {
+			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'#vereinemeetingdocs" name="vereinevotedoc'.$vote['id'].'" enctype="multipart/form-data">';
+			print '<input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="updoc">';
+			print '<input type="hidden" name="kind" value="'.VereineMeetingDocRules::KIND_VOTE.'">';
+			print '<input type="hidden" name="object" value="'.$vote['id'].'">';
+			print '<input type="text" name="label" class="width100" maxlength="255" placeholder="'.dol_escape_htmltag($langs->trans('VereineMeetingDocLabel')).'"> ';
+			print '<input type="file" name="doc_file" accept="application/pdf,image/jpeg,image/png"> ';
+			print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineMeetingDocUpload')).'">';
+			print '</form>';
+		}
+		print '</td></tr>';
 	}
 	print '</table></div>';
 	if ($canWrite) {
@@ -754,6 +913,7 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 	}
 
 	if ($meeting['status'] !== VereineMeetingRules::STATUS_CANCELLED) {
+		vereineMeetingDocuments($docs, $meetings, $meeting, $canWrite);
 		vereineMeetingNotes($meetings, $meeting, $canWrite);
 		vereineMeetingMinutes($minutes, $signatures, $meeting, $canWrite);
 	}
