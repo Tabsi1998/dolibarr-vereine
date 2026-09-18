@@ -7,6 +7,11 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.5.10-beta] - 2026-09-18
+
+Beschlüsse an einer Stelle: Beschlussbuch, Beschluss als PDF und
+Umlaufbeschlüsse im Vorstand (#22, #122, #121).
+
 ### Neu
 
 - **Umlaufbeschluss im Vorstand** (#121): Der Vorstand beschließt zwischen
@@ -64,6 +69,14 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
     Tagesordnungspunkt vorgeschlagen.
   - Am Mitglied listet der Reiter *Verein* die Beschlüsse, die es betreffen
     (Wahl, Aufnahme, Ehrung, Ausschluss).
+
+### Update
+
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das
+legt die Tabellen des Beschlussbuchs, seiner Folgen und der Umlaufbeschlüsse an
+und trägt die Abstimmungen früherer Versionen im Beschlussbuch nach. Alle Daten
+und Einstellungen bleiben. Umlaufbeschlüsse sind danach noch aus: einschalten in
+*Einrichtung – Statuten*, wenn deine Statuten sie erlauben.
 
 ## [0.5.9-beta] - 2026-09-17
 
@@ -1132,7 +1145,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.9-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.10-beta...HEAD
+[0.5.10-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.10-beta
 [0.5.9-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.9-beta
 [0.5.8-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.8-beta
 [0.5.7-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.7-beta
