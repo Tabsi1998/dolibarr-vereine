@@ -7,6 +7,11 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.5.11-beta] - 2026-09-18
+
+Unterlagen zu Abstimmungen und Wahlen, und Einstellungen, die im Formular
+durchschlagen (#115, #144, #145).
+
 ### Behoben
 
 - **Umlaufbeschlüsse standen nicht in den Statuten** (#144): Der Schalter *Die
@@ -50,6 +55,13 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   - **Abstimmung**: Das Formular nennt die nötige Mehrheit je Art der
     Abstimmung, bevor etwas eingetragen wird.
   - **Umlaufbeschluss**: Die Frist steht auf zwei Wochen.
+
+### Update
+
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das
+legt die Tabelle für die Unterlagen einer Sitzung an. Alle Daten und
+Einstellungen bleiben. Bereits eingetragene Funktionsperioden ändert das Update
+nicht: Der Vorschlag aus dem Funktionskatalog gilt für neue Einträge und Wahlen.
 
 ## [0.5.10-beta] - 2026-09-18
 
@@ -1189,7 +1201,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.10-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.11-beta...HEAD
+[0.5.11-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.11-beta
 [0.5.10-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.10-beta
 [0.5.9-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.9-beta
 [0.5.8-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.8-beta
