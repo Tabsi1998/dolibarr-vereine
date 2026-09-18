@@ -330,11 +330,11 @@ def enable(stack: Stack) -> str:
                       ["49210004", "application", "write"]], f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_authority", "/vereine/authority.php"],
+                    ["members", "vereine_circulars", "/vereine/circulars.php"],
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
                     ["members", "vereine_meetings", "/vereine/meetings.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"],
-                    ["members", "vereine_resolutions", "/vereine/resolutions.php"],
-                    ["members", "vereine_circulars", "/vereine/circulars.php"]],
+                    ["members", "vereine_resolutions", "/vereine/resolutions.php"]],
            f"menu entries after enabling: {menu}")
     expect(stack.sql("SHOW TABLES LIKE 'llx_vereine_log'") == [["llx_vereine_log"]], "the log table was not created")
     categories = {name: stack.const(name) or "0" for name in CATEGORY_CONSTANTS}
