@@ -405,7 +405,7 @@ if ($problems) {
 	foreach ($problems as $problem) {
 		print '<li data-text-problem="'.$problem.'">'.$langs->trans('VereineStatuteTextProblem_'.$problem);
 		if ($problem === VereineStatuteText::PROBLEM_PURPOSE) {
-			print ' <a href="'.$purposeLink.'" data-purpose-link="1">'.$langs->trans('VereineStatutePurposeEdit').'</a>';
+			print ' <a href="#vereinestatutetext" data-purpose-link="1">'.$langs->trans('VereineStatutePurposeEdit').'</a>';
 		}
 		print '</li>';
 	}
