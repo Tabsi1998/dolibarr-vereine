@@ -490,14 +490,14 @@ class VereineMinutes
 		foreach ($votes as $vote) {
 			$voteTitles[$vote['id']] = $vote['title'];
 		}
-		foreach ($docs->all($meeting['id']) as $file) {
-			$what = $outputlangs->transnoentitiesnoconv('VereineMeetingDocKind_'.$file['kind']);
-			if ($file['vote_id'] > 0 && isset($voteTitles[$file['vote_id']])) {
-				$what .= ' - '.$voteTitles[$file['vote_id']];
-			} elseif ($file['member_id'] > 0 && isset($attendance['names'][$file['member_id']])) {
-				$what .= ' - '.$attendance['names'][$file['member_id']];
+		foreach ($docs->all($meeting['id']) as $document) {
+			$what = $outputlangs->transnoentitiesnoconv('VereineMeetingDocKind_'.$document['kind']);
+			if ($document['vote_id'] > 0 && isset($voteTitles[$document['vote_id']])) {
+				$what .= ' - '.$voteTitles[$document['vote_id']];
+			} elseif ($document['member_id'] > 0 && isset($attendance['names'][$document['member_id']])) {
+				$what .= ' - '.$attendance['names'][$document['member_id']];
 			}
-			$attachments[] = $what.($file['label'] !== '' ? ': '.$file['label'] : '').' ('.$file['filename'].')';
+			$attachments[] = $what.($document['label'] !== '' ? ': '.$document['label'] : '').' ('.$document['filename'].')';
 		}
 		if ($attachments) {
 			$pdf->Ln(4);
