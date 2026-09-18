@@ -2912,8 +2912,12 @@ def circulars(stack: Stack) -> str:
     expect('name="vereinecircular"' not in page.text, "the page offers a new circular resolution although the statutes do not allow it")
 
     # The statutes allow them, and ask that nobody objects to the procedure.
+    before = page_ok(browser.get("/custom/vereine/admin/statutes.php"), "the statutes before the switch")
+    expect("im Umlaufweg" not in html.unescape(before.text), "the statutes name a circular resolution although the rules forbid it")
     form = page_ok(browser.get(setup), "statute setup").form(name="vereinestatutes")
     page_ok(browser.submit(form, {"circular": "1", "circular_no_objection": "1"}), "the statutes allow circular resolutions")
+    after = html.unescape(page_ok(browser.get("/custom/vereine/admin/statutes.php"), "the statutes after the switch").text)
+    expect("im Umlaufweg" in after and "widerspricht" in after, "the statutes do not follow the switch for circular resolutions")
     stored = json.loads(stack.const("VEREINE_STATUTE_RULES") or "{}")
     expect(stored.get("circular") is True and stored.get("circular_no_objection") is True, f"stored rules: {stored.get('circular')}, {stored.get('circular_no_objection')}")
 

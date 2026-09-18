@@ -7,6 +7,16 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Behoben
+
+- **Umlaufbeschlüsse standen nicht in den Statuten** (#144): Der Schalter *Die
+  Statuten erlauben Umlaufbeschlüsse im Vorstand* wirkte nur im Modul; der
+  erzeugte Statuten-Text hat den Umlaufbeschluss nicht erwähnt. Jetzt bekommt
+  der Abschnitt *Vorstand* den passenden Absatz – samt dem Zusatz, dass niemand
+  widersprechen darf, wenn die Statuten das verlangen. Ein neuer Test geht jede
+  Regel der Statuten durch und schlägt an, sobald eine Regel im erzeugten Text
+  nichts ändert; so fällt eine solche Lücke künftig sofort auf.
+
 ### Neu
 
 - **Unterlagen einer Sitzung und Zählliste** (#115): Was eine Abstimmung

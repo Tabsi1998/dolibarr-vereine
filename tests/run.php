@@ -1296,6 +1296,50 @@ same(array(true, false, true, false), array(
 ), 'thresholds need both rights, an administrator has all, an endpoint without rights is never callable');
 same(array('vereine:website:read', 'facture:lire'), array(VereineApiRules::rightKey('vereine', 'website', 'read'), VereineApiRules::rightKey('facture', 'lire', null)), 'rights as in the description');
 
+// Every rule of the statutes has to show in the generated text: if a rule has two values, the text
+// has to differ. A rule that deliberately says nothing there stands in the list below, with its reason.
+$ruleText = function (array $changes) use ($statuteContext) {
+	$parts = array();
+	foreach (VereineStatuteText::sections(VereineStatuteRules::normalize($changes), VereineStatuteText::normalize(array('activities' => 'Turniere', 'tax' => 'bao',
+		'asset' => 'a', 'asset_purpose' => 'Jugendsport')), $statuteContext) as $section) {
+		$parts[] = $section['title'].': '.implode("\n", $section['paragraphs']);
+	}
+	return implode("\n", $parts);
+};
+$ruleVariants = array(
+	'min_age' => array(array('min_age' => 0), array('min_age' => 18)),
+	'general_years' => array(array('general_years' => 1), array('general_years' => 3)),
+	'invite_days' => array(array('invite_days' => 14), array('invite_days' => 21)),
+	'invite_channels' => array(array('invite_channels' => array('letter')), array('invite_channels' => array('email'))),
+	'motion_days' => array(array('motion_days' => 0), array('motion_days' => 7)),
+	'proxy' => array(array('proxy' => true), array('proxy' => false)),
+	'general_quorum' => array(array('general_quorum' => 0), array('general_quorum' => 25)),
+	'statute_majority' => array(array('statute_majority' => 'two_thirds'), array('statute_majority' => 'three_quarters')),
+	'dissolution_majority' => array(array('dissolution_majority' => 'two_thirds'), array('dissolution_majority' => 'three_quarters')),
+	'virtual' => array(array('virtual' => 'none'), array('virtual' => 'hybrid')),
+	'board_quorum' => array(array('board_quorum' => 50), array('board_quorum' => 75)),
+	'board_tie_chair' => array(array('board_tie_chair' => true), array('board_tie_chair' => false)),
+	'circular' => array(array('circular' => false), array('circular' => true)),
+	'circular_no_objection' => array(array('circular' => true, 'circular_no_objection' => false), array('circular' => true, 'circular_no_objection' => true)),
+);
+// The kinds of member who may vote come from the catalogue of member types, not from the rules; the
+// generated text names them from the context instead (see $statuteContext['voting']).
+$ruleExempt = array('voting_types');
+foreach (array_keys(VereineStatuteRules::defaults()) as $key) {
+	if (in_array($key, $ruleExempt, true)) {
+		continue;
+	}
+	expect(isset($ruleVariants[$key]), 'rule '.$key.' has no variant in this test: add one or say in $ruleExempt why the statutes stay silent about it');
+	if (isset($ruleVariants[$key])) {
+		expect($ruleText($ruleVariants[$key][0]) !== $ruleText($ruleVariants[$key][1]), 'rule '.$key.' changes nothing in the generated statutes');
+	}
+}
+$withCircular = $ruleText(array('circular' => true));
+expect(strpos($withCircular, 'im Umlaufweg') !== false && strpos($ruleText(array()), 'im Umlaufweg') === false,
+	'the statutes name the circular resolution only when the rules allow it');
+expect(strpos($ruleText(array('circular' => true, 'circular_no_objection' => true)), 'widerspricht') !== false && strpos($withCircular, 'widerspricht') === false,
+	'the objection to the procedure is named only when the statutes ask for it');
+
 // ------------------------------------------------------------ language files
 
 // The module speaks German; en_US is an exact copy so an English interface shows German, not keys.
