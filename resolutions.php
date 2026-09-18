@@ -65,7 +65,9 @@ if (!$res) {
 
 require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
 require_once __DIR__.'/class/vereineresolutions.class.php';
+require_once __DIR__.'/class/vereineresolutiondocs.class.php';
 require_once __DIR__.'/class/vereinemeetings.class.php';
+require_once __DIR__.'/class/vereinesignatures.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('members', 'vereine@vereine'));
@@ -81,6 +83,8 @@ if (!$user->hasRight('vereine', 'association', 'read') || !$user->hasRight('adhe
 }
 
 $register = new VereineResolutions($db);
+$docs = new VereineResolutionDocs($db);
+$signatures = new VereineSignatures($db);
 $meetings = new VereineMeetings($db);
 $canWrite = $user->hasRight('adherent', 'creer');
 $action = GETPOST('action', 'aZ09');
@@ -162,6 +166,87 @@ function vereineResolutionCsv(array $rows)
 if ($action === 'export') {
 	vereineResolutionCsv($register->fetchAll($filters));
 	exit;
+} elseif ($action === 'pdf') {
+	$file = VereineResolutionDocs::path($id);
+	if ($register->fetch($id) === null || !is_file($file)) {
+		accessforbidden();
+	}
+	header('Content-Type: application/pdf');
+	header('Content-Disposition: attachment; filename="'.basename($file).'"');
+	header('Content-Length: '.filesize($file));
+	readfile($file);
+	exit;
+} elseif ($action === 'sheet' || $action === 'signed') {
+	$run = $signatures->fetch(GETPOSTINT('signature'));
+	$file = '';
+	if ($run !== null && $run['kind'] === VereineSignatureRules::KIND_RESOLUTION) {
+		$file = $action === 'sheet' ? VereineSignatures::sheetPath($run['id']) : VereineSignatures::scanPath($run);
+	}
+	if ($file === '' || !is_file($file)) {
+		accessforbidden();
+	}
+	header('Content-Type: application/pdf');
+	header('Content-Disposition: attachment; filename="'.basename($file).'"');
+	header('Content-Length: '.filesize($file));
+	readfile($file);
+	exit;
+} elseif ($action === 'buildpdf' && $canWrite) {
+	if ($docs->build($id, $langs) === '') {
+		setEventMessages($docs->error, null, 'errors');
+	} else {
+		setEventMessages($langs->trans('VereineResolutionPdfBuilt'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id.'#vereineresolutionpdf');
+		exit;
+	}
+} elseif ($action === 'excerpt') {
+	$picked = array();
+	foreach ($register->fetchAll() as $candidate) {
+		if (in_array((string) $candidate['id'], (array) GETPOST('pick', 'array:aZ09'), true)) {
+			$picked[] = $candidate;
+		}
+	}
+	$file = VereineResolutionDocs::directory().'/beschluss-auszug-'.dol_print_date(dol_now(), '%Y%m%d-%H%M%S', 'tzserver').'.pdf';
+	if (!$picked) {
+		setEventMessages($langs->trans('VereineResolutionExcerptNone'), null, 'errors');
+	} elseif ($docs->buildExcerpt($picked, $file, $langs) === '') {
+		setEventMessages($docs->error, null, 'errors');
+	} else {
+		header('Content-Type: application/pdf');
+		header('Content-Disposition: attachment; filename="'.basename($file).'"');
+		header('Content-Length: '.filesize($file));
+		readfile($file);
+		dol_delete_file($file);
+		exit;
+	}
+} elseif ($action === 'startsign' && $canWrite) {
+	$objectId = GETPOSTINT('object');
+	$result = $signatures->start(VereineSignatureRules::KIND_RESOLUTION, $objectId, VereineResolutionDocs::path($objectId),
+		dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'), $user);
+	if ($result > 0) {
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$objectId.'#vereineresolutionpdf');
+		exit;
+	}
+	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $signatures->errors), 'errors');
+} elseif ($action === 'sign' && $canWrite) {
+	$run = $signatures->fetch(GETPOSTINT('signature'));
+	$file = $run !== null ? VereineResolutionDocs::path($run['object_id']) : '';
+	$result = $run === null ? 0 : $signatures->sign($run['id'], GETPOST('password', 'password'), $file, $user, $langs);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineSignatureSigned'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.($run !== null ? $run['object_id'] : 0).'#vereineresolutionpdf');
+		exit;
+	}
+	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $run === null ? array('VereineSignatureErrorNotOpen') : $signatures->errors), 'errors');
+} elseif ($action === 'signscan' && $canWrite) {
+	$run = $signatures->fetch(GETPOSTINT('signature'));
+	$upload = isset($_FILES['scan_file']) && is_array($_FILES['scan_file']) ? $_FILES['scan_file'] : array();
+	$result = $run === null ? 0 : $signatures->uploadScan($run['id'], $upload, $user, $langs);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineSignatureScanStored'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.($run !== null ? $run['object_id'] : 0).'#vereineresolutionpdf');
+		exit;
+	}
+	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $run === null ? array('VereineSignatureErrorNotOpen') : $signatures->errors), 'errors');
 } elseif ($action === 'save' && $canWrite) {
 	$entered = array();
 	foreach (array('category', 'valid_from', 'valid_to', 'member_id', 'invoice_id') as $key) {
@@ -247,17 +332,21 @@ if ($row === null) {
 	print '<a class="button smallpaddingimp" href="'.$_SERVER['PHP_SELF'].'?'.implode('&amp;', $query).'">'.$langs->trans('VereineResolutionExport').'</a>';
 	print '</div>';
 
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereineresolutionexcerpt">';
+	print '<input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="action" value="excerpt">';
 	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><td>'.$langs->trans('VereineResolutionRef').'</td><td>'.$langs->trans('VereineMeetingWhen').'</td>';
+	print '<tr class="liste_titre"><td></td><td>'.$langs->trans('VereineResolutionRef').'</td><td>'.$langs->trans('VereineMeetingWhen').'</td>';
 	print '<td>'.$langs->trans('VereineResolutionOrgan').'</td><td>'.$langs->trans('VereineResolutionTitleColumn').'</td>';
 	print '<td>'.$langs->trans('VereineResolutionCategory').'</td><td>'.$langs->trans('VereineResolutionResult').'</td>';
 	print '<td>'.$langs->trans('VereineResolutionValidity').'</td><td>'.$langs->trans('VereineResolutionTasks').'</td></tr>';
 	if (!$rows) {
-		print '<tr class="oddeven"><td colspan="8"><span class="opacitymedium">'.$langs->trans('VereineResolutionsNone').'</span></td></tr>';
+		print '<tr class="oddeven"><td colspan="9"><span class="opacitymedium">'.$langs->trans('VereineResolutionsNone').'</span></td></tr>';
 	}
 	foreach ($rows as $entry) {
 		print '<tr class="oddeven" data-resolution="'.$entry['id'].'" data-category="'.$entry['category'].'" data-passed="'.($entry['passed'] ? 1 : 0).'"';
 		print ' data-open="'.$entry['tasks_open'].'">';
+		print '<td class="center"><input type="checkbox" name="pick[]" value="'.$entry['id'].'"></td>';
 		print '<td><a href="'.$_SERVER['PHP_SELF'].'?id='.$entry['id'].'">'.dol_escape_htmltag($entry['ref']).'</a></td>';
 		print '<td>'.vereineFormatDay($entry['day']).'</td><td>'.$langs->trans('VereineMeetingKind_'.$entry['organ']).'</td>';
 		print '<td>'.dol_escape_htmltag($entry['title']).'</td>';
@@ -267,6 +356,11 @@ if ($row === null) {
 		print '<td>'.($entry['tasks'] > 0 ? $langs->trans('VereineResolutionTasksCount', $entry['tasks_open'], $entry['tasks']) : '').'</td></tr>';
 	}
 	print '</table></div>';
+	if ($rows) {
+		print '<div class="paddingtop"><input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('VereineResolutionExcerpt')).'">';
+		print ' <span class="opacitymedium small">'.$langs->trans('VereineResolutionExcerptHelp').'</span></div>';
+	}
+	print '</form>';
 
 	llxFooter();
 	$db->close();
@@ -363,6 +457,24 @@ print '</td></tr></table>';
 if ($canWrite) {
 	print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'"></div></form>';
 }
+
+print '<br>'.load_fiche_titre($langs->trans('VereineResolutionPdfTitleSection'), '', '', 0, 'vereineresolutionpdf');
+print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineResolutionPdfHowTo').'</div>';
+$pdfFile = VereineResolutionDocs::path($row['id']);
+print '<div data-resolution-pdf="'.(is_file($pdfFile) ? 1 : 0).'">';
+if (is_file($pdfFile)) {
+	print '<div><a href="'.$_SERVER['PHP_SELF'].'?action=pdf&amp;id='.$row['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.dol_escape_htmltag(basename($pdfFile)).'</a></div>';
+}
+if ($canWrite) {
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$row['id'].'#vereineresolutionpdf" name="vereineresolutionbuild" class="paddingtop">';
+	print '<input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="action" value="buildpdf">';
+	print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans(is_file($pdfFile) ? 'VereineResolutionPdfAgain' : 'VereineResolutionPdfBuild')).'">';
+	print '</form>';
+}
+print '<div class="paddingtop">';
+vereineSignatureBlock($signatures, VereineSignatureRules::KIND_RESOLUTION, $row['id'], $pdfFile, $canWrite, 'vereineresolutionpdf');
+print '</div></div>';
 
 print '<br>'.load_fiche_titre($langs->trans('VereineResolutionTasks'), '', '', 0, 'vereineresolutiontasks');
 print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineResolutionTasksHowTo').'</div>';
