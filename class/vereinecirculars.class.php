@@ -408,7 +408,7 @@ class VereineCirculars
 		$resolutionId = 0;
 		if (!$result['objected']) {
 			$register = new VereineResolutions($this->db);
-			$resolutionId = $register->addFromCircular($circular + array('decided_on' => $today), $result, $user);
+			$resolutionId = $register->addFromCircular(array_merge($circular, array('decided_on' => $today)), $result, $user);
 			if ($resolutionId < 0) {
 				$this->error = $register->error;
 				return -1;
