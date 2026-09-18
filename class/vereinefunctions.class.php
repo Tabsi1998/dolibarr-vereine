@@ -451,6 +451,15 @@ class VereineFunctions
 	{
 		global $conf;
 
+		// Without an end the term ends as the catalogue says; an entered end always wins.
+		if ((string) $end === '') {
+			foreach ($this->fetchAll() as $candidate) {
+				if ($candidate['id'] === (int) $functionId) {
+					$end = VereineFunctionRules::endOfTerm((string) $start, (int) $candidate['term_years']);
+				}
+			}
+		}
+
 		$this->errors = VereineFunctionRules::validateTerm($start, $end);
 		if ((int) $member->statut !== 1) {
 			$this->errors[] = 'VereineFunctionErrorMember';

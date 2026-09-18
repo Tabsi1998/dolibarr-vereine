@@ -685,9 +685,11 @@ if ($meeting === null) {
 		print '</div>';
 		if ($entered === null && in_array($template, VereineMeetingRules::KINDS, true)) {
 			$entered = VereineMeetingRules::normalize(array('kind' => $template, 'title' => $langs->transnoentitiesnoconv('VereineMeetingKind_'.$template).' '.substr($today, 0, 4),
+				'day' => VereineMeetingRules::addDays($today, $template === VereineMeetingRules::KIND_GENERAL ? (int) $rules['invite_days'] : 1),
 				'agenda' => implode("\n", VereineMinutesRules::agenda($meetings->templates(), $template))));
 		}
-		vereineMeetingForm($entered !== null ? $entered : VereineMeetingRules::normalize(array()), 0, $register->openTasks());
+		$suggested = VereineMeetingRules::normalize(array('day' => VereineMeetingRules::addDays($today, (int) $rules['invite_days'])));
+		vereineMeetingForm($entered !== null ? $entered : $suggested, 0, $register->openTasks());
 	}
 	llxFooter();
 	$db->close();
@@ -888,7 +890,14 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 		foreach (VereineVoteRules::KINDS as $kind) {
 			print '<option value="'.$kind.'">'.$langs->trans('VereineVoteKind_'.$kind).'</option>';
 		}
-		print '</select></td></tr>';
+		print '</select>';
+		$majorities = array();
+		foreach (VereineVoteRules::KINDS as $kind) {
+			$majorities[] = $langs->transnoentitiesnoconv('VereineVoteKind_'.$kind).': '
+				.$langs->transnoentitiesnoconv('VereineStatuteMajority_'.VereineVoteRules::majority($kind, $rules));
+		}
+		print '<div class="opacitymedium small" data-vote-majorities="1">'.dol_escape_htmltag(implode(' | ', $majorities)).'</div>';
+		print '</td></tr>';
 		print '<tr><td class="fieldrequired">'.$langs->trans('VereineVoteTitle').'</td><td><input type="text" name="title" class="minwidth300" maxlength="255" value=""></td></tr>';
 		print '<tr><td>'.$langs->trans('VereineVoteCounts').'</td><td>'.$langs->trans('VereineVoteYes').' <input type="number" min="0" name="yes" class="width50" value="0"> ';
 		print $langs->trans('VereineVoteNo').' <input type="number" min="0" name="no" class="width50" value="0"> '.$langs->trans('VereineVoteAbstain');

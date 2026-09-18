@@ -1653,6 +1653,9 @@ def exits(stack: Stack) -> str:
         return stack.value(f"SELECT statut FROM llx_adherent WHERE rowid = {int(members[person])}")
 
     expect('data-exit-rule="1"' in tab("karl").text, "the association tab does not explain the notice rule")
+    suggested_exit = re.search(r'id="exit_last_day" name="exit_last_day" value="(\d{4}-\d{2}-\d{2})"', tab("karl").text)
+    expect(suggested_exit is not None and suggested_exit.group(1) == last,
+           f"the exit form suggests {suggested_exit.group(1) if suggested_exit else None} as the last day, expected {last} from the rule")
     plan("karl", {"exit_reason": "resignation", "exit_notice_day": today, "exit_last_day": today, "exit_note": "Brief vom Mitglied"})
     expect(stored("karl") == [["resignation", today, last, "planned"]] and status("karl") == "1",
            f"Karl's notice: {stored('karl')}, member status {status('karl')}; expected planned until {last}, still active")
@@ -2501,7 +2504,16 @@ def votes(stack: Stack) -> str:
         page = page_ok(browser.get(f"{base}?id={meeting}"), f"meeting {meeting}")
         return page_ok(browser.submit(page.form(name="vereinevote"), fields), f"vote {fields}")
 
+    planning = page_ok(browser.get(f"{base}?template=general"), "a new general assembly from the template")
+    suggested = re.search(r'id="day" name="day" value="(\d{4}-\d{2}-\d{2})"', planning.text)
+    invite_days = int(json.loads(stack.const("VEREINE_STATUTE_RULES") or "{}").get("invite_days", 14))
+    earliest = (datetime.date.today() + datetime.timedelta(days=invite_days)).isoformat()
+    expect(suggested is not None and suggested.group(1) == earliest,
+           f"the new meeting starts on {suggested.group(1) if suggested else None}, expected {earliest} (invitation period {invite_days} days)")
     page = page_ok(browser.get(f"{base}?id={general_id}&at=19:00"), "general assembly at 19:00")
+    majorities = re.search(r'data-vote-majorities="1">([^<]+)<', page.text)
+    expect(majorities is not None and "Zweidrittelmehrheit" in html.unescape(majorities.group(1)),
+           f"the vote form does not name the majorities of the statutes: {majorities.group(1) if majorities else None}")
     votes_at_seven = int(re.search(r'data-votes="(\d+)"', page.text).group(1))
     expect(votes_at_seven >= 3, f"{votes_at_seven} votes at 19:00, the attendance scenario should leave at least three")
     refused = vote(general_id, {"item": "2", "kind": "resolution", "title": "Budget", "yes": "2", "no": "0", "time": ""})
@@ -2525,11 +2537,14 @@ def votes(stack: Stack) -> str:
     reports_before = int(stack.value(reports))
     candidate = stack.value("SELECT d.rowid FROM llx_adherent as d WHERE d.statut = 1 AND d.rowid NOT IN (SELECT fk_adherent FROM llx_vereine_function_term) ORDER BY d.rowid LIMIT 1")
     vote(general_id, {"item": "3", "kind": "election", "title": "Wahl Kassier:in", "yes": "2", "no": "0", "time": "19:00", "function_id": kassier, "candidate_id": candidate, "secret": "1"})
-    term = stack.sql(f"SELECT date_start, date_end IS NULL FROM llx_vereine_function_term WHERE fk_function = {kassier} AND fk_adherent = {candidate}")
+    term = stack.sql(f"SELECT date_start, date_end FROM llx_vereine_function_term WHERE fk_function = {kassier} AND fk_adherent = {candidate}")
+    years = int(stack.value(f"SELECT term_years FROM llx_vereine_function WHERE rowid = {kassier}") or 0)
+    ends = (datetime.date.fromisoformat(general_day).replace(year=datetime.date.fromisoformat(general_day).year + years)
+            - datetime.timedelta(days=1)).isoformat() if years > 0 else None
     open_others = stack.value(f"SELECT COUNT(*) FROM llx_vereine_function_term WHERE fk_function = {kassier} AND fk_adherent <> {candidate} "
                               f"AND date_start <= '{general_day}' AND (date_end IS NULL OR date_end >= '{general_day}')")
-    expect(term == [[general_day, "1"]] and open_others == "0" and int(stack.value(reports)) == reports_before + 1,
-           f"election: term {term}, other open treasurer terms {open_others}, reports {stack.value(reports)} (before {reports_before})")
+    expect(term == [[general_day, ends if ends else "NULL"]] and open_others == "0" and int(stack.value(reports)) == reports_before + 1,
+           f"election: term {term} (expected end {ends}), other open treasurer terms {open_others}, reports {stack.value(reports)} (before {reports_before})")
     results = re.findall(r'data-vote="\d+" data-kind="([a-z]+)" data-passed="(\d)"', page_ok(browser.get(f"{base}?id={general_id}"), "general assembly").text)
     expect(results == [("resolution", "1"), ("statutes", "0"), ("statutes", "1"), ("election", "1")], f"votes of the general assembly: {results}")
 
