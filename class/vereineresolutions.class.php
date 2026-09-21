@@ -91,7 +91,11 @@ class VereineResolutions
 			'member_id' => (int) (isset($vote['candidate_id']) ? $vote['candidate_id'] : 0),
 			'applied' => (string) (isset($vote['applied']) ? $vote['applied'] : ''),
 		);
-		return $this->insert($entry, $user);
+		$id = $this->insert($entry, $user);
+		if ($id > 0 && $this->attachAgreements((int) $meeting['id'], (int) $vote['item'], $id) < 0) {
+			return -1;
+		}
+		return $id;
 	}
 
 	/**
@@ -355,15 +359,20 @@ class VereineResolutions
 	 * @param int $resolutionId Resolution, 0 for all
 	 * @return array<int,array<string,mixed>>
 	 */
-	public function tasks($resolutionId = 0)
+	public function tasks($resolutionId = 0, $meetingId = 0)
 	{
 		global $conf;
 
-		$sql = "SELECT t.rowid, t.fk_resolution, t.label, t.fk_adherent, t.deadline, t.fk_actioncomm, t.done_at, r.ref FROM ".MAIN_DB_PREFIX."vereine_resolution_task as t";
-		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."vereine_resolution as r ON r.rowid = t.fk_resolution";
-		$sql .= " WHERE t.entity = ".((int) $conf->entity);
+		$sql = "SELECT t.rowid, t.fk_resolution, t.fk_meeting, t.item, t.label, t.fk_adherent, t.deadline, t.fk_actioncomm, t.done_at, r.ref, m.title as meeting_title";
+		$sql .= " FROM ".MAIN_DB_PREFIX."vereine_resolution_task as t";
+		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."vereine_resolution as r ON r.rowid = t.fk_resolution";
+		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."vereine_meeting as m ON m.rowid = t.fk_meeting";
+		$sql .= " WHERE t.entity = ".((int) $conf->entity)." AND (t.fk_resolution > 0 OR t.fk_meeting > 0)";
 		if ((int) $resolutionId > 0) {
 			$sql .= " AND t.fk_resolution = ".((int) $resolutionId);
+		}
+		if ((int) $meetingId > 0) {
+			$sql .= " AND t.fk_meeting = ".((int) $meetingId);
 		}
 		$sql .= " ORDER BY t.deadline IS NULL, t.deadline, t.rowid";
 		$resql = $this->db->query($sql);
@@ -376,6 +385,9 @@ class VereineResolutions
 			$tasks[] = array(
 				'id' => (int) $obj->rowid,
 				'resolution_id' => (int) $obj->fk_resolution,
+				'meeting_id' => (int) $obj->fk_meeting,
+				'item' => (int) $obj->item,
+				'meeting_title' => (string) $obj->meeting_title,
 				'ref' => (string) $obj->ref,
 				'label' => (string) $obj->label,
 				'member_id' => (int) $obj->fk_adherent,
@@ -480,6 +492,92 @@ class VereineResolutions
 			return 0;
 		}
 		return $eventId;
+	}
+
+	/**
+	 * Agree at an agenda item who does what until when; every person gets a to-do in Dolibarr.
+	 *
+	 * An agreement needs no vote. When a vote on the same item follows, the agreement becomes a
+	 * follow-up of that resolution (see attachAgreements()).
+	 *
+	 * @param array<string,mixed> $meeting Meeting
+	 * @param int                 $item    Agenda item, from 1
+	 * @param array<string,mixed> $entered Keys label, deadline and member_ids (list of members)
+	 * @param User                $user    Who stores
+	 * @return int Number of tasks written, 0 when refused (see errors), -1 on error
+	 */
+	public function addAgreement(array $meeting, $item, array $entered, $user)
+	{
+		global $conf;
+
+		require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+
+		$this->errors = array();
+		$agenda = array_values($meeting['agenda']);
+		if ((int) $item < 1 || (int) $item > count($agenda)) {
+			$this->errors[] = 'VereineAgreementErrorItem';
+			return 0;
+		}
+		$members = array();
+		foreach (isset($entered['member_ids']) && is_array($entered['member_ids']) ? $entered['member_ids'] : array() as $memberId) {
+			if (is_scalar($memberId) && preg_match('/^\d{1,10}$/', (string) $memberId) && !in_array((int) $memberId, $members, true)) {
+				$members[] = (int) $memberId;
+			}
+		}
+		$task = VereineResolutionRules::normalizeTask(array('label' => isset($entered['label']) ? $entered['label'] : '', 'member_id' => $members ? $members[0] : 0,
+			'deadline' => isset($entered['deadline']) ? $entered['deadline'] : ''));
+		if ($task['label'] === '') {
+			$this->errors[] = 'VereineResolutionTaskErrorLabel';
+		}
+		if (!$members) {
+			$this->errors[] = 'VereineAgreementErrorNobody';
+		}
+		if ($this->errors) {
+			return 0;
+		}
+		// What the agenda event says: the meeting and the item the agreement comes from.
+		$source = array('ref' => $meeting['title'], 'title' => ((int) $item).'. '.$agenda[(int) $item - 1], 'day' => $meeting['day']);
+		$written = 0;
+		foreach ($members as $memberId) {
+			$member = new Adherent($this->db);
+			if ($member->fetch($memberId) <= 0) {
+				$this->errors[] = 'VereineResolutionTaskErrorMember';
+				return $written > 0 ? $written : 0;
+			}
+			$eventId = $this->addEvent($source, $task, $member, $user);
+			$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_resolution_task (entity, fk_resolution, fk_meeting, item, label, fk_adherent, deadline, fk_actioncomm, datec, fk_user_modif)";
+			$sql .= " VALUES (".((int) $conf->entity).", 0, ".((int) $meeting['id']).", ".((int) $item).", '".$this->db->escape($task['label'])."', ".((int) $memberId).",";
+			$sql .= " ".($task['deadline'] !== '' ? "'".$this->db->escape($task['deadline'])."'" : "NULL").", ".($eventId > 0 ? $eventId : "NULL").",";
+			$sql .= " '".$this->db->idate(dol_now())."', ".((int) $user->id).")";
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
+				return -1;
+			}
+			$written++;
+			VereineLog::add($this->db, $user, VereineLog::RESOLUTION_TASK, $memberId, 0, $meeting['title'].' / '.$item.': '.$task['label']);
+		}
+		return $written;
+	}
+
+	/**
+	 * Agreements of an agenda item become follow-ups of the resolution voted on that item.
+	 *
+	 * @param int $meetingId    Meeting
+	 * @param int $item         Agenda item
+	 * @param int $resolutionId Resolution of the vote
+	 * @return int 1 when done, -1 on error
+	 */
+	public function attachAgreements($meetingId, $item, $resolutionId)
+	{
+		global $conf;
+
+		$sql = "UPDATE ".MAIN_DB_PREFIX."vereine_resolution_task SET fk_resolution = ".((int) $resolutionId);
+		$sql .= " WHERE entity = ".((int) $conf->entity)." AND fk_meeting = ".((int) $meetingId)." AND item = ".((int) $item)." AND fk_resolution = 0";
+		if (!$this->db->query($sql)) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		return 1;
 	}
 
 	/**
