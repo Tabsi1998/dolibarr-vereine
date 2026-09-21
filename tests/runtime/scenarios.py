@@ -3288,6 +3288,15 @@ def agreements(stack: Stack) -> str:
     draft = browser.post(f"{base}?id={meeting}", [("token", token_of(page)), ("action", "draft")], follow=False)
     expect(b"/Subtype /Image" in draft.body, "the minutes carry no image although the association has a logo")
     expect("Seite 1 von" in pdf_bytes_text(draft.body), "the minutes have no page numbers")
+    steps = dict(re.findall(r'data-step="([a-z]+)" data-state="([a-z]+)"', page_ok(browser.get(f"{base}?id={meeting}"), "the meeting with its steps").text))
+    expect(list(steps) == ["plan", "invite", "meet", "minutes", "close"] and steps["plan"] == "done" and list(steps.values()).count("now") <= 1,
+           f"the steps of the meeting: {steps}")
+
+    # The home page tells the member what waits: here the tasks of the agreement.
+    stack.sql(f"UPDATE llx_user SET fk_member = {people[0]} WHERE login = 'admin'")
+    home = page_ok(browser.get("/index.php?mainmenu=home"), "the home page")
+    waiting = re.findall(r'data-box-waiting="([a-z]+)"', home.text)
+    expect("tasks" in waiting and "Herbstplan schreiben" in html.unescape(home.text), f"the home page box shows {waiting}")
     return ("agreement without anybody refused; two people agreed with a deadline, each with a to-do of Dolibarr at the member; shown at the item, "
             "named in the minutes, suggested for the next meeting; a vote on the item takes its agreement over; the logo heads the PDF, pages numbered")
 

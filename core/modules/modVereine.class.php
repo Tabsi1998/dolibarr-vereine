@@ -109,6 +109,7 @@ class modVereine extends DolibarrModules
 		// Thresholds of the current year on the home page, for users who may read invoices.
 		$this->boxes = array(
 			0 => array('file' => 'box_vereine_thresholds.php@vereine', 'note' => '', 'enabledbydefaulton' => 'Home'),
+			1 => array('file' => 'box_vereine_waiting.php@vereine', 'note' => '', 'enabledbydefaulton' => 'Home'),
 		);
 		// Planned exits take effect on their last day; needs Dolibarr's module Scheduled jobs.
 		$this->cronjobs = array(

@@ -424,6 +424,62 @@ function vereineMeetingForm(array $meeting, $id, array $suggestions = array())
 }
 
 /**
+ * The steps of a meeting on top of it: what is done, what is next, whether the law or the statutes require it.
+ *
+ * @param VereineMeetings     $meetings   Meetings
+ * @param VereineMinutes      $minutes    Minutes
+ * @param VereineSignatures   $signatures Signature runs
+ * @param array<string,mixed> $meeting    Meeting to show
+ * @param array<string,mixed> $rules      Rules of the statutes
+ * @param string              $today      Today as YYYY-MM-DD
+ * @return void
+ */
+function vereineMeetingSteps($meetings, $minutes, $signatures, array $meeting, array $rules, $today)
+{
+	global $langs;
+
+	$invited = false;
+	foreach ($meetings->invitations($meeting['id']) as $invitation) {
+		$invited = $invited || !empty($invitation['sent_at']);
+	}
+	$attendance = $meetings->attendance($meeting['id']);
+	$met = (bool) $meetings->votes($meeting['id']);
+	foreach ($attendance['rows'] as $row) {
+		$met = $met || $row['state'] === VereineAttendanceRules::STATE_PRESENT;
+	}
+	$versions = $minutes->versions($meeting['id']);
+	$final = (bool) $versions;
+	$signed = false;
+	if ($final) {
+		$last = end($versions);
+		$run = $signatures->current(VereineSignatureRules::KIND_MINUTES, (int) $last['id']);
+		$signed = $run !== null && $run['status'] === VereineSignatures::STATUS_DONE;
+	}
+	$states = VereineMeetingRules::steps($meeting, array('invited' => $invited, 'met' => $met, 'final' => $final, 'signed' => $signed), $today);
+	$anchors = array('plan' => 'vereinemeetingnotes', 'invite' => 'vereinemeetinginvitations', 'meet' => 'vereineattendance', 'minutes' => 'vereinemeetingnotes',
+		'close' => 'vereinemeetingminutes');
+	$badges = array('done' => 'success', 'now' => 'warning', 'later' => 'secondary');
+	print '<div class="paddingbottom" data-meeting-steps="1" style="display: flex; flex-wrap: wrap; gap: 0.5em;">';
+	$number = 0;
+	foreach (VereineMeetingRules::STEPS as $step) {
+		$number++;
+		$state = $states[$step];
+		$hint = $step === 'invite' && $meeting['kind'] === VereineMeetingRules::KIND_GENERAL
+			? $langs->trans('VereineMeetingStepHint_invite_general', (int) $rules['invite_days']) : $langs->trans('VereineMeetingStepHint_'.$step.($step === 'invite' ? '_board' : ''));
+		print '<a href="#'.$anchors[$step].'" class="border" style="flex: 1 1 11em; padding: 0.5em 0.7em; border-radius: 4px; text-decoration: none;'.($state === 'now' ? ' border-width: 2px;' : '').'"';
+		print ' data-step="'.$step.'" data-state="'.$state.'">';
+		print '<div>'.$number.'. <strong>'.$langs->trans('VereineMeetingStep_'.$step).'</strong> '.dolGetBadge($langs->trans('VereineMeetingStepState_'.$state), '', $badges[$state]).'</div>';
+		print '<div class="opacitymedium small">'.$hint.'</div></a>';
+	}
+	print '</div>';
+	print '<details class="paddingbottom small" data-glossary="1"><summary>'.$langs->trans('VereineGlossaryTitle').'</summary><ul>';
+	foreach (array('quorum', 'majority', 'proxy', 'kinds', 'circular', 'keeper') as $term) {
+		print '<li><strong>'.$langs->trans('VereineGlossary_'.$term).'</strong> – '.$langs->trans('VereineGlossaryText_'.$term).'</li>';
+	}
+	print '</ul></details>';
+}
+
+/**
  * The documents of a meeting: proof of the votes, signed proxies, and the count sheet to print.
  *
  * @param VereineMeetingDocs  $docs     Documents
@@ -796,6 +852,9 @@ print load_fiche_titre(dol_escape_htmltag($meeting['title']), '<a href="'.$_SERV
 $inviteBy = VereineMeetingRules::inviteBy($meeting, $rules);
 $motionsBy = VereineMeetingRules::motionsBy($meeting, $rules);
 $late = $meeting['status'] === VereineMeetingRules::STATUS_PLANNED && $inviteBy !== '' && $today > $inviteBy;
+if ($meeting['status'] !== VereineMeetingRules::STATUS_CANCELLED) {
+	vereineMeetingSteps($meetings, $minutes, $signatures, $meeting, $rules, $today);
+}
 print '<table class="border centpercent" data-meeting-card="'.$meeting['id'].'" data-kind="'.$meeting['kind'].'" data-status="'.$meeting['status'].'" data-invite-by="'.$inviteBy.'" data-late="'.($late ? 1 : 0).'">';
 print '<tr><td class="titlefield">'.$langs->trans('VereineMeetingKind').'</td><td>'.$langs->trans('VereineMeetingKind_'.$meeting['kind']).'</td></tr>';
 print '<tr><td>'.$langs->trans('VereineMeetingWhen').'</td><td>'.vereineFormatDay($meeting['day']).' '.dol_escape_htmltag($meeting['time']).'</td></tr>';
@@ -917,7 +976,11 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 	$quorum = VereineAttendanceRules::quorum($meeting['kind'], $attendance['rows'], $attendance['voting'], $rules, $at);
 	print '<br>'.load_fiche_titre($langs->trans('VereineAttendance'), '', '', 0, 'vereineattendance');
 	print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineAttendanceHowTo_'.($meeting['kind'] === VereineMeetingRules::KIND_BOARD ? 'board' : 'general')).'</div>';
-	print '<div class="'.($quorum['reached'] ? 'ok' : 'warning').'" data-quorum-reached="'.($quorum['reached'] ? 1 : 0).'" data-votes="'.$quorum['votes'].'" data-present="'.$quorum['present'].'"';
+	$beforeDay = $today < $meeting['day'] && !$quorum['reached'];
+	if ($beforeDay) {
+		print '<div class="opacitymedium" data-quorum-before-day="1">'.$langs->trans('VereineAttendanceBeforeDay', vereineFormatDay($meeting['day'])).'</div>';
+	}
+	print '<div class="'.($quorum['reached'] ? 'ok' : ($beforeDay ? 'opacitymedium' : 'warning')).'" data-quorum-reached="'.($quorum['reached'] ? 1 : 0).'" data-votes="'.$quorum['votes'].'" data-present="'.$quorum['present'].'"';
 	print ' data-represented="'.$quorum['represented'].'" data-eligible="'.$quorum['eligible'].'" data-required="'.$quorum['required'].'" data-at="'.$at.'">';
 	print $langs->trans($quorum['reached'] ? 'VereineAttendanceReached' : 'VereineAttendanceMissing').' ';
 	print $meeting['kind'] === VereineMeetingRules::KIND_BOARD ? $langs->trans('VereineAttendanceQuorumBoard', $quorum['present'], $quorum['eligible'], max(1, $quorum['required']))

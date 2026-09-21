@@ -67,6 +67,44 @@ class VereineMeetingRules
 	/** Longest agenda. */
 	const AGENDA_MAX = 50;
 
+	/** The steps of a meeting, in their order. */
+	const STEPS = array('plan', 'invite', 'meet', 'minutes', 'close');
+
+	/**
+	 * Where a meeting stands: every step is done, the one to do now, or later.
+	 *
+	 * @param array<string,mixed> $meeting Meeting with status, day and agenda
+	 * @param array<string,bool>  $facts   Keys invited (an invitation went out), met (attendance or votes recorded),
+	 *                                     final (a final version of the minutes), signed (its signatures are complete)
+	 * @param string              $today   Today as YYYY-MM-DD
+	 * @return array<string,string> State by step: done, now or later
+	 */
+	public static function steps(array $meeting, array $facts, $today)
+	{
+		$planned = !empty($meeting['agenda']) && (string) $meeting['day'] !== '';
+		$invited = $meeting['status'] !== self::STATUS_PLANNED && !empty($facts['invited']);
+		$met = $meeting['status'] === self::STATUS_HELD || !empty($facts['met']);
+		$final = !empty($facts['final']);
+		$signed = $final && !empty($facts['signed']);
+		$states = array();
+		$states['plan'] = $planned ? 'done' : 'now';
+		$states['invite'] = $invited ? 'done' : ($planned ? 'now' : 'later');
+		$states['meet'] = $met ? 'done' : ($invited && (string) $meeting['day'] <= (string) $today ? 'now' : 'later');
+		$states['minutes'] = $final ? 'done' : ($met || ($invited && (string) $meeting['day'] < (string) $today) ? 'now' : 'later');
+		$states['close'] = $signed ? 'done' : ($final ? 'now' : 'later');
+		// Only one step is "now": the first one that is not done.
+		$seen = false;
+		foreach (self::STEPS as $step) {
+			if ($states[$step] === 'now') {
+				if ($seen) {
+					$states[$step] = 'later';
+				}
+				$seen = true;
+			}
+		}
+		return $states;
+	}
+
 	/**
 	 * Entered data of a meeting that can be used as it is.
 	 *

@@ -208,6 +208,11 @@ if ($circular === null) {
 			$names[] = $voter['name'].($voter['label'] !== '' ? ' ('.$voter['label'].')' : '').($voter['email'] === '' ? ' - '.$langs->transnoentitiesnoconv('VereineCircularNoEmail') : '');
 		}
 		print '<span data-circular-voters="'.count($voters).'">'.dol_escape_htmltag(implode(', ', $names)).'</span>';
+		$withoutUser = $circulars->votersWithoutUser($voters);
+		if ($withoutUser) {
+			print '<div class="warning" data-voters-without-user="'.count($withoutUser).'">'.$langs->trans('VereineCircularWithoutUser', dol_escape_htmltag(implode(', ', $withoutUser))).'</div>';
+		}
+		print '<div class="opacitymedium small">'.$langs->trans('VereineCircularWhoVotes').'</div>';
 		print '</td></tr></table>';
 		print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('VereineCircularStart')).'"></div>';
 		print '</form>';
@@ -268,15 +273,16 @@ if ($circular['status'] === VereineCircularRules::STATUS_OPEN && $mine !== null 
 	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$circular['id'].'" name="vereinecircularvote" class="paddingtop">';
 	print '<input type="hidden" name="token" value="'.newToken().'">';
 	print '<input type="hidden" name="action" value="vote">';
-	print '<span class="paddingright">'.$langs->trans('VereineCircularYourVote').'</span>';
+	print '<div class="paddingbottom">'.$langs->trans('VereineCircularYourVote').'</div>';
+	print '<div style="display: flex; flex-wrap: wrap; gap: 0.6em;" data-vote-buttons="1">';
 	foreach (VereineCircularRules::CHOICES as $choice) {
 		if ($choice === VereineCircularRules::CHOICE_OBJECTION && empty($rules['circular_no_objection'])) {
 			continue;
 		}
-		print '<label class="paddingright"><input type="radio" name="choice" value="'.$choice.'"'.($choice === VereineCircularRules::CHOICE_YES ? ' checked' : '').'> ';
-		print $langs->trans('VereineCircularChoice_'.$choice).'</label>';
+		print '<button type="submit" name="choice" value="'.$choice.'" class="button" style="min-width: 8em; padding: 0.8em 1.2em; font-size: 1.1em;">';
+		print $langs->trans('VereineCircularChoice_'.$choice).'</button>';
 	}
-	print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineCircularVote')).'">';
+	print '</div>';
 	print '</form>';
 }
 

@@ -108,6 +108,30 @@ class VereineCirculars
 	}
 
 	/**
+	 * The board members who cannot vote in Dolibarr, because no user is linked to their member.
+	 *
+	 * @param array<int,array<string,mixed>> $voters Board members of voters()
+	 * @return string[] Their names
+	 */
+	public function votersWithoutUser(array $voters)
+	{
+		global $conf;
+
+		$linked = array();
+		$resql = $this->db->query("SELECT fk_member FROM ".MAIN_DB_PREFIX."user WHERE fk_member IS NOT NULL AND statut = 1 AND entity IN (0, ".((int) $conf->entity).")");
+		while ($resql && ($obj = $this->db->fetch_object($resql))) {
+			$linked[(int) $obj->fk_member] = true;
+		}
+		$names = array();
+		foreach ($voters as $voter) {
+			if (!isset($linked[(int) $voter['member_id']])) {
+				$names[] = (string) $voter['name'];
+			}
+		}
+		return $names;
+	}
+
+	/**
 	 * Start a circular resolution: everybody of the board gets it by e-mail with the link to Dolibarr.
 	 *
 	 * @param array<string,mixed> $entered     Entered circular resolution
