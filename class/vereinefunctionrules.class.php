@@ -125,7 +125,7 @@ class VereineFunctionRules
 			array('obmann_stv', 'Stellvertretung Obmann/Obfrau', 1, 1, 0, 0, 2),
 			array('kassier', 'Kassier:in', 1, 1, 0, 1, 1),
 			array('kassier_stv', 'Stellvertretung Kassier:in', 1, 1, 0, 0, 1),
-			array('schriftfuehrung', 'Schriftführer:in', 1, 1, 0, 0, 1),
+			array('schriftfuehrung', 'Schriftführer:in', 1, 1, 0, 1, 1),
 			array('schriftfuehrung_stv', 'Stellvertretung Schriftführer:in', 1, 1, 0, 0, 1),
 			array('rechnungspruefung', 'Rechnungsprüfer:in', 0, 0, 1, 2, 0),
 		);

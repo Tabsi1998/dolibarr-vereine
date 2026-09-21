@@ -1346,6 +1346,40 @@ expect(strpos($withCircular, 'im Umlaufweg') !== false && strpos($ruleText(array
 expect(strpos($ruleText(array('circular' => true, 'circular_no_objection' => true)), 'widerspricht') !== false && strpos($withCircular, 'widerspricht') === false,
 	'the objection to the procedure is named only when the statutes ask for it');
 
+// The statutes name the board as the catalogue has it: a fixed number only where every function is required.
+$boardContext = array('board' => array('Obmann/Obfrau', 'Schriftführer:in', 'Kassier:in', 'Stellvertretung Obmann/Obfrau'),
+	'board_required' => array('Obmann/Obfrau', 'Schriftführer:in', 'Kassier:in'), 'board_optional' => array('Stellvertretung Obmann/Obfrau'));
+same('Der Vorstand besteht aus folgenden Mitgliedern: Obmann/Obfrau, Schriftführer:in und Kassier:in und bei Bedarf Stellvertretung Obmann/Obfrau.',
+	VereineStatuteText::boardSentence($boardContext, '____'), 'a board with optional functions names them with "bei Bedarf", without a number');
+$fixedBoard = array('board' => array('Obmann/Obfrau', 'Schriftführer:in', 'Kassier:in'),
+	'board_required' => array('Obmann/Obfrau', 'Schriftführer:in', 'Kassier:in'), 'board_optional' => array());
+same('Der Vorstand besteht aus drei Mitgliedern, und zwar aus: Obmann/Obfrau, Schriftführer:in und Kassier:in.',
+	VereineStatuteText::boardSentence($fixedBoard, '____'), 'a board where every function is required keeps the number of the model statutes');
+same('Der Vorstand besteht aus ____.', VereineStatuteText::boardSentence(array('board' => array(), 'board_required' => array(), 'board_optional' => array()), '____'),
+	'without functions the sentence stays open');
+expect(strpos(implode(' ', VereineStatuteText::sections(VereineStatuteRules::defaults(), VereineStatuteText::defaults(),
+	array_merge($statuteContext, $boardContext))[12]['paragraphs']), 'Stellvertretungen') !== false,
+	'with deputies the statutes keep the clause about standing in');
+expect(strpos(implode(' ', VereineStatuteText::sections(VereineStatuteRules::defaults(), VereineStatuteText::defaults(),
+	array_merge($statuteContext, $fixedBoard))[12]['paragraphs']), 'Stellvertretungen') === false,
+	'without deputies the clause about standing in falls away');
+
+// Every paragraph says where it comes from, and nothing is named that is not generated.
+$statuteSources = VereineStatuteText::sources();
+foreach (VereineStatuteText::sections($statuteRules, VereineStatuteText::normalize(array('activities' => 'Turniere', 'tax' => 'bao', 'asset' => 'a',
+	'asset_purpose' => 'Jugendsport')), $statuteContext) as $section) {
+	expect(isset($statuteSources[$section['title']]) && $statuteSources[$section['title']] !== '',
+		'the paragraph '.$section['title'].' does not say where it comes from: add it to VereineStatuteText::sources()');
+}
+
+// The signature of a money matter: chair and treasurer, as § 13 Abs. 2 of the model statutes says.
+$moneyRules = VereineSignatureRules::normalize(null, array('obmann', 'schriftfuehrung', 'kassier', 'rechnungspruefung'));
+same(array('obmann', 'kassier'), $moneyRules['money']['roles'], 'a money matter is signed by the chair and the treasurer');
+same(array('obmann', 'schriftfuehrung'), $moneyRules['resolution']['roles'], 'an ordinary resolution stays with chair and secretary');
+expect(in_array('money', VereineSignatureRules::KINDS, true) && count(VereineSignatureRules::KINDS) === 5, 'five kinds of document');
+same(true, VereineResolutionRules::normalize(array('money' => '1'))['money'], 'a resolution can be marked as a money matter');
+same(false, VereineResolutionRules::normalize(array())['money'], 'without the mark it is no money matter');
+
 // ------------------------------------------------------------ language files
 
 // The module speaks German; en_US is an exact copy so an English interface shows German, not keys.

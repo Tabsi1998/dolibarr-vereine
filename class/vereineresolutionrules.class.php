@@ -110,6 +110,7 @@ class VereineResolutionRules
 			'valid_to' => $day('valid_to'),
 			'member_id' => $id('member_id'),
 			'invoice_id' => $id('invoice_id'),
+			'money' => !empty($data['money']),
 			'note' => $text('note', 65000),
 		);
 	}
@@ -171,6 +172,8 @@ class VereineResolutionRules
 	 *
 	 * @param mixed $data Entered filters
 	 * @return array{search:string,year:string,organ:string,category:string,result:string,open:bool}
+	 *
+	 * @see self::normalize() for the entry itself
 	 */
 	public static function filters($data)
 	{

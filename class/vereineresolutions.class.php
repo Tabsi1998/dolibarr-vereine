@@ -190,7 +190,7 @@ class VereineResolutions
 		global $conf;
 
 		$sql = "SELECT rowid, ref, source, fk_meeting, fk_vote, organ, kind, resolution_day, item, title, wording, category, passed, yes, no, abstain,";
-		$sql .= " majority, valid_from, valid_to, fk_adherent, fk_facture, applied, note FROM ".MAIN_DB_PREFIX."vereine_resolution";
+		$sql .= " majority, valid_from, valid_to, fk_adherent, fk_facture, money, applied, note FROM ".MAIN_DB_PREFIX."vereine_resolution";
 		$sql .= " WHERE entity = ".((int) $conf->entity)." ORDER BY resolution_day DESC, rowid DESC";
 		$resql = $this->db->query($sql);
 		if (!$resql) {
@@ -221,6 +221,7 @@ class VereineResolutions
 				'valid_to' => (string) $obj->valid_to,
 				'member_id' => (int) $obj->fk_adherent,
 				'invoice_id' => (int) $obj->fk_facture,
+				'money' => (int) $obj->money === 1,
 				'applied' => (string) $obj->applied,
 				'note' => (string) $obj->note,
 				'tasks' => 0,
@@ -337,6 +338,7 @@ class VereineResolutions
 		$sql .= " valid_from = ".($entry['valid_from'] !== '' ? "'".$this->db->escape($entry['valid_from'])."'" : "NULL").",";
 		$sql .= " valid_to = ".($entry['valid_to'] !== '' ? "'".$this->db->escape($entry['valid_to'])."'" : "NULL").",";
 		$sql .= " fk_adherent = ".((int) $entry['member_id']).", fk_facture = ".((int) $entry['invoice_id']).",";
+		$sql .= " money = ".(!empty($entry['money']) ? 1 : 0).",";
 		$sql .= " note = '".$this->db->escape($entry['note'])."', fk_user_modif = ".((int) $user->id);
 		$sql .= " WHERE rowid = ".((int) $id)." AND entity = ".((int) $conf->entity);
 		if (!$this->db->query($sql)) {

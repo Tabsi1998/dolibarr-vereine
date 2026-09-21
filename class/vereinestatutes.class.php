@@ -179,12 +179,15 @@ class VereineStatutes
 		require_once __DIR__.'/vereineexits.class.php';
 
 		$context = array('name' => trim((string) $mysoc->name), 'seat' => trim((string) $mysoc->town), 'purpose' => getDolGlobalString('VEREINE_PURPOSE'),
-			'nonprofit' => getDolGlobalString('VEREINE_NONPROFIT') === '1', 'board' => array(), 'board_terms' => array(), 'chair' => '', 'secretary' => '', 'treasurer' => '',
+			'nonprofit' => getDolGlobalString('VEREINE_NONPROFIT') === '1', 'board' => array(), 'board_required' => array(), 'board_optional' => array(),
+			'board_terms' => array(), 'chair' => '', 'secretary' => '', 'treasurer' => '',
 			'auditors' => 0, 'auditor_term' => 0, 'types' => array(), 'voting' => array(), 'honorary' => false);
 		$functions = new VereineFunctions($this->db);
 		foreach ($functions->fetchAll(true) as $function) {
 			if ($function['board']) {
 				$context['board'][] = $function['label'];
+				// A function the statutes ask for has a minimum of one; the rest a board may have, but need not.
+				$context[(int) $function['min'] > 0 ? 'board_required' : 'board_optional'][] = $function['label'];
 				$context['board_terms'][] = $function['term_years'];
 			}
 			if ($function['auditor']) {

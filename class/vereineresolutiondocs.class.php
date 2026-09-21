@@ -272,6 +272,9 @@ class VereineResolutionDocs
 			.$outputlangs->transnoentities('VereineVoteCountsText', $row['yes'], $row['no'], $row['abstain'])
 			.($details['secret'] ? ' - '.$outputlangs->transnoentitiesnoconv('VereineVoteSecret') : ''));
 		$line($outputlangs->transnoentities('VereineMinutesPdfMajority', $outputlangs->transnoentitiesnoconv('VereineStatuteMajority_'.$row['majority'])));
+		if (!empty($row['money'])) {
+			$line($outputlangs->transnoentitiesnoconv('VereineResolutionMoneyLabel'));
+		}
 		if ($details['quorum'] !== null) {
 			$quorum = $details['quorum'];
 			$line($outputlangs->transnoentities('VereineMinutesPdfAttendance', $quorum['present'], $quorum['represented'], $quorum['votes'], $quorum['eligible']));
