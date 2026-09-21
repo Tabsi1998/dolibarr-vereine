@@ -61,6 +61,7 @@ require_once $root.'/class/vereinevoterules.class.php';
 require_once $root.'/class/vereineresolutionrules.class.php';
 require_once $root.'/class/vereinecircularrules.class.php';
 require_once $root.'/class/vereinemeetingdocrules.class.php';
+require_once $root.'/class/vereinemailrules.class.php';
 require_once $root.'/class/vereineapirules.class.php';
 
 $failures = array();
@@ -1264,6 +1265,22 @@ same(array(1, VereineMeetingDocRules::SHEET_ROWS_MAX), array(VereineMeetingDocRu
 same(array(), VereineMeetingDocRules::validateSheet($sheet), 'a count sheet with a question is fine');
 same(array('VereineMeetingDocErrorQuestion'), VereineMeetingDocRules::validateSheet(VereineMeetingDocRules::sheet(array())), 'a count sheet without a question is refused');
 
+// ------------------------------------------------------------- mail server answers
+
+// The answer @Tabsi1998 got on 21.09.2026, as Dolibarr stores it (escaped line breaks included).
+$refused = 'Error [120]: Ran into problems sending Mail.\r\nResponse: 553 5.7.1 <noreply@lionsquad.at>: Sender address rejected: not owned by user office@lionsquad.at\r\n\nError [120]: Ran into problems sending Mail.\r\nResponse: 554 5.5.1 Error: no valid recipients\r\n\n';
+same(array('cause' => 'sender', 'login' => 'office@lionsquad.at'), VereineMailRules::explain($refused),
+	'a refused sender is recognised, with the address the server allows - even though "no valid recipients" follows');
+same('sender', VereineMailRules::explain('SMTP Error: 553 5.7.1 Sender address rejected')['cause'], 'a refused sender without a login named');
+same('login', VereineMailRules::explain('535 5.7.8 Error: authentication failed: UGFzc3dvcmQ6')['cause'], 'a refused login');
+same('connect', VereineMailRules::explain('SMTP Error: Could not connect to SMTP host. Connection refused')['cause'], 'a server that cannot be reached');
+same('recipient', VereineMailRules::explain('550 5.1.1 <nobody@example.at>: Recipient address rejected: User unknown')['cause'], 'an unknown recipient');
+same('other', VereineMailRules::explain('421 4.7.0 Try again later')['cause'], 'anything else stays "other"');
+same("Error [120]: Ran into problems sending Mail.\nResponse: 553 5.7.1 <noreply@lionsquad.at>: Sender address rejected: not owned by user office@lionsquad.at\nError [120]: Ran into problems sending Mail.\nResponse: 554 5.5.1 Error: no valid recipients",
+	VereineMailRules::readable($refused), 'escaped line breaks become real ones, empty lines fall away');
+expect(VereineMailRules::validSender('office@lionsquad.at') && !VereineMailRules::validSender('office') && !VereineMailRules::validSender('Office <office@lionsquad.at>'),
+	'a sender is a plain address');
+
 // ------------------------------------------------------------------- openapi
 
 // Every endpoint of the API class is in docs/openapi.json, and the description lists no other.
@@ -1469,6 +1486,7 @@ $prefixes = array(
 	'VereineResolutionCategory_' => VereineResolutionRules::CATEGORIES,
 	'VereineCircularChoice_' => VereineCircularRules::CHOICES,
 	'VereineMeetingDocKind_' => VereineMeetingDocRules::KINDS,
+	'VereineMailError_' => VereineMailRules::CAUSES,
 	'VereineCircularStatus_' => array('open', 'cancelled', 'objection'),
 	'VereineMinutesAudience_' => array('board', 'members'),
 	'VereineMinutesSend_' => array('board', 'members'),

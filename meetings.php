@@ -67,6 +67,7 @@ require_once __DIR__.'/class/vereinemeetings.class.php';
 require_once __DIR__.'/class/vereineminutes.class.php';
 require_once __DIR__.'/class/vereineresolutions.class.php';
 require_once __DIR__.'/class/vereinemeetingdocs.class.php';
+require_once __DIR__.'/class/vereinemail.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('members', 'vereine@vereine'));
@@ -184,6 +185,14 @@ if ($action === 'document') {
 			setEventMessages(null, array_map(array($langs, 'trans'), $meetings->errors), 'errors');
 		}
 	}
+} elseif ($action === 'resend' && $canWrite) {
+	$result = $meetings->resend($id, $user, $langs);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineMeetingResent', $result), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id.'#vereinemeetinginvitations');
+		exit;
+	}
+	setEventMessages($result < 0 ? $meetings->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $meetings->errors), 'errors');
 } elseif (($action === 'held' || $action === 'cancel') && $canWrite) {
 	$result = $meetings->setStatus($id, $action === 'held' ? VereineMeetingRules::STATUS_HELD : VereineMeetingRules::STATUS_CANCELLED, $user);
 	if ($result <= 0) {
@@ -765,15 +774,45 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 	}
 } else {
 	print load_fiche_titre($langs->trans('VereineMeetingInvitations'), '', '', 0, 'vereinemeetinginvitations');
+	$invitations = $meetings->invitations($meeting['id']);
+	$failed = array_filter($invitations, function ($invitation) {
+		return $invitation['channel'] === VereineMeetingRules::CHANNEL_EMAIL && !$invitation['sent_at'];
+	});
+	if ($failed) {
+		// Nobody reached is not an invited meeting, whatever the status says.
+		$key = count($failed) === count($invitations) ? 'VereineMeetingNobodyReached' : 'VereineMeetingSomeNotReached';
+		print '<div class="error" data-invitations-failed="'.count($failed).'">'.$langs->trans($key, count($failed)).' ';
+		print dol_escape_htmltag(VereineMail::describe((string) current($failed)['error'], $langs)).'</div>';
+		if ($canWrite) {
+			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'#vereinemeetinginvitations" name="vereinemeetingresend" class="paddingbottom">';
+			print '<input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="resend">';
+			print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineMeetingResend', count($failed))).'"> ';
+			print '<span class="opacitymedium small">'.$langs->trans('VereineMeetingResendHelp', dol_escape_htmltag(VereineMail::sender())).'</span>';
+			print '</form>';
+		}
+	}
 	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
 	print '<tr class="liste_titre"><td>'.$langs->trans('Name').'</td><td>'.$langs->trans('VereineMeetingChannel').'</td><td>'.$langs->trans('VereineMeetingSentAt').'</td>';
 	print '<td>'.$langs->trans('VereineMeetingVoting').'</td></tr>';
-	foreach ($meetings->invitations($meeting['id']) as $invitation) {
-		print '<tr class="oddeven" data-invited="'.$invitation['member_id'].'" data-channel="'.$invitation['channel'].'" data-sent="'.($invitation['sent_at'] ? 1 : 0).'">';
+	foreach ($invitations as $invitation) {
+		print '<tr class="oddeven" data-invited="'.$invitation['member_id'].'" data-channel="'.$invitation['channel'].'" data-sent="'.($invitation['sent_at'] ? 1 : 0).'"';
+		print ' data-attempts="'.$invitation['attempts'].'">';
 		print '<td>'.dol_escape_htmltag($invitation['name']).($invitation['email'] !== '' ? ' <span class="opacitymedium">'.dol_escape_htmltag($invitation['email']).'</span>' : '').'</td>';
-		print '<td>'.$langs->trans('VereineMeetingChannel_'.$invitation['channel']).'</td>';
-		print '<td>'.($invitation['sent_at'] ? dol_print_date($invitation['sent_at'], 'dayhour', 'tzuserrel') : '<span class="error">'.dol_escape_htmltag($invitation['error']).'</span>').'</td>';
-		print '<td>'.yn($invitation['voting']).'</td></tr>';
+		print '<td>'.$langs->trans('VereineMeetingChannel_'.$invitation['channel']).'</td><td>';
+		if ($invitation['sent_at']) {
+			print dol_print_date($invitation['sent_at'], 'dayhour', 'tzuserrel');
+			if ($invitation['attempts'] > 1) {
+				print ' <span class="opacitymedium small">'.$langs->trans('VereineMeetingAttempt', $invitation['attempts']).'</span>';
+			}
+		} else {
+			// The answer of the mail server in plain words; the original stays below, with its line breaks.
+			print '<span class="error" data-mail-error="'.dol_escape_htmltag(VereineMailRules::explain($invitation['error'])['cause']).'">';
+			print dol_escape_htmltag(VereineMail::describe($invitation['error'], $langs)).'</span>';
+			print '<details class="small opacitymedium"><summary>'.$langs->trans('VereineMailAnswer').'</summary>';
+			print nl2br(dol_escape_htmltag(VereineMailRules::readable($invitation['error']), 0, 1)).'</details>';
+		}
+		print '</td><td>'.yn($invitation['voting']).'</td></tr>';
 	}
 	print '</table></div>';
 	if (is_file(VereineMeetings::lettersPath($meeting['id']))) {

@@ -7,6 +7,26 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Behoben
+
+- **E-Mails, die nicht ankommen, werden verständlich** (#168): Lehnt der
+  Mailserver eine Einladung ab, steht jetzt in Klartext da, warum – etwa „Der
+  Mailserver lässt den Absender noreply@… nicht zu; er erlaubt nur office@…" –
+  und was zu tun ist. Die Originalantwort bleibt aufklappbar darunter, mit echten
+  Zeilenumbrüchen statt `\r\n`. Eine Sitzung, bei der keine Einladung
+  angekommen ist, sagt das deutlich, statt wie erledigt auszusehen.
+
+### Neu
+
+- **Eigener Absender für die E-Mails des Vereins** (#168) unter *Einrichtung –
+  Allgemein – E-Mails des Vereins*, für Einladungen, Protokolle,
+  Umlaufbeschlüsse und Erinnerungen. Viele Mailserver erlauben nur die Adresse,
+  mit der sich Dolibarr anmeldet – die gehört dann hier hinein.
+- **Test-E-Mail an mich** direkt daneben, damit du vor dem Einladen weißt, ob
+  der Versand klappt.
+- **Gescheiterte Einladungen erneut senden** mit einem Knopf, nachdem der
+  Absender stimmt; der Nachweis zählt die Versuche.
+
 ## [0.5.12-beta] - 2026-09-21
 
 Statuten, die zum Verein passen: der Vorstand nach dem Funktionskatalog, der
