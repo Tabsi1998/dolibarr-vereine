@@ -29,6 +29,7 @@ require_once __DIR__.'/vereineresolutions.class.php';
 require_once __DIR__.'/vereinemeetings.class.php';
 require_once __DIR__.'/vereinefunctions.class.php';
 require_once __DIR__.'/vereinestatutes.class.php';
+require_once __DIR__.'/vereinepdf.class.php';
 
 /**
  * The PDFs of the register of resolutions.
@@ -162,6 +163,7 @@ class VereineResolutionDocs
 		}
 		$this->section($pdf, $outputlangs, $row, true);
 		$this->signatureLines($pdf, $outputlangs);
+		VereinePdf::finish($pdf, $outputlangs, $outputlangs->transnoentities('VereineResolutionPdfTitle', $row['ref']).' - '.$row['title']);
 		return $this->close($pdf, $file);
 	}
 
@@ -188,6 +190,7 @@ class VereineResolutionDocs
 			$pdf->Ln(4);
 		}
 		$this->signatureLines($pdf, $outputlangs);
+		VereinePdf::finish($pdf, $outputlangs, $outputlangs->transnoentitiesnoconv('VereineResolutionExcerptTitle'));
 		return $this->close($pdf, $file);
 	}
 
@@ -211,23 +214,9 @@ class VereineResolutionDocs
 			$this->error = 'cannot create '.dirname($file);
 			return null;
 		}
-		$pdf = pdf_getInstance();
-		$font = pdf_getPDFFont($outputlangs);
-		$pdf->setPrintHeader(false);
-		$pdf->setPrintFooter(false);
-		$pdf->SetMargins(20, 20, 20);
-		$pdf->SetAutoPageBreak(true, 20);
-		$pdf->AddPage();
-		$pdf->SetFont($font, 'B', 11);
-		$pdf->MultiCell(0, 5, trim((string) $mysoc->name), 0, 'L');
-		if (getDolGlobalString('VEREINE_REGISTER_NUMBER') !== '') {
-			$pdf->SetFont($font, '', 10);
-			$pdf->MultiCell(0, 5, $outputlangs->transnoentities('VereineReportRegister', getDolGlobalString('VEREINE_REGISTER_NUMBER')), 0, 'L');
-		}
+		$pdf = VereinePdf::start($outputlangs);
 		if ($title !== '') {
-			$pdf->Ln(6);
-			$pdf->SetFont($font, 'B', 12);
-			$pdf->MultiCell(0, 5, $title, 0, 'L');
+			VereinePdf::title($pdf, $outputlangs, $title);
 		}
 		return $pdf;
 	}
@@ -250,7 +239,7 @@ class VereineResolutionDocs
 		};
 		$details = $this->details($row);
 		$pdf->Ln($first ? 6 : 2);
-		$line($outputlangs->transnoentities('VereineResolutionPdfTitle', $row['ref']), 'B', 12);
+		$line($outputlangs->transnoentities('VereineResolutionPdfTitle', $row['ref']), 'B', 13);
 		$line($row['title'], 'B');
 		$pdf->Ln(2);
 		$line($outputlangs->transnoentities('VereineResolutionPdfOrgan', $outputlangs->transnoentitiesnoconv('VereineMeetingKind_'.$row['organ'])));
