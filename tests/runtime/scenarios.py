@@ -120,6 +120,10 @@ class Stack:
                               f"{(completed.stdout + completed.stderr)[-1500:]}")
         return parse_fixtures(completed.stdout)
 
+    def today(self) -> str:
+        """Today as the module sees it: PHP in Europe/Vienna. The database runs in UTC, a day apart after midnight (#181)."""
+        return self.shell("php -d date.timezone=Europe/Vienna -r 'echo date(\"Y-m-d\");'").stdout.strip()
+
     def shell(self, command: str) -> subprocess.CompletedProcess:
         return self.run(self.docker, "exec", "-u", "www-data", self.web, "sh", "-c", command, check=False, timeout=120)
 
@@ -2731,9 +2735,10 @@ def qes(stack: Stack) -> str:
     expect("Der Signaturdienst nimmt Dokumente an" in html.unescape(checked.text), "the check did not reach the signature service")
 
     # Letters: two functions held by two different people today, only with ID Austria.
+    today = stack.today()
     terms = stack.sql("SELECT f.code, t.fk_adherent FROM llx_vereine_function_term as t INNER JOIN llx_vereine_function as f ON f.rowid = t.fk_function"
-                      " INNER JOIN llx_adherent as a ON a.rowid = t.fk_adherent WHERE f.active = 1 AND a.statut = 1 AND t.date_start <= CURDATE()"
-                      " AND (t.date_end IS NULL OR t.date_end >= CURDATE()) ORDER BY t.rowid")
+                      f" INNER JOIN llx_adherent as a ON a.rowid = t.fk_adherent WHERE f.active = 1 AND a.statut = 1 AND t.date_start <= '{today}'"
+                      f" AND (t.date_end IS NULL OR t.date_end >= '{today}') ORDER BY t.rowid")
     held: dict[str, set[str]] = {}
     for code, member in terms:
         held.setdefault(code, set()).add(member)
@@ -3093,7 +3098,7 @@ def resolutiondocs(stack: Stack) -> str:
     page_ok(browser.submit(page.form(name="vereineresolutionbuild")), "build the PDF of the money matter")
     # Earlier scenarios end the treasurer's term; somebody has to hold it today for the run to name them.
     kassier = stack.value("SELECT rowid FROM llx_vereine_function WHERE code = 'kassier'")
-    today = stack.value("SELECT CURDATE()")
+    today = stack.today()
     holding = stack.value(f"SELECT COUNT(*) FROM llx_vereine_function_term WHERE fk_function = {kassier} "
                           f"AND date_start <= '{today}' AND (date_end IS NULL OR date_end >= '{today}')")
     if holding == "0":
