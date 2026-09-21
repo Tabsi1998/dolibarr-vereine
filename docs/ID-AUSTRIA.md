@@ -25,11 +25,14 @@ Diese Anleitung richtet PDF-AS 5.0.0 mit Docker auf einem eigenen Server ein.
 
 ## Was du brauchst
 
-- einen Server mit Docker, etwa den Ubuntu-Server neben Dolibarr,
-- eine eigene Adresse mit HTTPS, zum Beispiel `https://signatur.meinverein.at`,
-  **von außen erreichbar**: Der Browser der Unterschreibenden und ID Austria
-  müssen den Dienst erreichen. Über deinen bestehenden Reverse Proxy
-  (Nginx, Caddy, Nginx Proxy Manager) leitest du sie an den Container weiter.
+- einen Server mit Docker, etwa denselben wie Dolibarr,
+- **eine eigene Subdomain** für den Signaturdienst, zum Beispiel
+  `signatur.meinverein.at`, mit HTTPS und **von außen erreichbar**. Der Browser
+  der Unterschreibenden (auch am Handy im Mobilnetz) und ID Austria (A-Trust)
+  müssen den Dienst erreichen. Eine eigene Subdomain hält PDF-AS sauber von
+  Dolibarr getrennt, mit eigenem Zertifikat,
+- deinen Reverse Proxy (etwa Nginx Proxy Manager), der schon Dolibarr nach außen
+  bringt.
 
 ## 1. PDF-AS herunterladen
 
@@ -96,21 +99,92 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8095:8080"
+      # Heimnetz-Adresse dieses Servers: dort holt der Reverse Proxy den Dienst ab.
+      - "192.168.1.10:8095:8080"
 ```
 
-## 3. Starten und weiterleiten
+Läuft der Reverse Proxy direkt auf diesem Server und nicht in Docker, genügt
+`"127.0.0.1:8095:8080"`. Ein Proxy in Docker (etwa Nginx Proxy Manager) erreicht
+`127.0.0.1` des Servers nicht, er braucht die Heimnetz-Adresse.
+
+## 3. Starten
 
 ```bash
 cd /opt/pdf-as
 docker compose up -d --build
-curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8095/pdf-as-web/v3/api-docs   # 200
+curl -s -o /dev/null -w "%{http_code}\n" http://192.168.1.10:8095/pdf-as-web/v3/api-docs   # 200
 ```
 
-Im Reverse Proxy leitest du `https://signatur.meinverein.at` an
-`http://127.0.0.1:8095` weiter. Der Pfad `/pdf-as-web` bleibt dabei erhalten.
+## 4. Adresse und Reverse Proxy
 
-## 4. In Dolibarr eintragen
+**DNS.** Für `signatur` einen Eintrag anlegen wie für die Dolibarr-Adresse:
+gleicher Typ, gleiches Ziel. Bei Cloudflare am sichersten mit grauer Wolke
+(„nur DNS“). Die orange Wolke geht meist auch, aber Cloudflares Bot-Schutz kann
+die Rückmeldung von ID Austria an den Dienst aufhalten. Hängt die Rückkehr nach
+dem Bestätigen am Handy, zuerst hier auf Grau stellen.
+
+**Router.** Nichts Neues: Wenn Dolibarr schon von außen erreichbar ist, gehen die
+Ports 80 und 443 bereits an den Reverse Proxy.
+
+**Nginx Proxy Manager**, neuer *Proxy Host*:
+
+| Feld | Wert |
+| --- | --- |
+| Domain Names | `signatur.meinverein.at` |
+| Scheme | `http` |
+| Forward Hostname / IP | Heimnetz-Adresse des Servers mit PDF-AS, etwa `192.168.1.10` |
+| Forward Port | `8095` |
+| Block Common Exploits | an |
+| SSL | Let's Encrypt-Zertifikat anfordern, *Force SSL* und *HTTP/2* an |
+
+Der Pfad `/pdf-as-web` bleibt beim Weiterleiten erhalten. Den Aufbau von
+Adressen übernimmt PDF-AS selbst über `public.url`, weitere Kopfzeilen braucht
+es nicht. Prüfen von außen, etwa am Handy ohne WLAN:
+`https://signatur.meinverein.at/pdf-as-web/v3/api-docs` zeigt Text statt eines
+Fehlers.
+
+**Dolibarr muss den Dienst unter derselben Adresse erreichen.** Dolibarr ruft
+`https://signatur.meinverein.at/...` vom Server aus auf, und das signierte PDF
+holt es nur von genau dieser Adresse. Viele Router leiten die eigene öffentliche
+Adresse aber nicht ins Heimnetz zurück. Auf dem Dolibarr-Server prüfen:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://signatur.meinverein.at/pdf-as-web/v3/api-docs   # 200
+```
+
+Kommt keine 200, die Adresse im Heimnetz auf den Reverse Proxy zeigen lassen:
+
+- Dolibarr direkt auf dem Server: in `/etc/hosts` die Zeile
+  `192.168.1.10 signatur.meinverein.at` (Adresse des Reverse Proxy),
+- Dolibarr in Docker: in einer `docker-compose.override.yml` neben seiner
+  Compose-Datei, damit ein Update sie nicht überschreibt:
+
+  ```yaml
+  services:
+    dolibarr:
+      extra_hosts:
+        - "signatur.meinverein.at:192.168.1.10"
+  ```
+
+  Den Dienstnamen (`dolibarr`) an deine Compose-Datei anpassen.
+
+**Absichern (nach dem ersten erfolgreichen Test, wahlweise).** Die Schnittstelle
+unter `/pdf-as-web/api/` und die Abholung `/pdf-as-web/PDFData` braucht nur
+Dolibarr. Im Nginx Proxy Manager unter *Advanced* beschränkst du sie auf das
+Heimnetz. Das geht nur, wenn Dolibarr über die Heimnetz-Adresse kommt, siehe
+oben:
+
+```nginx
+location ~ ^/pdf-as-web/(api/|PDFData) {
+    allow 192.168.1.0/24;
+    deny all;
+    proxy_pass http://192.168.1.10:8095;
+}
+```
+
+Die Browser der Unterschreibenden und ID Austria brauchen diese Pfade nicht.
+
+## 5. In Dolibarr eintragen
 
 *Einrichtung – Vereine – Unterschriften*, Abschnitt „Signaturdienst für ID Austria“:
 
@@ -180,7 +254,9 @@ Mit PDF-AS 5.0.0 im Docker-Container (September 2026) geprüft:
 
 Die Bestätigung mit einer echten ID Austria am Handy ließ sich ohne echte
 Person nicht prüfen. Das ist der erste Test auf deinem Server. Ob die Whitelist
-fremde Rücksprung-Adressen abweist, zeigt sich ebenfalls erst dort.
+fremde Rücksprung-Adressen abweist, zeigt sich ebenfalls erst dort. Die
+Einstellungen für DNS, Reverse Proxy und die Beschränkung auf das Heimnetz sind
+Empfehlungen und hängen von deinem Netz ab.
 
 ## Quellen
 
