@@ -2263,8 +2263,10 @@ def statutetext(stack: Stack) -> str:
     if not purpose:
         expect("purpose" in problems and 'data-purpose-link="1"' in start.text and "nicht der Zweck, dem das Verm" in html.unescape(start.text),
                "without a purpose of the association the problem does not name it or link to it")
+    text_before = stack.const("VEREINE_STATUTE_TEXT")
     refused = page_ok(browser.submit(start.form(name="vereinestatutetext"), {"arrears_months": "0"}), "text with no months for exclusion")
-    expect("1 bis 24 Monate" in html.unescape(refused.text) and not stack.const("VEREINE_STATUTE_TEXT"), "text fields without months for exclusion were stored")
+    expect("1 bis 24 Monate" in html.unescape(refused.text) and stack.const("VEREINE_STATUTE_TEXT") == text_before,
+           "text fields without months for exclusion were stored")
     page_ok(browser.submit(page().form(name="vereinestatutetext"), {
         "activities": "Turniere und Ligaspiele\nTraining", "funds": "Beitrittsgebühren und Mitgliedsbeiträge\nSponsorgelder", "arrears_months": "3",
         "wording": "bao:a", "asset_purpose": "Förderung des Jugendsports"}), "store the text of the statutes")
