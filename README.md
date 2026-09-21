@@ -62,6 +62,9 @@ und bringt eine REST-API für die Vereinswebsite mit.
   Nachweis; Anwesenheit mit Vollmachten und Beschlussfähigkeit zu jeder Uhrzeit;
   **Abstimmungen und Wahlen** mit den Mehrheiten der Statuten; **Vorlagen** mit
   Pflichtpunkten und Texte je Punkt fürs Protokoll mit den echten Zahlen.
+- **Unterschreiben** in Dolibarr, auf Papier oder **mit ID Austria** –
+  qualifiziert, rechtlich wie eigenhändig – über einen eigenen Signaturdienst
+  (PDF-AS). Einrichtung in [docs/ID-AUSTRIA.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/ID-AUSTRIA.md).
 
 ### Für die Vereinswebsite
 

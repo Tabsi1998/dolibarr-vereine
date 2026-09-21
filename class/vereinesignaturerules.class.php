@@ -54,24 +54,35 @@ class VereineSignatureRules
 	const WAY_CLICK = 'click';
 	/** Signed on paper, uploaded as a scan. */
 	const WAY_PAPER = 'paper';
+	/** Signed with ID Austria through the signature service: a qualified electronic signature. */
+	const WAY_QES = 'qes';
+
+	/** Signed in Dolibarr with the password. */
+	const SIGN_CLICK = 'click';
+	/** Signed only with ID Austria, because it has to stand for a handwritten signature. */
+	const SIGN_QES = 'qes';
+	/** Both, whoever signs chooses. */
+	const SIGN_BOTH = 'both';
+	/** How a kind of document is signed, in the order the setup offers it. The paper way is always open. */
+	const SIGN_WAYS = array('click', 'qes', 'both');
 
 	/**
 	 * Who signs which kind of document, following the model statutes.
 	 *
-	 * @return array<string,array{roles:string[],mode:string,min:int}> By kind of document
+	 * @return array<string,array{roles:string[],mode:string,min:int,sign:string}> By kind of document
 	 */
 	public static function defaults()
 	{
 		return array(
 			// Written documents of the association: chair and secretary (model statutes of the BMI).
-			self::KIND_LETTER => array('roles' => array('obmann', 'schriftfuehrung'), 'mode' => self::MODE_ALL, 'min' => 2),
-			self::KIND_MINUTES => array('roles' => array('obmann', 'schriftfuehrung'), 'mode' => self::MODE_ALL, 'min' => 2),
-			self::KIND_RESOLUTION => array('roles' => array('obmann', 'schriftfuehrung'), 'mode' => self::MODE_ALL, 'min' => 2),
+			self::KIND_LETTER => array('roles' => array('obmann', 'schriftfuehrung'), 'mode' => self::MODE_ALL, 'min' => 2, 'sign' => self::SIGN_CLICK),
+			self::KIND_MINUTES => array('roles' => array('obmann', 'schriftfuehrung'), 'mode' => self::MODE_ALL, 'min' => 2, 'sign' => self::SIGN_CLICK),
+			self::KIND_RESOLUTION => array('roles' => array('obmann', 'schriftfuehrung'), 'mode' => self::MODE_ALL, 'min' => 2, 'sign' => self::SIGN_CLICK),
 			// Money matters: chair and treasurer, as § 13 Abs. 2 of the model statutes puts it. Statutes that
 			// ask for the secretary as well are set up by adding that function here.
-			self::KIND_MONEY => array('roles' => array('obmann', 'kassier'), 'mode' => self::MODE_ALL, 'min' => 2),
+			self::KIND_MONEY => array('roles' => array('obmann', 'kassier'), 'mode' => self::MODE_ALL, 'min' => 2, 'sign' => self::SIGN_CLICK),
 			// The auditors report themselves (§ 21 VerG).
-			self::KIND_AUDIT_REPORT => array('roles' => array('rechnungspruefung'), 'mode' => self::MODE_ALL, 'min' => 2),
+			self::KIND_AUDIT_REPORT => array('roles' => array('rechnungspruefung'), 'mode' => self::MODE_ALL, 'min' => 2, 'sign' => self::SIGN_CLICK),
 		);
 	}
 
@@ -80,7 +91,7 @@ class VereineSignatureRules
 	 *
 	 * @param mixed    $data  Rules by kind of document
 	 * @param string[] $codes Codes of the function catalogue
-	 * @return array<string,array{roles:string[],mode:string,min:int}>
+	 * @return array<string,array{roles:string[],mode:string,min:int,sign:string}>
 	 */
 	public static function normalize($data, array $codes)
 	{
@@ -91,7 +102,7 @@ class VereineSignatureRules
 			if ($entered === null) {
 				// Nothing stored yet: the defaults apply, but only with functions the catalogue has.
 				$roles = array_values(array_intersect($defaults[$kind]['roles'], $codes));
-				$rules[$kind] = array('roles' => $roles, 'mode' => $defaults[$kind]['mode'], 'min' => $defaults[$kind]['min']);
+				$rules[$kind] = array('roles' => $roles, 'mode' => $defaults[$kind]['mode'], 'min' => $defaults[$kind]['min'], 'sign' => $defaults[$kind]['sign']);
 				continue;
 			}
 			$roles = array();
@@ -102,7 +113,8 @@ class VereineSignatureRules
 			}
 			$mode = isset($entered['mode']) && in_array($entered['mode'], self::MODE_LIST, true) ? (string) $entered['mode'] : self::MODE_ALL;
 			$min = isset($entered['min']) && is_numeric($entered['min']) ? (int) $entered['min'] : count($roles);
-			$rules[$kind] = array('roles' => $roles, 'mode' => $mode, 'min' => max(1, min($min, max(1, count($roles)))));
+			$sign = isset($entered['sign']) && in_array($entered['sign'], self::SIGN_WAYS, true) ? (string) $entered['sign'] : self::SIGN_CLICK;
+			$rules[$kind] = array('roles' => $roles, 'mode' => $mode, 'min' => max(1, min($min, max(1, count($roles)))), 'sign' => $sign);
 		}
 		return $rules;
 	}
@@ -117,6 +129,30 @@ class VereineSignatureRules
 	public static function wanted(array $rules, $kind)
 	{
 		return isset($rules[$kind]) && $rules[$kind]['roles'] !== array();
+	}
+
+	/**
+	 * Whether a kind of document may be signed in Dolibarr with the password.
+	 *
+	 * @param array<string,array<string,mixed>> $rules Normalized rules
+	 * @param string                            $kind  Kind of document
+	 * @return bool
+	 */
+	public static function allowsClick(array $rules, $kind)
+	{
+		return self::wanted($rules, $kind) && in_array($rules[$kind]['sign'], array(self::SIGN_CLICK, self::SIGN_BOTH), true);
+	}
+
+	/**
+	 * Whether a kind of document may be signed with ID Austria.
+	 *
+	 * @param array<string,array<string,mixed>> $rules Normalized rules
+	 * @param string                            $kind  Kind of document
+	 * @return bool
+	 */
+	public static function allowsQes(array $rules, $kind)
+	{
+		return self::wanted($rules, $kind) && in_array($rules[$kind]['sign'], array(self::SIGN_QES, self::SIGN_BOTH), true);
 	}
 
 	/**

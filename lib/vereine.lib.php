@@ -151,7 +151,7 @@ function vereineFeeReason(array $fee)
 }
 
 /**
- * The signatures of one document: state, who is still missing, the sheet, and both ways to sign.
+ * The signatures of one document: state, who is still missing, the sheet, and the ways to sign.
  *
  * The same block serves every page that has documents to sign.
  *
@@ -208,7 +208,30 @@ function vereineSignatureBlock($signatures, $kind, $objectId, $file, $canWrite, 
 	if (VereineSignatures::scanPath($run) !== '') {
 		print '<div><a href="'.$_SERVER['PHP_SELF'].'?action=signed&amp;signature='.$run['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineSignatureScan').'</a></div>';
 	}
-	if ($run['status'] === VereineSignatures::STATUS_OPEN && $canWrite && $mine && !$run['document_changed']) {
+	if (is_file(VereineSignatures::qesPath($run['id']))) {
+		$page = dol_buildpath('/vereine/signature.php', 1);
+		print '<div data-qes-document="'.$run['id'].'"><a href="'.$page.'?action=download&amp;signature='.$run['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineQesDocument').'</a>';
+		print ' &middot; <a href="'.$page.'?signature='.$run['id'].'" data-qes-verify="'.$run['id'].'">'.$langs->trans('VereineQesVerify').'</a></div>';
+	}
+	$click = VereineSignatureRules::allowsClick($rules, $kind);
+	$withQes = VereineSignatureRules::allowsQes($rules, $kind);
+	if ($run['status'] === VereineSignatures::STATUS_OPEN && $canWrite && $mine && !$run['document_changed'] && $withQes) {
+		if (VereineQes::configured()) {
+			print '<form method="POST" action="'.dol_buildpath('/vereine/signature.php', 1).'" name="vereinesignqes'.$run['id'].'" class="paddingtop">';
+			print '<input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="qes">';
+			print '<input type="hidden" name="signature" value="'.$run['id'].'">';
+			print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineQesSign')).'">';
+			print ' <span class="opacitymedium small">'.$langs->trans('VereineQesSignHelp').'</span>';
+			print '</form>';
+		} else {
+			print '<div class="warning" data-qes-missing="1">'.$langs->trans('VereineQesNotConfigured').'</div>';
+		}
+	}
+	if ($run['status'] === VereineSignatures::STATUS_OPEN && $withQes && !$click) {
+		print '<div class="opacitymedium small" data-qes-only="1">'.$langs->trans('VereineQesOnlyHint').'</div>';
+	}
+	if ($run['status'] === VereineSignatures::STATUS_OPEN && $canWrite && $mine && !$run['document_changed'] && $click) {
 		print '<form method="POST" action="'.$back.'" name="vereinesign'.$run['id'].'" class="paddingtop">';
 		print '<input type="hidden" name="token" value="'.newToken().'">';
 		print '<input type="hidden" name="action" value="sign">';
