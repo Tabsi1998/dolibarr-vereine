@@ -7,6 +7,12 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.5.12-beta] - 2026-09-21
+
+Statuten, die zum Verein passen: der Vorstand nach dem Funktionskatalog, der
+Zweck bei den Statuten und Geldangelegenheiten mit dem Kassier (#149, #150,
+#151).
+
 ### Behoben
 
 - **Statuten: der Vorstand wird nicht mehr starr festgeschrieben** (#149): Bisher
@@ -33,6 +39,14 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 - **Neue Tabelle „Woher die Paragrafen kommen"** am Reiter *Statuten*: Sie nennt
   für jeden Paragrafen die Einstellung, aus der er entsteht. Ein Test hält die
   Tabelle mit den erzeugten Abschnitten in Schritt.
+
+### Update
+
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das
+ergänzt am Beschlussbuch, ob ein Beschluss eine Geldangelegenheit ist. Der Zweck
+bleibt, wie er ist – er wird jetzt am Reiter *Statuten* bearbeitet. Ein bereits
+eingerichteter Funktionskatalog bleibt unverändert: Soll die Schriftführung bei
+dir Pflicht sein, setze ihre Mindestanzahl unter *Funktionen* auf 1.
 
 ## [0.5.11-beta] - 2026-09-18
 
@@ -1228,7 +1242,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.11-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.12-beta...HEAD
+[0.5.12-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.12-beta
 [0.5.11-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.11-beta
 [0.5.10-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.10-beta
 [0.5.9-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.9-beta
