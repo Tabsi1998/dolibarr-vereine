@@ -853,11 +853,20 @@ def pdf_bytes_text(data: bytes) -> str:
     """Text of a PDF: every stream inflated, as Latin-1."""
     import zlib
     parts = []
-    for stream in re.findall(rb"stream\r?\n(.*?)\r?\nendstream", data, re.S):
-        try:
-            parts.append(zlib.decompress(stream))
-        except zlib.error:
-            parts.append(stream)
+    # A compressed stream may itself end with \r, which the pattern takes for the line break (#179):
+    # try again with it, then take what inflates.
+    for stream, carriage in re.findall(rb"stream\r?\n(.*?)(\r?)\nendstream", data, re.S):
+        for candidate in (stream, stream + carriage):
+            try:
+                parts.append(zlib.decompress(candidate))
+                break
+            except zlib.error:
+                continue
+        else:
+            try:
+                parts.append(zlib.decompressobj().decompress(stream + carriage))
+            except zlib.error:
+                parts.append(stream)
     # Text shows as (...) strings with escaped brackets; drop the escapes so words read as written.
     return b"".join(parts).decode("latin-1").replace("\\(", "(").replace("\\)", ")")
 
