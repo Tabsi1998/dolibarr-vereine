@@ -2904,6 +2904,17 @@ def resolutiondocs(stack: Stack) -> str:
     expect(stack.value(f"SELECT money FROM llx_vereine_resolution WHERE rowid = {money}") == "1", "the money matter was not stored")
     page = page_ok(browser.get(f"{base}?id={money}"), "the money matter")
     page_ok(browser.submit(page.form(name="vereineresolutionbuild")), "build the PDF of the money matter")
+    # Earlier scenarios end the treasurer's term; somebody has to hold it today for the run to name them.
+    kassier = stack.value("SELECT rowid FROM llx_vereine_function WHERE code = 'kassier'")
+    today = stack.value("SELECT CURDATE()")
+    holding = stack.value(f"SELECT COUNT(*) FROM llx_vereine_function_term WHERE fk_function = {kassier} "
+                          f"AND date_start <= '{today}' AND (date_end IS NULL OR date_end >= '{today}')")
+    if holding == "0":
+        free = stack.value(f"SELECT d.rowid FROM llx_adherent as d WHERE d.statut = 1 AND d.rowid NOT IN (SELECT fk_adherent FROM llx_vereine_function_term "
+                           f"WHERE date_end IS NULL OR date_end >= '{today}') ORDER BY d.rowid LIMIT 1")
+        tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={free}"), "a member without a function")
+        page_ok(browser.post(f"/custom/vereine/member_association.php?id={free}", [("token", token_of(tab)), ("action", "addfunction"),
+                                                                                  ("function_id", kassier), ("function_start", today)]), "a treasurer for today")
     page = page_ok(browser.get(f"{base}?id={money}"), "the money matter with its PDF")
     page_ok(browser.submit(page.form(name=f"vereinestartsignmoney{money}")), "start the signature run of the money matter")
     money_run = stack.sql(f"SELECT rowid, kind FROM llx_vereine_signature WHERE fk_object = {money} AND kind = 'money'")
