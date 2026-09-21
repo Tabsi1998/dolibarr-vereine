@@ -25,17 +25,22 @@
  * (A-SIT, EUPL 1.2), which the association runs beside Dolibarr; its address is a setting. The document
  * goes along with the request, so the signature service never needs access to Dolibarr.
  *
- * The way there and back, from "Anbindung externer Webanwendung an PDF-AS-WEB 5.0" (EGIZ, 30.04.2025):
- * POST api/v2/sign/single with the PDF and the connector. With mobilebku the answer holds a redirectUrl
- * the person is sent to; with jks (a key store on the server, for tests) the signed PDF comes back at once.
- * After signing, PDF-AS sends the person back to the invoke URL with pdfurl and pdflength; the signed PDF
- * can be fetched there exactly once. POST api/v2/verify reads the signatures of a PDF.
+ * The way there and back, from "Anbindung externer Webanwendung an PDF-AS-WEB 5.0" (EGIZ, 30.04.2025)
+ * and tried against PDF-AS 5.0.0: POST api/v2/sign/single with the PDF and the connector. With mobilebku
+ * the answer holds a redirectUrl the person is sent to; with jks (a key store on the server, for tests)
+ * the signed PDF comes back at once. After signing, PDF-AS sends the person back to invokeURL with pdfurl
+ * and pdflength; the signed PDF can be fetched there exactly once.
+ *
+ * PDF-AS appends every signature and leaves the bytes before it alone, so the module checks a signed PDF
+ * itself: the document it handed over is still there byte for byte, one signature more is appended, and
+ * (with PHP 8) every signature still matches the bytes it covers. Whether a certificate is valid and
+ * qualified only PDF-AS with MOA-SP, or the official check at signaturpruefung.gv.at, can say.
  */
 
 require_once __DIR__.'/vereinelog.class.php';
 
 /**
- * The signature service of the association.
+ * The signature service of the association, and what a signed PDF says about its signatures.
  */
 class VereineQes
 {
@@ -55,11 +60,11 @@ class VereineQes
 	/** Every connector the setup offers. */
 	const CONNECTORS = array('mobilebku', 'jks');
 
-	/** The signature holds and its certificate is valid. */
+	/** The certificate is valid. */
 	const STATE_VALID = 'valid';
-	/** The signature holds, but the service could not say whether the certificate is valid. */
+	/** The service could not say whether the certificate is valid. */
 	const STATE_UNCLEAR = 'unclear';
-	/** The document was changed after signing, or the certificate is not valid. */
+	/** The certificate is not valid, or the document changed after signing. */
 	const STATE_INVALID = 'invalid';
 
 	/** Largest signed document taken from the signature service. */
@@ -155,22 +160,22 @@ class VereineQes
 	}
 
 	/**
-	 * What to send for a signature. PDF-AS 5.0 documents the SOAP names (invoke-url) for its JSON interface,
-	 * while its first JSON builds read the Java names (invokeURL); both are sent, the service ignores one.
+	 * What to send for a signature. PDF-AS 5.0.0 reads invokeURL, invokeErrorURL and invokeTarget; its
+	 * handbook and later builds use the SOAP names (invoke-url). Both are sent, the service ignores one.
 	 *
-	 * @param string                                                    $pdf       The document
-	 * @param string                                                    $requestId What the answer is about
-	 * @param array{url:string,connector:string,key:string,profile:string} $settings  Settings of the service
-	 * @param string                                                    $invokeUrl Where the person comes back after signing
-	 * @param string                                                    $errorUrl  Where the person comes back when it failed
+	 * @param string              $pdf       The document
+	 * @param string              $requestId What the answer is about
+	 * @param array<string,mixed> $settings  Settings of the service, see settings()
+	 * @param string              $invokeUrl Where the person comes back after signing
+	 * @param string              $errorUrl  Where the person comes back when it failed
 	 * @return array<string,mixed>
 	 */
 	public static function signRequest($pdf, $requestId, array $settings, $invokeUrl, $errorUrl)
 	{
 		$parameters = array('connector' => $settings['connector']);
 		if ($settings['connector'] === self::CONNECTOR_MOBILE) {
-			$parameters += array('invoke-url' => (string) $invokeUrl, 'invokeURL' => (string) $invokeUrl, 'invoke-error-url' => (string) $errorUrl,
-				'invokeErrorURL' => (string) $errorUrl, 'invoke-target' => '_self', 'invokeTarget' => '_self');
+			$parameters += array('invokeURL' => (string) $invokeUrl, 'invoke-url' => (string) $invokeUrl, 'invokeErrorURL' => (string) $errorUrl,
+				'invoke-error-url' => (string) $errorUrl, 'invokeTarget' => '_self', 'invoke-target' => '_self');
 		}
 		if ($settings['key'] !== '') {
 			$parameters['keyIdentifier'] = $settings['key'];
@@ -201,14 +206,14 @@ class VereineQes
 	}
 
 	/**
-	 * What the service read out of a signed document: who signed, and whether it holds.
+	 * What the service says about the certificates of a signed document.
 	 *
 	 * The codes are those of an MOA signature check: value 0 means the document is unchanged since signing;
 	 * certificate 0 means a valid chain to a trusted root, 3 that the status of a certificate was unknown.
 	 * Everything else (no chain, expired, revoked, suspended) is not valid.
 	 *
 	 * @param mixed $answer Decoded answer of the service
-	 * @return array<int,array{index:int,signed_by:string,name:string,intact:bool,state:string,message:string}> In the order of signing
+	 * @return array<int,array{index:int,signed_by:string,name:string,state:string,message:string}> In the order of signing
 	 */
 	public static function readVerifyAnswer($answer)
 	{
@@ -234,8 +239,7 @@ class VereineQes
 				}
 			}
 			$results[] = array('index' => isset($row['signatureIndex']) && is_numeric($row['signatureIndex']) ? (int) $row['signatureIndex'] : count($results),
-				'signed_by' => $signedBy, 'name' => self::commonName($signedBy), 'intact' => $value === 0, 'state' => $state,
-				'message' => implode(' ', $messages));
+				'signed_by' => $signedBy, 'name' => self::commonName($signedBy), 'state' => $state, 'message' => implode(' ', $messages));
 		}
 		usort($results, function ($a, $b) {
 			return $a['index'] - $b['index'];
@@ -279,15 +283,186 @@ class VereineQes
 	}
 
 	/**
+	 * The signatures in a PDF, read by the module itself.
+	 *
+	 * Each signature names the bytes it covers (ByteRange); the gap between them holds its CMS in hex. The
+	 * name comes from the certificate in the CMS. Whether the bytes still match the signature needs
+	 * openssl_cms_verify (PHP 8); without it, intact stays null. A signature that does not reach the end of
+	 * the file was followed by more changes, which is normal for every signature but the last.
+	 *
+	 * @param string $pdf     The document
+	 * @param string $workdir Folder for the temporary files of the check
+	 * @return array<int,array{index:int,name:string,intact:bool|null,covers_end:bool}> In the order of signing
+	 */
+	public static function signatures($pdf, $workdir)
+	{
+		$found = array();
+		$size = strlen((string) $pdf);
+		if (!preg_match_all('/\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/', (string) $pdf, $ranges, PREG_SET_ORDER)) {
+			return $found;
+		}
+		foreach ($ranges as $index => $range) {
+			list($a, $b, $c, $d) = array((int) $range[1], (int) $range[2], (int) $range[3], (int) $range[4]);
+			$entry = array('index' => $index, 'name' => '', 'intact' => false, 'covers_end' => $c + $d === $size);
+			if ($a !== 0 || $b < 1 || $c < $b + 2 || $c + $d > $size || $pdf[$b] !== '<' || $pdf[$c - 1] !== '>') {
+				$found[] = $entry;
+				continue;
+			}
+			$der = self::der(substr($pdf, $b + 1, $c - $b - 2));
+			$entry['name'] = self::signerName($der);
+			$entry['intact'] = $der === '' ? false : self::matches(substr($pdf, 0, $b).substr($pdf, $c, $d), $der, $workdir);
+			$found[] = $entry;
+		}
+		return $found;
+	}
+
+	/**
+	 * Whether PHP can check that a signature still matches its bytes.
+	 *
+	 * @return bool
+	 */
+	public static function canCheck()
+	{
+		return function_exists('openssl_cms_verify');
+	}
+
+	/**
+	 * The CMS of a signature from its hex, cut to its own length: PDF writers pad the hex with zeros.
+	 *
+	 * @param string $hex Contents of the signature
+	 * @return string DER, empty when it is none
+	 */
+	public static function der($hex)
+	{
+		$hex = trim((string) $hex);
+		if ($hex === '' || strlen($hex) % 2 !== 0 || !ctype_xdigit($hex)) {
+			return '';
+		}
+		$der = (string) hex2bin($hex);
+		if (strlen($der) < 2 || ord($der[0]) !== 0x30) {
+			return '';
+		}
+		$length = ord($der[1]);
+		$header = 2;
+		if ($length & 0x80) {
+			$bytes = $length & 0x7f;
+			if ($bytes < 1 || $bytes > 4 || strlen($der) < 2 + $bytes) {
+				return '';
+			}
+			$length = 0;
+			for ($i = 0; $i < $bytes; $i++) {
+				$length = ($length << 8) | ord($der[2 + $i]);
+			}
+			$header += $bytes;
+		}
+		return $header + $length <= strlen($der) ? substr($der, 0, $header + $length) : '';
+	}
+
+	/**
+	 * The common name of whoever signed: the certificate in the CMS that is no certificate authority.
+	 *
+	 * @param string $der CMS of the signature
+	 * @return string Empty when unknown
+	 */
+	private static function signerName($der)
+	{
+		if ($der === '' || !function_exists('openssl_pkcs7_read')) {
+			return '';
+		}
+		$certificates = array();
+		$pem = "-----BEGIN PKCS7-----\n".chunk_split(base64_encode($der), 64, "\n")."-----END PKCS7-----\n";
+		if (!@openssl_pkcs7_read($pem, $certificates)) {
+			self::forgetOpensslErrors();
+			return '';
+		}
+		$names = array();
+		foreach ($certificates as $certificate) {
+			$info = openssl_x509_parse($certificate);
+			$name = is_array($info) && isset($info['subject']['CN']) ? $info['subject']['CN'] : '';
+			$name = is_array($name) ? (string) end($name) : (string) $name;
+			$authority = is_array($info) && isset($info['extensions']['basicConstraints']) && stripos($info['extensions']['basicConstraints'], 'CA:TRUE') !== false;
+			if ($name !== '') {
+				$names[$authority ? 1 : 0][] = $name;
+			}
+		}
+		if (!empty($names[0])) {
+			return $names[0][0];
+		}
+		return !empty($names[1]) ? $names[1][0] : '';
+	}
+
+	/**
+	 * Whether a CMS still matches the bytes it signed; the certificate itself is not judged here.
+	 *
+	 * @param string $content Bytes the signature covers
+	 * @param string $der     CMS of the signature
+	 * @param string $workdir Folder for the temporary files
+	 * @return bool|null Null when PHP cannot check it
+	 */
+	private static function matches($content, $der, $workdir)
+	{
+		if (!self::canCheck() || !is_dir($workdir)) {
+			return null;
+		}
+		$contentFile = tempnam($workdir, 'qes');
+		$signatureFile = tempnam($workdir, 'qes');
+		if ($contentFile === false || $signatureFile === false) {
+			return null;
+		}
+		file_put_contents($contentFile, $content);
+		file_put_contents($signatureFile, $der);
+		$flags = OPENSSL_CMS_NOVERIFY | OPENSSL_CMS_BINARY | OPENSSL_CMS_DETACHED;
+		$result = @openssl_cms_verify($contentFile, $flags, null, array(), null, null, null, $signatureFile, OPENSSL_ENCODING_DER);
+		self::forgetOpensslErrors();
+		unlink($contentFile);
+		unlink($signatureFile);
+		return $result === true;
+	}
+
+	/**
+	 * Empty the error queue of OpenSSL, so an expected failure does not show up elsewhere.
+	 *
+	 * @return void
+	 */
+	private static function forgetOpensslErrors()
+	{
+		while (openssl_error_string() !== false) {
+			continue;
+		}
+	}
+
+	/**
+	 * Whether a PDF that came back is the one handed over with one more signature appended.
+	 *
+	 * @param string $source  The document handed over
+	 * @param string $signed  The document that came back
+	 * @param string $workdir Folder for the temporary files of the check
+	 * @return array{ok:bool,name:string} The name in the new certificate, when it is readable
+	 */
+	public static function appended($source, $signed, $workdir)
+	{
+		$source = (string) $source;
+		$signed = (string) $signed;
+		if (strlen($signed) <= strlen($source) || strncmp($signed, $source, strlen($source)) !== 0) {
+			return array('ok' => false, 'name' => '');
+		}
+		$before = self::signatures($source, $workdir);
+		$after = self::signatures($signed, $workdir);
+		$newest = $after ? end($after) : null;
+		$ok = count($after) === count($before) + 1 && $newest['covers_end'] && $newest['intact'] !== false;
+		return array('ok' => $ok, 'name' => $ok ? $newest['name'] : '');
+	}
+
+	/**
 	 * Hand a document to the signature service.
 	 *
-	 * @param string $file      Document to sign
+	 * @param string $pdf       Document to sign
 	 * @param string $requestId What the answer is about, at most 64 characters
 	 * @param string $invokeUrl Where the person comes back after signing
 	 * @param string $errorUrl  Where the person comes back when something went wrong
 	 * @return array{redirect:string,signed:string} Where to send the person, or the signed document at once; both empty on error (see errors)
 	 */
-	public function sign($file, $requestId, $invokeUrl, $errorUrl)
+	public function sign($pdf, $requestId, $invokeUrl, $errorUrl)
 	{
 		$this->errors = array();
 		$settings = self::settings();
@@ -295,11 +470,11 @@ class VereineQes
 			$this->errors[] = 'VereineQesErrorNotConfigured';
 			return array('redirect' => '', 'signed' => '');
 		}
-		if ((string) $file === '' || !is_file($file)) {
+		if (substr((string) $pdf, 0, 5) !== '%PDF-') {
 			$this->errors[] = 'VereineSignatureErrorDocument';
 			return array('redirect' => '', 'signed' => '');
 		}
-		$answer = $this->post('/api/v2/sign/single', self::signRequest((string) file_get_contents($file), $requestId, $settings, $invokeUrl, $errorUrl));
+		$answer = $this->post('/api/v2/sign/single', self::signRequest($pdf, $requestId, $settings, $invokeUrl, $errorUrl));
 		if ($answer === null) {
 			return array('redirect' => '', 'signed' => '');
 		}
@@ -346,10 +521,10 @@ class VereineQes
 	}
 
 	/**
-	 * Read the signatures of a document with the signature service.
+	 * Ask the signature service about the certificates of a document. PDF-AS answers only with MOA-SP beside it.
 	 *
 	 * @param string $pdf The document
-	 * @return array<int,array{index:int,signed_by:string,name:string,intact:bool,state:string,message:string}>|null Null when the service could not be asked (see errors)
+	 * @return array<int,array{index:int,signed_by:string,name:string,state:string,message:string}>|null Null when the service could not say (see errors)
 	 */
 	public function verify($pdf)
 	{

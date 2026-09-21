@@ -118,35 +118,31 @@ function vereineSignatureDocument($db, array $run)
 }
 
 /**
- * Keep a document signed with ID Austria, once its signatures hold.
+ * Keep a document signed with ID Austria: the one handed over, byte for byte, with one signature more.
  *
- * The new signature has to be there and intact, and so has every earlier one. A key store for tests has
- * no certificate of a trusted root, so with it only the document has to be intact.
+ * Somebody else may have signed the same run in the meantime; then the document that came back lacks
+ * that signature, and keeping it would lose it.
  *
+ * @param DoliDB              $db         Database handler
  * @param VereineSignatures   $signatures Signature runs
- * @param VereineQes          $qes        Signature service
  * @param array<string,mixed> $pending    What the session noted when the person left
  * @param string              $signed     The signed document
  * @param User                $user       Who is logged in
  * @param Translate           $langs      Language
  * @return string[] Messages of what was refused, empty when the signature is kept
  */
-function vereineQesKeep($signatures, $qes, array $pending, $signed, $user, $langs)
+function vereineQesKeep($db, $signatures, array $pending, $signed, $user, $langs)
 {
-	$results = $qes->verify($signed);
-	if ($results === null) {
-		return array_merge(array_map(array($langs, 'trans'), $qes->errors), $qes->error !== '' ? array($qes->error) : array());
+	$run = $signatures->fetch((int) $pending['run']);
+	$source = $run !== null ? VereineSignatures::qesSource($run, vereineSignatureDocument($db, $run)['file']) : '';
+	if ($source === '' || !is_file($source) || hash_file('sha256', $source) !== $pending['sha']) {
+		return array($langs->trans('VereineQesErrorMeanwhile'));
 	}
-	$test = VereineQes::settings()['connector'] === VereineQes::CONNECTOR_TEST;
-	$holds = count($results) >= (int) $pending['before'] + 1;
-	foreach ($results as $result) {
-		$holds = $holds && ($result['intact'] && ($test || $result['state'] !== VereineQes::STATE_INVALID));
-	}
-	if (!$holds) {
+	$check = VereineQes::appended((string) file_get_contents($source), $signed, VereineSignatures::workdir());
+	if (!$check['ok']) {
 		return array($langs->trans('VereineQesErrorNotSigned'));
 	}
-	$newest = end($results);
-	$result = $signatures->signQes($pending['run'], $pending['member'], $signed, $newest['signed_by'], $user, $langs);
+	$result = $signatures->signQes((int) $pending['run'], (int) $pending['member'], $signed, $check['name'], $user, $langs);
 	if ($result > 0) {
 		return array();
 	}
@@ -169,24 +165,20 @@ if ($action === 'qes' && $canWrite) {
 	}
 	if ($refused === '') {
 		$source = VereineSignatures::qesSource($run, $document['file']);
-		$before = 0;
-		foreach ($run['people'] as $person) {
-			$before += $person['way'] === VereineSignatureRules::WAY_QES && $person['signed_at'] > 0 ? 1 : 0;
-		}
 		$key = bin2hex(random_bytes(16));
 		$pending = array('run' => $run['id'], 'member' => (int) $user->fk_member, 'user' => (int) $user->id, 'sha' => hash_file('sha256', $source),
-			'before' => $before, 'at' => dol_now(), 'back' => $document['back']);
+			'at' => dol_now(), 'back' => $document['back']);
 		// One signature at a time: a new start forgets one that never came back.
 		$_SESSION['vereine_qes'] = array($key => $pending);
 		$here = dol_buildpath('/vereine/signature.php', 2);
-		$answer = $qes->sign($source, 'vereine-'.$run['id'].'-'.$key, $here.'?qes='.$key, $here.'?qes='.$key.'&failed=1');
+		$answer = $qes->sign((string) file_get_contents($source), 'vereine-'.$run['id'].'-'.$key, $here.'?qes='.$key, $here.'?qes='.$key.'&failed=1');
 		if ($answer['redirect'] !== '') {
 			header('Location: '.$answer['redirect']);
 			exit;
 		}
 		if ($answer['signed'] !== '') {
 			unset($_SESSION['vereine_qes']);
-			$messages = vereineQesKeep($signatures, $qes, $pending, $answer['signed'], $user, $langs);
+			$messages = vereineQesKeep($db, $signatures, $pending, $answer['signed'], $user, $langs);
 			setEventMessages($messages ? null : $langs->trans('VereineQesSigned'), $messages ? $messages : null, $messages ? 'errors' : 'mesgs');
 		} else {
 			unset($_SESSION['vereine_qes']);
@@ -218,7 +210,7 @@ if (GETPOSTISSET('qes')) {
 		if ($signed === '') {
 			$messages = array_merge(array_map(array($langs, 'trans'), $qes->errors), $qes->error !== '' ? array($qes->error) : array());
 		} else {
-			$messages = vereineQesKeep($signatures, $qes, $pending, $signed, $user, $langs);
+			$messages = vereineQesKeep($db, $signatures, $pending, $signed, $user, $langs);
 		}
 		setEventMessages($messages ? null : $langs->trans('VereineQesSigned'), $messages ? $messages : null, $messages ? 'errors' : 'mesgs');
 	}
@@ -240,33 +232,53 @@ if ($action === 'download') {
 	exit;
 }
 
-// What the signature service reads out of the signed document.
+// What the module reads out of the signed document itself, and what the service says about the certificates.
 $document = vereineSignatureDocument($db, $run);
-$results = $qes->verify((string) file_get_contents($file));
+$pdf = (string) file_get_contents($file);
+$found = VereineQes::signatures($pdf, VereineSignatures::workdir());
+$certificates = array();
+foreach ((array) $qes->verify($pdf) as $result) {
+	$certificates[$result['index']] = $result;
+}
 llxHeader('', $langs->trans('VereineQesVerifyTitle'), '', '', 0, 0, '', '', '', 'mod-vereine page-signature');
 print load_fiche_titre($langs->trans('VereineQesVerifyTitle'), '<a href="'.$document['back'].'">'.$langs->trans('Back').'</a>', 'fa-file-signature');
 print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineQesVerifyIntro', dol_escape_htmltag($run['doc_name'])).'</div>';
-if ($results === null) {
-	print '<div class="error">'.dol_escape_htmltag(implode(' ', array_merge(array_map(array($langs, 'trans'), $qes->errors), $qes->error !== '' ? array($qes->error) : array()))).'</div>';
-} elseif (!$results) {
+if (!$found) {
 	print '<div class="warning" data-qes-results="0">'.$langs->trans('VereineQesVerifyNone').'</div>';
 } else {
-	$badges = array(VereineQes::STATE_VALID => 'success', VereineQes::STATE_UNCLEAR => 'warning', VereineQes::STATE_INVALID => 'danger');
-	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-qes-results="'.count($results).'">';
-	print '<tr class="liste_titre"><td>#</td><td>'.$langs->trans('VereineQesSignedBy').'</td><td>'.$langs->trans('VereineQesState').'</td></tr>';
-	foreach ($results as $number => $result) {
-		print '<tr class="oddeven" data-qes-state="'.$result['state'].'" data-qes-name="'.dol_escape_htmltag($result['name']).'">';
-		print '<td>'.($number + 1).'</td><td>'.dol_escape_htmltag($result['name']);
-		print ' <div class="opacitymedium small">'.dol_escape_htmltag($result['signed_by']).'</div></td>';
-		print '<td>'.dolGetBadge($langs->trans('VereineQesState_'.$result['state']), '', $badges[$result['state']]);
-		if ($result['message'] !== '') {
-			print ' <div class="opacitymedium small">'.dol_escape_htmltag($result['message']).'</div>';
+	$badges = array('yes' => 'success', 'no' => 'danger', 'unknown' => 'secondary', VereineQes::STATE_VALID => 'success',
+		VereineQes::STATE_UNCLEAR => 'warning', VereineQes::STATE_INVALID => 'danger');
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-qes-results="'.count($found).'">';
+	print '<tr class="liste_titre"><td>#</td><td>'.$langs->trans('VereineQesSignedBy').'</td><td>'.$langs->trans('VereineQesIntact').'</td>';
+	print $certificates ? '<td>'.$langs->trans('VereineQesCertificate').'</td>' : '';
+	print '</tr>';
+	foreach ($found as $signature) {
+		$intact = $signature['intact'] === null ? 'unknown' : ($signature['intact'] ? 'yes' : 'no');
+		$certificate = isset($certificates[$signature['index']]) ? $certificates[$signature['index']] : null;
+		print '<tr class="oddeven" data-qes-intact="'.$intact.'" data-qes-name="'.dol_escape_htmltag($signature['name']).'"';
+		print ' data-qes-certificate="'.($certificate !== null ? $certificate['state'] : '').'">';
+		print '<td>'.($signature['index'] + 1).'</td><td>'.dol_escape_htmltag($signature['name'] !== '' ? $signature['name'] : $langs->trans('Unknown')).'</td>';
+		print '<td>'.dolGetBadge($langs->trans('VereineQesIntact_'.$intact), '', $badges[$intact]).'</td>';
+		if ($certificates) {
+			print '<td>'.($certificate !== null ? dolGetBadge($langs->trans('VereineQesState_'.$certificate['state']), '', $badges[$certificate['state']]) : '');
+			if ($certificate !== null && $certificate['message'] !== '') {
+				print ' <div class="opacitymedium small">'.dol_escape_htmltag($certificate['message']).'</div>';
+			}
+			print '</td>';
 		}
-		print '</td></tr>';
+		print '</tr>';
 	}
 	print '</table></div>';
+	$last = end($found);
+	if (!$last['covers_end']) {
+		print '<div class="warning" data-qes-after-last="1">'.$langs->trans('VereineQesAfterLast').'</div>';
+	}
 }
-print '<div class="paddingtop"><a href="'.$_SERVER['PHP_SELF'].'?action=download&amp;signature='.$run['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineQesDocument').'</a></div>';
+if (!$certificates) {
+	print '<div class="info" data-qes-no-certificates="1">'.$langs->trans('VereineQesCertificateNone').'</div>';
+}
+print '<div class="paddingtop"><a href="'.$_SERVER['PHP_SELF'].'?action=download&amp;signature='.$run['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineQesDocument').'</a>';
+print ' &middot; <a href="https://www.signaturpruefung.gv.at" target="_blank" rel="noopener">signaturpruefung.gv.at</a></div>';
 
 llxFooter();
 $db->close();

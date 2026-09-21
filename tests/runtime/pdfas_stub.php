@@ -21,10 +21,14 @@
  * api/v2/sign/single keeps the document and answers with a redirectUrl (mobilebku) or signs at once (jks).
  * confirm plays the person who confirms on the phone and sends the browser back to the invoke URL with
  * pdfurl and pdflength; cancel=1 sends it to the error URL instead. PDFData hands the signed document out
- * once, and only with the right origdigest. A "signature" is a comment appended to the PDF with the SHA-256
- * of everything before it, so api/v2/verify can tell whether the document changed afterwards. It is no
- * PAdES signature and proves nothing outside these checks.
+ * once, and only with the right origdigest. The signatures come from pdfas_sign.php: appended the way
+ * PDF-AS does it, with a CMS of a throwaway certificate. They prove nothing outside these checks.
+ *
+ * api/v2/verify answers like PDF-AS with MOA-SP beside it. With the file no-moa in the folder of the jobs
+ * it fails for a signed PDF, like PDF-AS without MOA-SP.
  */
+
+require_once __DIR__.'/pdfas_sign.php';
 
 $dir = sys_get_temp_dir().'/pdfas-stub';
 if (!is_dir($dir)) {
@@ -46,19 +50,6 @@ function stubAnswer($code, array $data)
 	header('Content-Type: application/json');
 	echo json_encode($data);
 	exit;
-}
-
-/**
- * Append a test signature: the signer and the checksum of everything before it.
- *
- * @param string $pdf  Document
- * @param string $name Who signs
- * @return string
- */
-function stubSign($pdf, $name)
-{
-	$data = base64_encode(json_encode(array('signedBy' => 'CN='.$name.',O=Testdienst,C=AT', 'sha' => hash('sha256', $pdf))));
-	return $pdf."\n%VEREINE-TESTSIGNATUR ".$data."\n";
 }
 
 /**
@@ -96,16 +87,17 @@ if ($path === '/api/v2/sign/single' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 	$requestId = isset($request['requestID']) ? $request['requestID'] : '';
 	if ($connector === 'jks') {
 		$key = isset($parameters['keyIdentifier']) ? $parameters['keyIdentifier'] : 'default';
-		stubAnswer(200, array('requestID' => $requestId, 'signedPDF' => base64_encode(stubSign($request['pdf'], 'Testschluessel '.$key))));
+		stubAnswer(200, array('requestID' => $requestId, 'signedPDF' => base64_encode(vereineTestSignPdf($request['pdf'], 'Testschluessel '.$key, $dir))));
 	}
-	if ($connector !== 'mobilebku' || empty($parameters['invoke-url']) || empty($parameters['invoke-error-url'])) {
-		stubAnswer(400, array('requestID' => $requestId, 'error' => 'connector mobilebku needs invoke-url and invoke-error-url'));
+	// PDF-AS 5.0.0 reads the Java names of its parameters.
+	if ($connector !== 'mobilebku' || empty($parameters['invokeURL']) || empty($parameters['invokeErrorURL'])) {
+		stubAnswer(400, array('requestID' => $requestId, 'error' => 'connector mobilebku needs invokeURL and invokeErrorURL'));
 	}
 	$id = bin2hex(random_bytes(16));
-	file_put_contents(stubJobFile($dir, $id), json_encode(array('pdf' => base64_encode($request['pdf']), 'invoke' => $parameters['invoke-url'],
-		'error' => $parameters['invoke-error-url'], 'base' => $self)));
+	file_put_contents(stubJobFile($dir, $id), json_encode(array('pdf' => base64_encode($request['pdf']), 'invoke' => $parameters['invokeURL'],
+		'error' => $parameters['invokeErrorURL'], 'base' => $self)));
 	// The browser reaches this stand-in under the host of Dolibarr it came from.
-	$invoke = parse_url($parameters['invoke-url']);
+	$invoke = parse_url($parameters['invokeURL']);
 	$browser = $invoke['scheme'].'://'.$invoke['host'].(isset($invoke['port']) ? ':'.$invoke['port'] : '').$_SERVER['SCRIPT_NAME'];
 	stubAnswer(200, array('requestID' => $requestId, 'redirectUrl' => $browser.'/confirm?job='.$id));
 }
@@ -124,7 +116,7 @@ if ($path === '/confirm') {
 		header('Location: '.$job['error'].(strpos($job['error'], '?') === false ? '?' : '&').'error='.rawurlencode('Abgebrochen').'&cause='.rawurlencode('Die Person hat am Handy abgebrochen.'));
 		exit;
 	}
-	$signed = stubSign(base64_decode($job['pdf']), isset($_GET['name']) ? (string) $_GET['name'] : 'Erika Muster');
+	$signed = vereineTestSignPdf(base64_decode($job['pdf']), isset($_GET['name']) ? (string) $_GET['name'] : 'Erika Muster', $dir);
 	$job['signed'] = base64_encode($signed);
 	file_put_contents($file, json_encode($job));
 	header('Location: '.$job['invoke'].(strpos($job['invoke'], '?') === false ? '?' : '&').'pdfurl='.rawurlencode($job['base'].'/PDFData?job='.$id).'&pdflength='.strlen($signed));
@@ -154,6 +146,9 @@ if ($path === '/PDFData') {
 if ($path === '/api/v2/verify' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 	$request = stubRequest();
 	$pdf = $request['pdf'];
+	if (is_file($dir.'/no-moa') && strpos($pdf, '/ByteRange') !== false) {
+		stubAnswer(400, array('error' => 'Generic Error'));
+	}
 	preg_match_all('/\n%VEREINE-TESTSIGNATUR ([A-Za-z0-9+\/=]+)\n/', $pdf, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
 	$results = array();
 	foreach ($matches as $index => $match) {

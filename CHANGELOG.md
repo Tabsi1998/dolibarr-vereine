@@ -16,13 +16,17 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   unterschrieben wird: in Dolibarr mit dem Passwort, nur mit ID Austria oder
   beides; Papier geht weiterhin immer. Wer dran ist, klickt „Mit ID Austria
   unterschreiben“, bestätigt am Handy und landet wieder in Dolibarr. Mehrere
-  Personen unterschreiben nacheinander dasselbe PDF. „Signaturen prüfen“ zeigt,
-  wer unterschrieben hat und ob das PDF seither unverändert ist; amtlich prüfen
-  lässt es sich unter signaturpruefung.gv.at.
+  Personen unterschreiben nacheinander dasselbe PDF. Dolibarr prüft selbst, dass
+  jedes zurückgekommene PDF das übergebene mit genau einer Signatur mehr ist.
+  „Signaturen prüfen“ zeigt, wer unterschrieben hat (Name im Zertifikat) und ob
+  das PDF seit jeder Unterschrift unverändert ist; amtlich prüfen lässt es sich
+  unter signaturpruefung.gv.at.
 - Dafür braucht der Verein einen **Signaturdienst**: PDF-AS, kostenlos, vom
-  E-Government-Innovationszentrum, auf dem eigenen Server neben Dolibarr. Seine
-  Adresse trägst du in der Einrichtung ein, „Verbindung prüfen“ sagt, ob er
-  antwortet. Ohne Adresse ist ID Austria aus, und das Modul verbindet sich mit
+  E-Government-Innovationszentrum, auf dem eigenen Server neben Dolibarr. Die
+  Anleitung mit Docker steht in
+  [docs/ID-AUSTRIA.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/ID-AUSTRIA.md),
+  geprüft mit PDF-AS 5.0.0. Seine Adresse trägst du in der Einrichtung ein,
+  „Verbindung prüfen“ sagt, ob er Dokumente annimmt. Ohne Adresse ist ID Austria aus, und das Modul verbindet sich mit
   keinem anderen Server. Dolibarr schickt dem Dienst das PDF selbst, der Dienst
   braucht keinen Zugriff auf Dolibarr.
 

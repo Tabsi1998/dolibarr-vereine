@@ -350,6 +350,20 @@ class VereineSignatures
 	}
 
 	/**
+	 * Folder for the temporary files of a signature check, made when missing.
+	 *
+	 * @return string
+	 */
+	public static function workdir()
+	{
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+
+		$dir = self::directory().'/temp';
+		dol_mkdir($dir);
+		return $dir;
+	}
+
+	/**
 	 * Path of the document a run collects qualified signatures in. Every further signature signs this file.
 	 *
 	 * @param int $id Run

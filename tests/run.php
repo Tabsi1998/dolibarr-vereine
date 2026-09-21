@@ -1439,7 +1439,6 @@ $qesRead = VereineQes::readVerifyAnswer(array('verifyResults' => array(
 same(array('Erika Muster', 'Max Muster', 'Gesperrt, Paula', 'Verändert'), array_column($qesRead, 'name'), 'in the order of signing, with the common name');
 same(array('valid', 'unclear', 'invalid', 'invalid'), array_column($qesRead, 'state'),
 	'valid only with an intact value and a valid chain; status unknown is unclear; suspended (5) and changed documents are not valid');
-same(array(true, true, true, false), array_column($qesRead, 'intact'), 'intact says whether the document changed after that signature');
 same('Status unbekannt', $qesRead[1]['message'], 'the message of the service is kept');
 same(array(), VereineQes::readVerifyAnswer('<html>'), 'an answer without results reads as no signature');
 same('O=Verein', VereineQes::commonName('O=Verein'), 'a subject without a name stays as it is');
@@ -1449,6 +1448,33 @@ expect(!VereineQes::sameService('https://signatur.example.at/pdf-as-web', 'https
 expect(!VereineQes::sameService('https://signatur.example.at/pdf-as-web', 'http://signatur.example.at/PDFData'), 'another scheme is no signature service');
 expect(!VereineQes::sameService('http://127.0.0.1/pdf-as', 'http://127.0.0.1:8080/pdf-as/PDFData'), 'another port is no signature service');
 expect(!VereineQes::sameService('https://signatur.example.at', 'https://user:pw@signatur.example.at/PDFData'), 'no address with a login in it');
+
+// The module reads a signed PDF itself: appended signatures, the name of the certificate, whether the bytes still match.
+same('', VereineQes::der('3082zz'), 'no hex, no signature');
+same("\x30\x03\x02\x01\x05", VereineQes::der('3003020105000000'), 'the padding after the signature is cut off');
+same("\x30\x81\x02\x05\x00", VereineQes::der('308102050000'), 'a long form length');
+same('', VereineQes::der('30820500'), 'a signature longer than its hex is none');
+same(array(), VereineQes::signatures("%PDF-1.7\n%%EOF\n", sys_get_temp_dir()), 'a PDF without signature');
+if (function_exists('openssl_pkcs7_sign')) {
+	require_once $root.'/tests/runtime/pdfas_sign.php';
+	$qesPdf = "%PDF-1.7\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n";
+	$qesOnce = vereineTestSignPdf($qesPdf, 'Erika Muster', sys_get_temp_dir());
+	$qesTwice = vereineTestSignPdf($qesOnce, 'Max Muster', sys_get_temp_dir());
+	$qesFound = VereineQes::signatures($qesTwice, sys_get_temp_dir());
+	same(array('Erika Muster', 'Max Muster'), array_column($qesFound, 'name'), 'both signatures with the name of their certificate');
+	same(array(false, true), array_column($qesFound, 'covers_end'), 'only the last signature reaches the end of the file');
+	if (VereineQes::canCheck()) {
+		same(array(true, true), array_column($qesFound, 'intact'), 'both signatures match their bytes');
+		$qesChanged = $qesTwice;
+		$qesChanged[20] = 'X';
+		same(array(false, false), array_column(VereineQes::signatures($qesChanged, sys_get_temp_dir()), 'intact'), 'a changed byte breaks every signature over it');
+	}
+	same(array('ok' => true, 'name' => 'Max Muster'), VereineQes::appended($qesOnce, $qesTwice, sys_get_temp_dir()), 'one signature appended, nothing before it changed');
+	same(false, VereineQes::appended($qesPdf, $qesTwice, sys_get_temp_dir())['ok'], 'two signatures at once are no single signature');
+	same(false, VereineQes::appended($qesOnce, vereineTestSignPdf($qesPdf, 'Max Muster', sys_get_temp_dir()), sys_get_temp_dir())['ok'],
+		'a PDF without the earlier signature would lose it');
+	same(false, VereineQes::appended($qesOnce, $qesTwice.'% more', sys_get_temp_dir())['ok'], 'something after the new signature');
+}
 
 // ------------------------------------------------------------ language files
 
@@ -1545,6 +1571,7 @@ $prefixes = array(
 	'VereineSignatureSign_' => VereineSignatureRules::SIGN_WAYS,
 	'VereineQesConnector_' => VereineQes::CONNECTORS,
 	'VereineQesState_' => array(VereineQes::STATE_VALID, VereineQes::STATE_UNCLEAR, VereineQes::STATE_INVALID),
+	'VereineQesIntact_' => array('yes', 'no', 'unknown'),
 	'VereineResolutionCategory_' => VereineResolutionRules::CATEGORIES,
 	'VereineCircularChoice_' => VereineCircularRules::CHOICES,
 	'VereineMeetingDocKind_' => VereineMeetingDocRules::KINDS,

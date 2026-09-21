@@ -2705,7 +2705,8 @@ def qes(stack: Stack) -> str:
     setup = "/custom/vereine/admin/signatures.php"
     base = "/custom/vereine/authority.php"
     # A stand-in for PDF-AS beside Dolibarr (tests/runtime/pdfas_stub.php); its signatures are no real ones.
-    installed = stack.shell("mkdir -p /var/www/html/custom/pdfas-stub && cp /opt/vereine-tests/pdfas_stub.php /var/www/html/custom/pdfas-stub/index.php")
+    installed = stack.shell("mkdir -p /var/www/html/custom/pdfas-stub && cp /opt/vereine-tests/pdfas_stub.php /var/www/html/custom/pdfas-stub/index.php"
+                            " && cp /opt/vereine-tests/pdfas_sign.php /var/www/html/custom/pdfas-stub/pdfas_sign.php")
     expect(installed.returncode == 0, f"the stand-in for PDF-AS: {installed.stderr}")
     service = "http://127.0.0.1/custom/pdfas-stub/index.php"
 
@@ -2718,16 +2719,26 @@ def qes(stack: Stack) -> str:
     expect(stack.const("VEREINE_QES_URL") == service and stack.const("VEREINE_QES_CONNECTOR") == "mobilebku", "the signature service was not stored")
     page = page_ok(browser.get(setup), "signature setup with the check")
     checked = page_ok(browser.submit(page.form(name="vereineqescheck")), "check the signature service")
-    expect("Der Signaturdienst antwortet" in html.unescape(checked.text), "the check did not reach the signature service")
+    expect("Der Signaturdienst nimmt Dokumente an" in html.unescape(checked.text), "the check did not reach the signature service")
 
-    # Letters: chair and secretary, only with ID Austria.
+    # Letters: two functions held by two different people today, only with ID Austria.
+    terms = stack.sql("SELECT f.code, t.fk_adherent FROM llx_vereine_function_term as t INNER JOIN llx_vereine_function as f ON f.rowid = t.fk_function"
+                      " INNER JOIN llx_adherent as a ON a.rowid = t.fk_adherent WHERE f.active = 1 AND a.statut = 1 AND t.date_start <= CURDATE()"
+                      " AND (t.date_end IS NULL OR t.date_end >= CURDATE()) ORDER BY t.rowid")
+    held: dict[str, set[str]] = {}
+    for code, member in terms:
+        held.setdefault(code, set()).add(member)
+    single = [(code, next(iter(members))) for code, members in held.items() if len(members) == 1]
+    pair = next(((one, other) for one in single for other in single if one[1] != other[1]), None)
+    expect(pair is not None, f"two functions held by two different people today: {held}")
+    roles = [pair[0][0], pair[1][0]]
     form = page_ok(browser.get(setup), "signature rules").form(name="vereinesignaturerules")
     fields = [(name, value) for name, value in form.values() if not name.startswith("rule[letter]")]
-    fields += [("rule[letter][roles][]", "obmann"), ("rule[letter][roles][]", "schriftfuehrung"), ("rule[letter][mode]", "all"),
+    fields += [("rule[letter][roles][]", roles[0]), ("rule[letter][roles][]", roles[1]), ("rule[letter][mode]", "all"),
                ("rule[letter][min]", "2"), ("rule[letter][sign]", "qes")]
     page_ok(browser.post(form.url(), fields), "letters only with ID Austria")
     stored = json.loads(stack.const("VEREINE_SIGNATURE_RULES") or "{}").get("letter", {})
-    expect(stored.get("sign") == "qes" and stored.get("roles") == ["obmann", "schriftfuehrung"], f"stored rule for letters: {stored}")
+    expect(stored.get("sign") == "qes" and sorted(stored.get("roles", [])) == sorted(roles), f"stored rule for letters: {stored}")
 
     letter = stack.value("SELECT fk_object FROM llx_vereine_signature WHERE kind = 'letter' ORDER BY rowid LIMIT 1")
     expect(letter is not None, "the letters scenario should leave a letter")
@@ -2735,7 +2746,7 @@ def qes(stack: Stack) -> str:
     page_ok(browser.post(base, [("token", token_of(letters)), ("action", "startsign"), ("object", letter)]), "start the signatures of the letter")
     run = stack.value(f"SELECT rowid FROM llx_vereine_signature WHERE kind = 'letter' AND fk_object = {letter} AND status = 'open' ORDER BY rowid DESC LIMIT 1")
     people = stack.sql(f"SELECT fk_adherent FROM llx_vereine_signature_person WHERE fk_signature = {run} ORDER BY rowid")
-    expect(run is not None and len(people) == 2, f"chair and secretary sign the letter: run {run}, {people}")
+    expect(run is not None and len(people) == 2, f"{roles} sign the letter: run {run}, {people}")
     signed_count = f"SELECT COUNT(*) FROM llx_vereine_signature_person WHERE fk_signature = {run} AND signed_at IS NOT NULL"
 
     stack.sql(f"UPDATE llx_user SET fk_member = {people[0][0]} WHERE login = 'admin'")
@@ -2761,25 +2772,31 @@ def qes(stack: Stack) -> str:
     signed = page_ok(browser.get(invoke), "back in Dolibarr after signing")
     expect("Mit ID Austria unterschrieben" in html.unescape(signed.text), "signing with ID Austria was not confirmed")
     first = stack.sql(f"SELECT way, qes_subject FROM llx_vereine_signature_person WHERE fk_signature = {run} AND signed_at IS NOT NULL")
-    expect(first == [["qes", "CN=Erika Muster,O=Testdienst,C=AT"]], f"the first signature: {first}")
+    expect(first == [["qes", "Erika Muster"]], f"the first signature, with the name of its certificate: {first}")
     replay = page_ok(browser.get(invoke), "the same way back a second time")
     expect("keiner offenen Unterschrift" in html.unescape(replay.text) and stack.value(signed_count) == "1", "a way back from the signature service counted twice")
 
-    # The secretary signs the PDF the chair signed.
+    # The second person signs the PDF the first one signed.
     stack.sql(f"UPDATE llx_user SET fk_member = {people[1][0]} WHERE login = 'admin'")
     confirmed = browser.get(to_service() + "&name=" + urllib.parse.quote("Max Muster"), follow=False)
-    page_ok(browser.get(confirmed.headers.get("Location", "")), "the secretary signed")
+    page_ok(browser.get(confirmed.headers.get("Location", "")), "the second person signed")
     state = stack.value(f"SELECT status FROM llx_vereine_signature WHERE rowid = {run}")
     expect(state == "done" and stack.value(signed_count) == "2", f"two signatures finish the run: {state}")
     sheet = pdf_text(stack, "vereine/signatures")
-    for word in ("CN=Max Muster", "ID Austria"):
+    for word in ("Max Muster", "ID Austria"):
         expect(word in sheet, f"the signature sheet lacks {word!r}")
 
     letters = page_ok(browser.get(base), "letters signed with ID Austria")
     expect(f'data-qes-document="{run}"' in letters.text, "the PDF signed with ID Austria is not offered")
     verify = page_ok(browser.get(f"/custom/vereine/signature.php?signature={run}"), "what the signatures say")
-    states = re.findall(r'data-qes-state="(\w+)" data-qes-name="([^"]*)"', verify.text)
-    expect(states == [("valid", "Erika Muster"), ("valid", "Max Muster")], f"both signatures of one PDF: {states}")
+    rows = re.findall(r'data-qes-intact="(\w+)" data-qes-name="([^"]*)" data-qes-certificate="(\w*)"', verify.text)
+    expect(rows == [("yes", "Erika Muster", "valid"), ("yes", "Max Muster", "valid")], f"both signatures of one PDF, with MOA-SP: {rows}")
+    # PDF-AS without MOA-SP says nothing about certificates; the module still reads the PDF itself.
+    stack.shell("touch /tmp/pdfas-stub/no-moa")
+    alone = page_ok(browser.get(f"/custom/vereine/signature.php?signature={run}"), "the signatures without MOA-SP")
+    rows = re.findall(r'data-qes-intact="(\w+)" data-qes-name="([^"]*)" data-qes-certificate="(\w*)"', alone.text)
+    expect(rows == [("yes", "Erika Muster", ""), ("yes", "Max Muster", "")] and 'data-qes-no-certificates="1"' in alone.text,
+           f"the signatures without MOA-SP: {rows}")
     link = re.search(r'href="([^"]*signature\.php\?action=download[^"]*)"', verify.text)
     expect(link is not None, "no download of the signed PDF")
     download = browser.get(html.unescape(link.group(1)))
@@ -2789,8 +2806,8 @@ def qes(stack: Stack) -> str:
     # Changed afterwards: no signature holds any more.
     stack.shell(f"printf X | dd of=/var/www/documents/vereine/signatures/qualifiziert-{run}.pdf bs=1 seek=40 conv=notrunc 2>/dev/null")
     changed = page_ok(browser.get(f"/custom/vereine/signature.php?signature={run}"), "a changed PDF")
-    states = re.findall(r'data-qes-state="(\w+)"', changed.text)
-    expect(states == ["invalid", "invalid"], f"a PDF changed after signing still counts: {states}")
+    states = re.findall(r'data-qes-intact="(\w+)"', changed.text)
+    expect(states == ["no", "no"], f"a PDF changed after signing still counts: {states}")
 
     # A key store for tests signs at once, without the phone.
     page = page_ok(browser.get(setup), "signature setup")
@@ -2802,10 +2819,10 @@ def qes(stack: Stack) -> str:
     page = page_ok(browser.get(base), "letters for the key store")
     page_ok(browser.submit(page.form(name=f"vereinesignqes{again}")), "sign with the test key store")
     at_once = stack.sql(f"SELECT way, qes_subject FROM llx_vereine_signature_person WHERE fk_signature = {again} AND signed_at IS NOT NULL")
-    expect(at_once == [["qes", "CN=Testschluessel verein,O=Testdienst,C=AT"]], f"the test key store: {at_once}")
+    expect(at_once == [["qes", "Testschluessel verein"]], f"the test key store: {at_once}")
     return ("signature service off until set up, wrong address refused, check answered; letters only with ID Austria: password refused; "
-            "cancel on the phone stored nothing; chair and secretary signed one PDF one after the other, a way back used twice refused; "
-            "both signatures valid, the PDF downloadable, a change afterwards makes both invalid; the test key store signs at once")
+            f"cancel on the phone stored nothing; {roles[0]} and {roles[1]} signed one PDF one after the other, a way back used twice refused; "
+            "both signatures intact with and without MOA-SP, the PDF downloadable, a change afterwards breaks both; the test key store signs at once")
 
 
 def minutestexts(stack: Stack) -> str:

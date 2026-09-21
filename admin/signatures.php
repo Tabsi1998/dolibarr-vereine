@@ -104,10 +104,11 @@ if ($action === 'saverules') {
 	}
 	setEventMessages($result < 0 ? $qes->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $qes->errors), 'errors');
 } elseif ($action === 'checkqes') {
-	// A blank page is enough to see whether the service answers the way the module asks.
+	// A blank page shows whether the service takes a document the way the module sends it.
 	$pdf = VereinePdf::start($langs);
-	$results = $qes->verify($pdf->Output('', 'S'));
-	if ($results !== null) {
+	$here = dol_buildpath('/vereine/admin/signatures.php', 2);
+	$answer = $qes->sign($pdf->Output('', 'S'), 'vereine-check', $here, $here);
+	if ($answer['redirect'] !== '' || $answer['signed'] !== '') {
 		setEventMessages($langs->trans('VereineQesCheckOk'), null, 'mesgs');
 	} else {
 		setEventMessages(null, array_merge(array_map(array($langs, 'trans'), $qes->errors), $qes->error !== '' ? array($qes->error) : array()), 'errors');
