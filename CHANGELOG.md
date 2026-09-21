@@ -13,8 +13,7 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Mailserver eine Einladung ab, steht jetzt in Klartext da, warum – etwa „Der
   Mailserver lässt den Absender noreply@… nicht zu; er erlaubt nur office@…" –
   und was zu tun ist. Die Originalantwort bleibt aufklappbar darunter, mit echten
-  Zeilenumbrüchen statt `
-`. Eine Sitzung, bei der keine Einladung
+  Zeilenumbrüchen statt `\r\n`. Eine Sitzung, bei der keine Einladung
   angekommen ist, sagt das deutlich, statt wie erledigt auszusehen.
 
 ### Neu
