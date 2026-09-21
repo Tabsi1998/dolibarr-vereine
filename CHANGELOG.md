@@ -18,6 +18,28 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **Wer macht was bis wann** (#170): Bei einer Sitzung legt ihr fest, wer sich
+  um etwas kümmert – ohne Abstimmung, als *Vereinbarung*: Punkt wählen, eine
+  oder mehrere Personen, was und bis wann. Jede Person bekommt eine Aufgabe in
+  ihrem Dolibarr-Kalender, das Protokoll nennt die Vereinbarung beim Punkt, und
+  die nächste Sitzung schlägt sie vor, solange sie offen ist. Wird über den
+  Punkt doch abgestimmt, wird die Vereinbarung zur Folge des Beschlusses.
+- **Sitzung Schritt für Schritt** (#171): Oben auf jeder Sitzung stehen die fünf
+  Schritte – Planen, Einladen, In der Sitzung, Protokoll, Abschließen – mit
+  „erledigt", „jetzt dran" oder „noch nicht" und einem Satz, was davon Pflicht
+  ist (etwa die Einladungsfrist aus euren Statuten). Dazu „Begriffe kurz
+  erklärt" zum Aufklappen. Vor dem Sitzungstag steht bei der Anwesenheit keine
+  rote Warnung mehr, sondern ein ruhiger Hinweis.
+- **Startseite: Wartet auf mich** (#173): Eine neue Kachel auf Dolibarrs
+  Startseite zeigt, was auf dich wartet – offene Umlaufbeschlüsse zum
+  Abstimmen, fehlende Unterschriften und deine Aufgaben, jeweils mit Link.
+- **Am Handy abstimmen** (#173): Beim Umlaufbeschluss stehen Ja, Nein und
+  Enthaltung als große Knöpfe da. Vor dem Start zeigt die Seite, wer im Vorstand
+  keinen eigenen Dolibarr-Zugang hat und deshalb nicht abstimmen kann.
+- **PDFs mit Logo** (#175): Protokoll, Beschluss, Beschluss-Auszug, Zählliste
+  und Unterschriftenblatt haben jetzt einen gemeinsamen Kopf – das Logo des
+  Vereins aus Dolibarr rechts oben, links Name, ZVR-Zahl und Anschrift – sowie
+  „Seite x von y" in der Fußzeile und klare Überschriften mit Linie.
 - **Eigener Absender für die E-Mails des Vereins** (#168) unter *Einrichtung –
   Allgemein – E-Mails des Vereins*, für Einladungen, Protokolle,
   Umlaufbeschlüsse und Erinnerungen. Viele Mailserver erlauben nur die Adresse,

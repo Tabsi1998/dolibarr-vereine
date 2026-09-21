@@ -3236,6 +3236,71 @@ def itemkinds(stack: Stack) -> str:
             "goes out; the vote form offers only the decision; the minutes point out a decision without a vote and a report does not say 'no vote'")
 
 
+def agreements(stack: Stack) -> str:
+    """Who does what until when: agreements at an agenda item, as to-dos of Dolibarr, in the minutes, suggested again, taken over by a vote; the PDFs carry the logo."""
+    browser = stack.browser()
+    base = "/custom/vereine/meetings.php"
+    meeting = stack.value("SELECT rowid FROM llx_vereine_meeting WHERE title = 'Vorstandssitzung mit Arten'")
+    expect(meeting is not None, "the item kinds scenario should leave its board meeting")
+    people = [row[0] for row in stack.sql("SELECT rowid FROM llx_adherent WHERE statut = 1 ORDER BY rowid LIMIT 2")]
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the meeting before the agreement")
+    refused = page_ok(browser.submit(page.form(name="vereinemeetingagreement"), {"agreement_item": "3", "agreement_label": "Herbstplan schreiben"}),
+                      "an agreement without anybody")
+    expect("mindestens eine Person" in html.unescape(refused.text), "an agreement without anybody was stored")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the meeting again")
+    fields = [("token", token_of(page)), ("action", "addagreement"), ("agreement_item", "3"), ("agreement_label", "Herbstplan schreiben"),
+              ("agreement_deadline", "2026-10-31")] + [("agreement_members[]", person) for person in people]
+    page_ok(browser.post(f"{base}?id={meeting}", fields), "two people agree to write the plan")
+    tasks = stack.sql(f"SELECT fk_resolution, item, fk_adherent, deadline, fk_actioncomm IS NOT NULL FROM llx_vereine_resolution_task WHERE fk_meeting = {meeting} ORDER BY rowid")
+    expect(tasks == [["0", "3", people[0], "2026-10-31", "1"], ["0", "3", people[1], "2026-10-31", "1"]], f"the stored agreement: {tasks}")
+    events = stack.sql(f"SELECT elementtype, fk_element, percent FROM llx_actioncomm WHERE id IN (SELECT fk_actioncomm FROM llx_vereine_resolution_task WHERE fk_meeting = {meeting}) ORDER BY fk_element")
+    expect(sorted(row[1] for row in events) == sorted(people) and all(row[0] == "member" and row[2] == "0" for row in events),
+           f"the to-dos of Dolibarr: {events}")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the meeting with its agreement")
+    expect(len(re.findall(r'data-agreement="\d+" data-done="0"', page.text)) == 2, "the agreement is not shown at its item")
+
+    # The minutes name it, and the next meeting suggests it while it is open.
+    draft = browser.post(f"{base}?id={meeting}", [("token", token_of(page)), ("action", "draft")], follow=False)
+    text = pdf_bytes_text(draft.body)
+    expect(draft.body[:5] == b"%PDF-" and "Vereinbart:" in text and "Herbstplan schreiben" in text, f"the minutes do not name the agreement: {text[:300]!r}")
+    planning = page_ok(browser.get(f"{base}?template=board"), "a new board meeting")
+    expect(len(re.findall(r'data-follow="\d+"', planning.text)) >= 2, "the next meeting does not suggest the open agreement")
+
+    # A vote on an item takes its agreement over as a follow-up of the resolution.
+    fields = [("token", token_of(page)), ("action", "addagreement"), ("agreement_item", "4"), ("agreement_label", "Budget an Kassierin schicken"),
+              ("agreement_members[]", people[0])]
+    page_ok(browser.post(f"{base}?id={meeting}", fields), "an agreement on the budget")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the meeting before the vote")
+    present = [("token", token_of(page)), ("action", "saveattendance")] + [(f"attendance[{m}][state]", "present") for m in re.findall(r'data-attendance="(\d+)"', page.text)]
+    page_ok(browser.post(f"{base}?id={meeting}", present), "the whole board is present")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the meeting with everybody present")
+    page_ok(browser.submit(page.form(name="vereinevote"), {"item": "4", "kind": "resolution", "title": "Budget 2027", "yes": "2", "no": "0"}), "vote on the budget")
+    taken = stack.value(f"SELECT fk_resolution FROM llx_vereine_resolution_task WHERE fk_meeting = {meeting} AND item = 4")
+    resolution = stack.value(f"SELECT rowid FROM llx_vereine_resolution WHERE fk_meeting = {meeting} AND item = 4")
+    expect(taken is not None and taken == resolution and resolution not in (None, "0"), f"the agreement was not taken over by the resolution: {taken} / {resolution}")
+
+    # The logo of the association heads every PDF, with page numbers in the foot.
+    png = "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAECAIAAAA8r+mnAAAAEUlEQVR4nGM4o6SEFTFQTwIAuf4iAWrHAc4AAAAASUVORK5CYII="
+    stack.shell("mkdir -p /var/www/documents/mycompany/logos && echo '" + png + "' | base64 -d > /var/www/documents/mycompany/logos/verein.png")
+    stack.sql("DELETE FROM llx_const WHERE name = 'MAIN_INFO_SOCIETE_LOGO'")
+    stack.sql("INSERT INTO llx_const (name, entity, value, type, visible) VALUES ('MAIN_INFO_SOCIETE_LOGO', 1, 'verein.png', 'chaine', 0)")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the meeting with a logo")
+    draft = browser.post(f"{base}?id={meeting}", [("token", token_of(page)), ("action", "draft")], follow=False)
+    expect(b"/Subtype /Image" in draft.body, "the minutes carry no image although the association has a logo")
+    expect("Seite 1 von" in pdf_bytes_text(draft.body), "the minutes have no page numbers")
+    steps = dict(re.findall(r'data-step="([a-z]+)" data-state="([a-z]+)"', page_ok(browser.get(f"{base}?id={meeting}"), "the meeting with its steps").text))
+    expect(list(steps) == ["plan", "invite", "meet", "minutes", "close"] and steps["plan"] == "done" and list(steps.values()).count("now") <= 1,
+           f"the steps of the meeting: {steps}")
+
+    # The home page tells the member what waits: here the tasks of the agreement.
+    stack.sql(f"UPDATE llx_user SET fk_member = {people[0]} WHERE login = 'admin'")
+    home = page_ok(browser.get("/index.php?mainmenu=home"), "the home page")
+    waiting = re.findall(r'data-box-waiting="([a-z]+)"', home.text)
+    expect("tasks" in waiting and "Herbstplan schreiben" in html.unescape(home.text), f"the home page box shows {waiting}")
+    return ("agreement without anybody refused; two people agreed with a deadline, each with a to-do of Dolibarr at the member; shown at the item, "
+            "named in the minutes, suggested for the next meeting; a vote on the item takes its agreement over; the logo heads the PDF, pages numbered")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -3363,7 +3428,8 @@ SCENARIOS = (
     ("meetingdocs", "Documents of a meeting: count sheet, proof of a vote, signed proxy, attachments in the minutes", meetingdocs, ("circulars",)),
     ("mailsending", "E-mail of the association: own sender, failures in plain words, sent again, test e-mail", mailsending, ("meetingdocs",)),
     ("itemkinds", "Kinds of agenda items: reports and discussions without a vote, the invitation read before it goes out", itemkinds, ("mailsending",)),
-    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("itemkinds",)),
+    ("agreements", "Who does what until when: agreements per agenda item, to-dos of Dolibarr, taken over by a vote; the logo on the PDFs", agreements, ("itemkinds",)),
+    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("agreements",)),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )

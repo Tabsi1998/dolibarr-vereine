@@ -13,11 +13,14 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- What follows from a resolution: a task with somebody responsible and a deadline, kept as an agenda event of Dolibarr.
+-- What follows from a resolution or was agreed at an agenda item: a task with somebody responsible and a deadline,
+-- kept as an agenda event of Dolibarr. An agreement without a resolution has fk_resolution 0 and names its meeting and item.
 CREATE TABLE llx_vereine_resolution_task(
 	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
 	entity INTEGER DEFAULT 1 NOT NULL,
-	fk_resolution INTEGER NOT NULL,
+	fk_resolution INTEGER DEFAULT 0 NOT NULL,
+	fk_meeting INTEGER DEFAULT 0 NOT NULL,
+	item INTEGER DEFAULT 0 NOT NULL,
 	label VARCHAR(255) NOT NULL,
 	fk_adherent INTEGER DEFAULT 0 NOT NULL,
 	deadline DATE,

@@ -1480,6 +1480,11 @@ $prefixes = array(
 	'VereineVoteKind_' => VereineVoteRules::KINDS,
 	'VereineMinutesPlaceholder_' => VereineMinutesRules::PLACEHOLDERS,
 	'VereineMinutesItemKind_' => VereineMinutesRules::ITEM_KINDS,
+	'VereineMeetingStep_' => VereineMeetingRules::STEPS,
+	'VereineMeetingStepState_' => array('done', 'now', 'later'),
+	'VereineMeetingStepHint_' => array('plan', 'invite_board', 'invite_general', 'meet', 'minutes', 'close'),
+	'VereineGlossary_' => array('quorum', 'majority', 'proxy', 'kinds', 'circular', 'keeper'),
+	'VereineGlossaryText_' => array('quorum', 'majority', 'proxy', 'kinds', 'circular', 'keeper'),
 	'VereineSignatureKind_' => VereineSignatureRules::KINDS,
 	'VereineSignatureKindHelp_' => VereineSignatureRules::KINDS,
 	'VereineSignatureMode_' => VereineSignatureRules::MODE_LIST,
@@ -1596,6 +1601,26 @@ foreach ($kindsOfItems as $title => $kind) {
 }
 expect(VereineMinutesRules::votes('decision') && VereineMinutesRules::votes('election') && !VereineMinutesRules::votes('report') && !VereineMinutesRules::votes('discussion'),
 	'only decisions and elections are voted on');
+
+// ------------------------------------------------------------- steps of a meeting
+
+$stepMeeting = array('status' => 'planned', 'day' => '2026-10-02', 'agenda' => array('Begrüßung'));
+same(array('plan' => 'done', 'invite' => 'now', 'meet' => 'later', 'minutes' => 'later', 'close' => 'later'),
+	VereineMeetingRules::steps($stepMeeting, array(), '2026-09-21'), 'a planned meeting: invite is next');
+same('now', VereineMeetingRules::steps(array('status' => 'invited') + $stepMeeting, array('invited' => false), '2026-09-21')['invite'],
+	'invited in the status, but no e-mail went out: inviting is still to do');
+same(array('plan' => 'done', 'invite' => 'done', 'meet' => 'later', 'minutes' => 'later', 'close' => 'later'),
+	VereineMeetingRules::steps(array('status' => 'invited') + $stepMeeting, array('invited' => true), '2026-09-21'), 'invited, the day is still to come');
+same('now', VereineMeetingRules::steps(array('status' => 'invited') + $stepMeeting, array('invited' => true), '2026-10-02')['meet'], 'on the day the meeting is on');
+same(array('meet' => 'done', 'minutes' => 'now'), array_intersect_key(VereineMeetingRules::steps(array('status' => 'held') + $stepMeeting, array('invited' => true), '2026-10-03'),
+	array('meet' => 1, 'minutes' => 1)), 'held: the minutes are next');
+same(array('minutes' => 'done', 'close' => 'now'), array_intersect_key(VereineMeetingRules::steps(array('status' => 'held') + $stepMeeting,
+	array('invited' => true, 'final' => true), '2026-10-03'), array('minutes' => 1, 'close' => 1)), 'a final version: signing and sending are next');
+same('done', VereineMeetingRules::steps(array('status' => 'held') + $stepMeeting, array('invited' => true, 'final' => true, 'signed' => true), '2026-10-03')['close'],
+	'signed: everything is done');
+expect(count(array_filter(VereineMeetingRules::steps($stepMeeting, array(), '2026-09-21'), function ($state) {
+	return $state === 'now';
+})) === 1, 'only one step is "now"');
 
 // ------------------------------------------------------------- text repair
 

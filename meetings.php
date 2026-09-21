@@ -238,6 +238,24 @@ if ($action === 'document') {
 		setEventMessages(null, array_map(array($langs, 'trans'), $meetings->errors), 'errors');
 	}
 	$entered = null;
+} elseif ($action === 'addagreement' && $canWrite) {
+	$meetingOfAgreement = $meetings->fetch($id);
+	$result = $meetingOfAgreement === null ? 0 : $register->addAgreement($meetingOfAgreement, GETPOSTINT('agreement_item'), array(
+		'label' => GETPOST('agreement_label', 'alphanohtml'), 'deadline' => GETPOST('agreement_deadline', 'alphanohtml'),
+		'member_ids' => (array) GETPOST('agreement_members', 'array:int')), $user);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineAgreementSaved', $result), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id.'#vereinemeetingnotes');
+		exit;
+	}
+	setEventMessages($result < 0 ? $register->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $register->errors), 'errors');
+} elseif ($action === 'agreementdone' && $canWrite) {
+	$result = $register->taskDone(GETPOSTINT('task'), $user);
+	if ($result > 0) {
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id.'#vereinemeetingnotes');
+		exit;
+	}
+	setEventMessages($result < 0 ? $register->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $register->errors), 'errors');
 } elseif ($action === 'savenotes' && $canWrite) {
 	$result = $meetings->saveNotes($id, (array) GETPOST('note', 'array:restricthtml'), $user, (array) GETPOST('kind', 'array:aZ09'));
 	if ($result > 0) {
@@ -406,6 +424,62 @@ function vereineMeetingForm(array $meeting, $id, array $suggestions = array())
 }
 
 /**
+ * The steps of a meeting on top of it: what is done, what is next, whether the law or the statutes require it.
+ *
+ * @param VereineMeetings     $meetings   Meetings
+ * @param VereineMinutes      $minutes    Minutes
+ * @param VereineSignatures   $signatures Signature runs
+ * @param array<string,mixed> $meeting    Meeting to show
+ * @param array<string,mixed> $rules      Rules of the statutes
+ * @param string              $today      Today as YYYY-MM-DD
+ * @return void
+ */
+function vereineMeetingSteps($meetings, $minutes, $signatures, array $meeting, array $rules, $today)
+{
+	global $langs;
+
+	$invited = false;
+	foreach ($meetings->invitations($meeting['id']) as $invitation) {
+		$invited = $invited || !empty($invitation['sent_at']);
+	}
+	$attendance = $meetings->attendance($meeting['id']);
+	$met = (bool) $meetings->votes($meeting['id']);
+	foreach ($attendance['rows'] as $row) {
+		$met = $met || $row['state'] === VereineAttendanceRules::STATE_PRESENT;
+	}
+	$versions = $minutes->versions($meeting['id']);
+	$final = (bool) $versions;
+	$signed = false;
+	if ($final) {
+		$last = end($versions);
+		$run = $signatures->current(VereineSignatureRules::KIND_MINUTES, (int) $last['id']);
+		$signed = $run !== null && $run['status'] === VereineSignatures::STATUS_DONE;
+	}
+	$states = VereineMeetingRules::steps($meeting, array('invited' => $invited, 'met' => $met, 'final' => $final, 'signed' => $signed), $today);
+	$anchors = array('plan' => 'vereinemeetingnotes', 'invite' => 'vereinemeetinginvitations', 'meet' => 'vereineattendance', 'minutes' => 'vereinemeetingnotes',
+		'close' => 'vereinemeetingminutes');
+	$badges = array('done' => 'success', 'now' => 'warning', 'later' => 'secondary');
+	print '<div class="paddingbottom" data-meeting-steps="1" style="display: flex; flex-wrap: wrap; gap: 0.5em;">';
+	$number = 0;
+	foreach (VereineMeetingRules::STEPS as $step) {
+		$number++;
+		$state = $states[$step];
+		$hint = $step === 'invite' && $meeting['kind'] === VereineMeetingRules::KIND_GENERAL
+			? $langs->trans('VereineMeetingStepHint_invite_general', (int) $rules['invite_days']) : $langs->trans('VereineMeetingStepHint_'.$step.($step === 'invite' ? '_board' : ''));
+		print '<a href="#'.$anchors[$step].'" class="border" style="flex: 1 1 11em; padding: 0.5em 0.7em; border-radius: 4px; text-decoration: none;'.($state === 'now' ? ' border-width: 2px;' : '').'"';
+		print ' data-step="'.$step.'" data-state="'.$state.'">';
+		print '<div>'.$number.'. <strong>'.$langs->trans('VereineMeetingStep_'.$step).'</strong> '.dolGetBadge($langs->trans('VereineMeetingStepState_'.$state), '', $badges[$state]).'</div>';
+		print '<div class="opacitymedium small">'.$hint.'</div></a>';
+	}
+	print '</div>';
+	print '<details class="paddingbottom small" data-glossary="1"><summary>'.$langs->trans('VereineGlossaryTitle').'</summary><ul>';
+	foreach (array('quorum', 'majority', 'proxy', 'kinds', 'circular', 'keeper') as $term) {
+		print '<li><strong>'.$langs->trans('VereineGlossary_'.$term).'</strong> – '.$langs->trans('VereineGlossaryText_'.$term).'</li>';
+	}
+	print '</ul></details>';
+}
+
+/**
  * The documents of a meeting: proof of the votes, signed proxies, and the count sheet to print.
  *
  * @param VereineMeetingDocs  $docs     Documents
@@ -515,7 +589,17 @@ function vereineMeetingDocuments($docs, $meetings, array $meeting, $canWrite)
  */
 function vereineMeetingNotes($meetings, array $meeting, $canWrite)
 {
-	global $langs, $user;
+	global $langs, $user, $db;
+
+	$register = new VereineResolutions($db);
+	$agreements = array();
+	$names = array();
+	foreach ($meetings->members($meeting['day']) as $member) {
+		$names[$member['id']] = $member['name'];
+	}
+	foreach ($register->tasks(0, $meeting['id']) as $task) {
+		$agreements[$task['item']][] = $task;
+	}
 
 	$planned = $meeting['status'] === VereineMeetingRules::STATUS_PLANNED;
 	print '<br>'.load_fiche_titre($langs->trans('VereineMinutesTitle'), '', '', 0, 'vereinemeetingnotes');
@@ -554,6 +638,15 @@ function vereineMeetingNotes($meetings, array $meeting, $canWrite)
 		} elseif (!$canWrite) {
 			print nl2br(dol_escape_htmltag($item['text'], 0, 1));
 		}
+		foreach (isset($agreements[$item['item']]) ? $agreements[$item['item']] : array() as $task) {
+			print '<div class="paddingtop small" data-agreement="'.$task['id'].'" data-done="'.($task['done'] !== '' ? 1 : 0).'">'.img_picto('', 'user').' ';
+			print $langs->trans('VereineAgreementLine', dol_escape_htmltag(isset($names[$task['member_id']]) ? $names[$task['member_id']] : (string) $task['member_id']),
+				dol_escape_htmltag($task['label']), $task['deadline'] !== '' ? vereineFormatDay($task['deadline']) : $langs->transnoentitiesnoconv('VereineAgreementNoDeadline'));
+			if ($task['done'] !== '') {
+				print ' '.dolGetBadge($langs->trans('VereineResolutionTaskDone'), '', 'success');
+			}
+			print '</div>';
+		}
 		print '</td></tr>';
 	}
 	print '</table></div>';
@@ -561,6 +654,28 @@ function vereineMeetingNotes($meetings, array $meeting, $canWrite)
 	if ($canWrite) {
 		print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('VereineMinutesSave')).'"></div>';
 		print '</form>';
+
+		// Who does what until when: an agreement, without a vote. A vote on the same item takes it over.
+		print '<br>'.load_fiche_titre($langs->trans('VereineAgreementTitle'), '', '', 0, 'vereinemeetingagreement');
+		print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineAgreementHowTo').'</div>';
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'#vereinemeetingnotes" name="vereinemeetingagreement">';
+		print '<input type="hidden" name="token" value="'.newToken().'">';
+		print '<input type="hidden" name="action" value="addagreement">';
+		print '<table class="border centpercent">';
+		print '<tr><td class="titlefieldcreate fieldrequired">'.$langs->trans('VereineVoteItem').'</td><td><select name="agreement_item">';
+		foreach (array_values($meeting['agenda']) as $index => $title) {
+			print '<option value="'.($index + 1).'">'.($index + 1).'. '.dol_escape_htmltag($title).'</option>';
+		}
+		print '</select></td></tr>';
+		print '<tr><td class="fieldrequired tdtop">'.$langs->trans('VereineAgreementWho').'</td><td><select name="agreement_members[]" multiple size="5" class="minwidth300">';
+		foreach ($names as $memberId => $name) {
+			print '<option value="'.((int) $memberId).'">'.dol_escape_htmltag($name).'</option>';
+		}
+		print '</select><div class="opacitymedium small">'.$langs->trans('VereineAgreementWhoHelp').'</div></td></tr>';
+		print '<tr><td class="fieldrequired">'.$langs->trans('VereineAgreementWhat').'</td>';
+		print '<td><input type="text" name="agreement_label" class="minwidth300" maxlength="255" value=""></td></tr>';
+		print '<tr><td>'.$langs->trans('VereineAgreementUntil').'</td><td><input type="date" name="agreement_deadline" value=""></td></tr>';
+		print '</table><div class="center"><input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineAgreementSave')).'"></div></form>';
 	}
 }
 
@@ -737,6 +852,9 @@ print load_fiche_titre(dol_escape_htmltag($meeting['title']), '<a href="'.$_SERV
 $inviteBy = VereineMeetingRules::inviteBy($meeting, $rules);
 $motionsBy = VereineMeetingRules::motionsBy($meeting, $rules);
 $late = $meeting['status'] === VereineMeetingRules::STATUS_PLANNED && $inviteBy !== '' && $today > $inviteBy;
+if ($meeting['status'] !== VereineMeetingRules::STATUS_CANCELLED) {
+	vereineMeetingSteps($meetings, $minutes, $signatures, $meeting, $rules, $today);
+}
 print '<table class="border centpercent" data-meeting-card="'.$meeting['id'].'" data-kind="'.$meeting['kind'].'" data-status="'.$meeting['status'].'" data-invite-by="'.$inviteBy.'" data-late="'.($late ? 1 : 0).'">';
 print '<tr><td class="titlefield">'.$langs->trans('VereineMeetingKind').'</td><td>'.$langs->trans('VereineMeetingKind_'.$meeting['kind']).'</td></tr>';
 print '<tr><td>'.$langs->trans('VereineMeetingWhen').'</td><td>'.vereineFormatDay($meeting['day']).' '.dol_escape_htmltag($meeting['time']).'</td></tr>';
@@ -858,7 +976,11 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 	$quorum = VereineAttendanceRules::quorum($meeting['kind'], $attendance['rows'], $attendance['voting'], $rules, $at);
 	print '<br>'.load_fiche_titre($langs->trans('VereineAttendance'), '', '', 0, 'vereineattendance');
 	print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineAttendanceHowTo_'.($meeting['kind'] === VereineMeetingRules::KIND_BOARD ? 'board' : 'general')).'</div>';
-	print '<div class="'.($quorum['reached'] ? 'ok' : 'warning').'" data-quorum-reached="'.($quorum['reached'] ? 1 : 0).'" data-votes="'.$quorum['votes'].'" data-present="'.$quorum['present'].'"';
+	$beforeDay = $today < $meeting['day'] && !$quorum['reached'];
+	if ($beforeDay) {
+		print '<div class="opacitymedium" data-quorum-before-day="1">'.$langs->trans('VereineAttendanceBeforeDay', vereineFormatDay($meeting['day'])).'</div>';
+	}
+	print '<div class="'.($quorum['reached'] ? 'ok' : ($beforeDay ? 'opacitymedium' : 'warning')).'" data-quorum-reached="'.($quorum['reached'] ? 1 : 0).'" data-votes="'.$quorum['votes'].'" data-present="'.$quorum['present'].'"';
 	print ' data-represented="'.$quorum['represented'].'" data-eligible="'.$quorum['eligible'].'" data-required="'.$quorum['required'].'" data-at="'.$at.'">';
 	print $langs->trans($quorum['reached'] ? 'VereineAttendanceReached' : 'VereineAttendanceMissing').' ';
 	print $meeting['kind'] === VereineMeetingRules::KIND_BOARD ? $langs->trans('VereineAttendanceQuorumBoard', $quorum['present'], $quorum['eligible'], max(1, $quorum['required']))

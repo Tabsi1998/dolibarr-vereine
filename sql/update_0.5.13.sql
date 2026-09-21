@@ -18,3 +18,6 @@ ALTER TABLE llx_vereine_meeting_invitation ADD COLUMN attempts SMALLINT DEFAULT 
 ALTER TABLE llx_vereine_meeting_invitation ADD COLUMN tried_at DATETIME AFTER attempts;
 -- 0.5.13: an agenda item says whether it is a report, a discussion, a decision or an election.
 ALTER TABLE llx_vereine_meeting_note ADD COLUMN kind VARCHAR(16) AFTER body;
+-- 0.5.13: a task can be agreed at an agenda item, without a resolution.
+ALTER TABLE llx_vereine_resolution_task ADD COLUMN fk_meeting INTEGER DEFAULT 0 NOT NULL AFTER fk_resolution;
+ALTER TABLE llx_vereine_resolution_task ADD COLUMN item INTEGER DEFAULT 0 NOT NULL AFTER fk_meeting;

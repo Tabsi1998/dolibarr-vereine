@@ -27,6 +27,7 @@
 
 require_once __DIR__.'/vereinemeetingdocrules.class.php';
 require_once __DIR__.'/vereinemeetings.class.php';
+require_once __DIR__.'/vereinepdf.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 
 /**
@@ -287,26 +288,15 @@ class VereineMeetingDocs
 			$this->error = 'cannot create '.dirname($file);
 			return '';
 		}
-		$pdf = pdf_getInstance();
+		$pdf = VereinePdf::start($outputlangs);
 		$font = pdf_getPDFFont($outputlangs);
-		$pdf->setPrintHeader(false);
-		$pdf->setPrintFooter(false);
-		$pdf->SetMargins(20, 20, 20);
-		$pdf->SetAutoPageBreak(true, 20);
-		$pdf->AddPage();
 		$line = function ($text, $style = '', $size = 10) use ($pdf, $font) {
 			$pdf->SetFont($font, $style, $size);
 			$pdf->MultiCell(0, 5, $text, 0, 'L');
 		};
 
-		$line(trim((string) $mysoc->name), 'B', 11);
-		if (getDolGlobalString('VEREINE_REGISTER_NUMBER') !== '') {
-			$line($outputlangs->transnoentities('VereineReportRegister', getDolGlobalString('VEREINE_REGISTER_NUMBER')));
-		}
-		$pdf->Ln(6);
-		$line($outputlangs->transnoentitiesnoconv('VereineMeetingDocSheetTitle'), 'B', 12);
-		$line($meeting['title'].' - '.vereineMeetingDay($meeting['day'], $outputlangs).' '.$meeting['time']);
-		$pdf->Ln(2);
+		VereinePdf::title($pdf, $outputlangs, $outputlangs->transnoentitiesnoconv('VereineMeetingDocSheetTitle'),
+			$meeting['title'].' - '.vereineMeetingDay($meeting['day'], $outputlangs).' '.$meeting['time']);
 		$line($outputlangs->transnoentities('VereineMeetingDocSheetQuestion', $sheet['question']), 'B');
 		if ($sheet['item'] > 0) {
 			$line($outputlangs->transnoentities('VereineResolutionPdfItem', $sheet['item']));
@@ -352,6 +342,7 @@ class VereineMeetingDocs
 		$pdf->MultiCell(80, 5, $outputlangs->transnoentitiesnoconv('VereineMeetingDocSheetLeader'), 0, 'L', false, 0);
 		$pdf->MultiCell(80, 5, $outputlangs->transnoentitiesnoconv('VereineMeetingDocSheetCounter'), 0, 'L', false, 1);
 
+		VereinePdf::finish($pdf, $outputlangs, $outputlangs->transnoentitiesnoconv('VereineMeetingDocSheetTitle').' - '.$meeting['title']);
 		$pdf->Output($file, 'F');
 		if (!is_file($file)) {
 			$this->error = 'cannot write '.$file;

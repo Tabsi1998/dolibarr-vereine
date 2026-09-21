@@ -27,7 +27,9 @@
 require_once __DIR__.'/vereinemeetings.class.php';
 require_once __DIR__.'/vereinesignatures.class.php';
 require_once __DIR__.'/vereinemeetingdocs.class.php';
+require_once __DIR__.'/vereineresolutions.class.php';
 require_once __DIR__.'/vereinemail.class.php';
+require_once __DIR__.'/vereinepdf.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 
 /**
@@ -394,27 +396,15 @@ class VereineMinutes
 			return $id > 0 && isset($roles['names'][$id]) ? $roles['names'][$id] : $outputlangs->transnoentitiesnoconv('VereineMinutesNobody');
 		};
 
-		$pdf = pdf_getInstance();
+		$pdf = VereinePdf::start($outputlangs);
 		$font = pdf_getPDFFont($outputlangs);
-		$pdf->setPrintHeader(false);
-		$pdf->setPrintFooter(false);
-		$pdf->SetMargins(20, 20, 20);
-		$pdf->SetAutoPageBreak(true, 20);
-		$pdf->AddPage();
 		$line = function ($text, $style = '', $size = 10) use ($pdf, $font) {
 			$pdf->SetFont($font, $style, $size);
 			$pdf->MultiCell(0, 5, $text, 0, 'L');
 		};
 
-		$line(trim((string) $mysoc->name), 'B', 11);
-		if (getDolGlobalString('VEREINE_REGISTER_NUMBER') !== '') {
-			$line($outputlangs->transnoentities('VereineReportRegister', getDolGlobalString('VEREINE_REGISTER_NUMBER')));
-		}
-		$pdf->Ln(6);
 		$title = $outputlangs->transnoentities('VereineMinutesPdfTitle', $outputlangs->transnoentitiesnoconv('VereineMeetingKind_'.$meeting['kind']));
-		$line($title.($version > 0 ? '' : ' - '.$outputlangs->transnoentitiesnoconv('VereineMinutesDraft')), 'B', 12);
-		$line($meeting['title']);
-		$pdf->Ln(2);
+		VereinePdf::title($pdf, $outputlangs, $title.($version > 0 ? '' : ' - '.$outputlangs->transnoentitiesnoconv('VereineMinutesDraft')), $meeting['title']);
 		$line($outputlangs->transnoentities('VereineMinutesPdfWhen', vereineMeetingDay($meeting['day'], $outputlangs), $meeting['time']));
 		$line($outputlangs->transnoentities('VereineMinutesPdfWhere', $outputlangs->transnoentitiesnoconv('VereineMeetingFormat_'.$meeting['format']),
 			$meeting['place'] !== '' ? $meeting['place'] : '-'));
@@ -429,7 +419,7 @@ class VereineMinutes
 		$pdf->Ln(4);
 
 		// Attendance and quorum.
-		$line($outputlangs->transnoentities('VereineAttendance'), 'B', 11);
+		VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineAttendance'));
 		$line($outputlangs->transnoentities('VereineMinutesPdfAttendance', $quorum['present'], $quorum['represented'], $quorum['votes'], $quorum['eligible']));
 		$line($outputlangs->transnoentities($quorum['reached'] ? 'VereineAttendanceReached' : 'VereineAttendanceMissing').' '
 			.$outputlangs->transnoentities('VereineMinutesPdfQuorum', max($meeting['kind'] === VereineMeetingRules::KIND_BOARD ? 1 : 0, (int) $quorum['required'])));
@@ -454,11 +444,25 @@ class VereineMinutes
 		}
 		$pdf->Ln(4);
 
+		// What was agreed per item: who does what until when.
+		$register = new VereineResolutions($this->db);
+		$agreed = array();
+		foreach ($register->tasks(0, $meeting['id']) as $task) {
+			$who = isset($attendance['names'][$task['member_id']]) ? $attendance['names'][$task['member_id']] : (string) $task['member_id'];
+			$agreed[$task['item']][] = $outputlangs->transnoentities('VereineAgreementLine', $who, $task['label'],
+				$task['deadline'] !== '' ? vereineFormatDay($task['deadline']) : $outputlangs->transnoentitiesnoconv('VereineAgreementNoDeadline'));
+		}
+
 		// The agenda with its texts and votes.
+		VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineMeetingAgenda'));
 		foreach ($items as $item) {
+			$pdf->Ln(1);
 			$line($item['item'].'. '.$item['title'], 'B');
 			if ($item['filled'] !== '') {
 				$line($item['filled']);
+			}
+			if (isset($agreed[$item['item']])) {
+				$line(implode("\n", $agreed[$item['item']]));
 			}
 			foreach ($votes as $vote) {
 				if ($vote['item'] !== $item['item']) {
@@ -481,7 +485,7 @@ class VereineMinutes
 			}
 		}
 		$pdf->Ln(2);
-		$line($outputlangs->transnoentities('VereineMinutesPdfResolutions'), 'B', 11);
+		VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineMinutesPdfResolutions'));
 		$line($passed ? implode("\n", $passed) : $outputlangs->transnoentitiesnoconv('VereineVotesNone'));
 
 		// The attachments: what proves the votes and the proxies (#115).
@@ -502,13 +506,13 @@ class VereineMinutes
 		}
 		if ($attachments) {
 			$pdf->Ln(4);
-			$line($outputlangs->transnoentities('VereineMinutesPdfAttachments'), 'B', 11);
+			VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineMinutesPdfAttachments'));
 			$line(implode("\n", $attachments));
 		}
 		$pdf->Ln(8);
 
 		// Signature lines, for the paper way.
-		$line($outputlangs->transnoentities('VereineMinutesPdfSignatures'), 'B', 11);
+		VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineMinutesPdfSignatures'));
 		$pdf->Ln(6);
 		$pdf->SetFont($font, '', 10);
 		$pdf->MultiCell(80, 5, '______________________', 0, 'L', false, 0);
@@ -516,6 +520,8 @@ class VereineMinutes
 		$pdf->MultiCell(80, 5, $outputlangs->transnoentitiesnoconv('VereineMinutesChair').': '.$name($roles['chair']), 0, 'L', false, 0);
 		$pdf->MultiCell(80, 5, $outputlangs->transnoentitiesnoconv('VereineMinutesKeeper').': '.$name($roles['keeper']), 0, 'L', false, 1);
 
+		VereinePdf::finish($pdf, $outputlangs, $title.' - '.$meeting['title'].($version > 0 ? ', '.$outputlangs->transnoentities('VereineMinutesPdfVersion', $version)
+			: ', '.$outputlangs->transnoentitiesnoconv('VereineMinutesDraft')));
 		$pdf->Output($file, 'F');
 		if (!is_file($file)) {
 			$this->error = 'cannot write '.$file;

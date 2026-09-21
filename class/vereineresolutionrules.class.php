@@ -262,7 +262,13 @@ class VereineResolutionRules
 			if ($label === '') {
 				continue;
 			}
-			$item = $langs !== null ? $langs->transnoentitiesnoconv('VereineResolutionAgendaItem', $label, (string) $task['ref']) : $label.' ('.$task['ref'].')';
+			$agreement = empty($task['resolution_id']) && !empty($task['meeting_title']);
+			$from = $agreement ? (string) $task['meeting_title'] : (string) $task['ref'];
+			if ($langs !== null) {
+				$item = $langs->transnoentitiesnoconv($agreement ? 'VereineAgreementAgendaItem' : 'VereineResolutionAgendaItem', $label, $from);
+			} else {
+				$item = $label.' ('.$from.')';
+			}
 			if (!in_array($item, $items, true)) {
 				$items[] = $item;
 			}
