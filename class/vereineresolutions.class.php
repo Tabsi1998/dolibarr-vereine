@@ -354,9 +354,10 @@ class VereineResolutions
 	}
 
 	/**
-	 * Tasks that follow from resolutions, oldest deadline first.
+	 * Tasks that follow from resolutions or were agreed at an agenda item, oldest deadline first.
 	 *
 	 * @param int $resolutionId Resolution, 0 for all
+	 * @param int $meetingId    Meeting whose agreements and follow-ups are wanted, 0 for all
 	 * @return array<int,array<string,mixed>>
 	 */
 	public function tasks($resolutionId = 0, $meetingId = 0)
