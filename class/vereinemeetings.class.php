@@ -705,14 +705,35 @@ class VereineMeetings
 	}
 
 	/**
+	 * Kinds chosen for the agenda items of a meeting.
+	 *
+	 * @param int $id Meeting
+	 * @return array<int,string> Kind by item number from 1
+	 */
+	public function kinds($id)
+	{
+		global $conf;
+
+		$kinds = array();
+		$resql = $this->db->query("SELECT item, kind FROM ".MAIN_DB_PREFIX."vereine_meeting_note WHERE fk_meeting = ".((int) $id)." AND entity = ".((int) $conf->entity));
+		while ($resql && ($obj = $this->db->fetch_object($resql))) {
+			if (in_array((string) $obj->kind, VereineMinutesRules::ITEM_KINDS, true)) {
+				$kinds[(int) $obj->item] = (string) $obj->kind;
+			}
+		}
+		return $kinds;
+	}
+
+	/**
 	 * Store the texts of the agenda items; an emptied text stays empty and does not fall back to the template.
 	 *
 	 * @param int                $id      Meeting
 	 * @param array<mixed,mixed> $entered Texts by item number from 1
 	 * @param User               $user    Who stores
+	 * @param array<mixed,mixed> $kinds   Kinds by item number from 1; an item without one keeps what it had
 	 * @return int 1 when stored, 0 when refused (see errors), -1 on error
 	 */
-	public function saveNotes($id, array $entered, $user)
+	public function saveNotes($id, array $entered, $user, array $kinds = array())
 	{
 		global $conf;
 
@@ -723,8 +744,12 @@ class VereineMeetings
 			return 0;
 		}
 		$notes = array();
+		$stored = $this->kinds($id);
+		$chosen = array();
 		foreach (array_keys($meeting['agenda']) as $index) {
 			$notes[$index + 1] = VereineMinutesRules::text(isset($entered[$index + 1]) ? $entered[$index + 1] : '');
+			$kind = isset($kinds[$index + 1]) && is_scalar($kinds[$index + 1]) ? (string) $kinds[$index + 1] : '';
+			$chosen[$index + 1] = in_array($kind, VereineMinutesRules::ITEM_KINDS, true) ? $kind : (isset($stored[$index + 1]) ? $stored[$index + 1] : '');
 		}
 		$this->db->begin();
 		if (!$this->db->query("DELETE FROM ".MAIN_DB_PREFIX."vereine_meeting_note WHERE fk_meeting = ".((int) $id)." AND entity = ".((int) $conf->entity))) {
@@ -733,8 +758,9 @@ class VereineMeetings
 			return -1;
 		}
 		foreach ($notes as $item => $text) {
-			$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_meeting_note (entity, fk_meeting, item, body, fk_user_modif)";
-			$sql .= " VALUES (".((int) $conf->entity).", ".((int) $id).", ".((int) $item).", '".$this->db->escape($text)."', ".((int) $user->id).")";
+			$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_meeting_note (entity, fk_meeting, item, body, kind, fk_user_modif)";
+			$sql .= " VALUES (".((int) $conf->entity).", ".((int) $id).", ".((int) $item).", '".$this->db->escape($text)."',";
+			$sql .= " ".($chosen[$item] !== '' ? "'".$this->db->escape($chosen[$item])."'" : "NULL").", ".((int) $user->id).")";
 			if (!$this->db->query($sql)) {
 				$this->error = $this->db->lasterror();
 				$this->db->rollback();
@@ -761,6 +787,7 @@ class VereineMeetings
 
 		$templates = $this->templates();
 		$notes = $this->notes($meeting['id']);
+		$kinds = $this->kinds($meeting['id']);
 		$rules = (new VereineStatutes($this->db))->rules();
 		$attendance = $this->attendance($meeting['id']);
 		$votes = $this->votes($meeting['id']);
@@ -778,7 +805,13 @@ class VereineMeetings
 			$quorum = VereineAttendanceRules::quorum($meeting['kind'], $attendance['rows'], $attendance['voting'], $rules, $time);
 			$text = isset($notes[$number]) ? $notes[$number] : VereineMinutesRules::textFor($templates, $meeting['kind'], $title);
 			$values = VereineMinutesRules::values($meeting, $quorum, $onItem, trim((string) $mysoc->name), $day);
-			$items[] = array('item' => $number, 'title' => $title, 'text' => $text, 'stored' => isset($notes[$number]), 'filled' => VereineMinutesRules::fill($text, $values));
+			$kind = isset($kinds[$number]) ? $kinds[$number] : VereineMinutesRules::kindOf($title);
+			if (!$onItem && !VereineMinutesRules::votes($kind)) {
+				// Nothing was to be decided here, so the minutes do not say that nothing was voted on.
+				$values['ergebnis'] = '';
+			}
+			$items[] = array('item' => $number, 'title' => $title, 'text' => $text, 'stored' => isset($notes[$number]), 'filled' => VereineMinutesRules::fill($text, $values),
+				'kind' => $kind, 'chosen' => isset($kinds[$number]), 'voted' => (bool) $onItem);
 		}
 		return $items;
 	}
@@ -795,6 +828,7 @@ class VereineMeetings
 		global $conf;
 
 		$notes = $this->notes($id);
+		$kinds = $this->kinds($id);
 		if (!$notes) {
 			return 1;
 		}
@@ -807,7 +841,8 @@ class VereineMeetings
 			if (!isset($map[$item])) {
 				continue;
 			}
-			$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_meeting_note (entity, fk_meeting, item, body) VALUES (".((int) $conf->entity).", ".((int) $id).", ".((int) $map[$item]).", '".$this->db->escape($text)."')";
+			$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_meeting_note (entity, fk_meeting, item, body, kind) VALUES (".((int) $conf->entity).", ".((int) $id).",";
+			$sql .= " ".((int) $map[$item]).", '".$this->db->escape($text)."', ".(isset($kinds[$item]) ? "'".$this->db->escape($kinds[$item])."'" : "NULL").")";
 			if (!$this->db->query($sql)) {
 				$this->error = $this->db->lasterror();
 				return -1;

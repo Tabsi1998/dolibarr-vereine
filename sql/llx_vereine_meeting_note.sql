@@ -20,6 +20,7 @@ CREATE TABLE llx_vereine_meeting_note(
 	fk_meeting INTEGER NOT NULL,
 	item INTEGER NOT NULL,
 	body TEXT,
+	kind VARCHAR(16),
 	tms TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 	fk_user_modif INTEGER
 ) ENGINE=innodb;

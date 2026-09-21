@@ -1598,3 +1598,13 @@ VereineMeetingAttempt=%s. Versuch
 VereineMeetingErrorNotInvitedYet=Diese Sitzung wurde noch nicht eingeladen.
 VereineMeetingErrorNothingFailed=Alle Einladungen sind angekommen – es gibt nichts erneut zu senden.
 VereineMeetingErrorStillFailing=Auch der neue Versuch ist gescheitert. Die Antwort des Mailservers steht bei den Einladungen.
+# Arten der Tagesordnungspunkte (#169)
+VereineMinutesItemKind=Art
+VereineMinutesItemKind_report=Bericht
+VereineMinutesItemKind_discussion=Besprechung
+VereineMinutesItemKind_decision=Beschluss
+VereineMinutesItemKind_election=Wahl
+VereineMinutesItemKindHelp=Nur bei „Beschluss" und „Wahl" wird abgestimmt. Ein Bericht oder eine Besprechung wird einfach festgehalten – über die meisten Punkte einer Vorstandssitzung stimmt man nicht ab. Vorgeschlagen wird die Art aus der Überschrift; ändere sie, wo sie nicht passt.
+VereineVoteNoDecisionItems=Kein Punkt ist als Beschluss oder Wahl eingetragen. Stelle bei den Texten für das Protokoll die Art eines Punktes auf „Beschluss" oder „Wahl", dann kannst du hier abstimmen.
+VereineMinutesDecisionsWithoutVote=Als Beschluss oder Wahl geplant, aber noch nicht abgestimmt:
+VereineMeetingPreview=Vorschau der Einladung (so bekommt sie %s)
