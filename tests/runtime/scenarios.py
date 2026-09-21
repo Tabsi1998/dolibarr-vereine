@@ -1889,7 +1889,7 @@ def functions(stack: Stack) -> str:
     _, problems_today = overview(today)
     holders_tomorrow, problems_tomorrow = overview(tomorrow)
     expect(("auditor_on_board", "") in problems_today and holders_tomorrow["rechnungspruefung"] == 1
-           and problems_tomorrow == [("missing", "schriftfuehrung"), ("missing", "rechnungspruefung"), ("too_many", "jugendleitung")],
+           and problems_tomorrow == [("missing", "rechnungspruefung"), ("missing", "schriftfuehrung"), ("too_many", "jugendleitung")],
            f"after ending the term: today {problems_today}, tomorrow {holders_tomorrow} {problems_tomorrow}")
     logged = dict(stack.sql("SELECT action, COUNT(*) FROM llx_vereine_log WHERE action LIKE 'function%' GROUP BY action"))
     expect(logged == {"function_start": "6", "function_end": "1"}, f"function log: {logged}")
