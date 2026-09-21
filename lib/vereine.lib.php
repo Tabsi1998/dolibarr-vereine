@@ -252,6 +252,47 @@ function vereineSignatureBlock($signatures, $kind, $objectId, $file, $canWrite, 
 }
 
 /**
+ * The placeholders of some groups with what they mean and an example; a click puts one where the cursor was.
+ *
+ * @param string[]             $groups Groups of VereinePlaceholders::KEYS
+ * @param array<string,string> $values Example values by placeholder
+ * @param bool                 $open   Whether the list starts open
+ * @return void
+ */
+function vereinePlaceholderList(array $groups, array $values, $open = false)
+{
+	global $langs;
+
+	dol_include_once('/vereine/class/vereineplaceholders.class.php');
+	print '<details class="paddingbottom" data-placeholders="'.dol_escape_htmltag(implode(' ', $groups)).'"'.($open ? ' open' : '').'>';
+	print '<summary>'.$langs->trans('VereinePlaceholdersTitle').'</summary>';
+	print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereinePlaceholdersHelp').'</div>';
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+	print '<tr class="liste_titre"><td>'.$langs->trans('VereinePlaceholder').'</td><td>'.$langs->trans('Description').'</td>';
+	print '<td>'.$langs->trans('VereinePlaceholderExample').'</td></tr>';
+	foreach ($groups as $group) {
+		print '<tr class="liste_titre_filter"><td colspan="3">'.$langs->trans('VereinePlaceholderGroup_'.$group).'</td></tr>';
+		foreach (VereinePlaceholders::KEYS[$group] as $key) {
+			$example = isset($values[$key]) ? str_replace("\n", ' · ', trim($values[$key])) : '';
+			print '<tr class="oddeven" data-placeholder="'.dol_escape_htmltag($key).'"><td class="nowraponall">';
+			print '<a href="#" class="vereine-placeholder" data-insert="'.dol_escape_htmltag($key).'" title="'.dol_escape_htmltag($langs->trans('VereinePlaceholderInsert')).'">';
+			print '<code>'.dol_escape_htmltag($key).'</code></a></td>';
+			print '<td>'.$langs->trans(VereinePlaceholders::describedBy($key)).'</td>';
+			print '<td class="opacitymedium small" data-example="'.dol_escape_htmltag($key).'">'.dol_escape_htmltag(dol_trunc($example, 90)).'</td></tr>';
+		}
+	}
+	print '</table></div></details>';
+	// Once per page: remember the last text field and put the placeholder at its cursor.
+	print '<script>(function () { if (window.vereinePlaceholders) { return; } window.vereinePlaceholders = true; var last = null;';
+	print ' document.addEventListener("focusin", function (e) { var t = e.target; if (t && (t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && t.type === "text"))) { last = t; } });';
+	print ' document.addEventListener("click", function (e) { var link = e.target.closest ? e.target.closest("a.vereine-placeholder") : null; if (!link) { return; }';
+	print ' e.preventDefault(); var text = link.getAttribute("data-insert");';
+	print ' if (!last) { if (navigator.clipboard) { navigator.clipboard.writeText(text); } return; }';
+	print ' var start = last.selectionStart || 0, end = last.selectionEnd || 0; last.value = last.value.slice(0, start) + text + last.value.slice(end);';
+	print ' last.focus(); last.selectionStart = last.selectionEnd = start + text.length; }); })();</script>';
+}
+
+/**
  * Tabs of the module's setup pages.
  *
  * @return array<int,array<int,string>>

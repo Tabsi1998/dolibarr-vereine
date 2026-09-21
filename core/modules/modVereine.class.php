@@ -59,7 +59,8 @@ class modVereine extends DolibarrModules
 		$this->module_parts = array(
 			'triggers' => 1,
 			'login' => 0,
-			'substitutions' => 0,
+			// core/substitutions/functions_vereine.lib.php: __VEREINE_ZVR__ and the like in Dolibarr's e-mail templates.
+			'substitutions' => 1,
 			'menus' => 0,
 			'tpl' => 0,
 			'barcode' => 0,
@@ -70,8 +71,8 @@ class modVereine extends DolibarrModules
 			'js' => array(),
 			// class/actions_vereine.class.php: the member card links third parties without a trigger;
 			// invoice cards report lines whose VAT rate differs from their tax profile; invoice PDFs
-			// get the tax profile notes and the register number.
-			'hooks' => array('data' => array('membercard', 'invoicecard', 'invoicesuppliercard', 'pdfgeneration'), 'entity' => '0'),
+			// get the tax profile notes and the register number; the e-mail template editor knows the module's types.
+			'hooks' => array('data' => array('membercard', 'invoicecard', 'invoicesuppliercard', 'pdfgeneration', 'emailtemplates'), 'entity' => '0'),
 			'moduleforexternal' => 0,
 		);
 
@@ -384,6 +385,14 @@ class modVereine extends DolibarrModules
 		$written = $register->backfill($user);
 		if ($written > 0) {
 			dol_syslog('modVereine::init wrote '.$written.' entries in the register of resolutions', LOG_INFO);
+		}
+
+		// The e-mails of the module as Dolibarr templates, with the text they always had.
+		dol_include_once('/vereine/class/vereinemailtemplates.class.php');
+		$mailTemplates = new VereineMailTemplates($this->db);
+		if ($mailTemplates->ensureDefaults($langs) < 0) {
+			$this->error = $mailTemplates->error;
+			dol_syslog('modVereine::init '.$mailTemplates->error, LOG_ERR);
 		}
 
 		// The module serves Austrian associations only; the country profile of earlier versions is gone.

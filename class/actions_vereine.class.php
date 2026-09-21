@@ -79,6 +79,31 @@ class ActionsVereine
 	}
 
 	/**
+	 * The module's kinds of e-mail as types in Dolibarr's e-mail template editor.
+	 *
+	 * @param array<string,mixed> $parameters Hook parameters, elementList with the types so far
+	 * @param CommonObject|null   $object     Not used
+	 * @param string              $action     Not used
+	 * @param HookManager         $hookmanager Hook manager
+	 * @return int 0, Dolibarr adds the results to its list
+	 */
+	public function emailElementlist($parameters, &$object, &$action, $hookmanager)
+	{
+		global $langs;
+
+		$this->results = array();
+		if (!isModEnabled('vereine')) {
+			return 0;
+		}
+		dol_include_once('/vereine/class/vereinemailtemplates.class.php');
+		$langs->load('vereine@vereine');
+		foreach (VereineMailTemplates::TYPES as $type) {
+			$this->results[$type] = img_picto('', 'fa-landmark', 'class="pictofixedwidth"').dol_escape_htmltag($langs->trans('VereineMailTemplateType_'.$type));
+		}
+		return 0;
+	}
+
+	/**
 	 * Before Dolibarr's actions on the member card: note the third party of a member about to be linked.
 	 *
 	 * @param array<string,mixed> $parameters  Hook parameters

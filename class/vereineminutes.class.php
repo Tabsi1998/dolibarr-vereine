@@ -334,9 +334,7 @@ class VereineMinutes
 		$kind = $audience === self::AUDIENCE_BOARD ? VereineMeetingRules::KIND_BOARD : VereineMeetingRules::KIND_GENERAL;
 		$recipients = VereineMeetingRules::recipients($kind, $meetings->members($meeting['day']), $statutes->rules());
 		$from = VereineMail::sender();
-		$subject = $outputlangs->transnoentities('VereineMinutesMailSubject', $meeting['title']);
-		$text = $outputlangs->transnoentities('VereineMinutesMailText', trim((string) $mysoc->name), $meeting['title'],
-			vereineMeetingDay($meeting['day'], $outputlangs));
+		$templates = new VereineMailTemplates($this->db);
 		$sent = 0;
 		$without = 0;
 		foreach ($recipients as $recipient) {
@@ -344,8 +342,10 @@ class VereineMinutes
 				$without++;
 				continue;
 			}
-			$mail = new CMailFile($subject, $recipient['email'], $from, $text, array($file), array('application/pdf'), array(basename($file)),
-				'', '', 0, 0, '', '', 'minutes'.$version['id']);
+			$values = VereinePlaceholders::meeting($meeting, (string) $recipient['name'], true, trim((string) $mysoc->name), vereineMeetingDay($meeting['day'], $outputlangs), '', $outputlangs);
+			$composed = $templates->compose(VereineMailTemplates::TYPE_MINUTES, $values, $outputlangs);
+			$mail = new CMailFile($composed['subject'], $recipient['email'], $from, $composed['body'], array($file), array('application/pdf'), array(basename($file)),
+				'', '', 0, $composed['html'] ? 1 : 0, '', '', 'minutes'.$version['id']);
 			if ($mail->sendfile()) {
 				$sent++;
 			}

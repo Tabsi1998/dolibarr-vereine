@@ -268,6 +268,24 @@ print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->t
 print '<span class="opacitymedium small">'.$langs->trans('VereineMailTestHelp', dol_escape_htmltag((string) $user->email)).'</span>';
 print '</form>';
 
+// The texts of these e-mails are Dolibarr templates; the association changes them in Dolibarr's editor.
+dol_include_once('/vereine/class/vereinemailtemplates.class.php');
+$mailTemplates = new VereineMailTemplates($db);
+print '<br>'.load_fiche_titre($langs->trans('VereineMailTemplatesTitle'), '', '', 0, 'vereinemailtemplates');
+print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineMailTemplatesHowTo').'</div>';
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+print '<tr class="liste_titre"><td>'.$langs->trans('VereineMailTemplateKind').'</td><td>'.$langs->trans('VereineMailTemplateUsed').'</td><td></td></tr>';
+foreach (VereineMailTemplates::TYPES as $type) {
+	$template = $mailTemplates->find($type, $langs);
+	$standard = VereineMailTemplates::defaults($type, $langs);
+	$state = $template === null ? 'standard' : (VereineMailTemplates::plain($template['content']) === $standard['content'] && $template['topic'] === $standard['topic'] ? 'unchanged' : 'changed');
+	print '<tr class="oddeven" data-mail-template="'.$type.'" data-template-state="'.$state.'"><td>'.$langs->trans('VereineMailTemplateType_'.$type).'</td>';
+	print '<td>'.$langs->trans('VereineMailTemplateState_'.$state).'</td>';
+	print '<td class="right"><a href="'.DOL_URL_ROOT.'/admin/mails_templates.php?search_type_template='.urlencode($type).'">'.$langs->trans('VereineMailTemplateEdit').'</a></td></tr>';
+}
+print '</table></div>';
+vereinePlaceholderList(array('association', 'member', 'meeting', 'circular'), (new VereinePlaceholders($db))->associationValues());
+
 print dol_get_fiche_end();
 
 llxFooter();
