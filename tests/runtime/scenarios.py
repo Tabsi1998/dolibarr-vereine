@@ -3144,6 +3144,63 @@ def meetingdocs(stack: Stack) -> str:
             "reader without upload; the minutes name both attachments")
 
 
+def mailsending(stack: Stack) -> str:
+    """E-mail of the association: its own sender, a failure explained in plain words, failed invitations sent again, a test e-mail."""
+    browser = stack.browser()
+    base = "/custom/vereine/meetings.php"
+    setup = "/custom/vereine/admin/setup.php"
+    mail = stack.mailpit()
+    port = stack.value("SELECT value FROM llx_const WHERE name = 'MAIN_MAIL_SMTP_PORT'")
+
+    # The mail server is out of reach: nobody is invited, and the page says so in plain words.
+    stack.sql("UPDATE llx_const SET value = '1' WHERE name = 'MAIN_MAIL_SMTP_PORT'")
+    day = (datetime.date.today() + datetime.timedelta(days=20)).isoformat()
+    page_ok(browser.submit(page_ok(browser.get(base), "meetings").form(name="vereinemeeting"),
+                           {"kind": "board", "title": "Vorstandssitzung ohne Mailserver", "day": day, "time": "18:00", "format": "physical",
+                            "place": "Vereinsheim", "agenda": "Begrüßung\nBudget"}), "a board meeting")
+    meeting = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting")
+    page_ok(browser.submit(page_ok(browser.get(f"{base}?id={meeting}"), "the meeting").form(name="vereinemeetinginvite"), {"checked": "1"}),
+            "invite while the mail server is out of reach")
+    stack.sql(f"UPDATE llx_const SET value = '{port}' WHERE name = 'MAIN_MAIL_SMTP_PORT'")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the meeting after the failed invitation")
+    failed = re.search(r'data-invitations-failed="(\d+)"', page.text)
+    causes = re.findall(r'data-mail-error="([a-z]+)"', page.text)
+    shown = html.unescape(page.text)
+    expect(failed is not None and int(failed.group(1)) >= 1 and causes and set(causes) == {"connect"},
+           f"the failed invitations are not reported in plain words: failed {failed.group(1) if failed else None}, causes {causes}")
+    expect("Noch niemand ist eingeladen" in shown and "nicht erreichbar" in shown, "the page does not say that nobody was reached and why")
+    expect("\\r\\n" not in shown, "the answer of the mail server is shown with escaped line breaks")
+
+    # The association gets its own sender; the failed invitations go out again with it.
+    refused = page_ok(browser.submit(page_ok(browser.get(setup), "setup").form(name="vereinemail"), {"VEREINE_MAIL_FROM": "kein-absender"}),
+                      "a sender that is no address")
+    expect("keine gültige E-Mail-Adresse" in html.unescape(refused.text) and not stack.const("VEREINE_MAIL_FROM"), "a sender that is no address was stored")
+    page_ok(browser.submit(page_ok(browser.get(setup), "setup").form(name="vereinemail"), {"VEREINE_MAIL_FROM": "office@runtime-verein.test"}),
+            "the sender of the association")
+    expect(stack.const("VEREINE_MAIL_FROM") == "office@runtime-verein.test", "the sender of the association was not stored")
+    mail.clear()
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the meeting before sending again")
+    page_ok(browser.submit(page.form(name="vereinemeetingresend")), "send the failed invitations again")
+    proof = stack.sql(f"SELECT sent_at IS NOT NULL, attempts, error IS NULL FROM llx_vereine_meeting_invitation WHERE fk_meeting = {meeting} AND channel = 'email'")
+    messages = mail.messages()
+    senders = {message.get("From", {}).get("Address") for message in messages}
+    expect(proof and all(row == ["1", "2", "1"] for row in proof) and len(messages) == len(proof) and senders == {"office@runtime-verein.test"},
+           f"after sending again: proof {proof}, {len(messages)} e-mails from {senders}")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the meeting after sending again")
+    expect('data-invitations-failed=' not in page.text and 'data-attempts="2"' in page.text, "the meeting still reports failed invitations")
+
+    # A test e-mail tells at once whether sending works.
+    stack.sql("UPDATE llx_user SET email = 'admin@runtime-verein.test' WHERE login = 'admin'")
+    mail.clear()
+    page_ok(browser.submit(page_ok(browser.get(setup), "setup").form(name="vereinetestmail")), "send the test e-mail")
+    test = mail.messages()
+    expect(len(test) == 1 and test[0].get("From", {}).get("Address") == "office@runtime-verein.test"
+           and any(to.get("Address") == "admin@runtime-verein.test" for to in test[0].get("To", [])),
+           f"the test e-mail: {[(m.get('From'), m.get('To')) for m in test]}")
+    return ("mail server out of reach: nobody invited, said in plain words without escaped line breaks; a sender that is no address refused, "
+            "the own sender stored; failed invitations sent again with it, proof counts two attempts; test e-mail from the own sender")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -3269,7 +3326,8 @@ SCENARIOS = (
     ("resolutiondocs", "Every resolution as its own PDF, with its signature run and an excerpt of several", resolutiondocs, ("resolutions", "signatures")),
     ("circulars", "Circular resolutions of the board: only when the statutes allow, votes in Dolibarr, result in the register", circulars, ("resolutiondocs",)),
     ("meetingdocs", "Documents of a meeting: count sheet, proof of a vote, signed proxy, attachments in the minutes", meetingdocs, ("circulars",)),
-    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("meetingdocs",)),
+    ("mailsending", "E-mail of the association: own sender, failures in plain words, sent again, test e-mail", mailsending, ("meetingdocs",)),
+    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("mailsending",)),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )

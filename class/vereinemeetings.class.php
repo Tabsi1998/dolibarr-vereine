@@ -28,6 +28,7 @@ require_once __DIR__.'/vereineminutesrules.class.php';
 require_once __DIR__.'/vereinestatutes.class.php';
 require_once __DIR__.'/vereinefunctions.class.php';
 require_once __DIR__.'/vereineresolutions.class.php';
+require_once __DIR__.'/vereinemail.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 
 /**
@@ -218,7 +219,7 @@ class VereineMeetings
 	{
 		global $conf;
 
-		$sql = "SELECT fk_adherent, name, email, channel, voting, sent_at, error FROM ".MAIN_DB_PREFIX."vereine_meeting_invitation";
+		$sql = "SELECT rowid, fk_adherent, name, email, channel, voting, sent_at, error, attempts, tried_at FROM ".MAIN_DB_PREFIX."vereine_meeting_invitation";
 		$sql .= " WHERE fk_meeting = ".((int) $id)." AND entity = ".((int) $conf->entity)." ORDER BY rowid";
 		$resql = $this->db->query($sql);
 		if (!$resql) {
@@ -227,8 +228,9 @@ class VereineMeetings
 		}
 		$invitations = array();
 		while ($obj = $this->db->fetch_object($resql)) {
-			$invitations[] = array('member_id' => (int) $obj->fk_adherent, 'name' => (string) $obj->name, 'email' => (string) $obj->email, 'channel' => (string) $obj->channel,
-				'voting' => (int) $obj->voting === 1, 'sent_at' => $obj->sent_at ? $this->db->jdate($obj->sent_at) : 0, 'error' => (string) $obj->error);
+			$invitations[] = array('id' => (int) $obj->rowid, 'member_id' => (int) $obj->fk_adherent, 'name' => (string) $obj->name, 'email' => (string) $obj->email,
+				'channel' => (string) $obj->channel, 'voting' => (int) $obj->voting === 1, 'sent_at' => $obj->sent_at ? $this->db->jdate($obj->sent_at) : 0,
+				'error' => (string) $obj->error, 'attempts' => max(1, (int) $obj->attempts), 'tried_at' => $obj->tried_at ? $this->db->jdate($obj->tried_at) : 0);
 		}
 		$this->db->free($resql);
 		return $invitations;
@@ -260,7 +262,7 @@ class VereineMeetings
 		}
 		$statutes = new VereineStatutes($this->db);
 		$rules = $statutes->rules();
-		$from = getDolGlobalString('MAIN_MAIL_EMAIL_FROM', (string) $mysoc->email);
+		$from = VereineMail::sender();
 		$members = array();
 		foreach ($this->members($meeting['day']) as $member) {
 			$members[$member['id']] = $member;
@@ -322,6 +324,62 @@ class VereineMeetings
 		}
 		VereineLog::add($this->db, $user, VereineLog::MEETING_INVITED, 0, 0, $meeting['title'].': '.$written.' ('.count($letters).' letters)');
 		return $written;
+	}
+
+	/**
+	 * Send the e-mail invitations again that did not go out, for instance after the sender was corrected.
+	 *
+	 * @param int       $id          Meeting
+	 * @param User      $user        Who sends
+	 * @param Translate $outputlangs Language of the invitation
+	 * @return int Number of invitations sent now, 0 when refused (see errors), -1 on error
+	 */
+	public function resend($id, $user, $outputlangs)
+	{
+		global $conf;
+
+		$this->errors = array();
+		$meeting = $this->fetch($id);
+		if ($meeting === null || $meeting['status'] !== VereineMeetingRules::STATUS_INVITED) {
+			$this->errors[] = 'VereineMeetingErrorNotInvitedYet';
+			return 0;
+		}
+		$failed = array();
+		foreach ($this->invitations($id) as $invitation) {
+			if ($invitation['channel'] === VereineMeetingRules::CHANNEL_EMAIL && $invitation['sent_at'] === 0) {
+				$failed[] = $invitation;
+			}
+		}
+		if (!$failed) {
+			$this->errors[] = 'VereineMeetingErrorNothingFailed';
+			return 0;
+		}
+		$statutes = new VereineStatutes($this->db);
+		$rules = $statutes->rules();
+		$mail = new VereineMail($this->db);
+		$sent = 0;
+		foreach ($failed as $invitation) {
+			$recipient = array('member_id' => $invitation['member_id'], 'name' => $invitation['name'], 'email' => $invitation['email'],
+				'channel' => $invitation['channel'], 'voting' => $invitation['voting']);
+			$ok = $mail->send($outputlangs->transnoentities('VereineMeetingMailSubject', $meeting['title'], vereineMeetingDay($meeting['day'], $outputlangs).' '.$meeting['time']),
+				$invitation['email'], $this->invitationText($meeting, $recipient, $rules, $outputlangs), 'meeting'.$meeting['id']);
+			$sql = "UPDATE ".MAIN_DB_PREFIX."vereine_meeting_invitation SET attempts = attempts + 1, tried_at = '".$this->db->idate(dol_now())."',";
+			$sql .= $ok ? " sent_at = '".$this->db->idate(dol_now())."', error = NULL" : " error = '".$this->db->escape(dol_trunc($mail->error, 250, 'right', 'UTF-8', 1))."'";
+			$sql .= " WHERE rowid = ".((int) $invitation['id'])." AND entity = ".((int) $conf->entity);
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
+				return -1;
+			}
+			if ($ok) {
+				$sent++;
+			}
+		}
+		VereineLog::add($this->db, $user, VereineLog::MEETING_INVITED, 0, 0, $meeting['title'].': '.$sent.' of '.count($failed).' sent again');
+		if ($sent < 1) {
+			$this->errors[] = 'VereineMeetingErrorStillFailing';
+			return 0;
+		}
+		return $sent;
 	}
 
 	/**

@@ -65,6 +65,7 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once __DIR__.'/../lib/vereine.lib.php';
 require_once __DIR__.'/../class/vereineassociationrules.class.php';
 require_once __DIR__.'/../class/vereineorganization.class.php';
+require_once __DIR__.'/../class/vereinemail.class.php';
 
 $langs->loadLangs(array('admin', 'members', 'vereine@vereine'));
 
@@ -81,6 +82,29 @@ $action = GETPOST('action', 'aZ09');
 /*
  * Actions
  */
+
+if ($action == 'savemail') {
+	$mailer = new VereineMail($db);
+	$saved = $mailer->saveSender(GETPOST('VEREINE_MAIL_FROM', 'alphanohtml'));
+	if ($saved > 0) {
+		setEventMessages($langs->trans('VereineMailSenderSaved'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereinemail');
+		exit;
+	}
+	setEventMessages($langs->trans($saved === 0 ? 'VereineMailSenderInvalid' : 'Error'), null, 'errors');
+} elseif ($action == 'testmail') {
+	$mailer = new VereineMail($db);
+	$to = trim((string) $user->email);
+	if ($to === '') {
+		setEventMessages($langs->trans('VereineMailTestNoAddress'), null, 'errors');
+	} elseif ($mailer->send($langs->transnoentities('VereineMailTestSubject'), $to, $langs->transnoentities('VereineMailTestText', VereineMail::sender()), 'vereinetest')) {
+		setEventMessages($langs->trans('VereineMailTestSent', $to, VereineMail::sender()), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereinemail');
+		exit;
+	} else {
+		setEventMessages(null, array(VereineMail::describe($mailer->error, $langs), VereineMailRules::readable($mailer->error)), 'errors');
+	}
+}
 
 if ($action == 'update') {
 	$registerNumber = VereineAssociationRules::normalizeZvr(GETPOST('VEREINE_REGISTER_NUMBER', 'alphanohtml'));
@@ -224,6 +248,25 @@ print '</form>';
 
 print '<br>';
 print info_admin($langs->trans('VereineSetupCompanyHint').' <a href="'.DOL_URL_ROOT.'/admin/company.php">'.$langs->trans('VereineSetupCompanyLink').'</a>', 0, 0, '1', '');
+
+// E-mails of the association: invitations, minutes, circular resolutions and reminders.
+print '<br>'.load_fiche_titre($langs->trans('VereineMailTitle'), '', '', 0, 'vereinemail');
+print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineMailHowTo').'</div>';
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereinemail" name="vereinemail">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="savemail">';
+print '<table class="border centpercent"><tr><td class="titlefieldcreate"><label for="VEREINE_MAIL_FROM">'.$langs->trans('VereineMailFrom').'</label></td>';
+print '<td><input type="email" id="VEREINE_MAIL_FROM" name="VEREINE_MAIL_FROM" class="minwidth300" maxlength="128" value="'.dol_escape_htmltag(getDolGlobalString(VereineMail::CONST_FROM)).'"';
+print ' placeholder="'.dol_escape_htmltag(getDolGlobalString('MAIN_MAIL_EMAIL_FROM')).'">';
+print '<div class="opacitymedium small">'.$langs->trans('VereineMailFromHelp', dol_escape_htmltag(VereineMail::sender())).'</div></td></tr></table>';
+print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('Save')).'"></div>';
+print '</form>';
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereinemail" name="vereinetestmail" class="center paddingtop">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="testmail">';
+print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineMailTest')).'"> ';
+print '<span class="opacitymedium small">'.$langs->trans('VereineMailTestHelp', dol_escape_htmltag((string) $user->email)).'</span>';
+print '</form>';
 
 print dol_get_fiche_end();
 

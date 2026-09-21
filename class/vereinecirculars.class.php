@@ -30,6 +30,7 @@ require_once __DIR__.'/vereinemeetings.class.php';
 require_once __DIR__.'/vereineresolutions.class.php';
 require_once __DIR__.'/vereinestatutes.class.php';
 require_once __DIR__.'/vereinefunctions.class.php';
+require_once __DIR__.'/vereinemail.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 
 /**
@@ -137,7 +138,7 @@ class VereineCirculars
 			return -1;
 		}
 		$id = (int) $this->db->last_insert_id(MAIN_DB_PREFIX.'vereine_circular');
-		$from = getDolGlobalString('MAIN_MAIL_EMAIL_FROM', (string) $mysoc->email);
+		$from = VereineMail::sender();
 		foreach ($voters as $voter) {
 			$sentAt = null;
 			if ($voter['email'] !== '') {
@@ -348,7 +349,7 @@ class VereineCirculars
 			$this->errors[] = 'VereineCircularErrorNotOpen';
 			return 0;
 		}
-		$from = getDolGlobalString('MAIN_MAIL_EMAIL_FROM', (string) $mysoc->email);
+		$from = VereineMail::sender();
 		$sent = 0;
 		foreach ($this->votes($id) as $row) {
 			if ($row['voted'] > 0 || $row['email'] === '') {

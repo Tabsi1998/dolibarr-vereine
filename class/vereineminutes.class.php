@@ -27,6 +27,7 @@
 require_once __DIR__.'/vereinemeetings.class.php';
 require_once __DIR__.'/vereinesignatures.class.php';
 require_once __DIR__.'/vereinemeetingdocs.class.php';
+require_once __DIR__.'/vereinemail.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 
 /**
@@ -330,7 +331,7 @@ class VereineMinutes
 		$statutes = new VereineStatutes($this->db);
 		$kind = $audience === self::AUDIENCE_BOARD ? VereineMeetingRules::KIND_BOARD : VereineMeetingRules::KIND_GENERAL;
 		$recipients = VereineMeetingRules::recipients($kind, $meetings->members($meeting['day']), $statutes->rules());
-		$from = getDolGlobalString('MAIN_MAIL_EMAIL_FROM', (string) $mysoc->email);
+		$from = VereineMail::sender();
 		$subject = $outputlangs->transnoentities('VereineMinutesMailSubject', $meeting['title']);
 		$text = $outputlangs->transnoentities('VereineMinutesMailText', trim((string) $mysoc->name), $meeting['title'],
 			vereineMeetingDay($meeting['day'], $outputlangs));

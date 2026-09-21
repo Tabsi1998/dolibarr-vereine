@@ -13,19 +13,6 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- Who was invited to a meeting, how and when: the proof of the invitation.
-CREATE TABLE llx_vereine_meeting_invitation(
-	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
-	entity INTEGER DEFAULT 1 NOT NULL,
-	fk_meeting INTEGER NOT NULL,
-	fk_adherent INTEGER NOT NULL,
-	name VARCHAR(255) NOT NULL,
-	email VARCHAR(255),
-	channel VARCHAR(16) NOT NULL,
-	voting SMALLINT DEFAULT 1 NOT NULL,
-	sent_at DATETIME,
-	error VARCHAR(255),
-	attempts SMALLINT DEFAULT 1 NOT NULL,
-	tried_at DATETIME,
-	datec DATETIME NOT NULL
-) ENGINE=innodb;
+-- 0.5.13: a failed invitation can be sent again; the proof counts the attempts.
+ALTER TABLE llx_vereine_meeting_invitation ADD COLUMN attempts SMALLINT DEFAULT 1 NOT NULL AFTER error;
+ALTER TABLE llx_vereine_meeting_invitation ADD COLUMN tried_at DATETIME AFTER attempts;
