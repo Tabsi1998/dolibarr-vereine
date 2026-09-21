@@ -7,6 +7,12 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.5.13-beta] - 2026-09-21
+
+Sitzungen, die sich verständlich führen lassen: E-Mails, die ankommen, Punkte ohne
+Beschluss, Vereinbarungen, Schritte, eine Startseiten-Kachel und PDFs mit Logo
+(#168, #169, #170, #171, #173, #175).
+
 ### Behoben
 
 - **E-Mails, die nicht ankommen, werden verständlich** (#168): Lehnt der
@@ -66,6 +72,15 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 - **Einladung vorher lesen** (#169): Vor dem Versand lässt sich die
   Einladungs-E-Mail genau so aufklappen, wie sie hinausgeht – mit Tagesordnung,
   Ort und Fristen.
+
+### Update
+
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das
+ergänzt die Spalten für Art und Vereinbarungen der Tagesordnungspunkte und die
+Versuche der Einladungen und meldet die neue Startseiten-Kachel an. Danach bei
+*Einrichtung – Allgemein – E-Mails des Vereins* den Absender prüfen und eine
+Test-E-Mail senden. Damit die Kachel etwas zeigt, muss dein Benutzer mit deinem
+Mitglied verknüpft sein.
 
 ## [0.5.12-beta] - 2026-09-21
 
@@ -1302,7 +1317,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.12-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.13-beta...HEAD
+[0.5.13-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.13-beta
 [0.5.12-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.12-beta
 [0.5.11-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.11-beta
 [0.5.10-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.10-beta
