@@ -2905,7 +2905,7 @@ def resolutiondocs(stack: Stack) -> str:
     page = page_ok(browser.get(f"{base}?id={money}"), "the money matter")
     page_ok(browser.submit(page.form(name="vereineresolutionbuild")), "build the PDF of the money matter")
     page = page_ok(browser.get(f"{base}?id={money}"), "the money matter with its PDF")
-    page_ok(browser.submit(page.form(name=f"vereinestartsignresolution{money}")), "start the signature run of the money matter")
+    page_ok(browser.submit(page.form(name=f"vereinestartsignmoney{money}")), "start the signature run of the money matter")
     money_run = stack.sql(f"SELECT rowid, kind FROM llx_vereine_signature WHERE fk_object = {money} AND kind = 'money'")
     expect(len(money_run) == 1, f"the money matter did not get its own kind of signature run: {money_run}")
     money_roles = sorted(row[0] for row in stack.sql(f"SELECT function_code FROM llx_vereine_signature_person WHERE fk_signature = {money_run[0][0]}"))
