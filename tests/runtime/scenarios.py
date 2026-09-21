@@ -3168,7 +3168,9 @@ def mailsending(stack: Stack) -> str:
     shown = html.unescape(page.text)
     expect(failed is not None and int(failed.group(1)) >= 1 and causes and set(causes) == {"connect"},
            f"the failed invitations are not reported in plain words: failed {failed.group(1) if failed else None}, causes {causes}")
-    expect("Noch niemand ist eingeladen" in shown and "nicht erreichbar" in shown, "the page does not say that nobody was reached and why")
+    letters = stack.value(f"SELECT COUNT(*) FROM llx_vereine_meeting_invitation WHERE fk_meeting = {meeting} AND channel <> 'email'")
+    headline = "Noch niemand ist eingeladen" if letters == "0" else "Einladungen sind nicht angekommen"
+    expect(headline in shown and "nicht erreichbar" in shown, f"the page does not say who was not reached and why (letters: {letters})")
     expect("\\r\\n" not in shown, "the answer of the mail server is shown with escaped line breaks")
 
     # The association gets its own sender; the failed invitations go out again with it.
