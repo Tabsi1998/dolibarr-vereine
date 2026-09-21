@@ -7,6 +7,11 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.5.14-beta] - 2026-09-21
+
+Unterschreiben mit ID Austria: qualifiziert, rechtlich wie eigenhändig, über einen
+eigenen Signaturdienst des Vereins (#120).
+
 ### Neu
 
 - **Unterschreiben mit ID Austria** (#120): Für Dokumente, bei denen es zählt,
@@ -29,6 +34,13 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   „Verbindung prüfen“ sagt, ob er Dokumente annimmt. Ohne Adresse ist ID Austria aus, und das Modul verbindet sich mit
   keinem anderen Server. Dolibarr schickt dem Dienst das PDF selbst, der Dienst
   braucht keinen Zugriff auf Dolibarr.
+
+### Update
+
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das
+ergänzt die Spalte für den Namen im Zertifikat. Ohne eingetragenen
+Signaturdienst ändert sich nichts: ID Austria bleibt aus, alles andere
+unterschreibt wie bisher.
 
 ## [0.5.13-beta] - 2026-09-21
 
@@ -1340,7 +1352,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.13-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.14-beta...HEAD
+[0.5.14-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.14-beta
 [0.5.13-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.13-beta
 [0.5.12-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.12-beta
 [0.5.11-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.11-beta
