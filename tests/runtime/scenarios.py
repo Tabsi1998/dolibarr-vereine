@@ -2312,7 +2312,8 @@ def statutetext(stack: Stack) -> str:
     expect(draft.status == 200 and draft.body.startswith(b"%PDF") and stack.value(count) == "2" and "entwurf" not in leftovers,
            f"the draft was stored or not delivered (HTTP {draft.status}, files: {leftovers.split()})")
     logged = dict(stack.sql("SELECT action, COUNT(*) FROM llx_vereine_log WHERE action IN ('statute_text', 'statute_version') GROUP BY action"))
-    expect(logged == {"statute_text": "1", "statute_version": "2"}, f"statute log: {logged}")
+    # Two saves of the text: the purpose in the setup scenario (it belongs to the statutes, #150) and the fields here.
+    expect(logged == {"statute_text": "2", "statute_version": "2"}, f"statute log: {logged}")
     return ("empty text lacks activities; no months for exclusion refused; activities, funds and tax wording stored; preview with activities, asset purpose, "
             "interval, minimum age, exclusion and § 17; text file refused, existing statutes uploaded as version 1; version valid before its resolution refused; "
             "generated version 2 in force with PDF and hash; upload downloads unchanged; draft PDF not stored; log")
