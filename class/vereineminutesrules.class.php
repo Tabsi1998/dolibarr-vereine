@@ -30,6 +30,17 @@ require_once __DIR__.'/vereinemeetingrules.class.php';
  */
 class VereineMinutesRules
 {
+	/** Somebody reports; nothing is decided. */
+	const ITEM_REPORT = 'report';
+	/** The item is talked about; nothing is decided. */
+	const ITEM_DISCUSSION = 'discussion';
+	/** Something is decided by a vote. */
+	const ITEM_DECISION = 'decision';
+	/** Somebody is elected. */
+	const ITEM_ELECTION = 'election';
+	/** Kinds of agenda item in the order the page offers them. */
+	const ITEM_KINDS = array('report', 'discussion', 'decision', 'election');
+
 	/** Placeholders a text may use, in the order they are explained. */
 	const PLACEHOLDERS = array('verein', 'datum', 'ort', 'anwesend', 'vertreten', 'stimmen', 'stimmberechtigt', 'quorum', 'beschlussfaehig', 'ergebnis');
 	/** Longest agenda of a template. */
@@ -207,6 +218,41 @@ class VereineMinutesRules
 			}
 		}
 		return $map;
+	}
+
+	/**
+	 * The kind an agenda item has when nobody chose one, from the words of its title.
+	 *
+	 * Most items of a board meeting are reports and discussions; only where the title speaks of a
+	 * decision, an approval or an election is a vote expected.
+	 *
+	 * @param string $title Title of the agenda item
+	 * @return string One of the ITEM constants
+	 */
+	public static function kindOf($title)
+	{
+		$title = mb_strtolower((string) $title, 'UTF-8');
+		if (preg_match('/\b(wahl|wahlen|neuwahl|nachwahl)\b/u', $title)) {
+			return self::ITEM_ELECTION;
+		}
+		if (preg_match('/beschluss(?!fähig)|beschließ|genehmigung|entlastung|festsetzung|festlegung|statutenänderung|auflösung|budget|voranschlag|aufnahme|ausschluss/u', $title)) {
+			return self::ITEM_DECISION;
+		}
+		if (preg_match('/bericht|rückblick|überblick|stand\b|information/u', $title)) {
+			return self::ITEM_REPORT;
+		}
+		return self::ITEM_DISCUSSION;
+	}
+
+	/**
+	 * Whether a vote belongs to an agenda item of that kind.
+	 *
+	 * @param string $kind One of the ITEM constants
+	 * @return bool
+	 */
+	public static function votes($kind)
+	{
+		return in_array((string) $kind, array(self::ITEM_DECISION, self::ITEM_ELECTION), true);
 	}
 
 	/**

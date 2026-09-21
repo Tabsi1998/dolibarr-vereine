@@ -16,3 +16,5 @@
 -- 0.5.13: a failed invitation can be sent again; the proof counts the attempts.
 ALTER TABLE llx_vereine_meeting_invitation ADD COLUMN attempts SMALLINT DEFAULT 1 NOT NULL AFTER error;
 ALTER TABLE llx_vereine_meeting_invitation ADD COLUMN tried_at DATETIME AFTER attempts;
+-- 0.5.13: an agenda item says whether it is a report, a discussion, a decision or an election.
+ALTER TABLE llx_vereine_meeting_note ADD COLUMN kind VARCHAR(16) AFTER body;

@@ -27,6 +27,24 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 - **Gescheiterte Einladungen erneut senden** mit einem Knopf, nachdem der
   Absender stimmt; der Nachweis zählt die Versuche.
 
+### Geändert
+
+- **Nicht jeder Tagesordnungspunkt ist ein Beschluss** (#169): Jeder Punkt hat
+  jetzt eine *Art* – Bericht, Besprechung, Beschluss oder Wahl. Vorgeschlagen
+  wird sie aus der Überschrift („Bericht …" ist ein Bericht, „Budget …" ein
+  Beschluss, „Begrüßung" eine Besprechung) und lässt sich bei den Texten für das
+  Protokoll ändern.
+  - Das Abstimmungsformular bietet nur noch Beschluss- und Wahlpunkte an – nicht
+    mehr die Begrüßung.
+  - Im Protokoll steht bei einem Bericht oder einer Besprechung nicht mehr
+    „Keine Abstimmung."; ein geplanter Beschluss ohne Abstimmung wird dagegen
+    angezeigt, bevor das Protokoll fertig ist.
+  - Jeder Text stand bisher zweimal da (Feld und Vorschau). Die Vorschau zeigt
+    sich jetzt nur, wenn Platzhalter wie `{anwesend}` darin stehen.
+- **Einladung vorher lesen** (#169): Vor dem Versand lässt sich die
+  Einladungs-E-Mail genau so aufklappen, wie sie hinausgeht – mit Tagesordnung,
+  Ort und Fristen.
+
 ## [0.5.12-beta] - 2026-09-21
 
 Statuten, die zum Verein passen: der Vorstand nach dem Funktionskatalog, der

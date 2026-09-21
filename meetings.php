@@ -239,7 +239,7 @@ if ($action === 'document') {
 	}
 	$entered = null;
 } elseif ($action === 'savenotes' && $canWrite) {
-	$result = $meetings->saveNotes($id, (array) GETPOST('note', 'array:restricthtml'), $user);
+	$result = $meetings->saveNotes($id, (array) GETPOST('note', 'array:restricthtml'), $user, (array) GETPOST('kind', 'array:aZ09'));
 	if ($result > 0) {
 		setEventMessages($langs->trans('VereineMinutesSaved'), null, 'mesgs');
 		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id.'#vereinemeetingnotes');
@@ -530,13 +530,26 @@ function vereineMeetingNotes($meetings, array $meeting, $canWrite)
 		print '<input type="hidden" name="action" value="savenotes">';
 	}
 	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
-	print '<tr class="liste_titre"><td class="width25p">'.$langs->trans('VereineVoteItem').'</td><td>'.$langs->trans('VereineMinutesText').'</td></tr>';
+	print '<tr class="liste_titre"><td class="width25p">'.$langs->trans('VereineVoteItem').'</td><td>'.$langs->trans('VereineMinutesItemKind').'</td>';
+	print '<td>'.$langs->trans('VereineMinutesText').'</td></tr>';
 	foreach ($meetings->items($meeting, $langs) as $item) {
-		print '<tr class="oddeven tdtop" data-note="'.$item['item'].'" data-stored="'.($item['stored'] ? 1 : 0).'"><td>'.$item['item'].'. '.dol_escape_htmltag($item['title']).'</td><td>';
+		print '<tr class="oddeven tdtop" data-note="'.$item['item'].'" data-stored="'.($item['stored'] ? 1 : 0).'" data-item-kind="'.$item['kind'].'">';
+		print '<td>'.$item['item'].'. '.dol_escape_htmltag($item['title']).'</td><td class="nowraponall">';
+		if ($canWrite) {
+			print '<select name="kind['.$item['item'].']">';
+			foreach (VereineMinutesRules::ITEM_KINDS as $kind) {
+				print '<option value="'.$kind.'"'.($item['kind'] === $kind ? ' selected' : '').'>'.$langs->trans('VereineMinutesItemKind_'.$kind).'</option>';
+			}
+			print '</select>';
+		} else {
+			print $langs->trans('VereineMinutesItemKind_'.$item['kind']);
+		}
+		print '</td><td>';
 		if ($canWrite) {
 			print '<textarea name="note['.$item['item'].']" rows="3" class="centpercent">'.dol_escape_htmltag($item['text'], 0, 1).'</textarea>';
 		}
-		if (!$planned && $item['filled'] !== '') {
+		// The preview only helps where placeholders become real numbers; a plain text would stand there twice.
+		if (!$planned && $item['filled'] !== '' && $item['filled'] !== $item['text']) {
 			print '<div class="'.($canWrite ? 'opacitymedium small paddingtop ' : '').'" data-note-preview="'.$item['item'].'">'.nl2br(dol_escape_htmltag($item['filled'], 0, 1)).'</div>';
 		} elseif (!$canWrite) {
 			print nl2br(dol_escape_htmltag($item['text'], 0, 1));
@@ -544,6 +557,7 @@ function vereineMeetingNotes($meetings, array $meeting, $canWrite)
 		print '</td></tr>';
 	}
 	print '</table></div>';
+	print '<div class="opacitymedium small paddingtop">'.$langs->trans('VereineMinutesItemKindHelp').'</div>';
 	if ($canWrite) {
 		print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('VereineMinutesSave')).'"></div>';
 		print '</form>';
@@ -568,6 +582,19 @@ function vereineMeetingMinutes($minutes, $signatures, array $meeting, $canWrite)
 	$day = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
 	print '<br>'.load_fiche_titre($langs->trans('VereineMinutesPdfSection'), '', '', 0, 'vereinemeetingminutes');
 	print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineMinutesPdfHowTo').'</div>';
+	if ($meeting['status'] !== VereineMeetingRules::STATUS_PLANNED) {
+		$meetingsOfMinutes = new VereineMeetings($minutes->db);
+		$open = array();
+		foreach ($meetingsOfMinutes->items($meeting, $langs) as $item) {
+			if (VereineMinutesRules::votes($item['kind']) && !$item['voted']) {
+				$open[] = $item['item'].'. '.$item['title'];
+			}
+		}
+		if ($open) {
+			print '<div class="warning" data-decisions-without-vote="'.count($open).'">'.$langs->trans('VereineMinutesDecisionsWithoutVote').' ';
+			print dol_escape_htmltag(implode('; ', $open)).'</div>';
+		}
+	}
 	if ($canWrite) {
 		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'#vereinemeetingminutes" name="vereinemeetingroles">';
 		print '<input type="hidden" name="token" value="'.newToken().'">';
@@ -760,6 +787,12 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 		print '<td>'.$langs->trans('VereineMeetingChannel_'.$recipient['channel']).'</td><td>'.yn($recipient['voting']).'</td></tr>';
 	}
 	print '</table></div>';
+	if ($recipients) {
+		// Exactly the e-mail the first recipient will get, so nothing surprises after sending.
+		$preview = $meetings->invitationText($meeting, $recipients[0], $rules, $langs);
+		print '<details class="paddingtop" data-invitation-preview="1"><summary>'.$langs->trans('VereineMeetingPreview', dol_escape_htmltag($recipients[0]['name'])).'</summary>';
+		print '<div class="border" style="padding: 0.8em; white-space: pre-wrap;">'.dol_escape_htmltag($preview, 0, 1).'</div></details>';
+	}
 	vereineMeetingNotes($meetings, $meeting, $canWrite);
 	if ($canWrite) {
 		print '<br>';
@@ -920,11 +953,23 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 		print '<input type="hidden" name="token" value="'.newToken().'">';
 		print '<input type="hidden" name="action" value="savevote">';
 		print '<table class="border centpercent">';
-		print '<tr><td class="titlefieldcreate fieldrequired">'.$langs->trans('VereineVoteItem').'</td><td><select name="item">';
-		foreach ($meeting['agenda'] as $index => $item) {
-			print '<option value="'.($index + 1).'">'.($index + 1).'. '.dol_escape_htmltag($item).'</option>';
+		print '<tr><td class="titlefieldcreate fieldrequired">'.$langs->trans('VereineVoteItem').'</td><td>';
+		$votable = array();
+		foreach ($meetings->items($meeting, $langs) as $candidate) {
+			if (VereineMinutesRules::votes($candidate['kind'])) {
+				$votable[] = $candidate;
+			}
 		}
-		print '</select></td></tr>';
+		if ($votable) {
+			print '<select name="item">';
+			foreach ($votable as $candidate) {
+				print '<option value="'.$candidate['item'].'" data-vote-item-kind="'.$candidate['kind'].'">'.$candidate['item'].'. '.dol_escape_htmltag($candidate['title']).'</option>';
+			}
+			print '</select>';
+		} else {
+			print '<span class="opacitymedium" data-vote-items="0">'.$langs->trans('VereineVoteNoDecisionItems').'</span>';
+		}
+		print '</td></tr>';
 		print '<tr><td>'.$langs->trans('VereineVoteKind').'</td><td><select name="kind">';
 		foreach (VereineVoteRules::KINDS as $kind) {
 			print '<option value="'.$kind.'">'.$langs->trans('VereineVoteKind_'.$kind).'</option>';

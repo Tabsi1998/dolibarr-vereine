@@ -3201,6 +3201,39 @@ def mailsending(stack: Stack) -> str:
            f"the test e-mail: {[(m.get('From'), m.get('To')) for m in test]}")
     return ("mail server out of reach: nobody invited, said in plain words without escaped line breaks; a sender that is no address refused, "
             "the own sender stored; failed invitations sent again with it, proof counts two attempts; test e-mail from the own sender")
+def itemkinds(stack: Stack) -> str:
+    """Kinds of agenda items: most items are reports and discussions, votes only on decisions, the invitation read before it goes out."""
+    browser = stack.browser()
+    base = "/custom/vereine/meetings.php"
+    day = (datetime.date.today() + datetime.timedelta(days=30)).isoformat()
+    agenda = "Begrüßung\nBericht des Obmanns\nPlanung des Herbstes\nBudget 2027"
+    page_ok(browser.submit(page_ok(browser.get(base), "meetings").form(name="vereinemeeting"),
+                           {"kind": "board", "title": "Vorstandssitzung mit Arten", "day": day, "time": "18:00", "format": "physical",
+                            "place": "Vereinsheim", "agenda": agenda}), "a board meeting with four items")
+    meeting = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the planned meeting")
+    kinds = re.findall(r'data-note="(\d+)" data-stored="\d" data-item-kind="([a-z]+)"', page.text)
+    expect(kinds == [("1", "discussion"), ("2", "report"), ("3", "discussion"), ("4", "decision")], f"kinds suggested from the titles: {kinds}")
+    expect('data-invitation-preview="1"' in page.text and "Budget 2027" in html.unescape(page.text.split('data-invitation-preview="1"')[1][:4000]),
+           "the invitation cannot be read with its agenda before it goes out")
+
+    # The planning is a report, not a discussion: the kind is changed and kept.
+    page_ok(browser.submit(page.form(name="vereinemeetingnotes"), {"kind[3]": "report"}), "the third item is a report")
+    stored = stack.sql(f"SELECT item, kind FROM llx_vereine_meeting_note WHERE fk_meeting = {meeting} ORDER BY item")
+    expect(["3", "report"] in stored, f"stored kinds: {stored}")
+
+    # After inviting, the vote form offers only the decision.
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the meeting before inviting")
+    page_ok(browser.submit(page.form(name="vereinemeetinginvite"), {"checked": "1"}), "invite the board")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the invited meeting")
+    offered = re.findall(r'<option value="(\d+)" data-vote-item-kind="([a-z]+)"', page.text)
+    expect(offered == [("4", "decision")], f"the vote form offers {offered}, expected only the budget")
+    shown = html.unescape(page.text)
+    expect("Als Beschluss oder Wahl geplant, aber noch nicht abgestimmt" in shown and "4. Budget 2027" in shown,
+           "the minutes do not point out the decision that was not voted on")
+    expect("Keine Abstimmung." not in shown.split('data-note="2"')[1].split("</tr>")[0], "a report says there was no vote")
+    return ("kinds suggested from the titles (discussion, report, decision), changed and kept; the invitation readable with its agenda before it "
+            "goes out; the vote form offers only the decision; the minutes point out a decision without a vote and a report does not say 'no vote'")
 
 
 def apidocs(stack: Stack) -> str:
@@ -3329,7 +3362,8 @@ SCENARIOS = (
     ("circulars", "Circular resolutions of the board: only when the statutes allow, votes in Dolibarr, result in the register", circulars, ("resolutiondocs",)),
     ("meetingdocs", "Documents of a meeting: count sheet, proof of a vote, signed proxy, attachments in the minutes", meetingdocs, ("circulars",)),
     ("mailsending", "E-mail of the association: own sender, failures in plain words, sent again, test e-mail", mailsending, ("meetingdocs",)),
-    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("mailsending",)),
+    ("itemkinds", "Kinds of agenda items: reports and discussions without a vote, the invitation read before it goes out", itemkinds, ("mailsending",)),
+    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("itemkinds",)),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )

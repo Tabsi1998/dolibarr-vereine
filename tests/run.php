@@ -1479,6 +1479,7 @@ $prefixes = array(
 	'VereineAttendanceHowTo_' => array('board', 'general'),
 	'VereineVoteKind_' => VereineVoteRules::KINDS,
 	'VereineMinutesPlaceholder_' => VereineMinutesRules::PLACEHOLDERS,
+	'VereineMinutesItemKind_' => VereineMinutesRules::ITEM_KINDS,
 	'VereineSignatureKind_' => VereineSignatureRules::KINDS,
 	'VereineSignatureKindHelp_' => VereineSignatureRules::KINDS,
 	'VereineSignatureMode_' => VereineSignatureRules::MODE_LIST,
@@ -1574,6 +1575,27 @@ same('Keine Abstimmung.', VereineMinutesRules::values($meeting, $quorum, array()
 same('1', VereineMinutesRules::values(array('kind' => 'board', 'format' => 'virtual', 'place' => 'x'), array('eligible' => 2, 'present' => 0, 'represented' => 0, 'votes' => 0, 'required' => 0, 'reached' => false), array(), 'V', 'D')['quorum'],
 	'a board needs at least one member present');
 same('virtuell', VereineMinutesRules::values(array('kind' => 'board', 'format' => 'virtual', 'place' => 'x'), $quorum, array(), 'V', 'D')['ort'], 'a virtual meeting takes place virtually');
+
+// ------------------------------------------------------------- kinds of agenda items
+
+// The agenda of a real board meeting (02.10.2026): most items are reports and discussions.
+$kindsOfItems = array(
+	'Begrüßung und Feststellung der Beschlussfähigkeit' => 'discussion',
+	'Kurzer Rückblick seit der letzten Vorstandssitzung' => 'report',
+	'Bericht des Obmanns / der Vorstandsmitglieder über laufende Angelegenheiten' => 'report',
+	'Finanzieller Überblick – aktueller Kontostand, Einnahmen, Ausgaben und offene Zahlungen' => 'report',
+	'Planung des restlichen Jahres 2026' => 'discussion',
+	'Finanzplanung und Budgetrahmen für 2027' => 'decision',
+	'Festlegung konkreter Aufgaben mit Verantwortlichen und Terminen' => 'decision',
+	'Wahl des Kassiers' => 'election',
+	'Genehmigung des Rechnungsabschlusses' => 'decision',
+	'Allfälliges' => 'discussion',
+);
+foreach ($kindsOfItems as $title => $kind) {
+	same($kind, VereineMinutesRules::kindOf($title), 'the kind suggested for "'.$title.'"');
+}
+expect(VereineMinutesRules::votes('decision') && VereineMinutesRules::votes('election') && !VereineMinutesRules::votes('report') && !VereineMinutesRules::votes('discussion'),
+	'only decisions and elections are voted on');
 
 // ------------------------------------------------------------- text repair
 
