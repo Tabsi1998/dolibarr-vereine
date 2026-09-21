@@ -29,6 +29,7 @@
 require_once __DIR__.'/vereinesignaturerules.class.php';
 require_once __DIR__.'/vereinefunctions.class.php';
 require_once __DIR__.'/vereinepdf.class.php';
+require_once __DIR__.'/vereineqes.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 
 /**
@@ -89,7 +90,7 @@ class VereineSignatures
 	/**
 	 * The rules, filled in from the model statutes for the functions the catalogue has.
 	 *
-	 * @return array<string,array{roles:string[],mode:string,min:int}>
+	 * @return array<string,array{roles:string[],mode:string,min:int,sign:string}>
 	 */
 	public function rules()
 	{
@@ -253,13 +254,14 @@ class VereineSignatures
 		$run = array('id' => (int) $obj->rowid, 'kind' => (string) $obj->kind, 'object_id' => (int) $obj->fk_object, 'doc_name' => (string) $obj->doc_name,
 			'doc_sha' => (string) $obj->doc_sha, 'status' => (string) $obj->status, 'scan_name' => (string) $obj->scan_name,
 			'created' => $this->db->jdate($obj->datec), 'people' => array(), 'signed' => 0, 'needed' => 0, 'complete' => false, 'document_changed' => false);
-		$sql = "SELECT rowid, fk_adherent, function_code, function_label, person_name, signed_at, way, fk_user_signed FROM ".MAIN_DB_PREFIX."vereine_signature_person";
+		$sql = "SELECT rowid, fk_adherent, function_code, function_label, person_name, signed_at, way, qes_subject, fk_user_signed FROM ".MAIN_DB_PREFIX."vereine_signature_person";
 		$sql .= " WHERE fk_signature = ".((int) $run['id'])." ORDER BY rowid";
 		$resql = $this->db->query($sql);
 		while ($resql && ($row = $this->db->fetch_object($resql))) {
 			$run['people'][] = array('id' => (int) $row->rowid, 'member_id' => (int) $row->fk_adherent, 'role' => (string) $row->function_code,
 				'label' => (string) $row->function_label, 'name' => (string) $row->person_name,
-				'signed_at' => $row->signed_at ? $this->db->jdate($row->signed_at) : 0, 'way' => (string) $row->way, 'user_id' => (int) $row->fk_user_signed);
+				'signed_at' => $row->signed_at ? $this->db->jdate($row->signed_at) : 0, 'way' => (string) $row->way, 'subject' => (string) $row->qes_subject,
+				'user_id' => (int) $row->fk_user_signed);
 			$run['signed'] += $row->signed_at ? 1 : 0;
 		}
 		$rules = $this->rules();
@@ -291,16 +293,15 @@ class VereineSignatures
 			$this->errors[] = 'VereineSignatureErrorNotOpen';
 			return 0;
 		}
+		if (!VereineSignatureRules::allowsClick($this->rules(), $run['kind'])) {
+			$this->errors[] = 'VereineSignatureErrorQesOnly';
+			return 0;
+		}
 		if ((string) $file === '' || !is_file($file) || hash_file('sha256', $file) !== $run['doc_sha']) {
 			$this->errors[] = 'VereineSignatureErrorChanged';
 			return 0;
 		}
-		$mine = null;
-		foreach ($run['people'] as $person) {
-			if ($person['member_id'] === (int) $user->fk_member && $person['signed_at'] === 0) {
-				$mine = $person;
-			}
-		}
+		$mine = $this->openFor($run, (int) $user->fk_member);
 		if ($mine === null) {
 			$this->errors[] = 'VereineSignatureErrorNotYours';
 			return 0;
@@ -328,6 +329,98 @@ class VereineSignatures
 			return -1;
 		}
 		VereineLog::add($this->db, $user, VereineLog::SIGNATURE_SIGNED, $mine['member_id'], 0, $run['kind'].' '.$run['object_id'].': '.$mine['label']);
+		return $this->finishWhenComplete($id, $user, $outputlangs);
+	}
+
+	/**
+	 * The person of a run who still has to sign, by member.
+	 *
+	 * @param array<string,mixed> $run      Run of current() or fetch()
+	 * @param int                 $memberId Member
+	 * @return array<string,mixed>|null
+	 */
+	public function openFor(array $run, $memberId)
+	{
+		foreach ($run['people'] as $person) {
+			if ((int) $memberId > 0 && $person['member_id'] === (int) $memberId && $person['signed_at'] === 0) {
+				return $person;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Path of the document a run collects qualified signatures in. Every further signature signs this file.
+	 *
+	 * @param int $id Run
+	 * @return string
+	 */
+	public static function qesPath($id)
+	{
+		return self::directory().'/qualifiziert-'.((int) $id).'.pdf';
+	}
+
+	/**
+	 * The document a signature with ID Austria signs: the one signed so far, else the original.
+	 *
+	 * @param array<string,mixed> $run  Run
+	 * @param string              $file Original document of the run
+	 * @return string
+	 */
+	public static function qesSource(array $run, $file)
+	{
+		$signed = self::qesPath((int) $run['id']);
+		return is_file($signed) ? $signed : (string) $file;
+	}
+
+	/**
+	 * Note a qualified signature: the signed document replaces the one signed so far, and the person has signed.
+	 *
+	 * @param int       $id          Run
+	 * @param int       $memberId    Who signed
+	 * @param string    $signed      The signed document as it came back
+	 * @param string    $subject     Who the certificate names, empty when unknown
+	 * @param User      $user        Who is logged in
+	 * @param Translate $outputlangs Language of the signature sheet
+	 * @return int 1 when noted, 0 when refused (see errors), -1 on error
+	 */
+	public function signQes($id, $memberId, $signed, $subject, $user, $outputlangs)
+	{
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+
+		$this->errors = array();
+		$run = $this->fetch($id);
+		if ($run === null || $run['status'] !== self::STATUS_OPEN) {
+			$this->errors[] = 'VereineSignatureErrorNotOpen';
+			return 0;
+		}
+		if (!VereineSignatureRules::allowsQes($this->rules(), $run['kind'])) {
+			$this->errors[] = 'VereineSignatureErrorNotWanted';
+			return 0;
+		}
+		$mine = $this->openFor($run, (int) $memberId);
+		if ($mine === null) {
+			$this->errors[] = 'VereineSignatureErrorNotYours';
+			return 0;
+		}
+		if (substr((string) $signed, 0, 5) !== '%PDF-') {
+			$this->errors[] = 'VereineQesErrorNoPdf';
+			return 0;
+		}
+		$target = self::qesPath((int) $run['id']);
+		if (dol_mkdir(dirname($target)) < 0 || file_put_contents($target, (string) $signed) === false) {
+			$this->error = 'cannot write '.$target;
+			return -1;
+		}
+		dolChmod($target);
+		$sql = "UPDATE ".MAIN_DB_PREFIX."vereine_signature_person SET signed_at = '".$this->db->idate(dol_now())."', way = '".VereineSignatureRules::WAY_QES."',";
+		$sql .= " qes_subject = ".((string) $subject !== '' ? "'".$this->db->escape(mb_substr((string) $subject, 0, 255, 'UTF-8'))."'" : "NULL");
+		$sql .= ", fk_user_signed = ".((int) $user->id)." WHERE rowid = ".((int) $mine['id']);
+		if (!$this->db->query($sql)) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		VereineLog::add($this->db, $user, VereineLog::QES_SIGNED, $mine['member_id'], 0, $run['kind'].' '.$run['object_id'].': '.$mine['label'].' / '.(string) $subject);
 		return $this->finishWhenComplete($id, $user, $outputlangs);
 	}
 
@@ -511,6 +604,9 @@ class VereineSignatures
 			if ($person['signed_at'] > 0) {
 				$way = $outputlangs->transnoentitiesnoconv('VereineSignatureWay_'.($person['way'] !== '' ? $person['way'] : VereineSignatureRules::WAY_CLICK));
 				$line($outputlangs->transnoentities('VereineSignatureSheetSigned', dol_print_date($person['signed_at'], 'dayhour', 'tzserver', $outputlangs), $way));
+				if ($person['way'] === VereineSignatureRules::WAY_QES && $person['subject'] !== '') {
+					$line($outputlangs->transnoentities('VereineSignatureSheetCertificate', $person['subject']));
+				}
 			} else {
 				$line($outputlangs->transnoentities('VereineSignatureSheetOpen'));
 			}
@@ -519,6 +615,10 @@ class VereineSignatures
 		$pdf->Ln(4);
 		$pdf->SetFont($font, 'I', 8);
 		$pdf->MultiCell(0, 4, $outputlangs->transnoentities('VereineSignatureSheetNote'), 0, 'L');
+		if (is_file(self::qesPath($run['id']))) {
+			$pdf->Ln(2);
+			$pdf->MultiCell(0, 4, $outputlangs->transnoentities('VereineSignatureSheetQesNote', basename(self::qesPath($run['id']))), 0, 'L');
+		}
 
 		$file = self::sheetPath($run['id']);
 		VereinePdf::finish($pdf, $outputlangs, $outputlangs->transnoentities('VereineSignatureSheetTitle').' - '.$run['doc_name']);

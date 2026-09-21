@@ -55,6 +55,7 @@ require_once $root.'/class/vereinestatutetext.class.php';
 require_once $root.'/class/vereinemeetingrules.class.php';
 require_once $root.'/class/vereineminutesrules.class.php';
 require_once $root.'/class/vereinesignaturerules.class.php';
+require_once $root.'/class/vereineqes.class.php';
 require_once $root.'/class/vereinetextrepair.class.php';
 require_once $root.'/class/vereineattendancerules.class.php';
 require_once $root.'/class/vereinevoterules.class.php';
@@ -1397,6 +1398,58 @@ expect(in_array('money', VereineSignatureRules::KINDS, true) && count(VereineSig
 same(true, VereineResolutionRules::normalize(array('money' => '1'))['money'], 'a resolution can be marked as a money matter');
 same(false, VereineResolutionRules::normalize(array())['money'], 'without the mark it is no money matter');
 
+// ------------------------------------------------------------- signing with ID Austria
+
+$signWays = VereineSignatureRules::normalize(null, $codes);
+same('click', $signWays['letter']['sign'], 'without a setting a document is signed in Dolibarr, as before');
+$qesOnly = VereineSignatureRules::normalize(array('letter' => array('roles' => array('obmann'), 'sign' => 'qes'),
+	'minutes' => array('roles' => array('obmann'), 'sign' => 'both'), 'resolution' => array('roles' => array('obmann'), 'sign' => 'fax')), $codes);
+expect(VereineSignatureRules::allowsQes($qesOnly, 'letter') && !VereineSignatureRules::allowsClick($qesOnly, 'letter'), 'only ID Austria: no signing with the password');
+expect(VereineSignatureRules::allowsQes($qesOnly, 'minutes') && VereineSignatureRules::allowsClick($qesOnly, 'minutes'), 'both: whoever signs chooses');
+same('click', $qesOnly['resolution']['sign'], 'an unknown way falls back to Dolibarr');
+expect(!VereineSignatureRules::allowsQes(VereineSignatureRules::normalize(array('letter' => array('roles' => array(), 'sign' => 'qes')), $codes), 'letter'),
+	'a kind nobody signs offers no way to sign');
+
+$qesSettings = array('url' => 'https://signatur.example.at/pdf-as-web', 'connector' => 'mobilebku', 'key' => '', 'profile' => '');
+$qesBody = VereineQes::signRequest("%PDF-1.7\n", 'vereine-7-abc', $qesSettings, 'https://erp.example.at/custom/vereine/signature.php?qes=abc',
+	'https://erp.example.at/custom/vereine/signature.php?qes=abc&failed=1');
+same(base64_encode("%PDF-1.7\n"), $qesBody['inputData'], 'the document goes along with the request');
+same(array('mobilebku', 'https://erp.example.at/custom/vereine/signature.php?qes=abc', 'https://erp.example.at/custom/vereine/signature.php?qes=abc',
+	'https://erp.example.at/custom/vereine/signature.php?qes=abc&failed=1', '_self'),
+	array($qesBody['parameters']['connector'], $qesBody['parameters']['invoke-url'], $qesBody['parameters']['invokeURL'],
+		$qesBody['parameters']['invoke-error-url'], $qesBody['parameters']['invoke-target']), 'ID Austria: the way back under both names PDF-AS knows');
+$qesTest = VereineQes::signRequest("%PDF-1.7\n", str_repeat('x', 80), array('connector' => 'jks', 'key' => 'test', 'profile' => 'SIGNATURBLOCK_SMALL_DE') + $qesSettings, '', '');
+expect(!isset($qesTest['parameters']['invoke-url']) && $qesTest['parameters']['keyIdentifier'] === 'test' && $qesTest['parameters']['profile'] === 'SIGNATURBLOCK_SMALL_DE'
+	&& strlen($qesTest['requestID']) === 64, 'a test key store signs at once, with its key and profile, and the request id is cut to 64');
+
+same(array('redirect' => 'https://signatur.example.at/pdf-as-web/Sign?id=1', 'signed' => '', 'error' => ''),
+	VereineQes::readSignAnswer(array('requestID' => 'x', 'redirectUrl' => 'https://signatur.example.at/pdf-as-web/Sign?id=1')), 'ID Austria: the person is sent on');
+same("%PDF-1.7 signed", VereineQes::readSignAnswer(array('signedPDF' => base64_encode("%PDF-1.7 signed")))['signed'], 'a test key store: the signed document at once');
+same(array('redirect' => '', 'signed' => '', 'error' => 'no PDF'), VereineQes::readSignAnswer(array('signedPDF' => base64_encode('<html>'))), 'something else than a PDF is refused');
+same('', VereineQes::readSignAnswer(array('redirectUrl' => 'javascript:alert(1)'))['redirect'], 'only a web address is followed');
+same('connector not allowed', VereineQes::readSignAnswer(array('error' => 'connector not allowed'))['error'], 'an error of the service is passed on');
+
+// The codes of an MOA signature check, as the PDF-AS handbook lists them.
+$qesRead = VereineQes::readVerifyAnswer(array('verifyResults' => array(
+	array('signatureIndex' => 1, 'signedBy' => 'CN=Max Muster,C=AT', 'valueCode' => 0, 'certificateCode' => 3, 'certificateMessage' => 'Status unbekannt'),
+	array('signatureIndex' => 0, 'signedBy' => 'CN=Erika Muster,O=Testdienst,C=AT', 'valueCode' => 0, 'certificateCode' => 0),
+	array('signatureIndex' => 2, 'signedBy' => 'CN=Gesperrt\, Paula,C=AT', 'valueCode' => 0, 'certificateCode' => 5),
+	array('signatureIndex' => 3, 'signedBy' => 'CN=Verändert,C=AT', 'valueCode' => 1, 'certificateCode' => 0),
+)));
+same(array('Erika Muster', 'Max Muster', 'Gesperrt, Paula', 'Verändert'), array_column($qesRead, 'name'), 'in the order of signing, with the common name');
+same(array('valid', 'unclear', 'invalid', 'invalid'), array_column($qesRead, 'state'),
+	'valid only with an intact value and a valid chain; status unknown is unclear; suspended (5) and changed documents are not valid');
+same(array(true, true, true, false), array_column($qesRead, 'intact'), 'intact says whether the document changed after that signature');
+same('Status unbekannt', $qesRead[1]['message'], 'the message of the service is kept');
+same(array(), VereineQes::readVerifyAnswer('<html>'), 'an answer without results reads as no signature');
+same('O=Verein', VereineQes::commonName('O=Verein'), 'a subject without a name stays as it is');
+
+expect(VereineQes::sameService('https://signatur.example.at/pdf-as-web', 'https://signatur.example.at:443/pdf-as-web/PDFData?id=1'), 'same host, same port');
+expect(!VereineQes::sameService('https://signatur.example.at/pdf-as-web', 'https://evil.example.at/PDFData'), 'another host is no signature service');
+expect(!VereineQes::sameService('https://signatur.example.at/pdf-as-web', 'http://signatur.example.at/PDFData'), 'another scheme is no signature service');
+expect(!VereineQes::sameService('http://127.0.0.1/pdf-as', 'http://127.0.0.1:8080/pdf-as/PDFData'), 'another port is no signature service');
+expect(!VereineQes::sameService('https://signatur.example.at', 'https://user:pw@signatur.example.at/PDFData'), 'no address with a login in it');
+
 // ------------------------------------------------------------ language files
 
 // The module speaks German; en_US is an exact copy so an English interface shows German, not keys.
@@ -1455,7 +1508,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
@@ -1488,7 +1541,10 @@ $prefixes = array(
 	'VereineSignatureKind_' => VereineSignatureRules::KINDS,
 	'VereineSignatureKindHelp_' => VereineSignatureRules::KINDS,
 	'VereineSignatureMode_' => VereineSignatureRules::MODE_LIST,
-	'VereineSignatureWay_' => array('click', 'paper'),
+	'VereineSignatureWay_' => array('click', 'paper', 'qes'),
+	'VereineSignatureSign_' => VereineSignatureRules::SIGN_WAYS,
+	'VereineQesConnector_' => VereineQes::CONNECTORS,
+	'VereineQesState_' => array(VereineQes::STATE_VALID, VereineQes::STATE_UNCLEAR, VereineQes::STATE_INVALID),
 	'VereineResolutionCategory_' => VereineResolutionRules::CATEGORIES,
 	'VereineCircularChoice_' => VereineCircularRules::CHOICES,
 	'VereineMeetingDocKind_' => VereineMeetingDocRules::KINDS,

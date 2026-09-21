@@ -65,6 +65,8 @@ class VereineLog
 	const MEETING_ATTENDANCE = 'meeting_attendance';
 	const MEETING_VOTE = 'meeting_vote';
 	const SIGNATURE_RULES = 'signature_rules';
+	const QES_SETUP = 'qes_setup';
+	const QES_SIGNED = 'qes_signed';
 	const SIGNATURE_STARTED = 'signature_started';
 	const SIGNATURE_SIGNED = 'signature_signed';
 	const SIGNATURE_DONE = 'signature_done';

@@ -35,7 +35,7 @@ php tests/run.php
 
 # The pages a browser opens. Every one loads Dolibarr, refuses when the module
 # is off and checks a right or administrator status before it does anything.
-pages=(vereineindex.php partners.php fees_run.php functions.php authority.php meetings.php resolutions.php circulars.php admin/functions.php partner_membership.php member_association.php admin/setup.php admin/partners.php admin/taxprofiles.php admin/fees.php admin/consents.php admin/statutes.php admin/meetings.php admin/signatures.php admin/api.php admin/about.php)
+pages=(vereineindex.php partners.php fees_run.php functions.php authority.php meetings.php resolutions.php circulars.php signature.php admin/functions.php partner_membership.php member_association.php admin/setup.php admin/partners.php admin/taxprofiles.php admin/fees.php admin/consents.php admin/statutes.php admin/meetings.php admin/signatures.php admin/api.php admin/about.php)
 for page in "${pages[@]}"; do
   grep -qi 'include of main fails' "$page" || fail "$page does not load main.inc.php"
   grep -q "isModEnabled('vereine')" "$page" || fail "$page does not refuse when the module is disabled"
@@ -75,9 +75,18 @@ fi
 if module_code | xargs -0 grep -nE '\b(eval|exec|shell_exec|system|passthru|popen|proc_open|assert|create_function)[[:space:]]*\('; then
   fail "code execution functions are not allowed in the module"
 fi
-if module_code | xargs -0 grep -nE '\bbase64_decode[[:space:]]*\(|\b(curl_init|fsockopen|getURLContent)[[:space:]]*\(|file_get_contents[[:space:]]*\([[:space:]]*["'"'"']https?:'; then
+# One file is the exception, below: the signature service for ID Austria.
+if module_code | xargs -0 grep -nE '\bbase64_decode[[:space:]]*\(|\b(curl_init|fsockopen|getURLContent)[[:space:]]*\(|file_get_contents[[:space:]]*\([[:space:]]*["'"'"']https?:' \
+  | grep -v '^\./class/vereineqes\.class\.php:'; then
   fail "the module must not decode hidden code or call other servers"
 fi
+# The signature service for ID Austria runs at the address an administrator enters in the setup; it is
+# empty by default, so nothing is called. Only this file talks to it, and only to that address.
+qes=./class/vereineqes.class.php
+[ "$( (grep -o 'getURLContent(' "$qes" || true) | wc -l)" -eq 2 ] || fail "$qes calls other servers in more places than the two reviewed ones"
+grep -qF "getURLContent(self::settings()['url'].\$path" "$qes" || fail "$qes posts somewhere else than to the signature service that is set up"
+grep -qF "self::sameService(\$settings['url'], (string) \$pdfurl)" "$qes" || fail "$qes fetches a signed document without checking its address"
+[ "$( (grep -o 'base64_decode(' "$qes" || true) | wc -l)" -eq 1 ] || fail "$qes decodes more than the signed document of the service"
 if module_code | xargs -0 grep -nE 'DOL_DOCUMENT_ROOT[^;]*(fopen|file_put_contents|mkdir|dol_mkdir)|(fopen|file_put_contents)[[:space:]]*\([^;]*DOL_DOCUMENT_ROOT'; then
   fail "the module writes only below DOL_DATA_ROOT, never into the program folder"
 fi

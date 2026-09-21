@@ -13,17 +13,5 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- One person who has to sign a document, with when and how the signature was given.
-CREATE TABLE llx_vereine_signature_person(
-	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
-	entity INTEGER DEFAULT 1 NOT NULL,
-	fk_signature INTEGER NOT NULL,
-	fk_adherent INTEGER NOT NULL,
-	function_code VARCHAR(32) NOT NULL,
-	function_label VARCHAR(255) NOT NULL,
-	person_name VARCHAR(255) NOT NULL,
-	signed_at DATETIME,
-	way VARCHAR(16),
-	qes_subject VARCHAR(255),
-	fk_user_signed INTEGER
-) ENGINE=innodb;
+-- 0.5.14: a signature with ID Austria keeps who the certificate named.
+ALTER TABLE llx_vereine_signature_person ADD COLUMN qes_subject VARCHAR(255) AFTER way;
