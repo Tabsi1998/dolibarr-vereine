@@ -276,12 +276,13 @@ if ($stage === 'invoicing') {
 	$admin->getrights();
 	$countryId = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
 	$profile = array();
-	foreach (array('MITGLIEDSBEITRAG', 'BETRIEB_20', 'VEREINSFEST') as $code) {
+	foreach (array('MITGLIEDSBEITRAG', 'BETRIEB_20', 'VEREINSFEST', 'KLEINUNTERNEHMER') as $code) {
 		$profile[$code] = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."vereine_taxprofile WHERE code = '".$code."'");
 	}
 
 	$products = array();
-	foreach (array('fee' => array('RT-BEITRAG', 'Mitgliedsbeitrag 2027', 1, 50, 20, 'MITGLIEDSBEITRAG'), 'drink' => array('RT-GETRAENK', 'Getränk Kantine', 0, 3, 10, 'BETRIEB_20')) as $key => $data) {
+	foreach (array('fee' => array('RT-BEITRAG', 'Mitgliedsbeitrag 2027', 1, 50, 20, 'MITGLIEDSBEITRAG'), 'drink' => array('RT-GETRAENK', 'Getränk Kantine', 0, 3, 10, 'BETRIEB_20'),
+		'shirt' => array('RT-TRIKOT', 'Vereinstrikot', 0, 25, 0, 'KLEINUNTERNEHMER')) as $key => $data) {
 		$product = new Product($db);
 		$product->ref = $data[0];
 		$product->label = $data[1];
@@ -342,6 +343,10 @@ if ($stage === 'invoicing') {
 	$result = $supplierInvoice->addline('Getränke Einkauf', 2, 20, 0, 0, 10, $products['drink']);
 	if ($result <= 0) {
 		rt_fail('supplier invoice line: '.$supplierInvoice->error);
+	}
+	// Sold at 0 % as a small business, bought at 20 %: the supplier's VAT is right (#53).
+	if ($supplierInvoice->addline('Trikots Einkauf', 15, 20, 0, 0, 10, $products['shirt']) <= 0) {
+		rt_fail('supplier invoice line of the shirts: '.$supplierInvoice->error);
 	}
 
 	print json_encode(array(

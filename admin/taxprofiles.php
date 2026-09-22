@@ -241,6 +241,9 @@ foreach ($profiles->fetchAll() as $profile) {
 print '</table></div><br>';
 
 // What each area and each VAT treatment means, in everyday words with the ministry's examples.
+if (isModEnabled('invoice') && $user->hasRight('facture', 'lire')) {
+	print '<div class="paddingbottom" data-taxcheck-link="1"><a class="butAction" href="'.dol_buildpath('/vereine/taxcheck.php', 1).'">'.$langs->trans('VereineTaxCheckOpen').'</a></div>';
+}
 print load_fiche_titre($langs->trans('VereineTaxSpheresTitle'), '', '');
 print '<table class="noborder centpercent">';
 foreach ($spheres as $code => $sphere) {

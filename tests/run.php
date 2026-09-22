@@ -57,6 +57,7 @@ require_once $root.'/class/vereineminutesrules.class.php';
 require_once $root.'/class/vereinesignaturerules.class.php';
 require_once $root.'/class/vereineqes.class.php';
 require_once $root.'/class/vereinemailtemplates.class.php';
+require_once $root.'/class/vereinetaxcheckrules.class.php';
 require_once $root.'/class/vereinetextrepair.class.php';
 require_once $root.'/class/vereineattendancerules.class.php';
 require_once $root.'/class/vereinevoterules.class.php';
@@ -1576,6 +1577,30 @@ same("Hallo <b>__VEREINE_UNBEKANNT__</b><br>A &amp; B<br>\nC", VereinePlaceholde
 same("Hallo Erika,\nschön & gut\nGruß", VereineMailTemplates::plain("<p>Hallo Erika,<br>schön &amp; gut</p>\n<p>Gruß</p>"), 'an HTML template as text for a letter');
 same("keine\nÄnderung", VereineMailTemplates::plain("keine\nÄnderung"), 'plain text stays as it is');
 
+// ------------------------------------------------------------- tax profiles of older invoice lines
+
+$tcCodes = array('MITGLIEDSBEITRAG' => 1, 'SPENDE' => 2, 'BETRIEB_20' => 6);
+$tcLine = array('product_profile' => 0, 'fee' => false, 'source_profile' => 0, 'text' => '');
+same(array('profile' => 6, 'certain' => true, 'reason' => 'product'), VereineTaxCheckRules::suggest(array('product_profile' => 6, 'fee' => true) + $tcLine, $tcCodes),
+	'the product has a profile: that one, ticked');
+same(array('profile' => 1, 'certain' => true, 'reason' => 'fee'), VereineTaxCheckRules::suggest(array('fee' => true) + $tcLine, $tcCodes), 'an invoice of a membership fee');
+same(array('profile' => 6, 'certain' => true, 'reason' => 'credit'), VereineTaxCheckRules::suggest(array('source_profile' => 6) + $tcLine, $tcCodes), 'a credit note of a line with a profile');
+same(array('profile' => 1, 'certain' => false, 'reason' => 'member'), VereineTaxCheckRules::suggest(array('text' => 'Mitgliedsbeitrag 2025 Jugend') + $tcLine, $tcCodes),
+	'the word membership fee only preselects');
+same('donation', VereineTaxCheckRules::suggest(array('text' => 'Spende Sommerfest') + $tcLine, $tcCodes)['reason'], 'a donation by its word');
+same('manual', VereineTaxCheckRules::suggest(array('text' => 'Spendenlauf Startgeld') + $tcLine, $tcCodes)['reason'], 'a word that only contains donation is no donation');
+foreach (array('Sponsoring Trikotwerbung', 'Vereinstrikot', 'Getränke Sommerfest', 'Turnierbeitrag') as $tcText) {
+	same(array('profile' => 0, 'certain' => false, 'reason' => 'manual'), VereineTaxCheckRules::suggest(array('text' => $tcText) + $tcLine, $tcCodes), 'to check by hand: '.$tcText);
+}
+same('manual', VereineTaxCheckRules::suggest(array('fee' => true) + $tcLine, array())['reason'], 'without an active membership fee profile nothing is suggested');
+same(array(0 => array('count' => 1, 'total' => 20.0), 1 => array('count' => 2, 'total' => 100.5)), VereineTaxCheckRules::totals(array(
+	array('suggestion' => array('profile' => 1), 'total' => 50.25), array('suggestion' => array('profile' => 0), 'total' => 20), array('suggestion' => array('profile' => 1), 'total' => 50.25))),
+	'the preview counts and sums by suggested profile');
+same(6, VereineTaxCheckRules::sourceProfile(9, array(array('product' => 8, 'profile' => 1), array('product' => 9, 'profile' => 6))), 'the credit note takes the line with its product');
+same(1, VereineTaxCheckRules::sourceProfile(0, array(array('product' => 0, 'profile' => 1), array('product' => 3, 'profile' => 1), array('product' => 4, 'profile' => 0))),
+	'a free line takes the one profile of the original');
+same(0, VereineTaxCheckRules::sourceProfile(0, array(array('product' => 0, 'profile' => 1), array('product' => 3, 'profile' => 6))), 'two profiles on the original: not clear');
+
 // ------------------------------------------------------------ language files
 
 // The module speaks German; en_US is an exact copy so an English interface shows German, not keys.
@@ -1634,7 +1659,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
@@ -1675,6 +1700,7 @@ $prefixes = array(
 	'VereineMailTemplateType_' => VereineMailTemplates::TYPES,
 	'VereineMailTemplateState_' => array('standard', 'unchanged', 'changed'),
 	'VereinePlaceholderGroup_' => array_keys(VereinePlaceholders::KEYS),
+	'VereineTaxCheckReason_' => VereineTaxCheckRules::REASONS,
 	'VereinePh_' => array_map(function ($key) {
 		return substr(VereinePlaceholders::describedBy($key), strlen('VereinePh_'));
 	}, array_merge(VereinePlaceholders::KEYS['association'], VereinePlaceholders::KEYS['member'], VereinePlaceholders::KEYS['meeting'], VereinePlaceholders::KEYS['circular'])),

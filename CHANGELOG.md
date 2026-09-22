@@ -7,6 +7,31 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Behoben
+
+- **Lieferantenrechnungen ohne falsche Steuerwarnung** (#53): Ein Steuerprofil
+  beschreibt, was der Verein verkauft. Eine Lieferantenrechnung hat ihre eigene
+  Umsatzsteuer: Ein Trikot, das der Verein als Kleinunternehmer mit 0 % verkauft,
+  kauft er mit 20 % ein. Lieferantenzeilen bekommen deshalb kein Verkaufsprofil
+  mehr und werden nicht mehr dagegen geprüft. Stattdessen gibt es das Feld
+  **„Ausgabe für Bereich“** (ideell, Vermögensverwaltung, Hilfsbetrieb, Fest,
+  Betrieb). Es wird aus dem Produkt vorgeschlagen und ist für die spätere
+  Einnahmen-Ausgaben-Rechnung gedacht. Frühere Werte bleiben erhalten,
+  ausgeblendet.
+
+### Neu
+
+- **Steuerprofile prüfen und nachtragen** (#57): Rechnungszeilen aus der Zeit vor
+  den Steuerprofilen fehlen bei der Ampel. Die neue Seite zeigt je Jahr alle
+  Zeilen ohne Profil mit einem Vorschlag und einer Vorschau (Anzahl und Summe je
+  Profil). Angehakt sind nur eindeutige Fälle: Das Produkt hat ein Profil, die
+  Rechnung gehört zu einem Mitgliedsbeitrag, oder die Gutschrift gehört zu einer
+  Zeile mit Profil. Alles andere prüfst du selbst. Geändert wird nur die
+  Zuordnung, nie Betrag, Umsatzsteuer oder Status, und jede Zuordnung steht im
+  Protokoll. Dazu kommen Produkte ohne Profil und Zeilen, deren Umsatzsteuer
+  nicht zum Profil passt. Erreichbar über den Hinweis „nicht zugeordnet“ in der
+  Vereinsübersicht und über die Steuerprofile.
+
 ## [0.5.15-beta] - 2026-09-22
 
 Platzhalter für Vereinsdaten in allen E-Mail-Vorlagen von Dolibarr; Einladung, Protokoll und

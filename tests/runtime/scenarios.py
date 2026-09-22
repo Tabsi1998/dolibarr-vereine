@@ -813,8 +813,12 @@ def taxassign(stack: Stack) -> str:
     expected = [["Mitgliedsbeitrag 2027", str(profiles["MITGLIEDSBEITRAG"])], ["Getränk Kantine", str(profiles["BETRIEB_20"])],
                 ["Buffet Sommerfest", str(profiles["VEREINSFEST"])]]
     expect(lines == expected, f"invoice lines and their tax profiles: {lines}")
-    supplier = line_profiles("facture_fourn_det", "fk_facture_fourn", data["supplier_invoice"])
-    expect(supplier == [["Getränke Einkauf", str(profiles["BETRIEB_20"])]], f"supplier invoice line and its tax profile: {supplier}")
+    # A supplier's line takes no sales profile (#53), but the area of the expense from the product's profile.
+    supplier = stack.sql(f"SELECT d.description, e.vereine_taxprofile, e.vereine_expense_sphere FROM llx_facture_fourn_det as d LEFT JOIN "
+                         f"llx_facture_fourn_det_extrafields as e ON e.fk_object = d.rowid WHERE d.fk_facture_fourn = {int(data['supplier_invoice'])} ORDER BY d.rowid")
+    expect(supplier == [["Getränke Einkauf", "NULL", "harmful"], ["Trikots Einkauf", "NULL", "harmful"]], f"supplier invoice lines: {supplier}")
+    hidden = stack.value("SELECT list FROM llx_extrafields WHERE name = 'vereine_taxprofile' AND elementtype = 'facture_fourn_det'")
+    expect(hidden == "0", f"the sales profile is still shown on supplier lines: list = {hidden}")
 
     browser = stack.browser()
     card = page_ok(browser.get(f"/compta/facture/card.php?id={int(data['invoice'])}"), "customer invoice")
@@ -823,7 +827,7 @@ def taxassign(stack: Stack) -> str:
     expect("Getränk Kantine" in text and "Umsatzsteuer passt nicht zum Steuerprofil" in text,
            "the warning does not name the canteen drink in German")
     supplier_card = page_ok(browser.get(f"/fourn/facture/card.php?facid={int(data['supplier_invoice'])}"), "supplier invoice")
-    expect("data-taxprofile-warning" not in supplier_card.text, "a supplier invoice whose VAT matches its profile shows a warning")
+    expect("data-taxprofile-warning" not in supplier_card.text, "shirts bought at 20 % and sold at 0 % are reported on the supplier's invoice")
 
     # The product card offers active profiles only; choosing one there changes the VAT rate.
     product_card = page_ok(browser.get(f"/product/card.php?id={int(products['drink'])}"), "product card")
@@ -842,7 +846,8 @@ def taxassign(stack: Stack) -> str:
     ids = {profile.get("code"): profile.get("id") for profile in body} if status == 200 else {}
     expect(ids.get("BETRIEB_20") == profiles["BETRIEB_20"], f"GET vereine/taxprofiles does not give the id of BETRIEB_20: {ids}")
     return ("extra field on products and invoice lines; product VAT and gross price follow the profile; new lines take the "
-            "product's profile; one differing line reported on the invoice; product card offers active profiles only")
+            "product's profile; one differing line reported on the invoice; supplier lines get the area of the expense, no sales profile "
+            "and no warning; product card offers active profiles only")
 
 
 def pdf_text(stack: Stack, directory: str) -> str:
@@ -2891,6 +2896,41 @@ def placeholders(stack: Stack) -> str:
             "with the ZVR number and Dolibarr's company name filled in")
 
 
+def taxcheck(stack: Stack) -> str:
+    """Older invoice lines without a tax profile: suggestions from facts, a preview, assigning only the profile."""
+    browser = stack.browser()
+    base = "/custom/vereine/taxcheck.php"
+    fee = stack.sql("SELECT d.rowid, YEAR(f.datef), f.rowid FROM llx_facturedet as d INNER JOIN llx_facture as f ON f.rowid = d.fk_facture"
+                    " INNER JOIN llx_element_element as ee ON ee.fk_target = f.rowid AND ee.sourcetype = 'subscription' AND ee.targettype = 'facture'"
+                    " LEFT JOIN llx_facturedet_extrafields as e ON e.fk_object = d.rowid WHERE f.fk_statut > 0"
+                    " AND (e.vereine_taxprofile IS NULL OR e.vereine_taxprofile = 0) ORDER BY d.rowid LIMIT 1")
+    expect(fee, "the fee scenarios should leave a fee invoice line without a tax profile")
+    line, year, invoice = fee[0]
+    page = page_ok(browser.get(f"{base}?year={year}"), "the check of the tax profiles")
+    rows = {row[0]: row[1:] for row in re.findall(r'data-taxcheck-line="(\d+)" data-suggested="(\d+)" data-reason="([a-z]+)" data-certain="(\d)"', page.text)}
+    expect(line in rows and rows[line][1] in ("fee", "product") and rows[line][2] == "1", f"the fee line and its suggestion: {rows.get(line)}")
+    expect('data-taxcheck-preview="1"' in page.text, "no preview by profile")
+    manual = [key for key, value in rows.items() if value[1] == "manual"]
+    expect(all(rows[key][2] == "0" for key in manual), "a line to check by hand is ticked")
+
+    before = stack.sql(f"SELECT total_ht, total_tva, total_ttc, fk_statut, paye FROM llx_facture WHERE rowid = {invoice}")
+    line_before = stack.sql(f"SELECT total_ht, tva_tx FROM llx_facturedet WHERE rowid = {line}")
+    page_ok(browser.post(f"{base}?year={year}", [("token", token_of(page)), ("action", "assign"), (f"line[{line}]", "1"), (f"profile[{line}]", rows[line][0])]),
+            "assign the fee line")
+    stored = stack.value(f"SELECT vereine_taxprofile FROM llx_facturedet_extrafields WHERE fk_object = {line}")
+    expect(stored == rows[line][0], f"the fee line did not get its profile: {stored}")
+    expect(stack.sql(f"SELECT total_ht, total_tva, total_ttc, fk_statut, paye FROM llx_facture WHERE rowid = {invoice}") == before
+           and stack.sql(f"SELECT total_ht, tva_tx FROM llx_facturedet WHERE rowid = {line}") == line_before, "the invoice changed with its tax profile")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_log WHERE action = 'tax_profile_set'") == "1", "the assignment is not in the log")
+    again = page_ok(browser.get(f"{base}?year={year}"), "the check after assigning")
+    expect(f'data-taxcheck-line="{line}"' not in again.text, "an assigned line is still listed")
+    refused = page_ok(browser.post(f"{base}?year={year}", [("token", token_of(again)), ("action", "assign"), (f"line[{line}]", "1"),
+                                                         (f"profile[{line}]", rows[line][0])]), "assign the same line again")
+    expect("Keine Zeile zugeordnet" in html.unescape(refused.text), "a line with a profile was assigned again")
+    return (f"{len(rows)} lines of {year} without profile, the fee line suggested and ticked, {len(manual)} left to check by hand; "
+            "only the profile field changed, invoice and line as before, logged; a line with a profile is not assigned again")
+
+
 def minutestexts(stack: Stack) -> str:
     """Agenda templates with required items, a new meeting from a template, texts per item with the real numbers, texts follow a reordered agenda."""
     browser = stack.browser()
@@ -3623,7 +3663,8 @@ SCENARIOS = (
     ("agreements", "Who does what until when: agreements per agenda item, to-dos of Dolibarr, taken over by a vote; the logo on the PDFs", agreements, ("itemkinds",)),
     ("qes", "ID Austria: signature service in the setup, two people sign one PDF, cancel, a way back used twice, a changed PDF", qes, ("agreements",)),
     ("placeholders", "Placeholders: association data in Dolibarr's e-mail templates, the module's e-mails as templates, one list with examples", placeholders, ("qes",)),
-    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("placeholders",)),
+    ("taxcheck", "Older invoice lines without a tax profile: suggestions from facts, a preview, assigning only the profile", taxcheck, ("placeholders",)),
+    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("taxcheck",)),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
