@@ -269,6 +269,21 @@ class modVereine extends DolibarrModules
 			'target' => '',
 			'user' => 0,
 		);
+		// The declaration of consent to print.
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
+			'titre' => 'VereineMenuConsentForm',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_consentform',
+			'url' => '/vereine/consents.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->hasRight("vereine", "association", "read")',
+			'target' => '',
+			'user' => 0,
+		);
 		// The blank application for membership, one per member type.
 		$this->menu[$r++] = array(
 			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
