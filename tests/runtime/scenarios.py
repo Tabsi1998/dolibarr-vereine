@@ -338,6 +338,7 @@ def enable(stack: Stack) -> str:
                       ["49210004", "application", "write"]], f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_account", "/vereine/account.php"],
+                    ["members", "vereine_application", "/vereine/application.php"],
                     ["members", "vereine_audit", "/vereine/audit.php"],
                     ["members", "vereine_authority", "/vereine/authority.php"],
                     ["members", "vereine_circulars", "/vereine/circulars.php"],
@@ -358,7 +359,7 @@ def enable(stack: Stack) -> str:
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
     return (f"module {stack.module_version} on with Members, third parties and categories; no country profile; "
-            "4 rights, 11 menu entries, log table, 3 categories")
+            "4 rights, 12 menu entries, log table, 3 categories")
 
 
 def pages(stack: Stack) -> str:
@@ -3141,6 +3142,62 @@ def history(stack: Stack) -> str:
             "their own date, a second run made none")
 
 
+def application(stack: Stack) -> str:
+    """The application for membership: blank per member type, filled in on Dolibarr's member card, texts and consents from Dolibarr (#108)."""
+    browser = stack.browser()
+    base = "/custom/vereine/application.php"
+    setup = "/custom/vereine/admin/application.php"
+    member = int(stack.notes["website"]["members"]["paid"])
+    type_id = stack.value(f"SELECT fk_adherent_type FROM llx_adherent WHERE rowid = {member}")
+    page = page_ok(browser.get(base), "the blank applications")
+    expect('data-application-texts="0"' in page.text, "the page does not say that the texts of the association are missing")
+    built = dict(re.findall(r'data-application-type="(\d+)" data-application-pdf="(\d)"', page.text))
+    expect(built.get(type_id) == "0", f"applications before building: {built}")
+
+    # What the association writes itself; everything else comes from Dolibarr.
+    page_ok(browser.submit(page_ok(browser.get(setup), "application setup").form(name="vereineapplicationsetup"),
+                           {"intro": "Bitte im Vereinsheim abgeben.", "privacy": "Die Daten dienen nur der Mitgliederverwaltung.",
+                            "privacy_url": "https://runtime-verein.test/datenschutz", "required[]": "birth"}, drop=("required[]",)), "store the texts")
+    expect((stack.const("VEREINE_APPLICATION_REQUIRED"), stack.const("VEREINE_APPLICATION_PRIVACY_URL"))
+           == ("birth", "https://runtime-verein.test/datenschutz"), "the texts of the application were not stored")
+
+    page = page_ok(browser.get(base), "the applications after the texts")
+    expect('data-application-texts="0"' not in page.text, "the page still misses the texts of the association")
+    page_ok(browser.submit(page.form(name=f"vereineapplication{type_id}")), "build the blank application")
+    blank = pdf_text(stack, "vereine/application")
+    for word in ("Mitgliedsantrag", "Statuten", "Vereinsheim", "Datenschutz", "Fotos", "ZVR"):
+        expect(word in blank, f"the blank application lacks {word!r}")
+    expect("Bezahlt" not in blank, "the blank application carries the data of a member")
+
+    # Dolibarr's member card offers the template and fills it in.
+    card = page_ok(browser.get(f"/adherents/card.php?id={member}"), "member card")
+    expect("vereineantrag" in card.text, "Dolibarr's member card does not offer the application template of the module")
+    page_ok(browser.post(f"/adherents/card.php?id={member}", [("token", token_of(card)), ("action", "builddoc"), ("model", "vereineantrag")]),
+            "build the application of the member")
+    filled = pdf_text(stack, "adherent")
+    for word in ("Mitgliedsantrag", "Bezahlt", "Vereinsheim"):
+        expect(word in filled, f"the application of the member lacks {word!r}")
+    logged = stack.value(f"SELECT COUNT(*) FROM llx_vereine_log WHERE fk_adherent = {member} AND action = 'application_pdf'")
+    expect(logged == "1", f"{logged} entries about the application of the member, expected 1")
+
+    # A new version of a consent text reaches the form without a change in the code.
+    page_ok(browser.submit(page_ok(browser.get("/custom/vereine/admin/consents.php"), "consent setup").form(name="vereineconsenttext"),
+                           {"code": "newsletter", "label": "Newsletter", "text": "Der Newsletter des Vereins darf an meine E-Mail-Adresse gehen, neu gefasst."}),
+            "a new version of the newsletter consent")
+    page_ok(browser.submit(page_ok(browser.get(base), "applications").form(name=f"vereineapplication{type_id}")), "build the blank application again")
+    blank = pdf_text(stack, "vereine/application")
+    expect("neu gefasst" in blank and "(v2)" in blank, "the new version of the consent is not on the form")
+
+    reader = stack.browser("rtreader")
+    page = page_ok(reader.get(base), "the applications for somebody who may only read members")
+    expect(f'name="vereineapplication{type_id}"' not in page.text, "somebody who may not change members gets the way to build")
+    expect(denied(reader.get(setup)), "a non-administrator opens the setup of the application")
+    expect(denied(stack.browser("rtnobody").get(base)), "a user without rights opens the applications")
+    return ("blank application per member type with fee, notice period, statutes and consents; own texts of the association stored and on the form; "
+            "Dolibarr's member card builds it filled in and notes it at the member; a new consent version reaches the form; "
+            "only who may change members builds, setup for administrators only")
+
+
 def minutestexts(stack: Stack) -> str:
     """Agenda templates with required items, a new meeting from a template, texts per item with the real numbers, texts follow a reordered agenda."""
     browser = stack.browser()
@@ -3852,6 +3909,7 @@ SCENARIOS = (
     ("functions", "Function catalogue, terms of office and what does not fit on a day", functions, ("applications",)),
     ("authority", "Report of new representatives to the association authority: deadline, agenda, letter, noted as reported", authority, ("functions",)),
     ("history", "History of a member in Dolibarr's events: new entries and earlier ones exactly once", history, ("authority",)),
+    ("application", "Application for membership as PDF: blank per member type and filled in on the member card", application, ("history",)),
     ("board", "Board for a website: names with consent or disclosure, functions in the summary", board, ("authority",)),
     ("groups", "User groups through functions, changed only after an administrator confirms", groups, ("board",)),
     ("mailing", "E-mail campaign recipients by function, consent and guardians of minors", mailing, ("groups",)),
