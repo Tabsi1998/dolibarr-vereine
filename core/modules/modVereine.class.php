@@ -64,7 +64,7 @@ class modVereine extends DolibarrModules
 			'menus' => 0,
 			'tpl' => 0,
 			'barcode' => 0,
-			// core/modules/member/doc/pdf_vereineantrag.modules.php: the application on Dolibarr's member card.
+			// core/modules/member/doc/pdf_vereineantrag.class.php: the application on Dolibarr's member card.
 			'models' => 1,
 			'printing' => 0,
 			'theme' => 0,
@@ -450,7 +450,8 @@ class modVereine extends DolibarrModules
 
 		// The application for membership as a document template of Dolibarr's member card.
 		$langs->load('vereine@vereine');
-		addDocumentModel('vereineantrag', 'member', $langs->trans('VereineApplicationTemplate'), $langs->trans('VereineApplicationTemplateHelp'));
+		// Without a description: Dolibarr reads that field as the name of a constant with directories to scan.
+		addDocumentModel('vereineantrag', 'member', $langs->trans('VereineApplicationTemplate'));
 
 		// The module serves Austrian associations only; the country profile of earlier versions is gone.
 		foreach (array('VEREINE_COUNTRY_PROFILE', 'VEREINE_REGISTER_COURT') as $obsolete) {

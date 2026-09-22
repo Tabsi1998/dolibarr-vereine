@@ -140,7 +140,7 @@ foreach ($types as $type) {
 	$file = VereineMemberForm::blankPath($type['id']);
 	$model = $type['model'];
 	print '<tr class="oddeven" data-application-type="'.$type['id'].'" data-application-pdf="'.(is_file($file) ? 1 : 0).'">';
-	print '<td><a name="vereineapplication'.$type['id'].'"></a>'.dol_escape_htmltag($type['label']).'</td><td>';
+	print '<td><span id="vereineapplication'.$type['id'].'"></span>'.dol_escape_htmltag($type['label']).'</td><td>';
 	if (empty($type['subscription'])) {
 		print '<span class="opacitymedium">'.$langs->trans('VereineApplicationNoFee').'</span>';
 	} elseif ($model['amount'] === null) {

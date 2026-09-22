@@ -16,7 +16,7 @@
  */
 
 /**
- * \file    core/modules/member/doc/pdf_vereineantrag.modules.php
+ * \file    core/modules/member/doc/pdf_vereineantrag.class.php
  * \ingroup vereine
  * \brief   Document template "Mitgliedsantrag" for Dolibarr's member card (#108).
  *

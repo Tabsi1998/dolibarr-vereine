@@ -1975,7 +1975,6 @@ VereineMenuApplication=Mitgliedsantrag
 VereineSetupTabApplication=Mitgliedsantrag
 VereineApplicationTitle=Mitgliedsantrag
 VereineApplicationTemplate=Mitgliedsantrag des Vereins
-VereineApplicationTemplateHelp=Antrag auf Mitgliedschaft mit Beitrag, Kündigungsfrist und Einwilligungen, für dieses Mitglied ausgefüllt.
 VereineApplicationHowToBlank=Hier bekommst du den leeren Antrag zum Ausdrucken, je Mitgliedsart einen. Er holt sich Beitrag, Kündigungsfrist und Einwilligungen aus Dolibarr, du musst nichts doppelt pflegen.
 VereineApplicationHowToMember=Für ein bestimmtes Mitglied erstellst du den Antrag auf der Mitgliedskarte unter „Dokumente“ mit der Vorlage „Mitgliedsantrag des Vereins“. Dann sind die Daten schon ausgefüllt, und du kannst ihn von dort auch per E-Mail schicken.
 VereineApplicationHowToSource=Ändert sich ein Beitrag oder eine Einwilligung, erstellst du den Antrag einfach neu.
