@@ -1678,6 +1678,12 @@ same(array(array('label' => 'Beamer', 'amount' => 400.0, 'kind' => 'asset'), arr
 	VereineAccountRules::extras(array(array('label' => ' Beamer ', 'amount' => '400', 'kind' => 'x'), array('label' => 'Darlehen', 'amount' => '-1000,50', 'kind' => 'debt'),
 		array('label' => '', 'amount' => '5'), array('label' => 'Null', 'amount' => '0'), 'kaputt')), 'entered rows: a label and an amount, a debt by its kind');
 same(30, count(VereineAccountRules::extras(array_fill(0, 40, array('label' => 'x', 'amount' => 1)))), 'at most 30 further assets and debts');
+expect(VereineAccountRules::assignable('various') && VereineAccountRules::assignable('unlinked') && !VereineAccountRules::assignable('invoice')
+	&& !VereineAccountRules::assignable('transfer') && !VereineAccountRules::assignable('fee'), 'only bookings without invoice lines take a chosen area');
+same(array('ideal', 'assets', 'essential', 'auxiliary', 'festival', 'harmful'), VereineAccountRules::areas(), 'every area but unassigned can be chosen');
+same(array(7 => 'ideal', 9 => ''), VereineAccountRules::assignments(array('7' => 'ideal', '8' => 'harmful', '9' => '', '10' => 'unassigned', 'x' => 'ideal', '11' => array('ideal')),
+	array(7, 9, 10, 11)), 'only bookings that may take an area and only known areas; empty removes it');
+same(array(), VereineAccountRules::assignments('kaputt', array(7)), 'nothing entered, nothing stored');
 
 // ------------------------------------------------------------ language files
 
@@ -1737,7 +1743,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
@@ -1790,6 +1796,7 @@ $prefixes = array(
 	'VereineSphereShort_' => VereineAccountRules::SPHERES,
 	'VereineAccountSide_' => array('income', 'expense'),
 	'VereineAccountTotal_' => array('income', 'expense'),
+	'VereineBankLabel_' => array('DefaultCashPOSLabel'),
 	'VereinePh_' => array_map(function ($key) {
 		return substr(VereinePlaceholders::describedBy($key), strlen('VereinePh_'));
 	}, array_merge(VereinePlaceholders::KEYS['association'], VereinePlaceholders::KEYS['member'], VereinePlaceholders::KEYS['meeting'], VereinePlaceholders::KEYS['circular'])),

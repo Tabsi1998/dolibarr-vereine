@@ -7,6 +7,33 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.6.1-beta] - 2026-09-22
+
+Einnahmen-Ausgaben-Rechnung: Bereich für sonstige Zahlungen und andere Buchungen ohne
+Rechnung wählen, der Hinweis nennt den Grund (#190).
+
+### Neu
+
+- **Bereich für Buchungen ohne Rechnung wählen** (#190): Sonstige Zahlungen, Löhne,
+  Abgaben, Spesen, Darlehen und Buchungen ohne Zahlung haben keine Rechnungszeile mit
+  Steuerprofil. Auf der Seite *Einnahmen und Ausgaben* wählt der Vorstand für jede
+  dieser Buchungen den Bereich. Solange nichts gewählt ist, bleibt sie „nicht
+  zugeordnet“. An der Buchung in Dolibarr ändert sich nichts.
+
+### Behoben
+
+- Der Hinweis auf nicht zugeordnete Buchungen nennt jetzt den Grund: Rechnungszeilen
+  ohne Steuerprofil, Lieferantenrechnungszeilen ohne „Ausgabe für Bereich“ oder
+  Buchungen ohne Rechnung. Vorher schickte er auch bei sonstigen Zahlungen zur
+  Profil-Nachpflege, wo sie sich nicht zuordnen lassen (#190).
+- Konten und Buchungstexte, die Dolibarr als Übersetzungsschlüssel speichert, erscheinen
+  übersetzt, etwa die Kassa des Kassenmoduls („DefaultCashPOSLabel“) (#190).
+
+### Update
+
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das legt
+die Tabelle für die gewählten Bereiche an.
+
 ## [0.6.0-beta] - 2026-09-22
 
 Einnahmen-Ausgaben-Rechnung mit Vermögensübersicht nach § 21 VerG (#8). Damit ist der
@@ -1480,7 +1507,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.6.0-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.6.1-beta...HEAD
+[0.6.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.6.1-beta
 [0.6.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.6.0-beta
 [0.5.17-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.17-beta
 [0.5.16-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.16-beta
