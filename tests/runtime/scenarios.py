@@ -2940,8 +2940,8 @@ def audit(stack: Stack) -> str:
     data = stack.php_fixture("audit", RT_YEAR=str(year), RT_AUDITOR_PASSWORD=password)
     base = f"/custom/vereine/audit.php?year={year}"
 
-    # Who reads invoices may look, but only an auditor ticks and writes; the admin stands for the chair here.
-    stack.sql(f"UPDATE llx_user SET fk_member = {data['chair']} WHERE login = 'admin'")
+    # Who reads invoices may look, but only an auditor ticks and writes; the admin is linked to no member here.
+    stack.sql("UPDATE llx_user SET fk_member = NULL WHERE login = 'admin'")
     page = page_ok(stack.browser().get(base), "the audit for the board")
     expect('data-audit-is-auditor="0"' in page.text and 'name="vereineauditchecklist"' not in page.text, "somebody who is no auditor may fill the audit")
     hints = dict(re.findall(r'data-audit-hint="([a-z]+:\d+)" data-hints="([a-z_ ]+)"', page.text))
