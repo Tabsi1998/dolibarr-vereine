@@ -64,7 +64,8 @@ class modVereine extends DolibarrModules
 			'menus' => 0,
 			'tpl' => 0,
 			'barcode' => 0,
-			'models' => 0,
+			// core/modules/member/doc/pdf_vereineantrag.class.php: the application on Dolibarr's member card.
+			'models' => 1,
 			'printing' => 0,
 			'theme' => 0,
 			'css' => array(),
@@ -268,6 +269,21 @@ class modVereine extends DolibarrModules
 			'target' => '',
 			'user' => 0,
 		);
+		// The blank application for membership, one per member type.
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
+			'titre' => 'VereineMenuApplication',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_application',
+			'url' => '/vereine/application.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->hasRight("vereine", "association", "read")',
+			'target' => '',
+			'user' => 0,
+		);
 		// The income and expenditure account with the statement of assets.
 		$this->menu[$r++] = array(
 			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
@@ -431,6 +447,11 @@ class modVereine extends DolibarrModules
 			dol_include_once('/vereine/class/vereinelog.class.php');
 			VereineLog::migrateToEvents($this->db);
 		}
+
+		// The application for membership as a document template of Dolibarr's member card.
+		$langs->load('vereine@vereine');
+		// Without a description: Dolibarr reads that field as the name of a constant with directories to scan.
+		addDocumentModel('vereineantrag', 'member', $langs->trans('VereineApplicationTemplate'));
 
 		// The module serves Austrian associations only; the country profile of earlier versions is gone.
 		foreach (array('VEREINE_COUNTRY_PROFILE', 'VEREINE_REGISTER_COURT') as $obsolete) {

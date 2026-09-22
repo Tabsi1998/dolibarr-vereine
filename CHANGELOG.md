@@ -7,6 +7,24 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Neu
+
+- **Mitgliedsantrag als PDF** (#108): Unter *Mitglieder – Verein – Mitgliedsantrag* gibt
+  es den leeren Antrag zum Ausdrucken, je Mitgliedsart einen. Für ein bestimmtes Mitglied
+  erstellt ihn Dolibarr auf der Mitgliedskarte unter *Dokumente* mit der Vorlage
+  „Mitgliedsantrag des Vereins“, schon ausgefüllt und von dort auch per E-Mail versendbar.
+- Der Antrag holt sich alles aus Dolibarr: Beitrag und Beitrittsgebühr aus der Mitgliedsart,
+  die Kündigungsfrist aus der Austrittsregel, die Einwilligungen mit ihrer aktuellen Version
+  aus dem Reiter *Einwilligungen*, Verein und Bankverbindung aus den Stammdaten. Ändert sich
+  etwas, erstellst du den Antrag einfach neu.
+- Neuer Reiter *Mitgliedsantrag* in der Einrichtung: Einleitung, Datenschutz-Information mit
+  Link, Pflichtfelder und das Konto für die Fußzeile.
+
+### Update
+
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das legt den
+Menüpunkt *Mitgliedsantrag* und die Dokumentvorlage an.
+
 ### Geändert
 
 - **Verlauf am Mitglied in Dolibarrs Ereignissen** (#112): Was das Vereine-Modul mit
