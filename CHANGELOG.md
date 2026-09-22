@@ -7,6 +7,11 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.6.2-beta] - 2026-09-22
+
+Mitgliedsantrag als PDF aus Dolibarr (#108); der Verlauf des Moduls am Mitglied steht
+jetzt in Dolibarrs Ereignissen (#112).
+
 ### Neu
 
 - **Mitgliedsantrag als PDF** (#108): Unter *Mitglieder – Verein – Mitgliedsantrag* gibt
@@ -19,11 +24,6 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   etwas, erstellst du den Antrag einfach neu.
 - Neuer Reiter *Mitgliedsantrag* in der Einrichtung: Einleitung, Datenschutz-Information mit
   Link, Pflichtfelder und das Konto für die Fußzeile.
-
-### Update
-
-Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das legt den
-Menüpunkt *Mitgliedsantrag* und die Dokumentvorlage an.
 
 ### Geändert
 
@@ -38,8 +38,9 @@ Menüpunkt *Mitgliedsantrag* und die Dokumentvorlage an.
 
 ### Update
 
-Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Dabei werden
-die bisherigen Einträge als Ereignisse übernommen, sofern Dolibarrs Modul Agenda aktiv ist.
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das legt den
+Menüpunkt *Mitgliedsantrag* und die Dokumentvorlage an. Dabei werden auch die bisherigen
+Einträge des Verlaufs als Ereignisse übernommen, sofern Dolibarrs Modul Agenda aktiv ist.
 
 ## [0.6.1-beta] - 2026-09-22
 
@@ -1541,7 +1542,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.6.1-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.6.2-beta...HEAD
+[0.6.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.6.2-beta
 [0.6.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.6.1-beta
 [0.6.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.6.0-beta
 [0.5.17-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.17-beta
