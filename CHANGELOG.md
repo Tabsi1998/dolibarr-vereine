@@ -7,6 +7,11 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.6.0-beta] - 2026-09-22
+
+Einnahmen-Ausgaben-Rechnung mit Vermögensübersicht nach § 21 VerG (#8). Damit ist der
+Meilenstein v0.6 „Rechnungsprüfung & Rechnungslegung“ komplett.
+
 ### Neu
 
 - **Einnahmen-Ausgaben-Rechnung mit Vermögensübersicht** (#8): Unter *Mitglieder –
@@ -1475,7 +1480,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.17-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.6.0-beta...HEAD
+[0.6.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.6.0-beta
 [0.5.17-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.17-beta
 [0.5.16-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.16-beta
 [0.5.15-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.15-beta
