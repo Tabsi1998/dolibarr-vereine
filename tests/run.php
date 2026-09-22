@@ -59,6 +59,7 @@ require_once $root.'/class/vereineqes.class.php';
 require_once $root.'/class/vereinemailtemplates.class.php';
 require_once $root.'/class/vereinetaxcheckrules.class.php';
 require_once $root.'/class/vereineauditrules.class.php';
+require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinetextrepair.class.php';
 require_once $root.'/class/vereineattendancerules.class.php';
 require_once $root.'/class/vereinevoterules.class.php';
@@ -1397,7 +1398,7 @@ foreach (VereineStatuteText::sections($statuteRules, VereineStatuteText::normali
 $moneyRules = VereineSignatureRules::normalize(null, array('obmann', 'schriftfuehrung', 'kassier', 'rechnungspruefung'));
 same(array('obmann', 'kassier'), $moneyRules['money']['roles'], 'a money matter is signed by the chair and the treasurer');
 same(array('obmann', 'schriftfuehrung'), $moneyRules['resolution']['roles'], 'an ordinary resolution stays with chair and secretary');
-expect(in_array('money', VereineSignatureRules::KINDS, true) && count(VereineSignatureRules::KINDS) === 5, 'five kinds of document');
+expect(in_array('money', VereineSignatureRules::KINDS, true) && count(VereineSignatureRules::KINDS) === 6, 'six kinds of document');
 same(true, VereineResolutionRules::normalize(array('money' => '1'))['money'], 'a resolution can be marked as a money matter');
 same(false, VereineResolutionRules::normalize(array())['money'], 'without the mark it is no money matter');
 
@@ -1629,6 +1630,55 @@ same('confirmed', VereineAuditRules::result(VereineAuditRules::points($allOk)), 
 same('2026-09-30', VereineAuditRules::deadline('2026-05-31'), 'four months after the account was made, at most the last day of the month');
 same('2027-01-15', VereineAuditRules::deadline('2026-09-15'), 'across the new year');
 
+// ------------------------------------------------------------- income and expenditure account (§ 21 (1) VerG)
+
+same('transfer', VereineAccountRules::kindOf(array('company', 'banktransfert')), 'a transfer between own accounts, whatever else is linked');
+same('invoice', VereineAccountRules::kindOf(array('company', 'payment')), 'the payment of an invoice');
+same('fee', VereineAccountRules::kindOf(array('member')), 'a membership fee booked on the member');
+same('opening', VereineAccountRules::kindOf(array('initial')), 'the initial balance of a new account');
+same('unlinked', VereineAccountRules::kindOf(array('company')), 'only a third party: no payment behind it');
+same('ideal', VereineAccountRules::sphereOf('donation'), 'donations belong to the ideal area');
+same('unassigned', VereineAccountRules::sphereOf('various'), 'a various payment is not guessed');
+same(array('ideal' => 50.0, 'harmful' => 120.0), VereineAccountRules::split(170, array(array('sphere' => 'ideal', 'total' => 50), array('sphere' => 'harmful', 'total' => 120))),
+	'a full payment over two areas');
+same(array('ideal' => 33.33, 'harmful' => 66.67), VereineAccountRules::split(100, array(array('sphere' => 'ideal', 'total' => 10), array('sphere' => 'harmful', 'total' => 20))),
+	'a part payment in the shares of the lines, to the cent');
+same(array('ideal' => 30.0, 'unassigned' => 20.0), VereineAccountRules::split(50, array(array('sphere' => 'ideal', 'total' => 30), array('sphere' => '', 'total' => 20))),
+	'a line without profile stays unassigned');
+same(array('unassigned' => 12.5), VereineAccountRules::split(12.5, array()), 'no lines: unassigned');
+same(array('ideal' => -100.0), VereineAccountRules::split(-100, array(array('sphere' => 'ideal', 'total' => 300))), 'a supplier payment keeps its sign');
+same('income', VereineAccountRules::side('invoice', -20), 'a refund of an invoice is negative income');
+same('expense', VereineAccountRules::side('supplier', -100), 'a supplier payment is an expense');
+same('expense', VereineAccountRules::side('unlinked', -40), 'a booking without payment counts by its sign');
+same('', VereineAccountRules::side('transfer', -50), 'a transfer is neither income nor expense');
+same('', VereineAccountRules::side('opening', 100), 'an initial balance is neither income nor expense');
+$accountTotals = VereineAccountRules::totals(array(
+	array('kind' => 'invoice', 'amount' => 170, 'parts' => array('harmful' => 120, 'ideal' => 50)),
+	array('kind' => 'supplier', 'amount' => -100, 'parts' => array('ideal' => -100)),
+	array('kind' => 'unlinked', 'amount' => -40, 'parts' => array('unassigned' => -40)),
+	array('kind' => 'transfer', 'amount' => -50, 'parts' => array('unassigned' => -50)),
+	array('kind' => 'fee', 'amount' => 30, 'parts' => array('ideal' => 30)),
+));
+same(array('ideal', 'harmful'), array_keys($accountTotals['income']), 'areas in the order of the account');
+same(array('invoice' => 50.0, 'fee' => 30.0), $accountTotals['income']['ideal'], 'kinds within an area');
+same(array('ideal' => array('supplier' => 100.0), 'unassigned' => array('unlinked' => 40.0)), $accountTotals['expense'], 'expenses count positive');
+same(array('income' => 200.0, 'expense' => 140.0, 'result' => 60.0), $accountTotals['totals'], 'the transfer counts nowhere');
+expect(VereineAccountRules::reconciled(100, 5020, 5120) && !VereineAccountRules::reconciled(100, 5020, 5119.99), 'opening plus result is the closing balance, to the cent');
+same('2024-12-31', VereineAccountRules::dayBefore('2025-01-01'), 'the day before the year');
+same('2024-02-29', VereineAccountRules::dayBefore('2024-03-01'), 'the day before March in a leap year');
+same('2026-05-31', VereineAccountRules::deadline('2025-12-31'), 'five months after a calendar year');
+same('2026-11-30', VereineAccountRules::deadline('2026-06-30'), 'a year to June: until the end of November');
+same('2027-07-31', VereineAccountRules::deadline('2027-02-28'), 'a year to February: until the end of July');
+same(array(), VereineAccountRules::sizeWarnings(array('income' => 1200000, 'expense' => 900000), array('income' => 800000, 'expense' => 990000)), 'one large year is not enough');
+same(array('VereineAccountSizeLarge'), VereineAccountRules::sizeWarnings(array('income' => 1200000, 'expense' => 0), array('income' => 0, 'expense' => 1100000)),
+	'income or expenses above one million in two years in a row');
+same(array('VereineAccountSizeLarge', 'VereineAccountSizeVeryLarge'), VereineAccountRules::sizeWarnings(array('income' => 3500000, 'expense' => 0), array('income' => 3100000, 'expense' => 0)),
+	'above three million an auditor as well');
+same(array(array('label' => 'Beamer', 'amount' => 400.0, 'kind' => 'asset'), array('label' => 'Darlehen', 'amount' => 1000.5, 'kind' => 'debt')),
+	VereineAccountRules::extras(array(array('label' => ' Beamer ', 'amount' => '400', 'kind' => 'x'), array('label' => 'Darlehen', 'amount' => '-1000,50', 'kind' => 'debt'),
+		array('label' => '', 'amount' => '5'), array('label' => 'Null', 'amount' => '0'), 'kaputt')), 'entered rows: a label and an amount, a debt by its kind');
+same(30, count(VereineAccountRules::extras(array_fill(0, 40, array('label' => 'x', 'amount' => 1)))), 'at most 30 further assets and debts');
+
 // ------------------------------------------------------------ language files
 
 // The module speaks German; en_US is an exact copy so an English interface shows German, not keys.
@@ -1687,7 +1737,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
@@ -1736,6 +1786,10 @@ $prefixes = array(
 	'VereineAuditElement_' => array('bank', 'invoice', 'supplier'),
 	'VereineAuditConclusion_' => array('open', 'confirmed', 'defects'),
 	'VereineAudit_' => array('audit_day', 'statement_day', 'documents', 'note'),
+	'VereineAccountKind_' => VereineAccountRules::KINDS,
+	'VereineSphereShort_' => VereineAccountRules::SPHERES,
+	'VereineAccountSide_' => array('income', 'expense'),
+	'VereineAccountTotal_' => array('income', 'expense'),
 	'VereinePh_' => array_map(function ($key) {
 		return substr(VereinePlaceholders::describedBy($key), strlen('VereinePh_'));
 	}, array_merge(VereinePlaceholders::KEYS['association'], VereinePlaceholders::KEYS['member'], VereinePlaceholders::KEYS['meeting'], VereinePlaceholders::KEYS['circular'])),

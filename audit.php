@@ -67,6 +67,7 @@ if (!$res) {
  */
 
 require_once __DIR__.'/class/vereineaudit.class.php';
+require_once __DIR__.'/class/vereineaccount.class.php';
 require_once __DIR__.'/class/vereinesignatures.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
@@ -199,6 +200,15 @@ print '<li>'.$langs->trans('VereineAuditHowTo', $period['label'], vereineFormatD
 print '<li>'.$langs->trans('VereineAuditHowToLaw').'</li>';
 print '<li>'.$langs->trans('VereineAuditHowToRights').'</li>';
 print '</ul></div>';
+
+// The account the auditors check, and their four months from the day it was made.
+$accountRecord = (new VereineAccount($db))->fetch($year, $user);
+if ($accountRecord !== null && $accountRecord['made_on'] !== '') {
+	print '<div class="paddingbottom" data-audit-account="'.$accountRecord['made_on'].'">'.$langs->trans('VereineAuditAccountMade', vereineFormatDay($accountRecord['made_on']),
+		vereineFormatDay(VereineAuditRules::deadline($accountRecord['made_on']))).' <a href="'.dol_buildpath('/vereine/account.php', 1).'?year='.$year.'">'.$langs->trans('VereineMenuAccount').'</a></div>';
+} else {
+	print '<div class="opacitymedium paddingbottom" data-audit-account="">'.$langs->trans('VereineAuditAccountMissing').' <a href="'.dol_buildpath('/vereine/account.php', 1).'?year='.$year.'">'.$langs->trans('VereineMenuAccount').'</a></div>';
+}
 
 // Who audits.
 print '<div class="paddingbottom" data-audit-auditors="'.count($auditors).'" data-audit-is-auditor="'.($isAuditor ? 1 : 0).'">';

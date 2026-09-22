@@ -39,6 +39,7 @@
  * php fixtures.php payinvoice  pay the rest of an invoice, closing it as paid
  * php fixtures.php discountmembers  a child, two students and an honorary member for the discounts
  * php fixtures.php audit  a bank with bookings, a supplier invoice of an officer and an auditor with own login (RT_YEAR, RT_AUDITOR_PASSWORD)
+ * php fixtures.php account  a paid invoice over two areas, part of the officer's invoice paid, a cash box with a transfer, an open invoice (RT_YEAR)
  *
  * Prints one JSON object. Passwords and API keys come from the environment only.
  */
@@ -463,6 +464,118 @@ if ($stage === 'audit') {
 	print json_encode(array('account' => (int) $account->id, 'lines' => $lines, 'officer_invoice' => (int) $invoice->id,
 		'auditor_member' => $member, 'auditor_name' => trim((string) rt_value($db, "SELECT lastname FROM ".MAIN_DB_PREFIX."adherent WHERE rowid = ".$member)),
 		'chair' => (int) $chair))."\n";
+	exit(0);
+}
+
+// The money of a year for the account: a paid invoice over two areas, part of the chair's invoice paid,
+// a cash box with an initial balance and a transfer to it, an invoice still open at the end of the year.
+if ($stage === 'account') {
+	require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/paiement/class/paiement.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/fourn/class/fournisseur.facture.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/fourn/class/paiementfourn.class.php';
+	$year = (int) rt_env('RT_YEAR');
+	$day = function ($month, $dayOfMonth) use ($year) {
+		return dol_mktime(12, 0, 0, $month, $dayOfMonth, $year);
+	};
+	$bank = new Account($db);
+	if ($bank->fetch(0, 'RTBANK') <= 0) {
+		rt_fail('the audit fixture should leave the bank account RTBANK');
+	}
+	$transfer = (int) rt_value($db, "SELECT id FROM ".MAIN_DB_PREFIX."c_paiement WHERE code = 'VIR' AND entity IN (0, 1) ORDER BY entity DESC");
+	$lines = array();
+
+	$cash = new Account($db);
+	$cash->ref = 'RTKASSA';
+	$cash->label = 'Kassa';
+	$cash->type = Account::TYPE_CASH;
+	$cash->courant = Account::TYPE_CASH;
+	$cash->currency_code = 'EUR';
+	$cash->country_id = $bank->country_id;
+	$cash->date_solde = $day(1, 1);
+	$cash->solde = 100;
+	$cash->clos = 0;
+	if ($cash->create($admin) <= 0) {
+		rt_fail('cash box: '.$cash->error.' '.implode(' | ', (array) $cash->errors));
+	}
+	$lines['cash_opening'] = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."bank WHERE fk_account = ".((int) $cash->id)." AND fk_type = 'SOLD'");
+
+	// Two invoices: one paid in full over two areas, one still open at the end of the year.
+	$socid = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."societe WHERE nom = 'Rechnung Kunde'");
+	$profile = function ($code) use ($db) {
+		return (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."vereine_taxprofile WHERE code = '".$code."'");
+	};
+	$invoices = array();
+	foreach (array('paid' => array(array('Mitgliedsbeitrag Konto', 50, 0, 'MITGLIEDSBEITRAG'), array('Kantine Konto', 100, 20, 'BETRIEB_20')),
+		'open' => array(array('Kantine offen', 80, 20, 'BETRIEB_20'))) as $key => $invoiceLines) {
+		$invoice = new Facture($db);
+		$invoice->socid = $socid;
+		$invoice->type = Facture::TYPE_STANDARD;
+		$invoice->date = $day(6, 20);
+		if ($invoice->create($admin) <= 0) {
+			rt_fail('invoice '.$key.': '.$invoice->error);
+		}
+		foreach ($invoiceLines as $index => $line) {
+			if ($invoice->addline($line[0], $line[1], 1, $line[2], 0, 0, 0, 0, '', '', 0, 0, 0, 'HT', 0, 1, $index + 1, 0, '', 0, 0, null, 0, '',
+				array('options_vereine_taxprofile' => $profile($line[3]))) <= 0) {
+				rt_fail('invoice line '.$line[0].': '.$invoice->error);
+			}
+		}
+		if ($invoice->validate($admin) <= 0) {
+			rt_fail('validate invoice '.$key.': '.$invoice->error.' '.implode(' | ', (array) $invoice->errors));
+		}
+		$invoice->fetch($invoice->id);
+		$invoices[$key] = $invoice;
+	}
+	$payment = new Paiement($db);
+	$payment->datepaye = $day(7, 1);
+	$payment->date = $payment->datepaye;
+	$payment->amounts = array($invoices['paid']->id => 170);
+	$payment->paiementid = $transfer;
+	$payment->paiementcode = 'VIR';
+	if ($payment->create($admin, 1) <= 0) {
+		rt_fail('payment of the invoice: '.$payment->error.' '.implode(' | ', (array) $payment->errors));
+	}
+	$lines['invoice'] = (int) $payment->addPaymentToBank($admin, 'payment', '(CustomerInvoicePayment)', (int) $bank->id, '', '');
+	if ($lines['invoice'] <= 0) {
+		rt_fail('payment of the invoice to the bank: '.$payment->error);
+	}
+
+	// A third of the chair's invoice paid; its line is an expense of the ideal area.
+	$officerInvoice = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."facture_fourn WHERE ref_supplier = 'RT-OBMANN-".$year."'");
+	if ($officerInvoice <= 0) {
+		rt_fail('the audit fixture should leave the invoice of the chair');
+	}
+	$db->query("DELETE FROM ".MAIN_DB_PREFIX."facture_fourn_det_extrafields WHERE fk_object IN (SELECT rowid FROM ".MAIN_DB_PREFIX."facture_fourn_det WHERE fk_facture_fourn = ".$officerInvoice.")");
+	$db->query("INSERT INTO ".MAIN_DB_PREFIX."facture_fourn_det_extrafields (fk_object, vereine_expense_sphere) SELECT rowid, 'ideal' FROM ".MAIN_DB_PREFIX."facture_fourn_det WHERE fk_facture_fourn = ".$officerInvoice);
+	$supplierPayment = new PaiementFourn($db);
+	$supplierPayment->datepaye = $day(7, 2);
+	$supplierPayment->date = $supplierPayment->datepaye;
+	$supplierPayment->amounts = array($officerInvoice => 100);
+	$supplierPayment->paiementid = $transfer;
+	$supplierPayment->paiementcode = 'VIR';
+	if ($supplierPayment->create($admin) <= 0) {
+		rt_fail('payment to the chair: '.$supplierPayment->error.' '.implode(' | ', (array) $supplierPayment->errors));
+	}
+	$lines['supplier'] = (int) $supplierPayment->addPaymentToBank($admin, 'payment_supplier', '(SupplierInvoicePayment)', (int) $bank->id, '', '');
+	if ($lines['supplier'] <= 0) {
+		rt_fail('payment to the chair from the bank: '.$supplierPayment->error);
+	}
+
+	// 50 euros from the bank into the cash box, linked both ways as Dolibarr's transfer does.
+	$lines['transfer_out'] = (int) $bank->addline($day(7, 3), 'VIR', 'Umbuchung in die Kassa', -50, '', 0, $admin);
+	$lines['transfer_in'] = (int) $cash->addline($day(7, 3), 'LIQ', 'Umbuchung in die Kassa', 50, '', 0, $admin);
+	if ($lines['transfer_out'] <= 0 || $lines['transfer_in'] <= 0) {
+		rt_fail('transfer to the cash box: '.$bank->error.' '.$cash->error);
+	}
+	$bank->add_url_line($lines['transfer_out'], $lines['transfer_in'], DOL_URL_ROOT.'/compta/bank/line.php?rowid=', '(banktransfert)', 'banktransfert');
+	$cash->add_url_line($lines['transfer_in'], $lines['transfer_out'], DOL_URL_ROOT.'/compta/bank/line.php?rowid=', '(banktransfert)', 'banktransfert');
+
+	$sql = "SELECT t.fk_adherent FROM ".MAIN_DB_PREFIX."vereine_function_term as t INNER JOIN ".MAIN_DB_PREFIX."vereine_function as f ON f.rowid = t.fk_function";
+	$sql .= " WHERE f.code = 'obmann' AND (t.date_end IS NULL OR t.date_end >= CURDATE()) ORDER BY t.rowid DESC LIMIT 1";
+	$chair = (int) rt_value($db, $sql);
+	print json_encode(array('lines' => $lines, 'open_ref' => (string) $invoices['open']->ref, 'cash' => (int) $cash->id, 'chair' => $chair))."\n";
 	exit(0);
 }
 

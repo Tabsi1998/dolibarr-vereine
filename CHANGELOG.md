@@ -7,6 +7,34 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Neu
+
+- **Einnahmen-Ausgaben-Rechnung mit Vermögensübersicht** (#8): Unter *Mitglieder –
+  Verein – Einnahmen und Ausgaben* rechnet das Modul je Vereinsjahr aus, was auf den
+  Bank- und Kassakonten ein- und ausgegangen ist. Bezahlte Rechnungen werden nach den
+  Steuerprofilen ihrer Zeilen auf die Bereiche aufgeteilt, bezahlte Lieferantenrechnungen
+  nach „Ausgabe für Bereich“, auch bei Teilzahlungen auf den Cent. Mitgliedsbeiträge und
+  Spenden zählen zum ideellen Bereich. Umbuchungen zwischen eigenen Konten und der
+  Anfangsstand eines neuen Kontos zählen nicht. Was sich nicht zuordnen lässt, steht als
+  „nicht zugeordnet“ da, geraten wird nie. Ein Abgleich zeigt, ob Anfangsstand plus
+  Einnahmen minus Ausgaben den Endstand der Konten ergibt.
+- **Vermögensübersicht am Jahresende**: Kontostände, offene Forderungen und
+  Verbindlichkeiten zum Stichtag und selbst eingetragene Werte wie Geräte oder ein
+  Darlehen. Dazu die Frist von fünf Monaten (§ 21 Abs. 1 VerG), eine Warnung ab
+  1 Mio. und 3 Mio. Euro (§ 22 VerG), alle Buchungen als CSV-Tabelle und ein PDF zum
+  Unterschreiben. Es unterschreiben Obmann/Obfrau und Kassier:in, auch ohne das Recht,
+  die Bank zu ändern.
+- **Rechnungsprüfung**: Die Prüfseite zeigt, wann die Einnahmen-Ausgaben-Rechnung
+  erstellt wurde und bis wann zu prüfen ist; der Prüfbericht nennt Einnahmen,
+  Ausgaben, Ergebnis und Vermögen.
+
+### Update
+
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das legt
+die Tabelle und den Menüpunkt *Einnahmen und Ausgaben* an. Sehen darf die Seite, wer
+das Modul und die Bank lesen darf; eintragen und das PDF erstellen, wer die Bank
+ändern darf.
+
 ## [0.5.17-beta] - 2026-09-22
 
 Rechnungsprüfung in Dolibarr: Prüfbereich je Vereinsjahr mit Hinweisen, Stichproben und
