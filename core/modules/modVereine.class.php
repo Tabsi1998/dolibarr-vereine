@@ -425,6 +425,13 @@ class modVereine extends DolibarrModules
 			dol_syslog('modVereine::init '.$mailTemplates->error, LOG_ERR);
 		}
 
+		// Earlier entries about members and third parties become events in Dolibarr's agenda, once (#112).
+		// Without the agenda they wait for a later activation.
+		if (isModEnabled('agenda')) {
+			dol_include_once('/vereine/class/vereinelog.class.php');
+			VereineLog::migrateToEvents($this->db);
+		}
+
 		// The module serves Austrian associations only; the country profile of earlier versions is gone.
 		foreach (array('VEREINE_COUNTRY_PROFILE', 'VEREINE_REGISTER_COURT') as $obsolete) {
 			dolibarr_del_const($this->db, $obsolete, $conf->entity);

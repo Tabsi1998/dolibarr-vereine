@@ -13,16 +13,5 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- What the Vereine module changed, by whom and when. Rows are only ever added.
-
-CREATE TABLE llx_vereine_log(
-	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
-	entity INTEGER DEFAULT 1 NOT NULL,
-	datec DATETIME NOT NULL,
-	fk_user INTEGER,
-	action VARCHAR(64) NOT NULL,
-	fk_adherent INTEGER,
-	fk_soc INTEGER,
-	message VARCHAR(255),
-	fk_actioncomm INTEGER
-) ENGINE=innodb;
+-- 0.6.2: an entry about a member or a third party knows its event in Dolibarr's agenda (#112).
+ALTER TABLE llx_vereine_log ADD COLUMN fk_actioncomm INTEGER AFTER message;

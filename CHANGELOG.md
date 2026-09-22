@@ -7,6 +7,22 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Geändert
+
+- **Verlauf am Mitglied in Dolibarrs Ereignissen** (#112): Was das Vereine-Modul mit
+  einem Mitglied oder Geschäftspartner tut – Einwilligung, Funktion, Beitragslauf,
+  Austritt und so weiter – steht jetzt als automatisches Ereignis unter *Ereignisse* des
+  Mitglieds bzw. Geschäftspartners, neben Dolibarrs eigenen Einträgen. Die eigene Liste am
+  Reiter *Verein* weicht einem Link dorthin. Ohne Dolibarrs Modul Agenda bleibt die
+  eigene Liste wie bisher.
+- Frühere Einträge werden beim nächsten Aktivieren des Moduls einmal als Ereignisse mit
+  ihrem ursprünglichen Zeitpunkt übernommen, ohne Doppelte.
+
+### Update
+
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Dabei werden
+die bisherigen Einträge als Ereignisse übernommen, sofern Dolibarrs Modul Agenda aktiv ist.
+
 ## [0.6.1-beta] - 2026-09-22
 
 Einnahmen-Ausgaben-Rechnung: Bereich für sonstige Zahlungen und andere Buchungen ohne

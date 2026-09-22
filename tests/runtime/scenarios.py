@@ -218,6 +218,10 @@ def upload(stack: Stack, package: Path) -> list[str]:
     return files
 
 
+# Events other than the ones the module writes itself: history entries (#112) and its webhook trigger.
+NOT_LOG_EVENT = "COALESCE(code, '') NOT LIKE 'AC_VEREINE%'"
+
+
 def switch_module(stack: Stack, action: str) -> None:
     """Enable (set) or disable (reset) the module from Dolibarr's module list."""
     browser = stack.browser()
@@ -1942,7 +1946,7 @@ def authority(stack: Stack) -> str:
     tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={karl}"), "association tab of Karl")
     page_ok(browser.submit(tab.form(name="vereineaddfunction"), {"function_id": deputy, "function_start": today, "function_end": "", "function_note": ""}),
             "Karl becomes deputy treasurer")
-    events = stack.sql(f"SELECT label, DATE(datep), percent FROM llx_actioncomm WHERE elementtype = 'member' AND fk_element = {karl}")
+    events = stack.sql(f"SELECT label, DATE(datep), percent FROM llx_actioncomm WHERE elementtype = 'member' AND fk_element = {karl} AND {NOT_LOG_EVENT}")
     expect(len(events) == 1 and "Vereinsbeh" in events[0][0] and events[0][1] == deadline and events[0][2] == "0",
            f"agenda event for the new representative: {events}")
 
@@ -1965,7 +1969,7 @@ def authority(stack: Stack) -> str:
     page = overview()
     page_ok(browser.submit(page.form(name="vereinemarkreported"), {"reported_on": today}), "note the reports as reported")
     open_reports = stack.value("SELECT COUNT(*) FROM llx_vereine_function_report WHERE reported_on IS NULL")
-    percent = stack.value(f"SELECT percent FROM llx_actioncomm WHERE elementtype = 'member' AND fk_element = {karl}")
+    percent = stack.value(f"SELECT percent FROM llx_actioncomm WHERE elementtype = 'member' AND fk_element = {karl} AND {NOT_LOG_EVENT}")
     expect(open_reports == "0" and percent == "100" and "data-report=" not in overview().text,
            f"after noting as reported: {open_reports} open, agenda event at {percent} %")
     browser.post(f"/custom/vereine/functions.php?day={today}", [("token", token_of(overview())), ("action", "reportpdf")])
@@ -3106,6 +3110,37 @@ def account(stack: Stack) -> str:
             "the chair signs without the right to change the bank and stores nothing; nobody without bank rights")
 
 
+def history(stack: Stack) -> str:
+    """What the module does with a member stands in Dolibarr's events of the member; earlier entries become events exactly once (#112)."""
+    browser = stack.browser()
+    karl = int(stack.value("SELECT rowid FROM llx_adherent WHERE firstname = 'Karl' AND lastname = 'Austritt'"))
+    # Karl became deputy treasurer after the agenda was switched on: the entry has its event.
+    events = stack.sql(f"SELECT a.label, a.note FROM llx_actioncomm as a INNER JOIN llx_vereine_log as l ON l.fk_actioncomm = a.id"
+                       f" WHERE a.elementtype = 'member' AND a.fk_element = {karl} AND l.action = 'function_start'")
+    expect(len(events) == 1 and events[0][0].startswith("Funktion"), f"the new function of Karl is no event: {events}")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={karl}"), "association tab of Karl")
+    expect('data-log-events="1"' in tab.text and 'data-log="1"' not in tab.text and f"/adherents/agenda.php?id={karl}" in tab.text,
+           "the tab still shows the own list instead of Dolibarr's events")
+    agenda = page_ok(browser.get(f"/adherents/agenda.php?id={karl}"), "Dolibarr's events of Karl")
+    expect(events[0][0] in html.unescape(agenda.text), "Dolibarr's events of the member do not show the entry")
+
+    # Entries from before the agenda, and one from an earlier version, become events once.
+    stack.sql(f"INSERT INTO llx_vereine_log (entity, datec, fk_user, action, fk_adherent, fk_soc, message)"
+              f" VALUES (1, '2025-03-01 10:00:00', NULL, 'consent_given', {karl}, NULL, 'Altbestand')")
+    waiting = int(stack.value("SELECT COUNT(*) FROM llx_vereine_log WHERE fk_actioncomm IS NULL AND (fk_adherent > 0 OR fk_soc > 0)"))
+    made = stack.php_fixture("migratelog").get("made")
+    expect(waiting > 1 and made == waiting, f"{made} events made for {waiting} earlier entries")
+    old = stack.sql("SELECT DATE(a.datep), a.note, a.elementtype FROM llx_actioncomm as a INNER JOIN llx_vereine_log as l ON l.fk_actioncomm = a.id"
+                    " WHERE l.message = 'Altbestand'")
+    expect(old == [["2025-03-01", "Altbestand", "member"]], f"the earlier entry as event: {old}")
+    again = stack.php_fixture("migratelog").get("made")
+    events_total = stack.value("SELECT COUNT(*) FROM llx_actioncomm WHERE code LIKE 'AC_VEREINE_LOG_%'")
+    linked = stack.value("SELECT COUNT(DISTINCT fk_actioncomm) FROM llx_vereine_log WHERE fk_actioncomm IS NOT NULL")
+    expect(again == 0 and events_total == linked, f"a second run made {again} events; {events_total} events for {linked} entries")
+    return (f"Karl's new function as event on his card, the tab links to Dolibarr's events; {made} earlier entries became events with "
+            "their own date, a second run made none")
+
+
 def minutestexts(stack: Stack) -> str:
     """Agenda templates with required items, a new meeting from a template, texts per item with the real numbers, texts follow a reordered agenda."""
     browser = stack.browser()
@@ -3816,6 +3851,7 @@ SCENARIOS = (
     ("applications", "Consent texts with versions and membership applications through the API", applications, ("sepa",)),
     ("functions", "Function catalogue, terms of office and what does not fit on a day", functions, ("applications",)),
     ("authority", "Report of new representatives to the association authority: deadline, agenda, letter, noted as reported", authority, ("functions",)),
+    ("history", "History of a member in Dolibarr's events: new entries and earlier ones exactly once", history, ("authority",)),
     ("board", "Board for a website: names with consent or disclosure, functions in the summary", board, ("authority",)),
     ("groups", "User groups through functions, changed only after an administrator confirms", groups, ("board",)),
     ("mailing", "E-mail campaign recipients by function, consent and guardians of minors", mailing, ("groups",)),
