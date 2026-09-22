@@ -3026,7 +3026,8 @@ def account(stack: Stack) -> str:
            f"bookings without area: {unassigned.group(1) if unassigned else None}")
     expect(bookings.get(str(lines["various"]), ("", {}))[0] == "various", f"the various payment: {bookings.get(str(lines['various']))}")
     text = html.unescape(page.text)
-    expect("DefaultCashPOSLabel" not in text and "(CustomerInvoicePayment)" not in text, "labels Dolibarr stores as language keys are shown untranslated")
+    expect("DefaultCashPOSLabel" not in text and "Bargeldkonto für POS" in text and "(CustomerInvoicePayment)" not in text,
+           "labels Dolibarr stores as language keys are shown untranslated")
 
     # The board chooses the area of the various payment and of the large booking without payment; a transfer takes none.
     page_ok(browser.submit(page.form(name="vereineaccountassign"), {f"area[{lines['various']}]": "ideal", f"area[{lines['large']}]": "ideal"}), "choose areas")

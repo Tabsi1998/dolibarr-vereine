@@ -97,9 +97,14 @@ class VereineAccount
 		if (!is_object($langs)) {
 			return $text;
 		}
-		$langs->loadLangs(array('banks', 'bills', 'compta', 'cashdesk'));
+		$langs->loadLangs(array('banks', 'bills', 'compta', 'cashdesk', 'vereine@vereine'));
 		$translated = $langs->transnoentitiesnoconv($key);
-		return $translated !== $key && $translated !== '' ? $translated : $text;
+		if ($translated !== $key && $translated !== '') {
+			return $translated;
+		}
+		// Dolibarr translates the name of the point of sale's cash box only from version 24 on.
+		$own = $langs->transnoentitiesnoconv('VereineBankLabel_'.$key);
+		return $own !== 'VereineBankLabel_'.$key && $own !== '' ? $own : $text;
 	}
 
 	/**

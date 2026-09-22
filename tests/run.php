@@ -1796,6 +1796,7 @@ $prefixes = array(
 	'VereineSphereShort_' => VereineAccountRules::SPHERES,
 	'VereineAccountSide_' => array('income', 'expense'),
 	'VereineAccountTotal_' => array('income', 'expense'),
+	'VereineBankLabel_' => array('DefaultCashPOSLabel'),
 	'VereinePh_' => array_map(function ($key) {
 		return substr(VereinePlaceholders::describedBy($key), strlen('VereinePh_'));
 	}, array_merge(VereinePlaceholders::KEYS['association'], VereinePlaceholders::KEYS['member'], VereinePlaceholders::KEYS['meeting'], VereinePlaceholders::KEYS['circular'])),

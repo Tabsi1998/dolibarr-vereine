@@ -1904,6 +1904,7 @@ VereineAccountAssignHelp=Sonstige Zahlungen, Löhne, Abgaben, Spesen, Darlehen u
 VereineAccountAssignNone=– noch kein Bereich –
 VereineAccountAssignSave=Bereiche speichern
 VereineAccountAssigned=Bereiche gespeichert.
+VereineBankLabel_DefaultCashPOSLabel=Bargeldkonto für POS
 VereineAccountSide_income=Einnahmen
 VereineAccountSide_expense=Ausgaben
 VereineAccountSide=Seite
