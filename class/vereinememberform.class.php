@@ -183,6 +183,7 @@ class VereineMemberForm
 		$type = $this->memberType($member !== null ? (int) $member->typeid : (int) $typeId);
 		$settings = self::settings();
 		$organization = VereineOrganization::load($mysoc);
+		$fillable = VereinePdf::fillable('application');
 		$pdf = VereinePdf::start($outputlangs);
 		$font = pdf_getPDFFont($outputlangs);
 		$text = function ($value, $style = '', $size = 10) use ($pdf, $font) {
@@ -190,16 +191,18 @@ class VereineMemberForm
 			$pdf->MultiCell(0, 5, $value, 0, 'L');
 		};
 		// A field of the form: what it is called, and the value or a line to write on.
-		$field = function ($label, $value, $required = false) use ($pdf, $font) {
+		$field = function ($name, $label, $value, $required = false) use ($pdf, $font, $fillable) {
 			$pdf->SetFont($font, '', 10);
 			$pdf->MultiCell(55, 6, $label.($required ? ' *' : '').':', 0, 'L', false, 0);
-			$pdf->SetFont($font, $value !== '' ? 'B' : '', 10);
-			$pdf->MultiCell(115, 6, $value !== '' ? $value : str_repeat('_', 60), 0, 'L', false, 1);
+			if ($value !== '') {
+				$pdf->SetFont($font, 'B', 10);
+				$pdf->MultiCell(115, 6, $value, 0, 'L', false, 1);
+				return;
+			}
+			VereinePdf::input($pdf, 'antrag_'.$name, 115, $fillable);
 		};
-		$yesNo = function ($label) use ($pdf, $font, $outputlangs) {
-			$pdf->SetFont($font, '', 10);
-			$pdf->MultiCell(120, 6, $label, 0, 'L', false, 0);
-			$pdf->MultiCell(50, 6, $outputlangs->transnoentitiesnoconv('VereineApplicationYesNo'), 0, 'L', false, 1);
+		$yesNo = function ($name, $label) use ($pdf, $outputlangs, $fillable) {
+			VereinePdf::choice($pdf, $outputlangs, 'antrag_'.$name, $label, $fillable);
 		};
 
 		VereinePdf::title($pdf, $outputlangs, $outputlangs->transnoentities('VereineApplicationTitle'),
@@ -211,7 +214,7 @@ class VereineMemberForm
 
 		VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineApplicationPerson'));
 		foreach (self::FIELDS as $name) {
-			$field($outputlangs->transnoentitiesnoconv('VereineApplicationField_'.$name), $this->personValue($member, $name, $outputlangs),
+			$field($name, $outputlangs->transnoentitiesnoconv('VereineApplicationField_'.$name), $this->personValue($member, $name, $outputlangs),
 				in_array($name, $settings['required'], true));
 		}
 		if ($settings['required']) {
@@ -220,13 +223,13 @@ class VereineMemberForm
 		}
 
 		VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineApplicationMembership'));
-		$field($outputlangs->transnoentitiesnoconv('VereineApplicationType'), $type !== null ? $type['label'] : '');
+		$field('mitgliedsart', $outputlangs->transnoentitiesnoconv('VereineApplicationType'), $type !== null ? $type['label'] : '');
 		foreach ($this->feeLines($type, $outputlangs) as $line) {
 			$text($line);
 		}
 		$text(vereineExitRuleText((new VereineExits($this->db))->rule()));
 		$pdf->Ln(1);
-		$yesNo($outputlangs->transnoentitiesnoconv('VereineApplicationStatutes'));
+		$yesNo('statuten', $outputlangs->transnoentitiesnoconv('VereineApplicationStatutes'));
 
 		$consents = (new VereineConsents($this->db))->currentTexts();
 		if ($consents) {
@@ -236,7 +239,7 @@ class VereineMemberForm
 				if ($consent['text'] !== '') {
 					$text(dol_string_nohtmltag($consent['text'], 0), '', 9);
 				}
-				$yesNo($outputlangs->transnoentitiesnoconv('VereineApplicationConsentYesNo'));
+				$yesNo('einwilligung_'.$consent['code'], $outputlangs->transnoentitiesnoconv('VereineApplicationConsentYesNo'));
 				$pdf->Ln(1);
 			}
 		}
@@ -251,7 +254,7 @@ class VereineMemberForm
 			}
 		}
 
-		$this->signatures($pdf, $font, $member, $outputlangs);
+		$this->signatures($pdf, $member, $outputlangs, $fillable);
 		$footer = $this->footer($organization);
 		$pdf->Ln(4);
 		$pdf->SetFont($font, 'I', 8);
@@ -334,38 +337,22 @@ class VereineMemberForm
 	 * Place, day and the lines to sign: the applicant, the guardians of a minor, the board.
 	 *
 	 * @param TCPDF         $pdf         PDF
-	 * @param string        $font        Font
 	 * @param Adherent|null $member      Member, null for a blank form
 	 * @param Translate     $outputlangs Language
+	 * @param bool          $fillable    Whether the form carries fields to fill in
 	 * @return void
 	 */
-	private function signatures($pdf, $font, $member, $outputlangs)
+	private function signatures($pdf, $member, $outputlangs, $fillable)
 	{
 		$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
 		$birth = $member !== null && !empty($member->birth) ? dol_print_date($member->birth, '%Y-%m-%d', 'tzserver') : '';
 		// A blank form carries the line for guardians as well, it does not know who fills it in.
-		$minor = $member === null || self::isMinor($birth, $today);
-		$pdf->Ln(6);
-		$pdf->SetFont($font, '', 10);
-		$pdf->MultiCell(0, 6, $outputlangs->transnoentitiesnoconv('VereineApplicationPlaceDay').': '.str_repeat('_', 50), 0, 'L');
-		$pdf->Ln(6);
 		$lines = array('VereineApplicationSignApplicant');
-		if ($minor) {
+		if ($member === null || self::isMinor($birth, $today)) {
 			$lines[] = 'VereineApplicationSignGuardian';
 		}
 		$lines[] = 'VereineApplicationSignBoard';
-		foreach ($lines as $index => $line) {
-			if ($index > 0 && $index % 2 === 0) {
-				$pdf->Ln(8);
-			}
-			$last = $index % 2 === 1 || $index === count($lines) - 1;
-			$pdf->SetFont($font, '', 9);
-			$pdf->MultiCell(85, 5, '______________________________', 0, 'L', false, $last ? 1 : 0);
-		}
-		foreach ($lines as $index => $line) {
-			$pdf->SetFont($font, '', 8);
-			$pdf->MultiCell(85, 4, $outputlangs->transnoentitiesnoconv($line), 0, 'L', false, ($index % 2 === 1 || $index === count($lines) - 1) ? 1 : 0);
-		}
+		VereinePdf::signatures($pdf, $outputlangs, $lines, 'antrag', $fillable);
 	}
 
 	/**

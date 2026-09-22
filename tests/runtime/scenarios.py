@@ -342,6 +342,7 @@ def enable(stack: Stack) -> str:
                     ["members", "vereine_audit", "/vereine/audit.php"],
                     ["members", "vereine_authority", "/vereine/authority.php"],
                     ["members", "vereine_circulars", "/vereine/circulars.php"],
+                    ["members", "vereine_consentform", "/vereine/consents.php"],
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
                     ["members", "vereine_meetings", "/vereine/meetings.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"],
@@ -359,7 +360,7 @@ def enable(stack: Stack) -> str:
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
     return (f"module {stack.module_version} on with Members, third parties and categories; no country profile; "
-            "4 rights, 12 menu entries, log table, 3 categories")
+            "4 rights, 13 menu entries, log table, 3 categories")
 
 
 def pages(stack: Stack) -> str:
@@ -3188,6 +3189,44 @@ def application(stack: Stack) -> str:
     blank = pdf_text(stack, "vereine/application")
     expect("neu gefasst" in blank and "(v2)" in blank, "the new version of the consent is not on the form")
 
+    # The declaration of consent: one page per member who is still missing one of the chosen consents (#110).
+    forms = "/custom/vereine/consents.php"
+    page = page_ok(browser.get(forms), "the declarations of consent")
+    codes = re.findall(r'data-consentform-code="([a-z_]+)"', page.text)
+    expect("fotos" in codes and "newsletter" in codes, f"consents offered on the form: {codes}")
+    built = page_ok(browser.submit(page.form(name="vereineconsentform"), {"codes[]": "fotos"}, drop=("codes[]",)), "build for everybody missing the photo consent")
+    pages = re.search(r"erstellt: (\d+) Seite", html.unescape(built.text))
+    declaration = pdf_text(stack, "vereine/consent")
+    # The note on the withdrawal stands once per member; the title also stands in the foot of every page.
+    expect(pages is not None and declaration.count("Art. 7") == int(pages.group(1)) and int(pages.group(1)) > 1,
+           f"{pages.group(1) if pages else None} members named, {declaration.count('Art. 7')} pages")
+    expect("Fotos" in declaration, "the declaration lacks the text of the consent")
+    # Exactly the members whose latest event for the consent is not a consent.
+    missing = stack.value("SELECT COUNT(*) FROM llx_adherent as d WHERE d.statut = 1 AND COALESCE((SELECT c.given FROM llx_vereine_consent as c"
+                          " WHERE c.fk_adherent = d.rowid AND c.code = 'fotos' ORDER BY c.date_event DESC, c.rowid DESC LIMIT 1), 0) = 0")
+    expect(int(pages.group(1)) == int(missing), f"{pages.group(1)} pages for {missing} members who are missing the photo consent")
+
+    one = page_ok(browser.get(f"{forms}?member={member}"), "the declaration for one member")
+    expect('data-consentform-scope="member"' in one.text, "the declaration for one member is not limited to them")
+    page_ok(browser.submit(one.form(name="vereineconsentform")), "build the declaration for one member")
+    declaration = pdf_text(stack, "vereine/consent")
+    expect(declaration.count("Art. 7") == 1 and "Bezahlt" in declaration, "the declaration of one member has the wrong pages")
+
+    # Fields to fill in on the screen, per document (#107).
+    page_ok(browser.submit(page_ok(browser.get(setup), "application setup").form(name="vereineapplicationsetup"),
+                           {"fillable[]": "consent"}, drop=("fillable[]",)), "switch the fields on for the declaration")
+    expect(stack.const("VEREINE_PDF_FILLABLE") == "consent", "the documents with fields were not stored")
+    page_ok(browser.submit(page_ok(browser.get(f"{forms}?member={member}"), "the declaration again").form(name="vereineconsentform")), "build it with fields")
+    filled_form = base64.b64decode(stack.shell("base64 $(ls -t $(find /var/www/documents/vereine/consent -name '*.pdf') | head -1)").stdout)
+    expect(b"/Widget" in filled_form and b"consent_1_fotos_ja" in filled_form, "the declaration carries no fields to fill in")
+    again = page_ok(browser.get(base), "applications once more")
+    listed = re.findall(r'data-application-type="(\d+)"', again.text)
+    actions = [form.value("action") for form in again.forms()]
+    expect(f'name="vereineapplication{type_id}"' in again.text, f"no way to build for type {type_id}: types {listed}, forms {actions}")
+    page_ok(browser.submit(again.form(name=f"vereineapplication{type_id}")), "build the blank application once more")
+    printed = base64.b64decode(stack.shell("base64 $(ls -t $(find /var/www/documents/vereine/application -name '*.pdf') | head -1)").stdout)
+    expect(b"antrag_lastname" not in printed, "the application carries fields although only the declaration was switched on")
+
     reader = stack.browser("rtreader")
     page = page_ok(reader.get(base), "the applications for somebody who may only read members")
     expect(f'name="vereineapplication{type_id}"' not in page.text, "somebody who may not change members gets the way to build")
@@ -3195,7 +3234,8 @@ def application(stack: Stack) -> str:
     expect(denied(stack.browser("rtnobody").get(base)), "a user without rights opens the applications")
     return ("blank application per member type with fee, notice period, statutes and consents; own texts of the association stored and on the form; "
             "Dolibarr's member card builds it filled in and notes it at the member; a new consent version reaches the form; "
-            "only who may change members builds, setup for administrators only")
+            "only who may change members builds, setup for administrators only; declaration of consent with one page per member who is "
+            "missing one and one page for a single member; fields to fill in only on the document switched on")
 
 
 def minutestexts(stack: Stack) -> str:
@@ -3909,7 +3949,7 @@ SCENARIOS = (
     ("functions", "Function catalogue, terms of office and what does not fit on a day", functions, ("applications",)),
     ("authority", "Report of new representatives to the association authority: deadline, agenda, letter, noted as reported", authority, ("functions",)),
     ("history", "History of a member in Dolibarr's events: new entries and earlier ones exactly once", history, ("authority",)),
-    ("application", "Application for membership as PDF: blank per member type and filled in on the member card", application, ("history",)),
+    ("application", "Application for membership and declaration of consent as PDF, with fields to fill in", application, ("history",)),
     ("board", "Board for a website: names with consent or disclosure, functions in the summary", board, ("authority",)),
     ("groups", "User groups through functions, changed only after an administrator confirms", groups, ("board",)),
     ("mailing", "E-mail campaign recipients by function, consent and guardians of minors", mailing, ("groups",)),

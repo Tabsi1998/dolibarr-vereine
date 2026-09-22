@@ -56,6 +56,7 @@ if (!$res) {
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once __DIR__.'/../lib/vereine.lib.php';
 require_once __DIR__.'/../class/vereinememberform.class.php';
+require_once __DIR__.'/../class/vereinepdf.class.php';
 
 $langs->loadLangs(array('admin', 'members', 'banks', 'vereine@vereine'));
 
@@ -80,6 +81,7 @@ if ($action === 'save') {
 		VereineMemberForm::PRIVACY_URL => GETPOST('privacy_url', 'alphanohtml'),
 		VereineMemberForm::REQUIRED => implode(',', VereineMemberForm::requiredFields(GETPOST('required', 'array'))),
 		VereineMemberForm::ACCOUNT => (string) GETPOSTINT('account'),
+		VereinePdf::FILLABLE => implode(',', VereinePdf::fillableKinds(GETPOST('fillable', 'array'))),
 	);
 	$stored = true;
 	foreach ($values as $name => $value) {
@@ -132,6 +134,13 @@ print '<tr class="oddeven"><td>'.$langs->trans('VereineApplicationRequired').'<d
 foreach (VereineMemberForm::REQUIRABLE as $field) {
 	print '<label class="paddingright"><input type="checkbox" name="required[]" value="'.$field.'"'.(in_array($field, $settings['required'], true) ? ' checked' : '').'> ';
 	print $langs->trans('VereineApplicationField_'.$field).'</label> ';
+}
+print '</td></tr>';
+
+print '<tr class="oddeven"><td>'.$langs->trans('VereineApplicationFillable').'<div class="opacitymedium small">'.$langs->trans('VereineApplicationFillableHelp').'</div></td><td>';
+foreach (VereinePdf::FILLABLE_KINDS as $kind) {
+	print '<label class="paddingright"><input type="checkbox" name="fillable[]" value="'.$kind.'"'.(VereinePdf::fillable($kind) ? ' checked' : '').'> ';
+	print $langs->trans('VereineApplicationFillable_'.$kind).'</label> ';
 }
 print '</td></tr>';
 

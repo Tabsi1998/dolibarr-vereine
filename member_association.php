@@ -414,6 +414,7 @@ foreach (array_unique(array_merge(array_keys($currentConsents), array_keys($offe
 	print '</td></tr>';
 }
 print '</table></div>';
+print '<div class="paddingtop"><a href="'.dol_buildpath('/vereine/consents.php', 1).'?member='.((int) $object->id).'">'.$langs->trans('VereineConsentFormLink').'</a></div>';
 if (count($consentHistory) > count($currentConsents)) {
 	foreach ($consentHistory as $event) {
 		print '<div class="opacitymedium small" data-consent-event="'.dol_escape_htmltag($event['code']).'">'.dol_print_date($event['moment'], 'dayhour').': ';

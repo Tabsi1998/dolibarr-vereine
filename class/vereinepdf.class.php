@@ -37,6 +37,11 @@ class VereinePdf
 	/** Left and right margin, in mm. */
 	const SIDE = 20;
 
+	/** Documents that can carry fields to fill in on the screen (#107). */
+	const FILLABLE_KINDS = array('application', 'consent');
+	/** Setting: which documents carry those fields, comma separated. */
+	const FILLABLE = 'VEREINE_PDF_FILLABLE';
+
 	/**
 	 * A new document with room for head and foot.
 	 *
@@ -120,6 +125,118 @@ class VereinePdf
 			$pdf->SetAutoPageBreak(true, self::BOTTOM + 5);
 		}
 		$pdf->lastPage();
+	}
+
+	/**
+	 * Which documents carry fillable fields, as the setup stores it.
+	 *
+	 * @param mixed $entered Comma separated list or array of kinds; null reads the setting
+	 * @return string[] Kinds of FILLABLE_KINDS, in their order
+	 */
+	public static function fillableKinds($entered = null)
+	{
+		$value = $entered === null ? getDolGlobalString(self::FILLABLE) : $entered;
+		$list = is_array($value) ? $value : explode(',', (string) $value);
+		$kinds = array();
+		foreach (self::FILLABLE_KINDS as $kind) {
+			foreach ($list as $one) {
+				if (is_scalar($one) && trim((string) $one) === $kind) {
+					$kinds[] = $kind;
+					break;
+				}
+			}
+		}
+		return $kinds;
+	}
+
+	/**
+	 * Whether a document is built with fillable fields.
+	 *
+	 * @param string $kind One of FILLABLE_KINDS
+	 * @return bool
+	 */
+	public static function fillable($kind)
+	{
+		return in_array($kind, self::fillableKinds(), true);
+	}
+
+	/**
+	 * A field to write in, or a line to write on when the document is only printed.
+	 *
+	 * @param TCPDF  $pdf      Document
+	 * @param string $name     Name of the field, unique in the document
+	 * @param float  $width    Width in mm
+	 * @param bool   $fillable Whether the document carries fields
+	 * @param float  $height   Height in mm
+	 * @return void
+	 */
+	public static function input($pdf, $name, $width, $fillable, $height = 6)
+	{
+		$x = $pdf->GetX();
+		$y = $pdf->GetY();
+		if ($fillable) {
+			$pdf->TextField($name, $width, $height, array('lineWidth' => 0.1, 'borderStyle' => 'solid', 'strokeColor' => array(190, 190, 190)), array(), $x, $y);
+		} else {
+			$pdf->MultiCell($width, $height, str_repeat('_', max(4, (int) round($width / 1.9))), 0, 'L', false, 0);
+		}
+		$pdf->SetXY($x + $width, $y);
+		$pdf->Ln($height);
+	}
+
+	/**
+	 * A yes or no to tick: two boxes, or two brackets when the document is only printed.
+	 *
+	 * @param TCPDF     $pdf         Document
+	 * @param Translate $outputlangs Language of the document
+	 * @param string    $name        Name of the field, unique in the document
+	 * @param string    $label       What is agreed to
+	 * @param bool      $fillable    Whether the document carries fields
+	 * @return void
+	 */
+	public static function choice($pdf, $outputlangs, $name, $label, $fillable)
+	{
+		$font = pdf_getPDFFont($outputlangs);
+		$pdf->SetFont($font, '', 10);
+		$pdf->MultiCell(110, 6, $label, 0, 'L', false, 0);
+		if (!$fillable) {
+			$pdf->MultiCell(60, 6, $outputlangs->transnoentitiesnoconv('VereineApplicationYesNo'), 0, 'L', false, 1);
+			return;
+		}
+		$x = $pdf->GetX();
+		$y = $pdf->GetY();
+		$pdf->CheckBox($name.'_ja', 4, false, array(), array(), 'Ja', $x, $y + 1);
+		$pdf->SetXY($x + 6, $y);
+		$pdf->MultiCell(14, 6, $outputlangs->transnoentitiesnoconv('Yes'), 0, 'L', false, 0);
+		$x = $pdf->GetX();
+		$pdf->CheckBox($name.'_nein', 4, false, array(), array(), 'Nein', $x, $y + 1);
+		$pdf->SetXY($x + 6, $y);
+		$pdf->MultiCell(20, 6, $outputlangs->transnoentitiesnoconv('No'), 0, 'L', false, 1);
+	}
+
+	/**
+	 * Place, day and the lines to sign; with fields to sign in when the document is fillable.
+	 *
+	 * @param TCPDF     $pdf         Document
+	 * @param Translate $outputlangs Language of the document
+	 * @param string[]  $lines       Language keys under the signature lines
+	 * @param string    $prefix      Prefix of the field names, unique in the document
+	 * @param bool      $fillable    Whether the document carries fields
+	 * @return void
+	 */
+	public static function signatures($pdf, $outputlangs, array $lines, $prefix, $fillable)
+	{
+		$font = pdf_getPDFFont($outputlangs);
+		$pdf->Ln(4);
+		$pdf->SetFont($font, '', 10);
+		$pdf->MultiCell(45, 6, $outputlangs->transnoentitiesnoconv('VereineApplicationPlaceDay').':', 0, 'L', false, 0);
+		self::input($pdf, $prefix.'_ort_datum', 80, $fillable);
+		$pdf->Ln(4);
+		foreach ($lines as $line) {
+			self::input($pdf, $prefix.'_'.dol_sanitizeFileName(strtolower($line)), 85, $fillable, 10);
+			$pdf->SetFont($font, '', 8);
+			$pdf->MultiCell(85, 4, $outputlangs->transnoentitiesnoconv($line), 0, 'L');
+			$pdf->Ln(3);
+		}
 	}
 
 	/**

@@ -14,6 +14,25 @@ jetzt in Dolibarrs Ereignissen (#112).
 
 ### Neu
 
+- **Einwilligungserklärung drucken** (#110): Unter *Mitglieder – Verein –
+  Einwilligungserklärung* wählst du die Einwilligungen und bekommst ein PDF – entweder
+  für ein Mitglied (Link am Reiter *Verein* des Mitglieds) oder für alle aktiven
+  Mitglieder, denen eine gewählte Einwilligung noch fehlt, mit einer Seite je Mitglied.
+  Die Texte kommen in ihrer aktuellen Fassung aus der Einrichtung, dazu der Hinweis auf
+  den jederzeitigen Widerruf (Art. 7 Abs. 3 DSGVO) und die Unterschrift, bei
+  Minderjährigen die der Erziehungsberechtigten.
+- **Am Bildschirm ausfüllbare Formulare** (#107): Mitgliedsantrag und
+  Einwilligungserklärung können Formularfelder zum Ausfüllen und ein leeres Feld zum
+  Unterschreiben bekommen, einstellbar je Dokument im Reiter *Mitgliedsantrag*. Eine
+  qualifizierte elektronische Signatur ist das nicht – die gibt es nur über ID Austria.
+
+### Update
+
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das legt den
+Menüpunkt *Einwilligungserklärung* an.
+
+### Neu
+
 - **Mitgliedsantrag als PDF** (#108): Unter *Mitglieder – Verein – Mitgliedsantrag* gibt
   es den leeren Antrag zum Ausdrucken, je Mitgliedsart einen. Für ein bestimmtes Mitglied
   erstellt ihn Dolibarr auf der Mitgliedskarte unter *Dokumente* mit der Vorlage
