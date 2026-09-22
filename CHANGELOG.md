@@ -7,6 +7,11 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.5.17-beta] - 2026-09-22
+
+Rechnungsprüfung in Dolibarr: Prüfbereich je Vereinsjahr mit Hinweisen, Stichproben und
+Prüfliste nach § 21 VerG, dazu der Bericht der Rechnungsprüfer als PDF (#114, #117).
+
 ### Neu
 
 - **Rechnungsprüfung in Dolibarr** (#117): Unter *Mitglieder – Verein –
@@ -23,6 +28,14 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Wahltag und Funktionsperiode, Prüfungstag, Unterlagen, Ergebnis je Punkt und
   Unterschriftszeilen. Unterschreiben geht auf Papier, in Dolibarr oder mit
   ID Austria, wie bei den anderen Dokumenten.
+
+### Update
+
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das legt
+die Tabellen der Prüfung und den Menüpunkt *Rechnungsprüfung* an. Danach der
+Benutzergruppe der Rechnungsprüfer Leserechte geben: Modul Vereine lesen, dazu
+Rechnungen, Lieferantenrechnungen und Bank nur lesen. Die Prüfer brauchen einen
+Benutzer, der mit ihrem Mitglied verknüpft ist.
 
 ## [0.5.16-beta] - 2026-09-22
 
@@ -1434,7 +1447,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.16-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.17-beta...HEAD
+[0.5.17-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.17-beta
 [0.5.16-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.16-beta
 [0.5.15-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.15-beta
 [0.5.14-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.14-beta
