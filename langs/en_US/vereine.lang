@@ -1964,3 +1964,8 @@ VereineSignatureKindHelp_account=Mit der Vermögensübersicht; der Vorstand erst
 VereineLog_account_saved=Einnahmen-Ausgaben-Rechnung gespeichert
 VereineLog_account_pdf=Einnahmen-Ausgaben-Rechnung als PDF erstellt
 VereineLog_account_assigned=Bereiche von Buchungen gewählt
+
+# Verlauf am Mitglied über Dolibarrs Ereignisse (#112)
+VereineLogEvents=Verlauf in Dolibarrs Ereignissen
+VereineLogEventsHelp=Was das Vereine-Modul hier getan hat, steht dort als automatisches Ereignis, neben Dolibarrs eigenen Einträgen.
+VereineLogNoAgenda=Mit Dolibarrs Modul Agenda steht dieser Verlauf bei den Ereignissen des Mitglieds, neben Dolibarrs eigenen Einträgen.

@@ -116,7 +116,112 @@ class VereineLog
 			dol_syslog('VereineLog::add '.$db->lasterror(), LOG_ERR);
 			return -1;
 		}
-		return (int) $db->last_insert_id(MAIN_DB_PREFIX.'vereine_log');
+		$id = (int) $db->last_insert_id(MAIN_DB_PREFIX.'vereine_log');
+		// What concerns a member or a third party also goes to Dolibarr's events of it, where its history is (#112).
+		if (((int) $memberId > 0 || (int) $socid > 0) && isModEnabled('agenda')) {
+			self::toEvent($db, $id, $user, (string) $action, (int) $memberId, (int) $socid, (string) $message, dol_now());
+		}
+		return $id;
+	}
+
+	/**
+	 * Enter an entry as an automatic event of Dolibarr's agenda at the member, or at the third party.
+	 *
+	 * The event carries the same text as the entry, nothing more.
+	 *
+	 * @param DoliDB    $db       Database handler
+	 * @param int       $logId    Entry
+	 * @param User|null $user     Who acted; null takes the user of the request
+	 * @param string    $action   One of the constants
+	 * @param int       $memberId Member concerned, 0 for none
+	 * @param int       $socid    Third party concerned, 0 for none
+	 * @param string    $message  Text of the entry
+	 * @param int       $date     When it happened
+	 * @return int Event, 0 when none was made
+	 */
+	public static function toEvent($db, $logId, $user, $action, $memberId, $socid, $message, $date)
+	{
+		global $langs;
+
+		require_once DOL_DOCUMENT_ROOT.'/comm/action/class/actioncomm.class.php';
+		if (!is_object($user) || (int) $user->id <= 0) {
+			$user = isset($GLOBALS['user']) && is_object($GLOBALS['user']) && (int) $GLOBALS['user']->id > 0 ? $GLOBALS['user'] : null;
+		}
+		if ($user === null) {
+			return 0;
+		}
+		if ($memberId > 0 && $socid <= 0) {
+			$resql = $db->query("SELECT fk_soc FROM ".MAIN_DB_PREFIX."adherent WHERE rowid = ".((int) $memberId));
+			$obj = $resql ? $db->fetch_object($resql) : null;
+			$socid = $obj ? (int) $obj->fk_soc : 0;
+		}
+		$langs->load('vereine@vereine');
+		$event = new ActionComm($db);
+		$event->type_code = 'AC_OTH_AUTO';
+		// Own prefix: Dolibarr's agenda writes AC_VEREINE_MEMBER_CHANGED for the module's webhook trigger.
+		$event->code = 'AC_VEREINE_LOG_'.strtoupper(substr((string) $action, 0, 34));
+		$event->label = dol_trunc($langs->transnoentitiesnoconv('VereineLog_'.$action), 250, 'right', 'UTF-8', 1);
+		$event->note_private = (string) $message;
+		$event->datep = (int) $date;
+		$event->datef = (int) $date;
+		$event->durationp = 0;
+		$event->fulldayevent = 0;
+		$event->percentage = -1;
+		$event->socid = $socid > 0 ? $socid : 0;
+		$event->authorid = (int) $user->id;
+		$event->userownerid = (int) $user->id;
+		if ($memberId > 0) {
+			$event->elementtype = 'member';
+			$event->fk_element = $memberId;
+		} elseif ($socid > 0) {
+			$event->elementtype = 'societe';
+			$event->fk_element = $socid;
+		}
+		$eventId = (int) $event->create($user, 1);
+		if ($eventId <= 0) {
+			dol_syslog('VereineLog::toEvent '.$event->error, LOG_WARNING);
+			return 0;
+		}
+		$db->query("UPDATE ".MAIN_DB_PREFIX."vereine_log SET fk_actioncomm = ".$eventId." WHERE rowid = ".((int) $logId));
+		return $eventId;
+	}
+
+	/**
+	 * Enter every earlier entry about a member or a third party as an event, once: an entry that has its
+	 * event is never entered again (#112).
+	 *
+	 * @param DoliDB $db Database handler
+	 * @return int Number of events made, -1 on error
+	 */
+	public static function migrateToEvents($db)
+	{
+		global $conf;
+
+		$sql = "SELECT rowid, datec, fk_user, action, fk_adherent, fk_soc, message FROM ".MAIN_DB_PREFIX."vereine_log";
+		$sql .= " WHERE entity = ".((int) $conf->entity)." AND fk_actioncomm IS NULL AND (fk_adherent > 0 OR fk_soc > 0) ORDER BY rowid";
+		$resql = $db->query($sql);
+		if (!$resql) {
+			dol_syslog('VereineLog::migrateToEvents '.$db->lasterror(), LOG_ERR);
+			return -1;
+		}
+		$rows = array();
+		while ($obj = $db->fetch_object($resql)) {
+			$rows[] = $obj;
+		}
+		$actors = array();
+		$made = 0;
+		foreach ($rows as $obj) {
+			$userId = (int) $obj->fk_user;
+			if ($userId > 0 && !array_key_exists($userId, $actors)) {
+				$actor = new User($db);
+				$actors[$userId] = $actor->fetch($userId) > 0 ? $actor : null;
+			}
+			if (self::toEvent($db, (int) $obj->rowid, $userId > 0 ? $actors[$userId] : null, (string) $obj->action, (int) $obj->fk_adherent, (int) $obj->fk_soc,
+				(string) $obj->message, (int) $db->jdate($obj->datec)) > 0) {
+				$made++;
+			}
+		}
+		return $made;
 	}
 
 	/**

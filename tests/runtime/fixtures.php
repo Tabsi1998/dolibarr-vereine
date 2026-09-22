@@ -40,6 +40,7 @@
  * php fixtures.php discountmembers  a child, two students and an honorary member for the discounts
  * php fixtures.php audit  a bank with bookings, a supplier invoice of an officer and an auditor with own login (RT_YEAR, RT_AUDITOR_PASSWORD)
  * php fixtures.php account  a paid invoice over two areas, part of the officer's invoice paid, a cash box with a transfer, an open invoice (RT_YEAR)
+ * php fixtures.php migratelog  earlier log entries become Dolibarr events, as enabling the module does
  *
  * Prints one JSON object. Passwords and API keys come from the environment only.
  */
@@ -1137,6 +1138,13 @@ if ($stage === 'sepamembers') {
 		$accounts[$key] = (int) $account->id;
 	}
 	print json_encode(array('members' => $members, 'accounts' => $accounts))."\n";
+	exit(0);
+}
+
+// Earlier log entries become Dolibarr events, as enabling the module does.
+if ($stage === 'migratelog') {
+	dol_include_once('/vereine/class/vereinelog.class.php');
+	print json_encode(array('made' => VereineLog::migrateToEvents($db)))."\n";
 	exit(0);
 }
 

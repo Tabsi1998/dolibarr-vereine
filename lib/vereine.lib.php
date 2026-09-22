@@ -475,7 +475,8 @@ function vereinePrintGuardians($db, $socid)
 }
 
 /**
- * What the module did with a member and its third party.
+ * What the module did with a member and its third party: Dolibarr's events of it, where its history is;
+ * the module's own list only while Dolibarr's agenda is off (#112).
  *
  * @param DoliDB $db       Database handler
  * @param int    $memberId Member id, 0 for none
@@ -488,7 +489,14 @@ function vereinePrintLog($db, $memberId, $socid)
 
 	dol_include_once('/vereine/class/vereinelog.class.php');
 
+	if (isModEnabled('agenda')) {
+		$url = (int) $memberId > 0 ? DOL_URL_ROOT.'/adherents/agenda.php?id='.((int) $memberId) : DOL_URL_ROOT.'/societe/agenda.php?socid='.((int) $socid);
+		print '<div class="paddingtop" data-log-events="1">'.img_picto('', 'action', 'class="pictofixedwidth"');
+		print '<a href="'.$url.'">'.$langs->trans('VereineLogEvents').'</a> <span class="opacitymedium small">'.$langs->trans('VereineLogEventsHelp').'</span></div>';
+		return;
+	}
 	print load_fiche_titre($langs->trans('VereineLogTitle'), '', '');
+	print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineLogNoAgenda').'</div>';
 	print '<table class="noborder centpercent" data-log="1">';
 	print '<tr class="liste_titre"><td>'.$langs->trans('Date').'</td><td>'.$langs->trans('Action').'</td><td>'.$langs->trans('Description').'</td></tr>';
 	$entries = VereineLog::recent($db, (int) $memberId, (int) $socid, 20);
