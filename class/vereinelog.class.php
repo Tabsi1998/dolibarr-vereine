@@ -68,6 +68,9 @@ class VereineLog
 	const QES_SETUP = 'qes_setup';
 	const QES_SIGNED = 'qes_signed';
 	const TAX_PROFILE_SET = 'tax_profile_set';
+	const AUDIT_SAVED = 'audit_saved';
+	const AUDIT_CHECKED = 'audit_checked';
+	const AUDIT_REPORT = 'audit_report';
 	const SIGNATURE_STARTED = 'signature_started';
 	const SIGNATURE_SIGNED = 'signature_signed';
 	const SIGNATURE_DONE = 'signature_done';

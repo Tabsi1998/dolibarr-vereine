@@ -7,6 +7,23 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Neu
+
+- **Rechnungsprüfung in Dolibarr** (#117): Unter *Mitglieder – Verein –
+  Rechnungsprüfung* sehen die Rechnungsprüfer je Vereinsjahr alle Bankbuchungen,
+  Kunden- und Lieferantenrechnungen. Hinweise zeigen, wo genauer hinzuschauen
+  ist: Buchungen ohne Beleg, ungewöhnlich hohe Beträge und Geschäfte mit einem
+  Vorstandsmitglied (§ 6 Abs. 4 VerG). Die Prüfer haken Stichproben mit
+  Anmerkung ab und füllen die Prüfliste nach § 21 Abs. 3 VerG aus: Rechnungslegung,
+  Mittelverwendung, ungewöhnliche Einnahmen und Ausgaben, Insichgeschäfte,
+  Gefahren für den Verein. Wer ein Rechnungsprüfer ist, kommt aus den Funktionen;
+  andere dürfen mitlesen, aber nichts abhaken. An Rechnungen und Bank ändert das
+  Modul nichts.
+- **Bericht der Rechnungsprüfer als PDF** (#114): mit Vorstand, Prüfern samt
+  Wahltag und Funktionsperiode, Prüfungstag, Unterlagen, Ergebnis je Punkt und
+  Unterschriftszeilen. Unterschreiben geht auf Papier, in Dolibarr oder mit
+  ID Austria, wie bei den anderen Dokumenten.
+
 ## [0.5.16-beta] - 2026-09-22
 
 Steuerprofile sauber: Lieferantenrechnungen ohne falsche Warnung, ein eigener Bereich für

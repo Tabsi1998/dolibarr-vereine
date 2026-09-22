@@ -38,6 +38,7 @@
  * php fixtures.php feerunmember  a member with fee and third party, validated today
  * php fixtures.php payinvoice  pay the rest of an invoice, closing it as paid
  * php fixtures.php discountmembers  a child, two students and an honorary member for the discounts
+ * php fixtures.php audit  a bank with bookings, a supplier invoice of an officer and an auditor with own login (RT_YEAR, RT_AUDITOR_PASSWORD)
  *
  * Prints one JSON object. Passwords and API keys come from the environment only.
  */
@@ -357,6 +358,111 @@ if ($stage === 'invoicing') {
 		'supplier_invoice' => (int) $supplierInvoice->id,
 		'supplier_line' => (int) $result,
 	))."\n";
+	exit(0);
+}
+
+// A year to audit: a bank account with bookings, a supplier invoice of an officer, an auditor with own login.
+if ($stage === 'audit') {
+	require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/fourn/class/fournisseur.facture.class.php';
+	$result = activateModule('modBanque');
+	if (!empty($result['errors'])) {
+		rt_fail('activating modBanque failed: '.implode(' | ', (array) $result['errors']));
+	}
+	$conf->setValues($db);
+	$admin->getrights();
+	$year = (int) rt_env('RT_YEAR');
+	$day = function ($month, $dayOfMonth) use ($year) {
+		return dol_mktime(12, 0, 0, $month, $dayOfMonth, $year);
+	};
+
+	$account = new Account($db);
+	$account->ref = 'RTBANK';
+	$account->label = 'Vereinskonto';
+	$account->type = Account::TYPE_CURRENT;
+	$account->courant = Account::TYPE_CURRENT;
+	$account->currency_code = 'EUR';
+	$account->country_id = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+	$account->date_solde = $day(1, 1);
+	$account->solde = 0;
+	$account->clos = 0;
+	if ($account->create($admin) <= 0) {
+		rt_fail('bank account: '.$account->error.' '.implode(' | ', (array) $account->errors));
+	}
+	$lines = array();
+	foreach (array('small1' => array(2, 3, 'Kleinbetrag Getränke', 20), 'small2' => array(3, 4, 'Kleinbetrag Material', -30),
+		'no_document' => array(4, 5, 'Bargeld ohne Beleg', -40), 'large' => array(5, 6, 'Großspende Firma', 5000)) as $key => $data) {
+		$lineId = $account->addline($day($data[0], $data[1]), 'VIR', $data[2], $data[3], '', 0, $admin);
+		if ($lineId <= 0) {
+			rt_fail('bank line '.$key.': '.$account->error);
+		}
+		$lines[$key] = (int) $lineId;
+	}
+
+	// The chair's third party supplies the association: a transaction of an officer (§ 6 (4) VerG).
+	$sql = "SELECT t.fk_adherent FROM ".MAIN_DB_PREFIX."vereine_function_term as t INNER JOIN ".MAIN_DB_PREFIX."vereine_function as f ON f.rowid = t.fk_function";
+	$sql .= " WHERE f.code = 'obmann' AND (t.date_end IS NULL OR t.date_end >= CURDATE()) ORDER BY t.rowid DESC LIMIT 1";
+	$chair = rt_value($db, $sql);
+	if (!$chair) {
+		rt_fail('the functions scenario should leave a chair in office');
+	}
+	$socid = (int) rt_value($db, "SELECT fk_soc FROM ".MAIN_DB_PREFIX."adherent WHERE rowid = ".((int) $chair));
+	if ($socid <= 0) {
+		$party = new Societe($db);
+		$party->name = 'Obmann Handel';
+		$party->fournisseur = 1;
+		$party->code_fournisseur = -1;
+		$party->country_id = $account->country_id;
+		if ($party->create($admin) <= 0) {
+			rt_fail('third party of the chair: '.$party->error);
+		}
+		$socid = (int) $party->id;
+		$db->query("UPDATE ".MAIN_DB_PREFIX."adherent SET fk_soc = ".$socid." WHERE rowid = ".((int) $chair));
+	}
+	$db->query("UPDATE ".MAIN_DB_PREFIX."societe SET fournisseur = 1 WHERE rowid = ".$socid);
+	$invoice = new FactureFournisseur($db);
+	$invoice->socid = $socid;
+	$invoice->ref_supplier = 'RT-OBMANN-'.$year;
+	$invoice->date = $day(6, 15);
+	$invoice->type = FactureFournisseur::TYPE_STANDARD;
+	if ($invoice->create($admin) <= 0 || $invoice->addline('Miete Vereinsbus', 300, 0, 0, 0, 1) <= 0 || $invoice->validate($admin) <= 0) {
+		rt_fail('supplier invoice of the chair: '.$invoice->error);
+	}
+
+	// An auditor with own login: a member without function, the auditing function, read rights only.
+	$sql = "SELECT d.rowid FROM ".MAIN_DB_PREFIX."adherent as d WHERE d.statut = 1";
+	$sql .= " AND d.rowid NOT IN (SELECT fk_adherent FROM ".MAIN_DB_PREFIX."vereine_function_term)";
+	$sql .= " AND d.rowid NOT IN (SELECT fk_member FROM ".MAIN_DB_PREFIX."user WHERE fk_member IS NOT NULL) ORDER BY d.rowid LIMIT 1";
+	$member = (int) rt_value($db, $sql);
+	$function = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."vereine_function WHERE code = 'rechnungspruefung'");
+	if ($member <= 0 || $function <= 0) {
+		rt_fail('no member without function, or no auditing function');
+	}
+	$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_function_term (entity, fk_function, fk_adherent, date_start, datec)";
+	$sql .= " VALUES (1, ".$function.", ".$member.", '".($year - 1)."-06-01', '".$db->idate(dol_now())."')";
+	$db->query($sql);
+	$auditor = new User($db);
+	$auditor->login = 'rtauditor';
+	$auditor->lastname = 'Prüferin';
+	$auditor->firstname = 'Runtime';
+	$auditor->admin = 0;
+	$auditor->entity = 1;
+	if ($auditor->create($admin) <= 0 || $auditor->setPassword($admin, rt_env('RT_AUDITOR_PASSWORD')) === -1) {
+		rt_fail('the auditor: '.$auditor->error);
+	}
+	$db->query("UPDATE ".MAIN_DB_PREFIX."user SET fk_member = ".$member." WHERE rowid = ".((int) $auditor->id));
+	foreach (array(array('vereine', 'association', 'read'), array('facture', 'lire', ''), array('fournisseur', 'facture', 'lire'), array('banque', 'lire', '')) as $right) {
+		$sql = "SELECT id FROM ".MAIN_DB_PREFIX."rights_def WHERE module = '".$right[0]."' AND perms = '".$right[1]."' AND entity = 1";
+		$sql .= $right[2] !== '' ? " AND subperms = '".$right[2]."'" : " AND (subperms IS NULL OR subperms = '')";
+		$rightId = (int) rt_value($db, $sql." ORDER BY id LIMIT 1");
+		if ($rightId <= 0 || $auditor->addrights($rightId) < 0) {
+			rt_fail('right '.implode('/', $right).' for the auditor: '.$auditor->error);
+		}
+	}
+	print json_encode(array('account' => (int) $account->id, 'lines' => $lines, 'officer_invoice' => (int) $invoice->id,
+		'auditor_member' => $member, 'auditor_name' => trim(rt_value($db, "SELECT CONCAT(firstname, ' ', lastname) FROM ".MAIN_DB_PREFIX."adherent WHERE rowid = ".$member)),
+		'chair' => (int) $chair))."\n";
 	exit(0);
 }
 
