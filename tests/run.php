@@ -56,6 +56,7 @@ require_once $root.'/class/vereinemeetingrules.class.php';
 require_once $root.'/class/vereineminutesrules.class.php';
 require_once $root.'/class/vereinesignaturerules.class.php';
 require_once $root.'/class/vereineqes.class.php';
+require_once $root.'/class/vereinemailtemplates.class.php';
 require_once $root.'/class/vereinetextrepair.class.php';
 require_once $root.'/class/vereineattendancerules.class.php';
 require_once $root.'/class/vereinevoterules.class.php';
@@ -1476,6 +1477,105 @@ if (function_exists('openssl_pkcs7_sign')) {
 	same(false, VereineQes::appended($qesOnce, $qesTwice.'% more', sys_get_temp_dir())['ok'], 'something after the new signature');
 }
 
+// ------------------------------------------------------------- placeholders and e-mail templates
+
+/**
+ * A stand-in for Dolibarr's Translate with the German texts of the module.
+ */
+class VereineTestLangs
+{
+	/** @var string Language */
+	public $defaultlang = 'de_DE';
+
+	/** @var array<string,string> Texts by key */
+	private $entries;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param array<string,string> $entries Texts by key
+	 */
+	public function __construct(array $entries)
+	{
+		$this->entries = $entries;
+	}
+
+	/**
+	 * Nothing to load, the texts are there.
+	 *
+	 * @param string $domain Domain
+	 * @return int
+	 */
+	public function load($domain)
+	{
+		return 1;
+	}
+
+	/**
+	 * A text with its values, as Dolibarr fills it.
+	 *
+	 * @param string $key Key
+	 * @param string $p1  First value
+	 * @param string $p2  Second value
+	 * @param string $p3  Third value
+	 * @return string
+	 */
+	public function transnoentities($key, $p1 = '', $p2 = '', $p3 = '')
+	{
+		return isset($this->entries[$key]) ? sprintf($this->entries[$key], $p1, $p2, $p3) : $key;
+	}
+}
+
+$germanTexts = langEntries($root.'/langs/de_DE/vereine.lang');
+$testLangs = new VereineTestLangs($germanTexts);
+foreach (VereinePlaceholders::KEYS as $group => $keys) {
+	foreach ($keys as $key) {
+		expect(isset($germanTexts[VereinePlaceholders::describedBy($key)]), 'the placeholder '.$key.' has no explanation '.VereinePlaceholders::describedBy($key));
+	}
+}
+same(VereineMinutesRules::PLACEHOLDERS, array_map(function ($key) {
+	return trim($key, '{}');
+}, VereinePlaceholders::KEYS['minutes']), 'the list names every placeholder of the minutes');
+
+$phFunctions = array(array('code' => 'obmann', 'label' => 'Obmann/Obfrau', 'board' => true), array('code' => 'kassier', 'label' => 'Kassier:in', 'board' => true),
+	array('code' => 'rechnungspruefung', 'label' => 'Rechnungsprüfer:in', 'board' => false));
+$phValues = VereinePlaceholders::association($organization, $phFunctions, array('obmann' => array('Erika Muster'), 'kassier' => array('Max Muster', 'Paula Muster'),
+	'rechnungspruefung' => array('Pia Prüf')), '01.03.2019');
+same(array('123456789', 'THE LION SQUAD', 'Innsbruck', 'Musterweg 1, 6020 Innsbruck', 'Landespolizeidirektion Tirol', 'Erika Muster', 'Max Muster, Paula Muster', ''),
+	array($phValues['__VEREINE_ZVR__'], $phValues['__VEREINE_NAME__'], $phValues['__VEREINE_SITZ__'], $phValues['__VEREINE_ADRESSE__'], $phValues['__VEREINE_BEHOERDE__'],
+		$phValues['__VEREINE_OBMANN__'], $phValues['__VEREINE_KASSIER__'], $phValues['__VEREINE_SCHRIFTFUEHRUNG__']), 'the data of the association, a vacant function stays empty');
+same("Obmann/Obfrau: Erika Muster\nKassier:in: Max Muster, Paula Muster", $phValues['__VEREINE_VORSTAND__'], 'the board, one function per line, without the auditors');
+same(array_merge(VereinePlaceholders::KEYS['association']), array_keys(array_intersect_key(array_flip(VereinePlaceholders::KEYS['association']), $phValues)),
+	'every placeholder of the association has a value');
+
+// The standard invitation gives the text the module always sent.
+$phMeeting = array('kind' => 'general', 'title' => 'Generalversammlung 2026', 'time' => '19:00', 'place' => 'Vereinsheim', 'format' => 'hybrid',
+	'access' => 'https://meet.example.test/gv', 'agenda' => array('Begrüßung', 'Bericht des Vorstands'));
+$phInvitation = VereineMailTemplates::defaults(VereineMailTemplates::TYPE_INVITATION, $testLangs);
+$phFilled = VereinePlaceholders::fill($phInvitation['content'], array_merge($phValues,
+	VereinePlaceholders::meeting($phMeeting, 'Erika Muster', false, 'THE LION SQUAD', '14.10.2026', '11.10.2026', $testLangs)));
+same(implode("
+", array('Guten Tag Erika Muster,', '', 'hiermit lädt der Vorstand des Vereins „THE LION SQUAD“ zur ordentlichen Generalversammlung ein:', '',
+	'Generalversammlung 2026', 'Wann: 14.10.2026 um 19:00 Uhr', 'Wo: Vereinsheim', 'Sie können vor Ort oder virtuell teilnehmen.', 'Teilnahme: https://meet.example.test/gv', '',
+	'Tagesordnung:', '1. Begrüßung', '2. Bericht des Vorstands', '',
+	'Anträge zur Generalversammlung sind bis 11.10.2026 beim Vorstand schriftlich oder per E-Mail einzureichen.', '',
+	'Sie sind zur Teilnahme eingeladen, laut Statuten aber nicht stimmberechtigt.', '',
+	'Mit freundlichen Grüßen', 'Der Vorstand des Vereins „THE LION SQUAD“')), $phFilled, 'the standard invitation is the text the module always sent');
+$phBoard = VereinePlaceholders::fill($phInvitation['content'], array_merge($phValues, VereinePlaceholders::meeting(array('kind' => 'board', 'place' => '',
+	'format' => 'physical', 'agenda' => array('Bericht')) + $phMeeting, 'Max Muster', true, 'THE LION SQUAD', '02.10.2026', '', $testLangs)));
+expect(strpos($phBoard, "1. Bericht\n\nMit freundlichen Grüßen") !== false && strpos($phBoard, 'Wo:') === false,
+	'without notes one empty line before the closing, without a place no line for it');
+same('Einladung: Generalversammlung 2026 am 14.10.2026 19:00', VereinePlaceholders::fill($phInvitation['topic'],
+	VereinePlaceholders::meeting($phMeeting, 'Erika Muster', true, 'THE LION SQUAD', '14.10.2026', '', $testLangs)), 'the subject as always');
+$phReminder = VereineMailTemplates::defaults(VereineMailTemplates::TYPE_REMINDER, $testLangs);
+expect(strpos(VereinePlaceholders::fill($phReminder['content'], VereinePlaceholders::circular(array('title' => 'Neue Trikots', 'wording' => 'Wir kaufen 20 Trikots.'),
+	'Max', '30.09.2026', 'https://erp.example.test/custom/vereine/circulars.php?id=3') + $phValues), "Hallo Max, im Vorstand von THE LION SQUAD fehlt noch deine Stimme") === 0,
+	'the reminder of a circular resolution');
+same("Hallo <b>__VEREINE_UNBEKANNT__</b><br>A &amp; B<br>\nC", VereinePlaceholders::fill('Hallo <b>__VEREINE_UNBEKANNT__</b><br>__VEREINE_X__',
+	array('__VEREINE_X__' => "A & B\nC"), true), 'in HTML values are escaped and keep their line breaks; unknown placeholders stay');
+same("Hallo Erika,\nschön & gut\nGruß", VereineMailTemplates::plain("<p>Hallo Erika,<br>schön &amp; gut</p>\n<p>Gruß</p>"), 'an HTML template as text for a letter');
+same("keine\nÄnderung", VereineMailTemplates::plain("keine\nÄnderung"), 'plain text stays as it is');
+
 // ------------------------------------------------------------ language files
 
 // The module speaks German; en_US is an exact copy so an English interface shows German, not keys.
@@ -1572,6 +1672,12 @@ $prefixes = array(
 	'VereineQesConnector_' => VereineQes::CONNECTORS,
 	'VereineQesState_' => array(VereineQes::STATE_VALID, VereineQes::STATE_UNCLEAR, VereineQes::STATE_INVALID),
 	'VereineQesIntact_' => array('yes', 'no', 'unknown'),
+	'VereineMailTemplateType_' => VereineMailTemplates::TYPES,
+	'VereineMailTemplateState_' => array('standard', 'unchanged', 'changed'),
+	'VereinePlaceholderGroup_' => array_keys(VereinePlaceholders::KEYS),
+	'VereinePh_' => array_map(function ($key) {
+		return substr(VereinePlaceholders::describedBy($key), strlen('VereinePh_'));
+	}, array_merge(VereinePlaceholders::KEYS['association'], VereinePlaceholders::KEYS['member'], VereinePlaceholders::KEYS['meeting'], VereinePlaceholders::KEYS['circular'])),
 	'VereineResolutionCategory_' => VereineResolutionRules::CATEGORIES,
 	'VereineCircularChoice_' => VereineCircularRules::CHOICES,
 	'VereineMeetingDocKind_' => VereineMeetingDocRules::KINDS,

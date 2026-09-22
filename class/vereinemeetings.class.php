@@ -29,6 +29,7 @@ require_once __DIR__.'/vereinestatutes.class.php';
 require_once __DIR__.'/vereinefunctions.class.php';
 require_once __DIR__.'/vereineresolutions.class.php';
 require_once __DIR__.'/vereinemail.class.php';
+require_once __DIR__.'/vereinemailtemplates.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 
 /**
@@ -269,12 +270,14 @@ class VereineMeetings
 		}
 		$letters = array();
 		$written = 0;
+		$templates = new VereineMailTemplates($this->db);
 		foreach ($recipients as $recipient) {
 			$sentAt = null;
 			$error = '';
 			if ($recipient['channel'] === VereineMeetingRules::CHANNEL_EMAIL) {
-				$mail = new CMailFile($outputlangs->transnoentities('VereineMeetingMailSubject', $meeting['title'], vereineMeetingDay($meeting['day'], $outputlangs).' '.$meeting['time']),
-					$recipient['email'], $from, $this->invitationText($meeting, $recipient, $rules, $outputlangs), array(), array(), array(), '', '', 0, 0, '', '', 'meeting'.$meeting['id']);
+				$composed = $templates->compose(VereineMailTemplates::TYPE_INVITATION, $this->invitationValues($meeting, $recipient, $rules, $outputlangs), $outputlangs);
+				$mail = new CMailFile($composed['subject'], $recipient['email'], $from, $composed['body'], array(), array(), array(), '', '', 0, $composed['html'] ? 1 : 0,
+					'', '', 'meeting'.$meeting['id']);
 				if ($mail->sendfile()) {
 					$sentAt = dol_now();
 				} else {
@@ -357,12 +360,13 @@ class VereineMeetings
 		$statutes = new VereineStatutes($this->db);
 		$rules = $statutes->rules();
 		$mail = new VereineMail($this->db);
+		$templates = new VereineMailTemplates($this->db);
 		$sent = 0;
 		foreach ($failed as $invitation) {
 			$recipient = array('member_id' => $invitation['member_id'], 'name' => $invitation['name'], 'email' => $invitation['email'],
 				'channel' => $invitation['channel'], 'voting' => $invitation['voting']);
-			$ok = $mail->send($outputlangs->transnoentities('VereineMeetingMailSubject', $meeting['title'], vereineMeetingDay($meeting['day'], $outputlangs).' '.$meeting['time']),
-				$invitation['email'], $this->invitationText($meeting, $recipient, $rules, $outputlangs), 'meeting'.$meeting['id']);
+			$composed = $templates->compose(VereineMailTemplates::TYPE_INVITATION, $this->invitationValues($meeting, $recipient, $rules, $outputlangs), $outputlangs);
+			$ok = $mail->send($composed['subject'], $invitation['email'], $composed['body'], 'meeting'.$meeting['id'], array(), array(), array(), $composed['html']);
 			$sql = "UPDATE ".MAIN_DB_PREFIX."vereine_meeting_invitation SET attempts = attempts + 1, tried_at = '".$this->db->idate(dol_now())."',";
 			$sql .= $ok ? " sent_at = '".$this->db->idate(dol_now())."', error = NULL" : " error = '".$this->db->escape(dol_trunc($mail->error, 250, 'right', 'UTF-8', 1))."'";
 			$sql .= " WHERE rowid = ".((int) $invitation['id'])." AND entity = ".((int) $conf->entity);
@@ -792,6 +796,8 @@ class VereineMeetings
 		$attendance = $this->attendance($meeting['id']);
 		$votes = $this->votes($meeting['id']);
 		$day = vereineMeetingDay($meeting['day'], $outputlangs);
+		// Texts per item know the placeholders of the association as well, such as __VEREINE_OBMANN__.
+		$association = (new VereinePlaceholders($this->db))->associationValues();
 		$items = array();
 		$time = $meeting['time'];
 		foreach (array_values($meeting['agenda']) as $index => $title) {
@@ -810,7 +816,8 @@ class VereineMeetings
 				// Nothing was to be decided here, so the minutes do not say that nothing was voted on.
 				$values['ergebnis'] = '';
 			}
-			$items[] = array('item' => $number, 'title' => $title, 'text' => $text, 'stored' => isset($notes[$number]), 'filled' => VereineMinutesRules::fill($text, $values),
+			$filled = VereinePlaceholders::fill(VereineMinutesRules::fill($text, $values), $association);
+			$items[] = array('item' => $number, 'title' => $title, 'text' => $text, 'stored' => isset($notes[$number]), 'filled' => $filled,
 				'kind' => $kind, 'chosen' => isset($kinds[$number]), 'voted' => (bool) $onItem);
 		}
 		return $items;
@@ -865,7 +872,26 @@ class VereineMeetings
 	}
 
 	/**
-	 * The invitation as text, the same in an e-mail and a letter.
+	 * The values of the invitation's placeholders for one recipient.
+	 *
+	 * @param array<string,mixed> $meeting     Meeting
+	 * @param array<string,mixed> $recipient   Recipient with name and voting
+	 * @param array<string,mixed> $rules       Normalized rules of the statutes
+	 * @param Translate           $outputlangs Language
+	 * @return array<string,string>
+	 */
+	public function invitationValues(array $meeting, array $recipient, array $rules, $outputlangs)
+	{
+		global $mysoc;
+
+		$outputlangs->load('vereine@vereine');
+		$motions = VereineMeetingRules::motionsBy($meeting, $rules);
+		return VereinePlaceholders::meeting($meeting, (string) $recipient['name'], !empty($recipient['voting']), trim((string) $mysoc->name),
+			vereineMeetingDay($meeting['day'], $outputlangs), $motions !== '' ? vereineMeetingDay($motions, $outputlangs) : '', $outputlangs);
+	}
+
+	/**
+	 * The invitation as text, the same in an e-mail, a letter and the preview: the template of the association.
 	 *
 	 * @param array<string,mixed> $meeting     Meeting
 	 * @param array<string,mixed> $recipient   Recipient
@@ -875,38 +901,9 @@ class VereineMeetings
 	 */
 	public function invitationText(array $meeting, array $recipient, array $rules, $outputlangs)
 	{
-		global $mysoc;
-
-		$outputlangs->load('vereine@vereine');
-		$lines = array($outputlangs->transnoentities('VereineMeetingMailGreeting', $recipient['name']), '',
-			$outputlangs->transnoentities('VereineMeetingMailIntro_'.$meeting['kind'], trim((string) $mysoc->name)), '',
-			$meeting['title'],
-			$outputlangs->transnoentities('VereineMeetingMailWhen', vereineMeetingDay($meeting['day'], $outputlangs), $meeting['time']));
-		if ($meeting['place'] !== '') {
-			$lines[] = $outputlangs->transnoentities('VereineMeetingMailWhere', $meeting['place']);
-		}
-		if ($meeting['format'] !== VereineMeetingRules::FORMAT_PHYSICAL) {
-			$lines[] = $outputlangs->transnoentities('VereineMeetingMailFormat_'.$meeting['format']);
-			$lines[] = $outputlangs->transnoentities('VereineMeetingMailAccess', $meeting['access']);
-		}
-		$lines[] = '';
-		$lines[] = $outputlangs->transnoentities('VereineMeetingMailAgenda');
-		foreach ($meeting['agenda'] as $index => $item) {
-			$lines[] = ($index + 1).'. '.$item;
-		}
-		$motions = VereineMeetingRules::motionsBy($meeting, $rules);
-		if ($motions !== '') {
-			$lines[] = '';
-			$lines[] = $outputlangs->transnoentities('VereineMeetingMailMotions', vereineMeetingDay($motions, $outputlangs));
-		}
-		if (!$recipient['voting']) {
-			$lines[] = '';
-			$lines[] = $outputlangs->transnoentities('VereineMeetingMailNotVoting');
-		}
-		$lines[] = '';
-		$lines[] = $outputlangs->transnoentities('VereineMeetingMailClosing');
-		$lines[] = $outputlangs->transnoentities('VereineMeetingMailSignature', trim((string) $mysoc->name));
-		return implode("\n", $lines);
+		$templates = new VereineMailTemplates($this->db);
+		$composed = $templates->compose(VereineMailTemplates::TYPE_INVITATION, $this->invitationValues($meeting, $recipient, $rules, $outputlangs), $outputlangs);
+		return $composed['html'] ? VereineMailTemplates::plain($composed['body']) : $composed['body'];
 	}
 
 	/**

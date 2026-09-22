@@ -7,6 +7,22 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Neu
+
+- **Platzhalter für Vereinsdaten** (#152): `__VEREINE_ZVR__`, `__VEREINE_NAME__`,
+  `__VEREINE_OBMANN__`, `__VEREINE_VORSTAND__` und weitere funktionieren in
+  jeder E-Mail-Vorlage von Dolibarr (*Einrichtung – E-Mails – Vorlagen*). In
+  Dolibarrs E-Mails an ein Mitglied gibt es `__VEREINE_MITGLIED_FUNKTIONEN__`,
+  und die Texte je Punkt im Protokoll kennen die Vereinsdaten auch.
+- **Einladung, Protokoll und Umlaufbeschluss als Dolibarr-Vorlagen**: Das Modul
+  legt je eine Vorlage mit dem bisherigen Text an. Ändere sie in Dolibarrs
+  Vorlagen-Editor; beim Versand setzt das Modul Sitzung, Tagesordnung, Frist und
+  Link ein. Einladungsbrief und Vorschau zeigen denselben Text wie die E-Mail.
+- **Eine Liste aller Platzhalter** mit Erklärung und einem Beispiel aus deinem
+  Verein: in der Einrichtung bei den E-Mails, bei den Sitzungsvorlagen und bei
+  den Texten je Punkt. Ein Klick setzt den Platzhalter dort ein, wo du zuletzt
+  geschrieben hast.
+
 ## [0.5.14-beta] - 2026-09-21
 
 Unterschreiben mit ID Austria: qualifiziert, rechtlich wie eigenhändig, über einen

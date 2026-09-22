@@ -163,11 +163,13 @@ class VereineCirculars
 		}
 		$id = (int) $this->db->last_insert_id(MAIN_DB_PREFIX.'vereine_circular');
 		$from = VereineMail::sender();
+		$templates = new VereineMailTemplates($this->db);
 		foreach ($voters as $voter) {
 			$sentAt = null;
 			if ($voter['email'] !== '') {
-				$mail = new CMailFile($outputlangs->transnoentities('VereineCircularMailSubject', $circular['title']), $voter['email'], $from,
-					$this->mailText($id, $circular, $voter, false, $outputlangs), array(), array(), array(), '', '', 0, 0, '', '', 'circular'.$id);
+				$composed = $templates->compose(VereineMailTemplates::TYPE_CIRCULAR, $this->mailValues($id, $circular, $voter), $outputlangs);
+				$mail = new CMailFile($composed['subject'], $voter['email'], $from, $composed['body'], array(), array(), array(), '', '', 0, $composed['html'] ? 1 : 0,
+					'', '', 'circular'.$id);
 				if ($mail->sendfile()) {
 					$sentAt = dol_now();
 				} else {
@@ -188,29 +190,17 @@ class VereineCirculars
 	}
 
 	/**
-	 * The text of the e-mail: what was moved, until when, and where to vote.
+	 * The values of the placeholders of an e-mail: what was moved, until when, and where to vote.
 	 *
-	 * @param int                 $id          Circular resolution
-	 * @param array<string,mixed> $circular    Circular resolution
-	 * @param array<string,mixed> $voter       Who gets the e-mail
-	 * @param bool                $reminder    Whether it is the reminder
-	 * @param Translate           $outputlangs Language of the e-mail
-	 * @return string
+	 * @param int                 $id       Circular resolution
+	 * @param array<string,mixed> $circular Circular resolution
+	 * @param array<string,mixed> $voter    Who gets the e-mail
+	 * @return array<string,string>
 	 */
-	private function mailText($id, array $circular, array $voter, $reminder, $outputlangs)
+	private function mailValues($id, array $circular, array $voter)
 	{
-		global $mysoc;
-
-		$link = dol_buildpath('/vereine/circulars.php', 2).'?id='.((int) $id);
-		$lines = array();
-		$lines[] = $outputlangs->transnoentities($reminder ? 'VereineCircularMailReminder' : 'VereineCircularMailIntro', $voter['name'], (string) $mysoc->name);
-		$lines[] = '';
-		$lines[] = $circular['title'];
-		$lines[] = $circular['wording'];
-		$lines[] = '';
-		$lines[] = $outputlangs->transnoentities('VereineCircularMailDeadline', vereineFormatDay($circular['deadline']));
-		$lines[] = $outputlangs->transnoentities('VereineCircularMailLink', $link);
-		return implode("\n", $lines);
+		return VereinePlaceholders::circular($circular, (string) $voter['name'], vereineFormatDay($circular['deadline']),
+			dol_buildpath('/vereine/circulars.php', 2).'?id='.((int) $id));
 	}
 
 	/**
@@ -374,13 +364,15 @@ class VereineCirculars
 			return 0;
 		}
 		$from = VereineMail::sender();
+		$templates = new VereineMailTemplates($this->db);
 		$sent = 0;
 		foreach ($this->votes($id) as $row) {
 			if ($row['voted'] > 0 || $row['email'] === '') {
 				continue;
 			}
-			$mail = new CMailFile($outputlangs->transnoentities('VereineCircularMailSubjectReminder', $circular['title']), $row['email'], $from,
-				$this->mailText($id, $circular, $row, true, $outputlangs), array(), array(), array(), '', '', 0, 0, '', '', 'circular'.$id);
+			$composed = $templates->compose(VereineMailTemplates::TYPE_REMINDER, $this->mailValues($id, $circular, $row), $outputlangs);
+			$mail = new CMailFile($composed['subject'], $row['email'], $from, $composed['body'], array(), array(), array(), '', '', 0, $composed['html'] ? 1 : 0,
+				'', '', 'circular'.$id);
 			if ($mail->sendfile()) {
 				$sent++;
 			} else {

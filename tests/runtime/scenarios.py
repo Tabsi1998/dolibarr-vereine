@@ -120,6 +120,10 @@ class Stack:
                               f"{(completed.stdout + completed.stderr)[-1500:]}")
         return parse_fixtures(completed.stdout)
 
+    def today(self) -> str:
+        """Today as the module sees it: PHP in Europe/Vienna. The database runs in UTC, a day apart after midnight (#181)."""
+        return self.shell("php -d date.timezone=Europe/Vienna -r 'echo date(\"Y-m-d\");'").stdout.strip()
+
     def shell(self, command: str) -> subprocess.CompletedProcess:
         return self.run(self.docker, "exec", "-u", "www-data", self.web, "sh", "-c", command, check=False, timeout=120)
 
@@ -2731,9 +2735,10 @@ def qes(stack: Stack) -> str:
     expect("Der Signaturdienst nimmt Dokumente an" in html.unescape(checked.text), "the check did not reach the signature service")
 
     # Letters: two functions held by two different people today, only with ID Austria.
+    today = stack.today()
     terms = stack.sql("SELECT f.code, t.fk_adherent FROM llx_vereine_function_term as t INNER JOIN llx_vereine_function as f ON f.rowid = t.fk_function"
-                      " INNER JOIN llx_adherent as a ON a.rowid = t.fk_adherent WHERE f.active = 1 AND a.statut = 1 AND t.date_start <= CURDATE()"
-                      " AND (t.date_end IS NULL OR t.date_end >= CURDATE()) ORDER BY t.rowid")
+                      f" INNER JOIN llx_adherent as a ON a.rowid = t.fk_adherent WHERE f.active = 1 AND a.statut = 1 AND t.date_start <= '{today}'"
+                      f" AND (t.date_end IS NULL OR t.date_end >= '{today}') ORDER BY t.rowid")
     held: dict[str, set[str]] = {}
     for code, member in terms:
         held.setdefault(code, set()).add(member)
@@ -2832,6 +2837,58 @@ def qes(stack: Stack) -> str:
     return ("signature service off until set up, wrong address refused, check answered; letters only with ID Austria: password refused; "
             f"cancel on the phone stored nothing; {roles[0]} and {roles[1]} signed one PDF one after the other, a way back used twice refused; "
             "both signatures intact with and without MOA-SP, the PDF downloadable, a change afterwards breaks both; the test key store signs at once")
+
+
+def placeholders(stack: Stack) -> str:
+    """Placeholders: the association's data in Dolibarr's e-mail templates, the module's e-mails as templates, one list with examples."""
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/setup.php"
+    base = "/custom/vereine/meetings.php"
+    types = ["vereine_invitation", "vereine_minutes", "vereine_circular", "vereine_reminder"]
+    page_ok(browser.submit(page_ok(browser.get(setup), "setup").form(name="vereinesetup"), {"VEREINE_REGISTER_NUMBER": "123456789"}), "the ZVR number")
+    expect(stack.const("VEREINE_REGISTER_NUMBER") == "123456789", "the ZVR number was not stored")
+
+    # The activation added one standard template per kind of e-mail, with the text the module always sent.
+    stored = stack.sql("SELECT type_template, module, active FROM llx_c_email_templates WHERE module = 'vereine' ORDER BY position")
+    expect([row[0] for row in stored] == types and all(row[1:] == ["vereine", "1"] for row in stored), f"the standard templates: {stored}")
+    page = page_ok(browser.get(setup), "setup with the texts of the e-mails")
+    states = dict(re.findall(r'data-mail-template="([a-z_]+)" data-template-state="([a-z]+)"', page.text))
+    expect(states == {kind: "unchanged" for kind in types}, f"the templates in the setup: {states}")
+    examples = dict(re.findall(r'data-example="(__VEREINE_[A-Z_]+__)">([^<]*)<', page.text))
+    listed = set(re.findall(r'data-placeholder="(__VEREINE_[A-Z_]+__)"', page.text))
+    expect(examples.get("__VEREINE_ZVR__") == "123456789" and examples.get("__VEREINE_NAME__") and {"__VEREINE_TAGESORDNUNG__", "__VEREINE_UMLAUF_LINK__",
+           "__VEREINE_MITGLIED_FUNKTIONEN__"} <= listed, f"the list of placeholders: ZVR {examples.get('__VEREINE_ZVR__')!r}, {len(listed)} listed")
+
+    # Dolibarr's template editor offers the module's kinds and lists its placeholders.
+    editor = page_ok(browser.get("/admin/mails_templates.php"), "Dolibarr's e-mail templates")
+    expect('value="vereine_invitation"' in editor.text and "__VEREINE_ZVR__" in editor.text and "__VEREINE_TAGESORDNUNG__" in editor.text,
+           "Dolibarr's template editor does not know the module's kinds or placeholders")
+
+    # A changed invitation is used for the next invitation, with the module's and Dolibarr's placeholders.
+    stack.sql("UPDATE llx_c_email_templates SET topic = 'Einladung zu __VEREINE_SITZUNG_TITEL__ (ZVR __VEREINE_ZVR__)',"
+              " content = CONCAT(content, '\\nZVR __VEREINE_ZVR__ - __MYCOMPANY_NAME__') WHERE module = 'vereine' AND type_template = 'vereine_invitation'")
+    page = page_ok(browser.get(setup), "setup after the change")
+    expect('data-mail-template="vereine_invitation" data-template-state="changed"' in page.text, "a changed template is not shown as changed")
+    day = (datetime.date.today() + datetime.timedelta(days=40)).isoformat()
+    page_ok(browser.submit(page_ok(browser.get(base), "meetings").form(name="vereinemeeting"),
+                           {"kind": "board", "title": "Vorstandssitzung mit Vorlage", "day": day, "time": "18:00", "format": "physical",
+                            "place": "Vereinsheim", "agenda": "Begrüßung\nBudget"}), "a board meeting")
+    meeting = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the planned meeting")
+    preview = html.unescape(page.text.split('data-invitation-preview="1"')[1][:4000]) if 'data-invitation-preview="1"' in page.text else ""
+    expect(re.search(r"ZVR 123456789 - \S", preview) is not None and "__MYCOMPANY_NAME__" not in preview, "the preview does not show the changed template")
+    mail = stack.mailpit()
+    mail.clear()
+    page_ok(browser.submit(page.form(name="vereinemeetinginvite"), {"checked": "1"}), "invite with the changed template")
+    messages = mail.messages()
+    subjects = {message.get("Subject") for message in messages}
+    expect(messages and subjects == {"Einladung zu Vorstandssitzung mit Vorlage (ZVR 123456789)"}, f"the subjects: {subjects}")
+    text = mail.message(messages[0]["ID"]).get("Text", "")
+    expect(re.search(r"ZVR 123456789 - \S", text) is not None and "2. Budget" in text and "__" not in text,
+           f"the text of the invitation: {text[-300:]!r}")
+    return (f"4 standard templates of the module, unchanged; {len(listed)} placeholders listed with examples, ZVR among them; "
+            "Dolibarr's editor offers the kinds and lists the placeholders; a changed invitation used for preview and e-mail, "
+            "with the ZVR number and Dolibarr's company name filled in")
 
 
 def minutestexts(stack: Stack) -> str:
@@ -3041,7 +3098,7 @@ def resolutiondocs(stack: Stack) -> str:
     page_ok(browser.submit(page.form(name="vereineresolutionbuild")), "build the PDF of the money matter")
     # Earlier scenarios end the treasurer's term; somebody has to hold it today for the run to name them.
     kassier = stack.value("SELECT rowid FROM llx_vereine_function WHERE code = 'kassier'")
-    today = stack.value("SELECT CURDATE()")
+    today = stack.today()
     holding = stack.value(f"SELECT COUNT(*) FROM llx_vereine_function_term WHERE fk_function = {kassier} "
                           f"AND date_start <= '{today}' AND (date_end IS NULL OR date_end >= '{today}')")
     if holding == "0":
@@ -3565,7 +3622,8 @@ SCENARIOS = (
     ("itemkinds", "Kinds of agenda items: reports and discussions without a vote, the invitation read before it goes out", itemkinds, ("mailsending",)),
     ("agreements", "Who does what until when: agreements per agenda item, to-dos of Dolibarr, taken over by a vote; the logo on the PDFs", agreements, ("itemkinds",)),
     ("qes", "ID Austria: signature service in the setup, two people sign one PDF, cancel, a way back used twice, a changed PDF", qes, ("agreements",)),
-    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("qes",)),
+    ("placeholders", "Placeholders: association data in Dolibarr's e-mail templates, the module's e-mails as templates, one list with examples", placeholders, ("qes",)),
+    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("placeholders",)),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )

@@ -609,6 +609,7 @@ function vereineMeetingNotes($meetings, array $meeting, $canWrite)
 	}
 	print '</div>';
 	if ($canWrite) {
+		vereinePlaceholderList(array('minutes', 'association'), (new VereinePlaceholders($db))->associationValues());
 		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'#vereinemeetingnotes" name="vereinemeetingnotes">';
 		print '<input type="hidden" name="token" value="'.newToken().'">';
 		print '<input type="hidden" name="action" value="savenotes">';

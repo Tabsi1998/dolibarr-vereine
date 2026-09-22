@@ -81,14 +81,15 @@ class VereineMail
 	 * @param string[] $files   Paths of attachments
 	 * @param string[] $mimes   Types of the attachments
 	 * @param string[] $names   Names of the attachments
+	 * @param bool     $html    Whether the body is HTML
 	 * @return bool Whether the e-mail went out (see error when not)
 	 */
-	public function send($subject, $to, $body, $trackid, array $files = array(), array $mimes = array(), array $names = array())
+	public function send($subject, $to, $body, $trackid, array $files = array(), array $mimes = array(), array $names = array(), $html = false)
 	{
 		require_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
 
 		$this->error = '';
-		$mail = new CMailFile($subject, $to, self::sender(), $body, $files, $mimes, $names, '', '', 0, 0, '', '', $trackid);
+		$mail = new CMailFile($subject, $to, self::sender(), $body, $files, $mimes, $names, '', '', 0, $html ? 1 : 0, '', '', $trackid);
 		if ($mail->sendfile()) {
 			return true;
 		}

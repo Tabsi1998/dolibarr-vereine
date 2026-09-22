@@ -105,11 +105,9 @@ $linkback = '<a href="'.DOL_URL_ROOT.'/admin/modules.php?restore_lastsearch_valu
 print load_fiche_titre($title, $linkback, 'title_setup');
 print dol_get_fiche_head(vereineAdminPrepareHead(), 'meetings', $title, -1, 'fa-landmark');
 
-print '<div class="info" data-templates-howto="1"><ul><li>'.$langs->trans('VereineMeetingTemplatesHowTo').'</li><li>'.$langs->trans('VereineMeetingTemplatesPlaceholders').'<ul>';
-foreach (VereineMinutesRules::PLACEHOLDERS as $placeholder) {
-	print '<li><code>{'.$placeholder.'}</code> '.$langs->trans('VereineMinutesPlaceholder_'.$placeholder).'</li>';
-}
-print '</ul></li></ul></div>';
+print '<div class="info" data-templates-howto="1"><ul><li>'.$langs->trans('VereineMeetingTemplatesHowTo').'</li><li>'.$langs->trans('VereineMeetingTemplatesPlaceholders').'</li></ul></div>';
+dol_include_once('/vereine/class/vereineplaceholders.class.php');
+vereinePlaceholderList(array('minutes', 'association'), (new VereinePlaceholders($db))->associationValues(), true);
 
 $templates = $meetings->templates();
 print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereinetemplates">';
