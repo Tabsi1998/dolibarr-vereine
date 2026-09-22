@@ -7,6 +7,11 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.5.16-beta] - 2026-09-22
+
+Steuerprofile sauber: Lieferantenrechnungen ohne falsche Warnung, ein eigener Bereich für
+Ausgaben, und Rechnungszeilen ohne Profil lassen sich prüfen und nachtragen (#53, #57).
+
 ### Behoben
 
 - **Lieferantenrechnungen ohne falsche Steuerwarnung** (#53): Ein Steuerprofil
@@ -31,6 +36,13 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Protokoll. Dazu kommen Produkte ohne Profil und Zeilen, deren Umsatzsteuer
   nicht zum Profil passt. Erreichbar über den Hinweis „nicht zugeordnet“ in der
   Vereinsübersicht und über die Steuerprofile.
+
+### Update
+
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das legt
+an Lieferantenzeilen das Feld „Ausgabe für Bereich“ an und blendet das frühere
+Verkaufsprofil dort aus. Danach über den Hinweis „nicht zugeordnet“ in der
+Vereinsübersicht oder über die Steuerprofile die Seite „Steuerprofile prüfen“ öffnen.
 
 ## [0.5.15-beta] - 2026-09-22
 
@@ -1405,7 +1417,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.15-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.5.16-beta...HEAD
+[0.5.16-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.16-beta
 [0.5.15-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.15-beta
 [0.5.14-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.14-beta
 [0.5.13-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.5.13-beta
