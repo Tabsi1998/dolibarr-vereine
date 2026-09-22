@@ -29,13 +29,21 @@ require_once __DIR__.'/vereinetaxprofiles.class.php';
  * A product's VAT rate follows its profile. A new invoice line takes the profile of its
  * product. An invoice line whose rate differs from its profile is only reported: invoices
  * are never changed by the module.
+ *
+ * A tax profile describes what the association sells. A supplier's invoice follows its own
+ * VAT (#53): its lines take no profile and are never compared with one. They get the area
+ * the expense belongs to instead, suggested from the product's profile, for the income and
+ * expenditure account; it never changes the supplier's VAT.
  */
 class VereineTaxAssign
 {
 	/** Name of the extra field on every element. */
 	const FIELD = 'vereine_taxprofile';
 
-	/** Elements with the extra field: element type => [line table, invoice id column]. */
+	/** The area an expense belongs to, on supplier invoice lines. */
+	const EXPENSE_FIELD = 'vereine_expense_sphere';
+
+	/** Elements with the extra field: element type => [line table, invoice id column]. Supplier lines keep older values, hidden. */
 	const ELEMENTS = array(
 		'product' => array('', ''),
 		'facturedet' => array('facturedet', 'fk_facture'),
@@ -100,6 +108,40 @@ class VereineTaxAssign
 				return -1;
 			}
 		}
+		// A sales profile on a supplier's invoice misleads (#53): the field stays with its values, but hidden.
+		$sql = "UPDATE ".MAIN_DB_PREFIX."extrafields SET list = '0' WHERE name = '".self::FIELD."' AND elementtype = 'facture_fourn_det'";
+		if (!$this->db->query($sql)) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		$spheres = array();
+		foreach (array_keys(VereineTaxRules::spheres()) as $sphere) {
+			$spheres[$sphere] = 'VereineSphere_'.$sphere;
+		}
+		$result = $extrafields->addExtraField(
+			self::EXPENSE_FIELD,
+			'VereineExpenseSphereField',
+			'select',
+			1100,
+			'',
+			'facture_fourn_det',
+			0,
+			0,
+			'',
+			array('options' => $spheres),
+			1,
+			'',
+			'1',
+			'VereineExpenseSphereFieldHelp',
+			'',
+			'',
+			'vereine@vereine',
+			'isModEnabled("vereine")'
+		);
+		if ($result <= 0) {
+			$this->error = 'Extra field '.self::EXPENSE_FIELD.': '.$extrafields->error;
+			return -1;
+		}
 		return 1;
 	}
 
@@ -138,15 +180,17 @@ class VereineTaxAssign
 	}
 
 	/**
-	 * A new invoice line without tax profile takes the profile of its product.
+	 * A new customer invoice line without tax profile takes the profile of its product; a new supplier
+	 * line takes the area of the product's profile as the area of the expense.
 	 *
 	 * @param CommonObjectLine $line Customer or supplier invoice line, already stored
-	 * @return int 1 when a profile was set, 0 when nothing to do, <0 on error
+	 * @return int 1 when a value was set, 0 when nothing to do, <0 on error
 	 */
 	public function onLineCreated($line)
 	{
-		$key = 'options_'.self::FIELD;
-		if ((int) $line->fk_product <= 0 || !empty($line->array_options[$key])) {
+		$supplier = isset($line->table_element) && $line->table_element === 'facture_fourn_det';
+		$key = 'options_'.($supplier ? self::EXPENSE_FIELD : self::FIELD);
+		if ((int) $line->fk_product <= 0 || (is_array($line->array_options) && !empty($line->array_options[$key]))) {
 			return 0;
 		}
 		$sql = "SELECT ".self::FIELD." FROM ".MAIN_DB_PREFIX."product_extrafields WHERE fk_object = ".((int) $line->fk_product);
@@ -156,10 +200,18 @@ class VereineTaxAssign
 		if ($profileId <= 0) {
 			return 0;
 		}
+		$value = $profileId;
+		if ($supplier) {
+			$profile = (new VereineTaxProfiles($this->db))->fetch($profileId);
+			if (!$profile || (string) $profile['sphere'] === '') {
+				return 0;
+			}
+			$value = (string) $profile['sphere'];
+		}
 		if (!is_array($line->array_options)) {
 			$line->array_options = array();
 		}
-		$line->array_options[$key] = $profileId;
+		$line->array_options[$key] = $value;
 		if ($line->insertExtraFields() < 0) {
 			$this->error = $line->error;
 			return -1;
@@ -168,7 +220,8 @@ class VereineTaxAssign
 	}
 
 	/**
-	 * Lines of an invoice whose VAT rate differs from their tax profile.
+	 * Lines of a customer invoice whose VAT rate differs from their tax profile. A supplier's invoice
+	 * has its own VAT and is never compared with a sales profile (#53).
 	 *
 	 * @param string $element   'facturedet' or 'facture_fourn_det'
 	 * @param int    $invoiceId Invoice id
@@ -176,7 +229,7 @@ class VereineTaxAssign
 	 */
 	public function deviations($element, $invoiceId)
 	{
-		if (!isset(self::ELEMENTS[$element]) || self::ELEMENTS[$element][0] === '') {
+		if ($element !== 'facturedet') {
 			return array();
 		}
 		list($table, $column) = self::ELEMENTS[$element];

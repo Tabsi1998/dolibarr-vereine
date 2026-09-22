@@ -196,7 +196,8 @@ if (isModEnabled('invoice') && $user->hasRight('facture', 'lire')) {
 	print '</table></div>';
 	if ($report['unassigned']['lines'] > 0) {
 		print '<div class="warning" data-thresholds-unassigned="'.((int) $report['unassigned']['lines']).'">';
-		print $langs->trans('VereineThresholdUnassigned', price($report['unassigned']['gross'], 0, $langs, 1, -1, 2), (int) $report['unassigned']['lines']).'</div>';
+		print $langs->trans('VereineThresholdUnassigned', price($report['unassigned']['gross'], 0, $langs, 1, -1, 2), (int) $report['unassigned']['lines']);
+		print ' <a href="'.dol_buildpath('/vereine/taxcheck.php', 1).'?year='.((int) $report['year']).'" data-taxcheck-link="1">'.$langs->trans('VereineTaxCheckOpen').'</a></div>';
 	}
 	print '<div class="opacitymedium small">'.$langs->trans('VereineThresholdsHow').'</div><br>';
 
