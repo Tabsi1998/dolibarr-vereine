@@ -9,27 +9,8 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [0.6.2-beta] - 2026-09-22
 
-Mitgliedsantrag als PDF aus Dolibarr (#108); der Verlauf des Moduls am Mitglied steht
-jetzt in Dolibarrs Ereignissen (#112).
-
-### Neu
-
-- **Einwilligungserklärung drucken** (#110): Unter *Mitglieder – Verein –
-  Einwilligungserklärung* wählst du die Einwilligungen und bekommst ein PDF – entweder
-  für ein Mitglied (Link am Reiter *Verein* des Mitglieds) oder für alle aktiven
-  Mitglieder, denen eine gewählte Einwilligung noch fehlt, mit einer Seite je Mitglied.
-  Die Texte kommen in ihrer aktuellen Fassung aus der Einrichtung, dazu der Hinweis auf
-  den jederzeitigen Widerruf (Art. 7 Abs. 3 DSGVO) und die Unterschrift, bei
-  Minderjährigen die der Erziehungsberechtigten.
-- **Am Bildschirm ausfüllbare Formulare** (#107): Mitgliedsantrag und
-  Einwilligungserklärung können Formularfelder zum Ausfüllen und ein leeres Feld zum
-  Unterschreiben bekommen, einstellbar je Dokument im Reiter *Mitgliedsantrag*. Eine
-  qualifizierte elektronische Signatur ist das nicht – die gibt es nur über ID Austria.
-
-### Update
-
-Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das legt den
-Menüpunkt *Einwilligungserklärung* an.
+Mitgliedsantrag und Einwilligungserklärung als PDF aus Dolibarr (#108, #110, #107), Nachweis
+je Einwilligung (#109) und der Verlauf am Mitglied in Dolibarrs Ereignissen (#112).
 
 ### Neu
 
@@ -37,29 +18,52 @@ Menüpunkt *Einwilligungserklärung* an.
   es den leeren Antrag zum Ausdrucken, je Mitgliedsart einen. Für ein bestimmtes Mitglied
   erstellt ihn Dolibarr auf der Mitgliedskarte unter *Dokumente* mit der Vorlage
   „Mitgliedsantrag des Vereins“, schon ausgefüllt und von dort auch per E-Mail versendbar.
-- Der Antrag holt sich alles aus Dolibarr: Beitrag und Beitrittsgebühr aus der Mitgliedsart,
-  die Kündigungsfrist aus der Austrittsregel, die Einwilligungen mit ihrer aktuellen Version
-  aus dem Reiter *Einwilligungen*, Verein und Bankverbindung aus den Stammdaten. Ändert sich
-  etwas, erstellst du den Antrag einfach neu.
-- Neuer Reiter *Mitgliedsantrag* in der Einrichtung: Einleitung, Datenschutz-Information mit
-  Link, Pflichtfelder und das Konto für die Fußzeile.
+  Er holt sich alles aus Dolibarr: Beitrag und Beitrittsgebühr aus der Mitgliedsart, die
+  Kündigungsfrist aus der Austrittsregel, die Einwilligungen in ihrer aktuellen Fassung,
+  Verein, ZVR und Bankverbindung aus den Stammdaten.
+- **Einwilligungserklärung drucken** (#110): Unter *Mitglieder – Verein –
+  Einwilligungserklärung* wählst du die Einwilligungen und bekommst ein PDF – entweder für
+  ein Mitglied (Link am Reiter *Verein* des Mitglieds) oder für alle aktiven Mitglieder,
+  denen eine gewählte Einwilligung noch fehlt, mit einer Seite je Mitglied. Dazu der
+  Hinweis auf den jederzeitigen Widerruf (Art. 7 Abs. 3 DSGVO) und die Unterschrift, bei
+  Minderjährigen die der Erziehungsberechtigten.
+- **Am Bildschirm ausfüllbare Formulare** (#107): Mitgliedsantrag und
+  Einwilligungserklärung können Formularfelder zum Ausfüllen und ein leeres Feld zum
+  Unterschreiben bekommen, einstellbar je Dokument im Reiter *Mitgliedsantrag*. Eine
+  qualifizierte elektronische Signatur ist das nicht – die gibt es nur über ID Austria.
+- **Nachweis je Einwilligung** (#109): Am Mitglied steht jetzt auch, *wie* eingewilligt
+  wurde. Über die Website: Zeitpunkt der Zustimmung, Formular bzw. Seite und die Kennung
+  des Vorgangs – ohne IP-Adresse. Auf Papier: die unterschriebene Erklärung als Scan
+  (PDF, JPG oder PNG), abgelegt bei den Dokumenten des Mitglieds, dazu wer sie eingetragen
+  hat. Damit lässt sich eine Einwilligung nachweisen (Art. 7 Abs. 1 DSGVO). Die API nimmt
+  die Angaben beim Beitrittsantrag entgegen (`granted_at`, `form`, `reference`); sie stehen
+  in `docs/openapi.json`.
+- Neuer Reiter *Mitgliedsantrag* in der Einrichtung: Einleitung, Datenschutz-Information
+  mit Link, Pflichtfelder, ausfüllbare Dokumente und das Konto für die Fußzeile.
 
 ### Geändert
 
-- **Verlauf am Mitglied in Dolibarrs Ereignissen** (#112): Was das Vereine-Modul mit
-  einem Mitglied oder Geschäftspartner tut – Einwilligung, Funktion, Beitragslauf,
-  Austritt und so weiter – steht jetzt als automatisches Ereignis unter *Ereignisse* des
-  Mitglieds bzw. Geschäftspartners, neben Dolibarrs eigenen Einträgen. Die eigene Liste am
-  Reiter *Verein* weicht einem Link dorthin. Ohne Dolibarrs Modul Agenda bleibt die
-  eigene Liste wie bisher.
-- Frühere Einträge werden beim nächsten Aktivieren des Moduls einmal als Ereignisse mit
-  ihrem ursprünglichen Zeitpunkt übernommen, ohne Doppelte.
+- **Verlauf am Mitglied in Dolibarrs Ereignissen** (#112): Was das Vereine-Modul mit einem
+  Mitglied oder Geschäftspartner tut – Einwilligung, Funktion, Beitragslauf, Austritt und
+  so weiter – steht jetzt als automatisches Ereignis unter *Ereignisse* des Mitglieds bzw.
+  Geschäftspartners, neben Dolibarrs eigenen Einträgen. Die eigene Liste am Reiter *Verein*
+  weicht einem Link dorthin. Ohne Dolibarrs Modul Agenda bleibt die eigene Liste wie bisher.
+  Frühere Einträge werden beim nächsten Aktivieren einmal als Ereignisse mit ihrem
+  ursprünglichen Zeitpunkt übernommen, ohne Doppelte.
+
+### Behoben
+
+- **Das ZIP wird jetzt komprimiert** und ist damit rund ein Viertel so groß. Vorher wuchs
+  es über 2 MB – und genau dort liegt PHPs Standardgrenze für Uploads
+  (`upload_max_filesize`). Dolibarr nahm das Paket dann stillschweigend nicht an, und beim
+  Update blieb die alte Fassung stehen. Der Laufzeit-Test prüft jetzt nach jedem Einspielen
+  die installierte Version und sagt es deutlich, wenn ein Paket nicht angenommen wurde.
 
 ### Update
 
-Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das legt den
-Menüpunkt *Mitgliedsantrag* und die Dokumentvorlage an. Dabei werden auch die bisherigen
-Einträge des Verlaufs als Ereignisse übernommen, sofern Dolibarrs Modul Agenda aktiv ist.
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das legt die
+Menüpunkte *Mitgliedsantrag* und *Einwilligungserklärung*, die Dokumentvorlage und die
+Spalten für den Nachweis an und übernimmt den bisherigen Verlauf als Ereignisse.
 
 ## [0.6.1-beta] - 2026-09-22
 

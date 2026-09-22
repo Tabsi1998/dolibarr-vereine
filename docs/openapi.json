@@ -1497,6 +1497,18 @@
                 },
                 "version": {
                   "type": "integer"
+                },
+                "granted_at": {
+                  "type": "string",
+                  "description": "Zeitpunkt der Zustimmung auf der Website, ISO 8601 (z. B. 2026-09-22T19:30:00). Nachweis nach Art. 7 Abs. 1 DSGVO"
+                },
+                "form": {
+                  "type": "string",
+                  "description": "Formular oder Seite, auf der zugestimmt wurde, höchstens 128 Zeichen"
+                },
+                "reference": {
+                  "type": "string",
+                  "description": "Kennung des Vorgangs auf der Website, höchstens 64 Zeichen. Keine IP-Adresse"
                 }
               }
             }

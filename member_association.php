@@ -177,6 +177,29 @@ if (($action === 'recordconsent' || $action === 'withdrawconsent') && $canExit) 
 	header('Location: '.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereineconsents');
 	exit;
 }
+if ($action === 'consentscan' && $canExit) {
+	// The signed declaration on paper: Dolibarr keeps it with the documents of the member (#109).
+	$upload = isset($_FILES['scan_file']) && is_array($_FILES['scan_file']) ? $_FILES['scan_file'] : array();
+	$result = $consents->attachScan(GETPOSTINT('consent_event'), (int) $object->id, $upload, $user);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineConsentScanStored'), null, 'mesgs');
+	} else {
+		setEventMessages($result < 0 ? $consents->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $consents->errors), 'errors');
+	}
+	header('Location: '.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereineconsents');
+	exit;
+}
+if ($action === 'consentscanget') {
+	$file = $consents->scanPath(GETPOSTINT('consent_event'), (int) $object->id);
+	if ($file === '') {
+		accessforbidden();
+	}
+	header('Content-Type: '.dol_mimetype($file));
+	header('Content-Disposition: attachment; filename="'.basename($file).'"');
+	header('Content-Length: '.filesize($file));
+	readfile($file);
+	exit;
+}
 if (($action === 'cancelexit' || $action === 'carryoutexit') && $canExit) {
 	foreach ($exits->planned(array((int) $object->id)) as $exit) {
 		if ($exit['id'] !== GETPOSTINT('exit_id')) {
@@ -388,9 +411,9 @@ $currentConsents = VereineConsentRules::current($consentHistory);
 $offered = $consents->currentTexts();
 print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
 print '<tr class="liste_titre"><td>'.$langs->trans('VereineConsentLabel').'</td><td>'.$langs->trans('Status').'</td><td class="center">'.$langs->trans('VereineConsentVersion').'</td>';
-print '<td>'.$langs->trans('Date').'</td><td>'.$langs->trans('VereineConsentSource').'</td><td></td></tr>';
+print '<td>'.$langs->trans('Date').'</td><td>'.$langs->trans('VereineConsentSource').'</td><td>'.$langs->trans('VereineConsentProof').'</td><td></td></tr>';
 if (!$currentConsents && !$offered) {
-	print '<tr class="oddeven"><td colspan="6"><span class="opacitymedium">'.$langs->trans('VereineConsentNoTexts').'</span></td></tr>';
+	print '<tr class="oddeven"><td colspan="7"><span class="opacitymedium">'.$langs->trans('VereineConsentNoTexts').'</span></td></tr>';
 }
 foreach (array_unique(array_merge(array_keys($currentConsents), array_keys($offered))) as $code) {
 	$event = isset($currentConsents[$code]) ? $currentConsents[$code] : null;
@@ -400,7 +423,39 @@ foreach (array_unique(array_merge(array_keys($currentConsents), array_keys($offe
 	print '<td>'.$langs->trans('VereineConsentState_'.$state).'</td>';
 	print '<td class="center">'.($event ? $event['version'] : '').'</td>';
 	print '<td class="nowraponall">'.($event ? dol_print_date($event['moment'], 'dayhour') : '').'</td>';
-	print '<td>'.($event ? $langs->trans('VereineConsentSource_'.$event['source']) : '').'</td><td class="right">';
+	print '<td>'.($event ? $langs->trans('VereineConsentSource_'.$event['source']) : '').'</td>';
+	// How it was given: the moment and the form of a website, the scan of a signed declaration on paper (#109).
+	print '<td data-consent-proof="'.($event ? ($event['scan'] !== '' ? 'scan' : ($event['proof_at'] !== '' || $event['proof_form'] !== '' ? 'online' : 'none')) : '').'">';
+	if ($event) {
+		$proof = array();
+		if ($event['proof_at'] !== '') {
+			$proof[] = $langs->trans('VereineConsentProofAt', dol_print_date($db->jdate($event['proof_at']), 'dayhour'));
+		}
+		if ($event['proof_form'] !== '') {
+			$proof[] = dol_escape_htmltag($event['proof_form']);
+		}
+		if ($event['proof_ref'] !== '') {
+			$proof[] = dol_escape_htmltag($event['proof_ref']);
+		}
+		if ($event['user'] > 0 && $event['source'] !== 'website') {
+			$recorder = new User($db);
+			$proof[] = $recorder->fetch($event['user']) > 0 ? $langs->trans('VereineConsentProofBy', dol_escape_htmltag($recorder->getFullName($langs))) : '';
+		}
+		print implode(' · ', array_filter($proof));
+		if ($event['scan'] !== '') {
+			print '<div><a href="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'&amp;action=consentscanget&amp;consent_event='.$event['id'].'&amp;token='.newToken().'">';
+			print img_picto('', 'file').' '.$langs->trans('VereineConsentScan').'</a></div>';
+		} elseif ($canExit && $event['source'] !== 'website') {
+			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereineconsents" name="vereineconsentscan'.$event['id'].'" enctype="multipart/form-data">';
+			print '<input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="consentscan">';
+			print '<input type="hidden" name="consent_event" value="'.$event['id'].'">';
+			print '<input type="file" name="scan_file" accept=".pdf,.jpg,.jpeg,.png" class="small"> ';
+			print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineConsentScanUpload')).'">';
+			print '</form>';
+		}
+	}
+	print '</td><td class="right">';
 	if ($canExit && ($state === 'given' || isset($offered[$code]))) {
 		$consentAction = $state === 'given' ? 'withdrawconsent' : 'recordconsent';
 		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'" name="vereine'.$consentAction.'" class="inline-block">';

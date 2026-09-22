@@ -2064,3 +2064,14 @@ VereineApplicationFillableHelp=Diese PDFs bekommen Formularfelder zum Ausfüllen
 VereineApplicationFillable_application=Mitgliedsantrag
 VereineApplicationFillable_consent=Einwilligungserklärung
 VereineLog_consent_form=Einwilligungserklärung als PDF erstellt
+
+# Nachweis je Einwilligung (#109)
+VereineConsentProof=Nachweis
+VereineConsentProofAt=Zugestimmt am %s
+VereineConsentProofBy=Eingetragen von %s
+VereineConsentScan=Unterschriebene Erklärung
+VereineConsentScanUpload=Scan anhängen
+VereineConsentScanStored=Der Scan ist bei den Dokumenten des Mitglieds abgelegt.
+VereineConsentScanMissing=Bitte eine Datei wählen.
+VereineConsentScanKind=Nur PDF, JPG oder PNG.
+VereineLog_consent_scan=Scan einer Einwilligung abgelegt

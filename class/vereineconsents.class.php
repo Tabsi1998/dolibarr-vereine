@@ -178,10 +178,11 @@ class VereineConsents
 	 * @param bool     $given    True for a consent, false for a withdrawal
 	 * @param string   $source   One of VereineConsentRules::SOURCES
 	 * @param string   $note     Note, such as where the paper form is kept
-	 * @param User     $user     User who records it
+	 * @param User                $user  User who records it
+	 * @param array<string,mixed> $proof How it was given: at, form, ref (see VereineConsentRules::proof())
 	 * @return int Id, <0 on error
 	 */
-	public function record($memberId, $code, $version, $given, $source, $note, $user)
+	public function record($memberId, $code, $version, $given, $source, $note, $user, array $proof = array())
 	{
 		global $conf;
 
@@ -189,10 +190,13 @@ class VereineConsents
 			$this->error = 'invalid consent';
 			return -1;
 		}
-		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_consent (entity, fk_adherent, code, version, given, source, date_event, note, fk_user)";
+		$proof = VereineConsentRules::proof($proof);
+		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_consent (entity, fk_adherent, code, version, given, source, date_event, note, fk_user,";
+		$sql .= " proof_at, proof_form, proof_ref)";
 		$sql .= " VALUES (".((int) $conf->entity).", ".((int) $memberId).", '".$this->db->escape($code)."', ".((int) $version).", ".($given ? 1 : 0).",";
 		$sql .= " '".$this->db->escape($source)."', '".$this->db->idate(dol_now())."', '".$this->db->escape(dol_trunc(trim((string) $note), 255, 'right', 'UTF-8', 1))."',";
-		$sql .= " ".(is_object($user) && (int) $user->id > 0 ? (int) $user->id : "NULL").")";
+		$sql .= " ".(is_object($user) && (int) $user->id > 0 ? (int) $user->id : "NULL").",";
+		$sql .= " ".($proof['at'] !== '' ? "'".$this->db->escape($proof['at'])."'" : "NULL").", '".$this->db->escape($proof['form'])."', '".$this->db->escape($proof['ref'])."')";
 		if (!$this->db->query($sql)) {
 			$this->error = $this->db->lasterror();
 			return -1;
@@ -200,6 +204,98 @@ class VereineConsents
 		$id = (int) $this->db->last_insert_id(MAIN_DB_PREFIX.'vereine_consent');
 		VereineLog::add($this->db, $user, $given ? VereineLog::CONSENT_GIVEN : VereineLog::CONSENT_WITHDRAWN, (int) $memberId, 0, $code.' v'.((int) $version).' / '.$source);
 		return $id;
+	}
+
+	/**
+	 * Attach the scan of a signed declaration to a consent: Dolibarr keeps it with the documents of the member.
+	 *
+	 * @param int                 $eventId  Consent event
+	 * @param int                 $memberId Member the event belongs to
+	 * @param array<string,mixed> $upload   One entry of $_FILES
+	 * @param User                $user     Who attaches it
+	 * @return int 1 when stored, 0 when refused (see $errors), -1 on error
+	 */
+	public function attachScan($eventId, $memberId, array $upload, $user)
+	{
+		global $conf;
+
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+
+		$this->errors = array();
+		$name = isset($upload['name']) ? dol_sanitizeFileName((string) $upload['name']) : '';
+		$temp = isset($upload['tmp_name']) ? (string) $upload['tmp_name'] : '';
+		$extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+		if ($name === '' || $temp === '' || !is_uploaded_file($temp)) {
+			$this->errors[] = 'VereineConsentScanMissing';
+			return 0;
+		}
+		if (!in_array($extension, array('pdf', 'jpg', 'jpeg', 'png'), true)) {
+			$this->errors[] = 'VereineConsentScanKind';
+			return 0;
+		}
+		$member = $this->memberRef((int) $memberId);
+		if ($member === '') {
+			$this->error = 'unknown member';
+			return -1;
+		}
+		$dir = $conf->adherent->dir_output.'/'.$member;
+		if (dol_mkdir($dir) < 0) {
+			$this->error = 'cannot create '.$dir;
+			return -1;
+		}
+		$stored = 'einwilligung-'.((int) $eventId).'.'.$extension;
+		if (dol_move_uploaded_file($temp, $dir.'/'.$stored, 1, 0, isset($upload['error']) ? $upload['error'] : 0) <= 0) {
+			$this->error = 'cannot store '.$stored;
+			return -1;
+		}
+		$sql = "UPDATE ".MAIN_DB_PREFIX."vereine_consent SET scan_name = '".$this->db->escape($stored)."'";
+		$sql .= " WHERE rowid = ".((int) $eventId)." AND fk_adherent = ".((int) $memberId)." AND entity = ".((int) $conf->entity);
+		if (!$this->db->query($sql)) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		VereineLog::add($this->db, $user, VereineLog::CONSENT_SCAN, (int) $memberId, 0, $stored);
+		return 1;
+	}
+
+	/**
+	 * Path of the scan of a consent, empty when there is none.
+	 *
+	 * @param int $eventId  Consent event
+	 * @param int $memberId Member
+	 * @return string
+	 */
+	public function scanPath($eventId, $memberId)
+	{
+		global $conf;
+
+		$sql = "SELECT scan_name FROM ".MAIN_DB_PREFIX."vereine_consent WHERE rowid = ".((int) $eventId);
+		$sql .= " AND fk_adherent = ".((int) $memberId)." AND entity = ".((int) $conf->entity);
+		$resql = $this->db->query($sql);
+		$obj = $resql ? $this->db->fetch_object($resql) : null;
+		$member = $obj && (string) $obj->scan_name !== '' ? $this->memberRef((int) $memberId) : '';
+		if ($member === '') {
+			return '';
+		}
+		$file = $conf->adherent->dir_output.'/'.$member.'/'.((string) $obj->scan_name);
+		return is_file($file) ? $file : '';
+	}
+
+	/**
+	 * The directory Dolibarr keeps the documents of a member in.
+	 *
+	 * @param int $memberId Member
+	 * @return string Name of the directory, empty when the member is gone
+	 */
+	private function memberRef($memberId)
+	{
+		require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+
+		$member = new Adherent($this->db);
+		if ($member->fetch((int) $memberId) <= 0) {
+			return '';
+		}
+		return dol_sanitizeFileName((string) $member->ref !== '' ? (string) $member->ref : (string) $memberId);
 	}
 
 	/**
@@ -212,7 +308,8 @@ class VereineConsents
 	{
 		global $conf;
 
-		$sql = "SELECT rowid, code, version, given, source, date_event, note FROM ".MAIN_DB_PREFIX."vereine_consent";
+		$sql = "SELECT rowid, code, version, given, source, date_event, note, fk_user, proof_at, proof_form, proof_ref, scan_name";
+		$sql .= " FROM ".MAIN_DB_PREFIX."vereine_consent";
 		$sql .= " WHERE entity = ".((int) $conf->entity)." AND fk_adherent = ".((int) $memberId)." ORDER BY date_event DESC, rowid DESC";
 		$resql = $this->db->query($sql);
 		if (!$resql) {
@@ -222,7 +319,9 @@ class VereineConsents
 		$events = array();
 		while ($obj = $this->db->fetch_object($resql)) {
 			$events[] = array('id' => (int) $obj->rowid, 'code' => (string) $obj->code, 'version' => (int) $obj->version, 'given' => (int) $obj->given === 1,
-				'source' => (string) $obj->source, 'date' => (string) $obj->date_event, 'moment' => (int) $this->db->jdate($obj->date_event), 'note' => (string) $obj->note);
+				'source' => (string) $obj->source, 'date' => (string) $obj->date_event, 'moment' => (int) $this->db->jdate($obj->date_event), 'note' => (string) $obj->note,
+				'user' => (int) $obj->fk_user, 'proof_at' => (string) $obj->proof_at, 'proof_form' => (string) $obj->proof_form,
+				'proof_ref' => (string) $obj->proof_ref, 'scan' => (string) $obj->scan_name);
 		}
 		$this->db->free($resql);
 		return $events;
@@ -317,7 +416,9 @@ class VereineConsents
 			return null;
 		}
 		foreach ($application['consents'] as $code => $version) {
-			if ($this->record((int) $member->id, $code, $version, true, 'website', '', $user) < 0) {
+			$proof = is_array($version) && isset($version['proof']) ? $version['proof'] : array();
+			$version = is_array($version) ? (int) $version['version'] : (int) $version;
+			if ($this->record((int) $member->id, $code, $version, true, 'website', '', $user, $proof) < 0) {
 				$this->db->rollback();
 				return null;
 			}

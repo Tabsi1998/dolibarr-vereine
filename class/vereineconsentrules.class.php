@@ -90,6 +90,31 @@ class VereineConsentRules
 	}
 
 	/**
+	 * How a consent was given, so the association can show it later (Art. 7 (1) GDPR): the moment on the
+	 * website, the form or page it was given on, and the reference of the website's own record. No IP
+	 * address: the module keeps only what it needs (Art. 5 (1) (c) GDPR).
+	 *
+	 * @param mixed $data Entered proof with the keys at, form and ref
+	 * @return array{at:string,form:string,ref:string} Empty strings for what was not entered
+	 */
+	public static function proof($data)
+	{
+		$value = static function ($key, $length) use ($data) {
+			$raw = is_array($data) && isset($data[$key]) && is_scalar($data[$key]) ? trim((string) $data[$key]) : '';
+			return function_exists('mb_substr') ? mb_substr($raw, 0, $length, 'UTF-8') : substr($raw, 0, $length);
+		};
+		$at = $value('at', 25);
+		if (preg_match('/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(:\d{2})?/', $at, $parts)) {
+			$at = $parts[1].' '.$parts[2].(isset($parts[3]) && $parts[3] !== '' ? $parts[3] : ':00');
+		} elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $at)) {
+			$at .= ' 00:00:00';
+		} else {
+			$at = '';
+		}
+		return array('at' => $at, 'form' => $value('form', 128), 'ref' => $value('ref', 64));
+	}
+
+	/**
 	 * Check and normalise a membership application from a website.
 	 *
 	 * @param mixed                            $data  Body of the request
@@ -170,7 +195,11 @@ class VereineConsentRules
 			} elseif (isset($application['consents'][$code])) {
 				$errors[] = 'consent '.$code.' is listed twice';
 			} else {
-				$application['consents'][$code] = $version;
+				$application['consents'][$code] = array('version' => $version, 'proof' => self::proof(array(
+					'at' => is_array($consent) && isset($consent['granted_at']) ? $consent['granted_at'] : '',
+					'form' => is_array($consent) && isset($consent['form']) ? $consent['form'] : '',
+					'ref' => is_array($consent) && isset($consent['reference']) ? $consent['reference'] : '',
+				)));
 			}
 		}
 		return array('errors' => $errors, 'application' => $application);

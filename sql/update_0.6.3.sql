@@ -13,21 +13,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- Consents of members: every consent and every withdrawal is a row, nothing is changed or deleted.
-CREATE TABLE llx_vereine_consent(
-	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
-	entity INTEGER DEFAULT 1 NOT NULL,
-	fk_adherent INTEGER NOT NULL,
-	code VARCHAR(32) NOT NULL,
-	version INTEGER NOT NULL,
-	given SMALLINT NOT NULL,
-	source VARCHAR(16) NOT NULL,
-	date_event DATETIME NOT NULL,
-	note VARCHAR(255),
-	proof_at DATETIME,
-	proof_form VARCHAR(128),
-	proof_ref VARCHAR(64),
-	scan_name VARCHAR(255),
-	fk_user INTEGER,
-	tms TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=innodb;
+-- 0.6.3: how a consent was given, so the association can show it (Art. 7 (1) GDPR) (#109).
+ALTER TABLE llx_vereine_consent ADD COLUMN proof_at DATETIME AFTER note;
+ALTER TABLE llx_vereine_consent ADD COLUMN proof_form VARCHAR(128) AFTER proof_at;
+ALTER TABLE llx_vereine_consent ADD COLUMN proof_ref VARCHAR(64) AFTER proof_form;
+ALTER TABLE llx_vereine_consent ADD COLUMN scan_name VARCHAR(255) AFTER proof_ref;

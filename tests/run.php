@@ -1079,11 +1079,16 @@ same(array('fotos' => false, 'newsletter' => true), array_map(function ($event) 
 $types = array(5 => array('morphy' => ''), 6 => array('morphy' => 'mor'));
 $texts = array('fotos' => 2, 'newsletter' => 1);
 $valid = array('external_id' => 'web-42', 'firstname' => 'Anna', 'lastname' => 'Antrag', 'email' => 'anna@example.org', 'birth' => '2001-04-30',
-	'country_code' => 'at', 'type_id' => '5', 'consents' => array(array('code' => 'fotos', 'version' => 2)));
+	'country_code' => 'at', 'type_id' => '5',
+	'consents' => array(array('code' => 'fotos', 'version' => 2, 'granted_at' => '2026-09-22T19:30:00+02:00', 'form' => 'Beitrittsformular', 'reference' => 'web-42')));
 $checked = VereineConsentRules::application($valid, $types, $texts);
 same(array(), $checked['errors'], 'a complete application');
-same(array('AT', 5, array('fotos' => 2), 'phy'), array($checked['application']['country_code'], $checked['application']['type_id'], $checked['application']['consents'], $checked['application']['morphy']),
-	'the application is normalised');
+same(array('AT', 5, array('fotos' => 2), 'phy'), array($checked['application']['country_code'], $checked['application']['type_id'],
+	array_map(function ($consent) {
+		return $consent['version'];
+	}, $checked['application']['consents']), $checked['application']['morphy']), 'the application is normalised');
+same(array('at' => '2026-09-22 19:30:00', 'form' => 'Beitrittsformular', 'ref' => 'web-42'), $checked['application']['consents']['fotos']['proof'],
+	'the application carries how the consent was given');
 $checked = VereineConsentRules::application(array('consents' => array(array('code' => 'fotos', 'version' => 1), array('code' => 'werbung', 'version' => 1))) + $valid, $types, $texts);
 same(array('consent fotos was given to version 1, the current version is 2', 'consent werbung is no active consent text, see GET /vereine/consents'), $checked['errors'],
 	'an outdated version and an unknown purpose are refused');
@@ -1695,6 +1700,11 @@ same(array('gender', 'phone'), VereineMemberForm::requiredFields(array('phone', 
 expect(VereineMemberForm::isMinor('2010-09-23', '2026-09-22') && !VereineMemberForm::isMinor('2008-09-22', '2026-09-22'),
 	'under age until the day of the eighteenth birthday');
 expect(!VereineMemberForm::isMinor('', '2026-09-22') && !VereineMemberForm::isMinor('2010-09-23', ''), 'without a date of birth nobody is counted as a minor');
+same(array('at' => '2026-09-22 19:30:00', 'form' => 'Beitritt', 'ref' => 'A-17'),
+	VereineConsentRules::proof(array('at' => '2026-09-22T19:30:00Z', 'form' => 'Beitritt', 'ref' => 'A-17')), 'the moment of a website, its form and its reference');
+same(array('at' => '2026-09-22 00:00:00', 'form' => '', 'ref' => ''), VereineConsentRules::proof(array('at' => '2026-09-22')), 'a day without a time');
+same(array('at' => '', 'form' => '', 'ref' => ''), VereineConsentRules::proof(array('at' => 'gestern', 'form' => array('x'))), 'nonsense is left out');
+same(array('at' => '', 'form' => '', 'ref' => ''), VereineConsentRules::proof(null), 'no proof at all');
 same(array('application', 'consent'), VereinePdf::fillableKinds('consent,application,unsinn'), 'documents with fields to fill in, in their order');
 same(array('consent'), VereinePdf::fillableKinds(array('consent')), 'entered as an array');
 same(array(), VereinePdf::fillableKinds(''), 'nothing to fill in: only to print');
@@ -1757,7 +1767,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
