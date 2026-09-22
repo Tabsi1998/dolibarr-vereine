@@ -2902,10 +2902,11 @@ def taxcheck(stack: Stack) -> str:
     base = "/custom/vereine/taxcheck.php"
     fee = stack.sql("SELECT d.rowid, YEAR(f.datef), f.rowid FROM llx_facturedet as d INNER JOIN llx_facture as f ON f.rowid = d.fk_facture"
                     " INNER JOIN llx_element_element as ee ON ee.fk_target = f.rowid AND ee.sourcetype = 'subscription' AND ee.targettype = 'facture'"
-                    " LEFT JOIN llx_facturedet_extrafields as e ON e.fk_object = d.rowid WHERE f.fk_statut > 0"
-                    " AND (e.vereine_taxprofile IS NULL OR e.vereine_taxprofile = 0) ORDER BY d.rowid LIMIT 1")
-    expect(fee, "the fee scenarios should leave a fee invoice line without a tax profile")
+                    " WHERE f.fk_statut > 0 ORDER BY d.rowid LIMIT 1")
+    expect(fee, "the fee scenarios should leave a validated fee invoice")
     line, year, invoice = fee[0]
+    # A line from before the tax profiles: the profile is not there.
+    stack.sql(f"UPDATE llx_facturedet_extrafields SET vereine_taxprofile = NULL WHERE fk_object = {line}")
     page = page_ok(browser.get(f"{base}?year={year}"), "the check of the tax profiles")
     rows = {row[0]: row[1:] for row in re.findall(r'data-taxcheck-line="(\d+)" data-suggested="(\d+)" data-reason="([a-z]+)" data-certain="(\d)"', page.text)}
     expect(line in rows and rows[line][1] in ("fee", "product") and rows[line][2] == "1", f"the fee line and its suggestion: {rows.get(line)}")
