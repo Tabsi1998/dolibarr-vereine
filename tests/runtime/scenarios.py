@@ -333,7 +333,8 @@ def enable(stack: Stack) -> str:
     expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"], ["49210003", "website", "read"],
                       ["49210004", "application", "write"]], f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
-    expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_authority", "/vereine/authority.php"],
+    expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_audit", "/vereine/audit.php"],
+                    ["members", "vereine_authority", "/vereine/authority.php"],
                     ["members", "vereine_circulars", "/vereine/circulars.php"],
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
                     ["members", "vereine_meetings", "/vereine/meetings.php"],
@@ -352,7 +353,7 @@ def enable(stack: Stack) -> str:
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
     return (f"module {stack.module_version} on with Members, third parties and categories; no country profile; "
-            "4 rights, 9 menu entries, log table, 3 categories")
+            "4 rights, 10 menu entries, log table, 3 categories")
 
 
 def pages(stack: Stack) -> str:
@@ -2932,6 +2933,70 @@ def taxcheck(stack: Stack) -> str:
             "only the profile field changed, invoice and line as before, logged; a line with a profile is not assigned again")
 
 
+def audit(stack: Stack) -> str:
+    """The audit of the auditors: bookings and invoices of the year with hints, ticked samples, the checklist, the report with signatures."""
+    year = int(stack.today()[:4])
+    password = "Pruef-" + secrets.token_hex(8)
+    data = stack.php_fixture("audit", RT_YEAR=str(year), RT_AUDITOR_PASSWORD=password)
+    base = f"/custom/vereine/audit.php?year={year}"
+
+    # Who reads invoices may look, but only an auditor ticks and writes; the admin is linked to no member here.
+    stack.sql("UPDATE llx_user SET fk_member = NULL WHERE login = 'admin'")
+    page = page_ok(stack.browser().get(base), "the audit for the board")
+    expect('data-audit-is-auditor="0"' in page.text and 'name="vereineauditchecklist"' not in page.text, "somebody who is no auditor may fill the audit")
+    hints = dict(re.findall(r'data-audit-hint="([a-z]+:\d+)" data-hints="([a-z_ ]+)"', page.text))
+    expect("self_dealing" in hints.get(f"supplier:{data['officer_invoice']}", ""), f"the supplier invoice of the chair is no hint: {hints}")
+    expect("no_document" in hints.get(f"bank:{data['lines']['no_document']}", "") and "unusual" in hints.get(f"bank:{data['lines']['large']}", ""),
+           f"the booking without document or the large donation is no hint: {hints}")
+    expect(denied(stack.browser("rtnobody").get(base)), "a user without rights opens the audit")
+
+    auditor = Browser(stack.url)
+    auditor.login("rtauditor", password)
+    page = page_ok(auditor.get(base), "the audit for the auditor")
+    marker = re.search(r'data-audit-auditors="(\d+)" data-audit-is-auditor="(\d)"', page.text)
+    expect(marker is not None and marker.group(2) == "1" and data["auditor_name"] in html.unescape(page.text),
+           f"the auditor is not recognised: {marker.groups() if marker else None}, name {data['auditor_name']!r} shown: {data['auditor_name'] in html.unescape(page.text)}")
+    forms = [form for form in page.forms() if form.value("action") == "check" and form.value("element") == "supplier"
+             and form.value("object") == str(data["officer_invoice"])]
+    expect(len(forms) == 1, "no way to tick the supplier invoice of the chair")
+    page_ok(auditor.submit(forms[0], {"note": "Zustimmung der Kassierin liegt vor"}), "tick the invoice of the chair")
+    checked = stack.sql(f"SELECT element, note FROM llx_vereine_audit_check WHERE fiscal_year = {year}")
+    expect(checked == [["supplier", "Zustimmung der Kassierin liegt vor"]], f"the ticked sample: {checked}")
+
+    page = page_ok(auditor.get(base), "the audit with a sample")
+    refused = page_ok(auditor.submit(page.form(name="vereineauditchecklist"), {"points[accounting][state]": "defect", "points[accounting][text]": ""}),
+                      "a deficiency without text")
+    expect("was nicht passt" in html.unescape(refused.text), "a deficiency without text was stored")
+    changes = {f"points[{point}][state]": "ok" for point in ("accounting", "use", "unusual", "self_dealing", "danger")}
+    changes.update({"audit_day": stack.today(), "points[self_dealing][text]": "Miete an den Obmann mit Zustimmung der Kassierin"})
+    page_ok(auditor.submit(page_ok(auditor.get(base), "the checklist").form(name="vereineauditchecklist"), changes), "every point in order")
+    page = page_ok(auditor.get(base), "the audit after the checklist")
+    expect('data-audit-result="confirmed"' in page.text, "the audit is not confirmed with every point in order")
+
+    page_ok(auditor.submit(page.form(name="vereineauditbuild")), "build the report")
+    report = pdf_text(stack, "vereine/audit")
+    for word in ("Rechnungspr", data["auditor_name"], "gew", str(year)):
+        expect(word in report, f"the report lacks {word!r}")
+    page = page_ok(auditor.get(base), "the audit with its report")
+    audit_id = stack.value(f"SELECT rowid FROM llx_vereine_audit WHERE fiscal_year = {year}")
+    page_ok(auditor.submit(page.form(name=f"vereinestartsignaudit_report{audit_id}")), "start the signatures of the report")
+    signers = stack.sql(f"SELECT p.fk_adherent FROM llx_vereine_signature_person as p INNER JOIN llx_vereine_signature as s ON s.rowid = p.fk_signature"
+                        f" WHERE s.kind = 'audit_report' AND s.fk_object = {audit_id}")
+    expect([str(data["auditor_member"])] in signers, f"the auditor does not sign the report: {signers}")
+    before = stack.value("SELECT COUNT(*) FROM llx_vereine_audit_check")
+    admin = stack.browser()
+    admin_page = page_ok(admin.get(base), "the audit for the board again")
+    expect('action" value="check"' not in admin_page.text, "somebody who is no auditor gets a form to tick")
+    # The page has no form for them; a token from another page, as a crafted request would bring one.
+    token = token_of(page_ok(admin.get("/custom/vereine/admin/setup.php"), "a page with a token"))
+    page_ok(admin.post(base, [("token", token), ("action", "check"), ("element", "bank"), ("object", str(data["lines"]["large"])),
+                              ("checked", "1")]), "tick as somebody who is no auditor")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_audit_check") == before, "somebody who is no auditor ticked a sample")
+    return (f"year {year}: the chair's supplier invoice, a booking without document and a large donation as hints; the board may look, "
+            "nobody without rights; the auditor ticked a sample, a deficiency needs text, every point in order confirms; "
+            "report with auditor and year, signed by the auditor; somebody else cannot tick")
+
+
 def minutestexts(stack: Stack) -> str:
     """Agenda templates with required items, a new meeting from a template, texts per item with the real numbers, texts follow a reordered agenda."""
     browser = stack.browser()
@@ -3665,7 +3730,8 @@ SCENARIOS = (
     ("qes", "ID Austria: signature service in the setup, two people sign one PDF, cancel, a way back used twice, a changed PDF", qes, ("agreements",)),
     ("placeholders", "Placeholders: association data in Dolibarr's e-mail templates, the module's e-mails as templates, one list with examples", placeholders, ("qes",)),
     ("taxcheck", "Older invoice lines without a tax profile: suggestions from facts, a preview, assigning only the profile", taxcheck, ("placeholders",)),
-    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("taxcheck",)),
+    ("audit", "The audit of the auditors: bookings and invoices with hints, samples, checklist, report with signatures", audit, ("taxcheck",)),
+    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("audit",)),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )

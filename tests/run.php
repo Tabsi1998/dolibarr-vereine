@@ -58,6 +58,7 @@ require_once $root.'/class/vereinesignaturerules.class.php';
 require_once $root.'/class/vereineqes.class.php';
 require_once $root.'/class/vereinemailtemplates.class.php';
 require_once $root.'/class/vereinetaxcheckrules.class.php';
+require_once $root.'/class/vereineauditrules.class.php';
 require_once $root.'/class/vereinetextrepair.class.php';
 require_once $root.'/class/vereineattendancerules.class.php';
 require_once $root.'/class/vereinevoterules.class.php';
@@ -1601,6 +1602,33 @@ same(1, VereineTaxCheckRules::sourceProfile(0, array(array('product' => 0, 'prof
 	'a free line takes the one profile of the original');
 same(0, VereineTaxCheckRules::sourceProfile(0, array(array('product' => 0, 'profile' => 1), array('product' => 3, 'profile' => 6))), 'two profiles on the original: not clear');
 
+// ------------------------------------------------------------- audit of the auditors (§ 21 VerG)
+
+same(array('year' => 2025, 'start' => '2025-01-01', 'end' => '2025-12-31', 'label' => '2025'), VereineAuditRules::period(2025, 1), 'a calendar year');
+same(array('year' => 2025, 'start' => '2025-07-01', 'end' => '2026-06-30', 'label' => '2025/26'), VereineAuditRules::period(2025, 7), 'a year from July');
+same('2024-02-29', VereineAuditRules::period(2023, 3)['end'], 'a year from March ends on the last day of February, also in a leap year');
+same(2025, VereineAuditRules::lastEnded('2026-09-22', 1), 'in September 2026 the last year that ended is 2025');
+same(2024, VereineAuditRules::lastEnded('2026-03-10', 7), 'in March 2026 the year 2025/26 still runs, 2024/25 is the last that ended');
+same(2025, VereineAuditRules::lastEnded('2026-07-01', 7), 'on 1 July 2026 the year 2025/26 has ended');
+same(1000.0, VereineAuditRules::unusualFrom(array(20, 30, -25, 40)), 'small amounts: the minimum counts');
+same(4950.0, VereineAuditRules::unusualFrom(array(1200, -1500, 1800, 5000)), 'three times the median of the absolute amounts: (1500 + 1800) / 2 x 3');
+same(1000.0, VereineAuditRules::unusualFrom(array()), 'no amounts: the minimum');
+$auditPoints = VereineAuditRules::points(array('accounting' => array('state' => 'ok'), 'use' => array('state' => 'defect', 'text' => '  Reise ohne Beschluss  '),
+	'unusual' => array('state' => 'maybe')));
+same(array('state' => 'defect', 'text' => 'Reise ohne Beschluss'), $auditPoints['use'], 'a deficiency with its text');
+same('open', $auditPoints['unusual']['state'], 'an unknown state is still open');
+same(VereineAuditRules::POINTS, array_keys($auditPoints), 'every point of § 21 (3) VerG, in order');
+same(array('VereineAuditErrorDefectText'), VereineAuditRules::validate(VereineAuditRules::points(array('danger' => array('state' => 'defect')))), 'a deficiency needs its text');
+same('defects', VereineAuditRules::result($auditPoints), 'one deficiency: the report names it');
+same('open', VereineAuditRules::result(VereineAuditRules::points(array('accounting' => array('state' => 'ok')))), 'points still open: no result yet');
+$allOk = array();
+foreach (VereineAuditRules::POINTS as $auditPoint) {
+	$allOk[$auditPoint] = array('state' => 'ok');
+}
+same('confirmed', VereineAuditRules::result(VereineAuditRules::points($allOk)), 'every point in order: confirmed');
+same('2026-09-30', VereineAuditRules::deadline('2026-05-31'), 'four months after the account was made, at most the last day of the month');
+same('2027-01-15', VereineAuditRules::deadline('2026-09-15'), 'across the new year');
+
 // ------------------------------------------------------------ language files
 
 // The module speaks German; en_US is an exact copy so an English interface shows German, not keys.
@@ -1659,7 +1687,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
@@ -1701,6 +1729,13 @@ $prefixes = array(
 	'VereineMailTemplateState_' => array('standard', 'unchanged', 'changed'),
 	'VereinePlaceholderGroup_' => array_keys(VereinePlaceholders::KEYS),
 	'VereineTaxCheckReason_' => VereineTaxCheckRules::REASONS,
+	'VereineAuditPoint_' => VereineAuditRules::POINTS,
+	'VereineAuditPointHelp_' => VereineAuditRules::POINTS,
+	'VereineAuditState_' => VereineAuditRules::STATES,
+	'VereineAuditHint_' => VereineAuditRules::HINTS,
+	'VereineAuditElement_' => array('bank', 'invoice', 'supplier'),
+	'VereineAuditConclusion_' => array('open', 'confirmed', 'defects'),
+	'VereineAudit_' => array('audit_day', 'statement_day', 'documents', 'note'),
 	'VereinePh_' => array_map(function ($key) {
 		return substr(VereinePlaceholders::describedBy($key), strlen('VereinePh_'));
 	}, array_merge(VereinePlaceholders::KEYS['association'], VereinePlaceholders::KEYS['member'], VereinePlaceholders::KEYS['meeting'], VereinePlaceholders::KEYS['circular'])),

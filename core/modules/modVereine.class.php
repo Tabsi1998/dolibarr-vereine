@@ -268,6 +268,21 @@ class modVereine extends DolibarrModules
 			'target' => '',
 			'user' => 0,
 		);
+		// The audit of the auditors: they get the module's read right through the group of their function.
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
+			'titre' => 'VereineMenuAudit',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_audit',
+			'url' => '/vereine/audit.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->hasRight("vereine", "association", "read")',
+			'target' => '',
+			'user' => 0,
+		);
 		// The same setup page as in the module list, for administrators who work in Members.
 		$this->menu[$r++] = array(
 			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',

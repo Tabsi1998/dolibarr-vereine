@@ -70,6 +70,7 @@ require_once __DIR__.'/class/vereinesignatures.class.php';
 require_once __DIR__.'/class/vereineauthorityletters.class.php';
 require_once __DIR__.'/class/vereineminutes.class.php';
 require_once __DIR__.'/class/vereineresolutiondocs.class.php';
+require_once __DIR__.'/class/vereineaudit.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('members', 'vereine@vereine'));
@@ -113,6 +114,10 @@ function vereineSignatureDocument($db, array $run)
 	if (in_array($run['kind'], array(VereineSignatureRules::KIND_RESOLUTION, VereineSignatureRules::KIND_MONEY), true)) {
 		return array('file' => VereineResolutionDocs::path($run['object_id']),
 			'back' => dol_buildpath('/vereine/resolutions.php', 1).'?id='.((int) $run['object_id']).'#vereineresolutionpdf');
+	}
+	if ($run['kind'] === VereineSignatureRules::KIND_AUDIT_REPORT) {
+		return array('file' => VereineAudit::reportPath($run['object_id']),
+			'back' => dol_buildpath('/vereine/audit.php', 1).'?year='.((new VereineAudit($db))->yearOf($run['object_id'])).'#vereineauditreport');
 	}
 	return array('file' => '', 'back' => dol_buildpath('/vereine/vereineindex.php', 1));
 }
