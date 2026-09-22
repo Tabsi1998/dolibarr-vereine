@@ -333,7 +333,8 @@ def enable(stack: Stack) -> str:
     expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"], ["49210003", "website", "read"],
                       ["49210004", "application", "write"]], f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
-    expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_audit", "/vereine/audit.php"],
+    expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_account", "/vereine/account.php"],
+                    ["members", "vereine_audit", "/vereine/audit.php"],
                     ["members", "vereine_authority", "/vereine/authority.php"],
                     ["members", "vereine_circulars", "/vereine/circulars.php"],
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
@@ -353,7 +354,7 @@ def enable(stack: Stack) -> str:
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
     return (f"module {stack.module_version} on with Members, third parties and categories; no country profile; "
-            "4 rights, 10 menu entries, log table, 3 categories")
+            "4 rights, 11 menu entries, log table, 3 categories")
 
 
 def pages(stack: Stack) -> str:
@@ -2661,7 +2662,7 @@ def signatures(stack: Stack) -> str:
     base = "/custom/vereine/authority.php"
     page = page_ok(browser.get(setup), "signature setup")
     kinds = re.findall(r'data-rule="([a-z_]+)" data-roles="(\d+)" data-mode="(all|min)"', page.text)
-    expect([kind for kind, _, _ in kinds] == ["letter", "minutes", "resolution", "money", "audit_report"], f"kinds of document: {kinds}")
+    expect([kind for kind, _, _ in kinds] == ["letter", "minutes", "resolution", "money", "audit_report", "account"], f"kinds of document: {kinds}")
     expect(denied(stack.browser("rtreader").get(setup)), "a non-administrator opens the signature setup")
 
     # The chair signs letters; the runtime admin gets the chair's member, so it can sign in Dolibarr.
@@ -2714,7 +2715,7 @@ def signatures(stack: Stack) -> str:
     stack.shell(f"echo x >> /var/www/documents/vereine/authority/{name}")
     changed = page_ok(browser.get(base), "letters after the document changed")
     expect('data-signature-changed="1"' in changed.text, "a changed document is not reported")
-    return ("5 kinds of document; letters signed by the chair; wrong password refused, signing in Dolibarr stored with the checksum and the sheet built; "
+    return ("6 kinds of document; letters signed by the chair; wrong password refused, signing in Dolibarr stored with the checksum and the sheet built; "
             "paper way: only PDF accepted, scan finishes the run; a changed document asks for new signatures")
 
 
@@ -2975,7 +2976,7 @@ def audit(stack: Stack) -> str:
 
     page_ok(auditor.submit(page.form(name="vereineauditbuild")), "build the report")
     report = pdf_text(stack, "vereine/audit")
-    for word in ("Rechnungspr", data["auditor_name"], "gew", str(year)):
+    for word in ("Rechnungspr", data["auditor_name"], "gew", str(year), "Ergebnis"):
         expect(word in report, f"the report lacks {word!r}")
     page = page_ok(auditor.get(base), "the audit with its report")
     audit_id = stack.value(f"SELECT rowid FROM llx_vereine_audit WHERE fiscal_year = {year}")
@@ -2995,6 +2996,93 @@ def audit(stack: Stack) -> str:
     return (f"year {year}: the chair's supplier invoice, a booking without document and a large donation as hints; the board may look, "
             "nobody without rights; the auditor ticked a sample, a deficiency needs text, every point in order confirms; "
             "report with auditor and year, signed by the auditor; somebody else cannot tick")
+
+
+def account(stack: Stack) -> str:
+    """The income and expenditure account: the money of the year by area, the check against the bank, the statement of assets, PDF, table, signatures."""
+    year = int(stack.today()[:4])
+    base = f"/custom/vereine/account.php?year={year}"
+    expect(denied(stack.browser("rtreader").get(base)), "somebody who may not read the bank opens the account")
+    data = stack.php_fixture("account", RT_YEAR=str(year))
+    lines = data["lines"]
+    browser = stack.browser()
+    page = page_ok(browser.get(base), "the account")
+
+    # The bookings of the audit and of the fixture: paid invoice over two areas, part of the chair's invoice,
+    # four bookings without payment, a transfer to the cash box and the initial balance of the cash box.
+    sums = {key: float(value) for key, value in re.findall(r'data-account-sum="([a-z]+:[a-z]+)" data-amount="(-?[\d.]+)"', page.text)}
+    expect(sums == {"income:ideal": 50.0, "income:harmful": 120.0, "income:unassigned": 5020.0, "expense:ideal": 100.0, "expense:unassigned": 70.0},
+           f"sums by area: {sums}")
+    bookings = {booking: (kind, dict(part.split("=") for part in parts.split(";") if part))
+                for booking, kind, parts in re.findall(r'data-booking="(\d+)" data-kind="([a-z_]+)" data-parts="([^"]*)"', page.text)}
+    expect(bookings.get(str(lines["invoice"])) == ("invoice", {"ideal": "50.00", "harmful": "120.00"}), f"the paid invoice: {bookings.get(str(lines['invoice']))}")
+    expect(bookings.get(str(lines["supplier"])) == ("supplier", {"ideal": "-100.00"}), f"the part payment to the chair: {bookings.get(str(lines['supplier']))}")
+    kinds = {key: bookings.get(str(lines[key]), ("", {}))[0] for key in ("transfer_out", "transfer_in", "cash_opening")}
+    expect(kinds == {"transfer_out": "transfer", "transfer_in": "transfer", "cash_opening": "opening"}, f"transfer and initial balance: {kinds}")
+    reconciled = re.search(r'data-reconciled="(\d)">(.*?)</div>', page.text)
+    expect(reconciled is not None and reconciled.group(1) == "1", f"the account does not agree with the bank: {reconciled.group(2) if reconciled else None}")
+    unassigned = re.search(r'data-account-unassigned="(\d+)"', page.text)
+    expect(unassigned is not None and unassigned.group(1) == "4", f"bookings without payment: {unassigned.group(1) if unassigned else None}")
+    deadline = re.search(r'data-account-deadline="([\d-]+)"', page.text)
+    expect(deadline is not None and deadline.group(1) > stack.today(), f"the deadline to make the account: {deadline.group(1) if deadline else None}")
+    opened = {key: float(value) for key, value in re.findall(r'data-account-open="([a-z]+)" data-amount="(-?[\d.]+)"', page.text)}
+    text = html.unescape(page.text)
+    expect(opened.get("payables", 0) >= 200 and f"RT-OBMANN-{year}" in text, f"the rest of the chair's invoice is no debt: {opened}")
+    expect(opened.get("receivables", 0) >= 96 and data["open_ref"] in text, f"the open invoice is no claim: {opened}, {data['open_ref']} shown: {data['open_ref'] in text}")
+
+    # The board enters the day it was made and what Dolibarr does not know.
+    page_ok(browser.submit(page.form(name="vereineaccount"), {"made_on": stack.today(), "extras[0][label]": "Beamer", "extras[0][amount]": "400",
+                                                               "extras[1][label]": "Darlehen Obmann", "extras[1][amount]": "1000", "extras[1][kind]": "debt"}),
+            "store the day and further assets")
+    page = page_ok(browser.get(base), "the account after storing")
+    expect(f'data-account-made="{stack.today()}"' in page.text, "the day the account was made is not shown")
+    net = re.search(r'data-account-net="(-?[\d.]+)"', page.text)
+    expected = 5120 + opened["receivables"] - opened["payables"] + 400 - 1000
+    expect(net is not None and abs(float(net.group(1)) - expected) < 0.01, f"assets {net.group(1) if net else None}, expected {expected:.2f}")
+    audit_page = page_ok(browser.get(f"/custom/vereine/audit.php?year={year}"), "the audit with the account")
+    expect(f'data-audit-account="{stack.today()}"' in audit_page.text, "the audit does not know when the account was made")
+
+    token = re.search(r'action=csv&amp;token=([^"&]+)', page.text)
+    expect(token is not None, "no link to the table")
+    table = page_ok(browser.get(f"{base}&action=csv&token={token.group(1)}"), "the bookings as table")
+    expect("Ideeller Bereich" in table.text and "Umbuchung zwischen eigenen Konten" in table.text and "Beamer" not in table.text,
+           f"the table: {table.text[:300]!r}")
+
+    page_ok(browser.submit(page_ok(browser.get(base), "the account for the PDF").form(name="vereineaccountbuild")), "build the PDF")
+    pdf = pdf_text(stack, "vereine/account")
+    for word in ("Einnahmen", "Beamer", "Darlehen Obmann", str(year)):
+        expect(word in pdf, f"the PDF lacks {word!r}")
+    record = stack.value(f"SELECT rowid FROM llx_vereine_account WHERE fiscal_year = {year}")
+    page = page_ok(browser.get(base), "the account with its PDF")
+    page_ok(browser.submit(page.form(name=f"vereinestartsignaccount{record}")), "start the signatures")
+    run = stack.value(f"SELECT rowid FROM llx_vereine_signature WHERE kind = 'account' AND fk_object = {record}")
+    signers = stack.sql(f"SELECT fk_adherent FROM llx_vereine_signature_person WHERE fk_signature = {run}")
+    expect([str(data["chair"])] in signers, f"the chair does not sign the account: {signers}")
+
+    # The chair reads the bank but may not change it: signs, but stores nothing.
+    reader = stack.value("SELECT rowid FROM llx_user WHERE login = 'rtreader'")
+    member_before = stack.value(f"SELECT fk_member FROM llx_user WHERE rowid = {reader}")
+    right = stack.value("SELECT id FROM llx_rights_def WHERE module = 'banque' AND perms = 'lire' AND entity = 1 ORDER BY id LIMIT 1")
+    stack.sql(f"INSERT INTO llx_user_rights (entity, fk_user, fk_id) VALUES (1, {reader}, {right})")
+    stack.sql(f"UPDATE llx_user SET fk_member = {data['chair']} WHERE rowid = {reader}")
+    try:
+        chair = stack.browser("rtreader")
+        page = page_ok(chair.get(base), "the account for the chair")
+        expect('name="vereineaccount"' not in page.text and 'name="vereineaccountbuild"' not in page.text, "somebody who may not change the bank gets the forms")
+        page_ok(chair.submit(page.form(name=f"vereinesign{run}"), {"password": stack.reader_password}), "the chair signs")
+        signed = stack.value(f"SELECT COUNT(*) FROM llx_vereine_signature_person WHERE fk_signature = {run} AND fk_adherent = {data['chair']} AND signed_at IS NOT NULL")
+        expect(signed == "1", "the chair could not sign without the right to change the bank")
+        page = page_ok(chair.get(base), "the account after signing")
+        # No form to store; the token of the table link, as a crafted request would bring one.
+        page_ok(chair.post(base, [("token", re.search(r'action=csv&amp;token=([^"&]+)', page.text).group(1)), ("action", "save"), ("made_on", "2000-01-01")]),
+                "store as somebody who may not change the bank")
+        expect(stack.value(f"SELECT made_on FROM llx_vereine_account WHERE rowid = {record}") == stack.today(), "somebody who may not change the bank stored the account")
+    finally:
+        stack.sql(f"DELETE FROM llx_user_rights WHERE fk_user = {reader} AND fk_id = {right}")
+        stack.sql(f"UPDATE llx_user SET fk_member = {member_before if member_before not in (None, 'NULL') else 'NULL'} WHERE rowid = {reader}")
+    return (f"year {year}: income 5190 and expenses 170 by area, the invoice split 50 ideal / 120 business, the transfer and the cash box's initial balance "
+            "not counted, agrees with the bank; claims, debts and further assets in the statement; day made shown in the audit; table, PDF, "
+            "the chair signs without the right to change the bank and stores nothing; nobody without bank rights")
 
 
 def minutestexts(stack: Stack) -> str:
@@ -3731,7 +3819,8 @@ SCENARIOS = (
     ("placeholders", "Placeholders: association data in Dolibarr's e-mail templates, the module's e-mails as templates, one list with examples", placeholders, ("qes",)),
     ("taxcheck", "Older invoice lines without a tax profile: suggestions from facts, a preview, assigning only the profile", taxcheck, ("placeholders",)),
     ("audit", "The audit of the auditors: bookings and invoices with hints, samples, checklist, report with signatures", audit, ("taxcheck",)),
-    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("audit",)),
+    ("account", "Income and expenditure account: the money of the year by area, agreeing with the bank, statement of assets, PDF, signatures", account, ("audit",)),
+    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account",)),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )

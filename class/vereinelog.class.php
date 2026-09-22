@@ -71,6 +71,8 @@ class VereineLog
 	const AUDIT_SAVED = 'audit_saved';
 	const AUDIT_CHECKED = 'audit_checked';
 	const AUDIT_REPORT = 'audit_report';
+	const ACCOUNT_SAVED = 'account_saved';
+	const ACCOUNT_PDF = 'account_pdf';
 	const SIGNATURE_STARTED = 'signature_started';
 	const SIGNATURE_SIGNED = 'signature_signed';
 	const SIGNATURE_DONE = 'signature_done';

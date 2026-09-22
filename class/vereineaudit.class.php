@@ -426,6 +426,8 @@ class VereineAudit
 		$board = $this->holders($statement, 'board');
 		$organization = VereineOrganization::load($mysoc);
 		$checked = count($this->checks($year));
+		require_once __DIR__.'/vereineaccount.class.php';
+		$figures = (new VereineAccount($this->db))->build($year, $user);
 
 		$file = self::reportPath($audit['id']);
 		if (dol_mkdir(dirname($file)) < 0) {
@@ -469,6 +471,11 @@ class VereineAudit
 		if ($checked > 0) {
 			$line($outputlangs->transnoentities('VereineAuditReportSamples', $checked));
 		}
+		$money = function ($amount) use ($outputlangs) {
+			return price($amount, 0, $outputlangs, 1, 2, 2).' €';
+		};
+		$line($outputlangs->transnoentities('VereineAuditReportFigures', $money($figures['totals']['totals']['income']), $money($figures['totals']['totals']['expense']),
+			$money($figures['totals']['totals']['result']), $money($figures['net'])));
 		$informants = array();
 		foreach ($board as $holder) {
 			if (in_array($holder['code'], array('kassier', 'obmann'), true)) {
