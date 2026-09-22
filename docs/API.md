@@ -328,7 +328,7 @@ die API anlegen* geben.
 Antwort:
 
 ```json
-{ "id": 57, "ref": "57", "status": "draft", "duplicate": false }
+{ "id": 57, "ref": "57", "status": "draft", "duplicate": false, "document": true }
 ```
 
 | Feld | Inhalt |
@@ -339,9 +339,11 @@ Antwort:
 | `type_id` | Pflicht, eine aktive Mitgliedsart aus [`GET /vereine/membershipfees`](#get-vereinemembershipfees), offen für diese Art von Person |
 | `birth` | `JJJJ-MM-TT`, freiwillig; Ermäßigungen nach Alter brauchen es. Pflicht, solange die Statuten ein Mindestalter festlegen (Einrichtungsreiter *Statuten*): Jüngere werden mit 400 abgelehnt |
 | `note` | Nachricht der antragstellenden Person, gespeichert als private Notiz am Mitglied |
-| `consents` | Die erteilten Einwilligungen, jede mit der gezeigten Version; nicht angekreuzte Zwecke fehlen |
+| `consents` | Die erteilten Einwilligungen, jede mit der gezeigten Version; nicht angekreuzte Zwecke fehlen. Je Einwilligung dürfen `granted_at` (Zeitpunkt der Zustimmung, ISO 8601), `form` (Formular oder Seite) und `reference` (Kennung des Vorgangs) mitkommen – der Nachweis nach Art. 7 Abs. 1 DSGVO. Keine IP-Adresse |
+| `signature` | Freiwillig: die am Bildschirm gezeichnete Unterschrift als PNG, base64 kodiert, höchstens 200000 Bytes. Sie steht dann im Antrags-PDF. Das ist eine einfache elektronische Signatur (Art. 25 eIDAS), keine qualifizierte |
 
 Antwortet 400 mit jedem Problem in der Meldung, 403 ohne das Recht.
+`document` sagt, ob der Mitgliedsantrag als PDF bei den Dokumenten des Mitglieds abgelegt wurde – mit dem Vermerk, dass er über die Website kam, und mit der Unterschrift, wenn eine mitgeschickt wurde. Scheitert nur das PDF, bleibt der Antrag trotzdem bestehen; das Modulprotokoll hält die Prüfsumme fest.
 Einwilligungen von Kindern: Bei einem Online-Formular, das sich direkt an Kinder
 richtet, kann ein Kind in Österreich ab 14 Jahren selbst einwilligen (§ 4 Abs. 4
 DSG); bei Jüngeren die Eltern fragen.

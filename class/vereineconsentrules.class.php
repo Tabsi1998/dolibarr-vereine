@@ -114,6 +114,34 @@ class VereineConsentRules
 		return array('at' => $at, 'form' => $value('form', 128), 'ref' => $value('ref', 64));
 	}
 
+	/** Largest signature image a website may send, in bytes. */
+	const SIGNATURE_BYTES = 200000;
+
+	/**
+	 * The signature drawn on the screen, as a website sends it: a PNG image, base64 encoded.
+	 *
+	 * It is a simple electronic signature, not a qualified one (Art. 25 eIDAS); it is kept as long
+	 * as the application itself.
+	 *
+	 * @param mixed $data Value of the field signature
+	 * @return array{image:string,errors:string[]} Raw image, empty when there is none
+	 */
+	public static function signature($data)
+	{
+		if ($data === null || $data === '' || !is_scalar($data)) {
+			return array('image' => '', 'errors' => array());
+		}
+		$value = preg_replace('#^data:image/png;base64,#i', '', trim((string) $data));
+		$image = base64_decode($value, true);
+		if ($image === false || strncmp($image, "\x89PNG\r\n\x1a\n", 8) !== 0) {
+			return array('image' => '', 'errors' => array('signature must be a PNG image, base64 encoded'));
+		}
+		if (strlen($image) > self::SIGNATURE_BYTES) {
+			return array('image' => '', 'errors' => array('signature must be at most '.self::SIGNATURE_BYTES.' bytes'));
+		}
+		return array('image' => $image, 'errors' => array());
+	}
+
 	/**
 	 * Check and normalise a membership application from a website.
 	 *
@@ -151,6 +179,7 @@ class VereineConsentRules
 			'type_id' => isset($data['type_id']) && is_numeric($data['type_id']) ? (int) $data['type_id'] : 0,
 			'note' => $text('note', 1000),
 			'consents' => array(),
+			'signature' => '',
 		);
 		if ($application['external_id'] !== '' && !preg_match('/^[A-Za-z0-9._:-]+$/', $application['external_id'])) {
 			$errors[] = 'external_id may only contain letters, digits and . _ : -';
@@ -180,6 +209,9 @@ class VereineConsentRules
 		} elseif ($types[$application['type_id']]['morphy'] !== '' && $types[$application['type_id']]['morphy'] !== $application['morphy']) {
 			$errors[] = 'the member type is not open to this kind of person (morphy)';
 		}
+		$signature = self::signature(isset($data['signature']) ? $data['signature'] : null);
+		$errors = array_merge($errors, $signature['errors']);
+		$application['signature'] = $signature['image'];
 		$consents = isset($data['consents']) ? $data['consents'] : array();
 		if (!is_array($consents)) {
 			$errors[] = 'consents must be a list';

@@ -198,6 +198,10 @@ def package_version(package: Path) -> str:
     return re.search(r"\$this->version\s*=\s*'([^']+)'", text).group(1)
 
 
+# A 1x1 pixel PNG, as a website sends a signature drawn on the screen.
+TINY_PNG = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+
+
 def upload(stack: Stack, package: Path) -> list[str]:
     """Deploy an external module, as an administrator does it; the installed files must be the package."""
     browser = stack.browser()
@@ -1832,8 +1836,14 @@ def applications(stack: Stack) -> str:
                           "reference": "web-2026-0042"}]}
     status, _ = stack.api("vereine/applications", key, method="POST", data=body)
     expect(status == 403, f"the website user without the right to send applications got HTTP {status}")
-    status, created = stack.api("vereine/applications", form_key, method="POST", data=body)
-    expect(status == 200 and created.get("status") == "draft" and created.get("duplicate") is False, f"POST vereine/applications answered HTTP {status}: {created}")
+    # A signature drawn on the screen comes with the application; too large is refused (#111).
+    signature = base64.b64encode(base64.b64decode(TINY_PNG)).decode("ascii")
+    status, refused = stack.api("vereine/applications", form_key, method="POST",
+                                data={**body, "external_id": "", "signature": base64.b64encode(b"x" * 300000).decode("ascii")})
+    expect(status == 400 and "signature" in json.dumps(refused), f"an oversized signature answered HTTP {status}: {refused}")
+    status, created = stack.api("vereine/applications", form_key, method="POST", data={**body, "signature": signature})
+    expect(status == 200 and created.get("status") == "draft" and created.get("duplicate") is False and created.get("document") is True,
+           f"POST vereine/applications answered HTTP {status}: {created}")
     member_id = int(created["id"])
     member = stack.sql(f"SELECT statut, firstname, lastname, email, fk_adherent_type, DATE(birth), town FROM llx_adherent WHERE rowid = {member_id}")
     expect(member == [["-1", "Amelie", "Antrag", email, str(type_id), "2001-04-30", "Innsbruck"]], f"member from the application: {member}")
@@ -1843,10 +1853,19 @@ def applications(stack: Stack) -> str:
     proof = stack.sql(f"SELECT proof_at, proof_form, proof_ref FROM llx_vereine_consent WHERE fk_adherent = {member_id}")
     expect(proof == [["2026-09-22 19:30:00", "Beitrittsformular", "web-2026-0042"]], f"proof of the consent: {proof}")
 
+    # The application leaves the same PDF as on paper, at the documents of the member (#111).
+    documents = stack.shell(f"ls /var/www/documents/adherent/*/mitgliedsantrag-*.pdf 2>/dev/null | wc -l").stdout.strip()
+    application_pdf = pdf_text(stack, "adherent")
+    expect("Elektronisch eingereicht" in application_pdf and "Antrag" in application_pdf, "the application of the website is no document at the member")
+    logged = stack.value(f"SELECT COUNT(*) FROM llx_vereine_log WHERE fk_adherent = {member_id} AND action = 'application_pdf' AND message LIKE '%sha256%'")
+    expect(logged == "1", f"{logged} entries about the document of the application, expected 1")
+
     status, again = stack.api("vereine/applications", form_key, method="POST", data=body)
     count = stack.value(f"SELECT COUNT(*) FROM llx_adherent WHERE email = '{email}'")
-    expect(status == 200 and again.get("id") == member_id and again.get("duplicate") is True and count == "1",
+    expect(status == 200 and again.get("id") == member_id and again.get("duplicate") is True and count == "1" and again.get("document") is False,
            f"the same application sent again: HTTP {status} {again}, {count} members")
+    documents_again = stack.shell(f"ls /var/www/documents/adherent/*/mitgliedsantrag-*.pdf 2>/dev/null | wc -l").stdout.strip()
+    expect(documents_again == documents, f"the application sent again left another document: {documents} then {documents_again}")
     for change, message in (({"consents": [{"code": "fotos", "version": 1}]}, "the current version is 2"),
                             ({"email": "amelie at runtime"}, "valid e-mail"), ({"lastname": ""}, "lastname are required")):
         status, answer = stack.api("vereine/applications", form_key, method="POST", data={**body, **change, "external_id": ""})

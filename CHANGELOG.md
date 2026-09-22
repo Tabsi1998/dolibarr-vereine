@@ -7,6 +7,20 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Neu
+
+- **Online-Antrag als PDF am Mitglied** (#111): Kommt ein Beitrittsantrag über die Website,
+  legt das Modul denselben Antrag als PDF bei den Dokumenten des Mitglieds ab – mit dem
+  Vermerk „Elektronisch eingereicht am … über die Website“, den gesendeten Daten und den
+  Einwilligungen. Die Prüfsumme steht im Modulprotokoll. Der Vorstand sieht damit dasselbe
+  Dokument wie bei einem Antrag auf Papier.
+- **Unterschrift freiwillig über die API**: Die Website darf die am Bildschirm gezeichnete
+  Unterschrift als PNG mitschicken (höchstens 200 kB); sie steht dann im Antrag. Das ist
+  eine einfache elektronische Signatur (Art. 25 eIDAS), keine qualifizierte – die gibt es
+  nur über ID Austria. Ein zu großes oder falsches Bild wird mit 400 abgelehnt.
+- Derselbe Antrag nochmals geschickt erzeugt kein zweites Dokument; scheitert nur das PDF,
+  bleibt der Antrag trotzdem bestehen.
+
 ## [0.6.2-beta] - 2026-09-22
 
 Mitgliedsantrag und Einwilligungserklärung als PDF aus Dolibarr (#108, #110, #107), Nachweis

@@ -75,11 +75,18 @@ fi
 if module_code | xargs -0 grep -nE '\b(eval|exec|shell_exec|system|passthru|popen|proc_open|assert|create_function)[[:space:]]*\('; then
   fail "code execution functions are not allowed in the module"
 fi
-# One file is the exception, below: the signature service for ID Austria.
+# Two files are the exception, below: the signature service for ID Austria, and the signature a website
+# sends with an application, which is only read as an image.
 if module_code | xargs -0 grep -nE '\bbase64_decode[[:space:]]*\(|\b(curl_init|fsockopen|getURLContent)[[:space:]]*\(|file_get_contents[[:space:]]*\([[:space:]]*["'"'"']https?:' \
-  | grep -v '^\./class/vereineqes\.class\.php:'; then
+  | grep -vE '^\./class/(vereineqes|vereineconsentrules)\.class\.php:'; then
   fail "the module must not decode hidden code or call other servers"
 fi
+# The application of a website may carry a signature drawn on the screen. It is decoded once, must be a
+# PNG image and stays below the size limit; nothing of it is ever executed or included.
+rules=./class/vereineconsentrules.class.php
+[ "$( (grep -o 'base64_decode(' "$rules" || true) | wc -l)" -eq 1 ] || fail "$rules decodes more than the signature of an application"
+grep -qF 'SIGNATURE_BYTES' "$rules" || fail "$rules takes a signature without a size limit"
+grep -qF 'PNG' "$rules" || fail "$rules takes a signature that is no PNG image"
 # The signature service for ID Austria runs at the address an administrator enters in the setup; it is
 # empty by default, so nothing is called. Only this file talks to it, and only to that address.
 qes=./class/vereineqes.class.php
