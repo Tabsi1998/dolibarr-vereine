@@ -461,7 +461,7 @@ if ($stage === 'audit') {
 		}
 	}
 	print json_encode(array('account' => (int) $account->id, 'lines' => $lines, 'officer_invoice' => (int) $invoice->id,
-		'auditor_member' => $member, 'auditor_name' => trim(rt_value($db, "SELECT CONCAT(firstname, ' ', lastname) FROM ".MAIN_DB_PREFIX."adherent WHERE rowid = ".$member)),
+		'auditor_member' => $member, 'auditor_name' => trim((string) rt_value($db, "SELECT lastname FROM ".MAIN_DB_PREFIX."adherent WHERE rowid = ".$member)),
 		'chair' => (int) $chair))."\n";
 	exit(0);
 }

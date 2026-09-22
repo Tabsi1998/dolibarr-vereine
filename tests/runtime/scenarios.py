@@ -2953,7 +2953,9 @@ def audit(stack: Stack) -> str:
     auditor = Browser(stack.url)
     auditor.login("rtauditor", password)
     page = page_ok(auditor.get(base), "the audit for the auditor")
-    expect('data-audit-is-auditor="1"' in page.text and data["auditor_name"] in html.unescape(page.text), "the auditor is not recognised")
+    marker = re.search(r'data-audit-auditors="(\d+)" data-audit-is-auditor="(\d)"', page.text)
+    expect(marker is not None and marker.group(2) == "1" and data["auditor_name"] in html.unescape(page.text),
+           f"the auditor is not recognised: {marker.groups() if marker else None}, name {data['auditor_name']!r} shown: {data['auditor_name'] in html.unescape(page.text)}")
     forms = [form for form in page.forms() if form.value("action") == "check" and form.value("element") == "supplier"
              and form.value("object") == str(data["officer_invoice"])]
     expect(len(forms) == 1, "no way to tick the supplier invoice of the chair")
@@ -2973,7 +2975,7 @@ def audit(stack: Stack) -> str:
 
     page_ok(auditor.submit(page.form(name="vereineauditbuild")), "build the report")
     report = pdf_text(stack, "vereine/audit")
-    for word in ("Rechnungspr", data["auditor_name"].split(" ")[-1], "gew", str(year)):
+    for word in ("Rechnungspr", data["auditor_name"], "gew", str(year)):
         expect(word in report, f"the report lacks {word!r}")
     page = page_ok(auditor.get(base), "the audit with its report")
     audit_id = stack.value(f"SELECT rowid FROM llx_vereine_audit WHERE fiscal_year = {year}")
