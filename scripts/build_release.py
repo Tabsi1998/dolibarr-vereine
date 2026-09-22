@@ -137,7 +137,10 @@ def build(source: Path, out: Path) -> tuple[Path, str]:
     directories = sorted({f"{MODULE}/" + "/".join(Path(name).parts[:depth]) + "/"
                           for name in files for depth in range(1, len(Path(name).parts))}
                          | {f"{MODULE}/"})
-    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as bundle:
+    # Compressed with a fixed level: the package stays well below PHP's upload_max_filesize
+    # (2 MB by default), which Dolibarr's "Deploy an external module" needs, and the bytes stay
+    # the same everywhere, so the ZIP built here and the one GitHub builds can be compared.
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as bundle:
         for directory in directories:
             info = zipfile.ZipInfo(directory, FIXED_DATE)
             info.external_attr = (0o40755 << 16) | 0x10
@@ -147,7 +150,7 @@ def build(source: Path, out: Path) -> tuple[Path, str]:
             info = zipfile.ZipInfo(f"{MODULE}/{name}", FIXED_DATE)
             info.external_attr = 0o100644 << 16
             info.create_system = 3
-            info.compress_type = zipfile.ZIP_STORED
+            info.compress_type = zipfile.ZIP_DEFLATED
             bundle.writestr(info, (source / name).read_bytes())
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     (out / (archive.name + ".sha256")).write_text(f"{digest}  {archive.name}\n", encoding="ascii", newline="\n")

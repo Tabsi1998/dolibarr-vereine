@@ -76,6 +76,7 @@ class VereineLog
 	const ACCOUNT_ASSIGNED = 'account_assigned';
 	const APPLICATION_PDF = 'application_pdf';
 	const CONSENT_FORM = 'consent_form';
+	const CONSENT_SCAN = 'consent_scan';
 	const SIGNATURE_STARTED = 'signature_started';
 	const SIGNATURE_SIGNED = 'signature_signed';
 	const SIGNATURE_DONE = 'signature_done';

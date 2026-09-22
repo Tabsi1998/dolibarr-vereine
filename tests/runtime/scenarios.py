@@ -210,6 +210,11 @@ def upload(stack: Stack, package: Path) -> list[str]:
     expect(not result.errors(), f"the upload page shows {', '.join(result.errors())}")
     installed = stack.shell(f"cd {MODULE_DIR} && find . -type f | sort")
     expect(installed.returncode == 0, f"the upload did not create {MODULE_DIR}:\n{result.text[-800:]}")
+    # A package above PHP's upload_max_filesize never reaches Dolibarr, which then keeps what is installed.
+    descriptor = stack.shell(f"sed -n \"s/.*version = '\\([^']*\\)'.*/\\1/p\" {MODULE_DIR}/core/modules/modVereine.class.php | head -1")
+    expect(descriptor.stdout.strip() == package_version(package),
+           f"{package.name} ({package.stat().st_size} bytes) was not deployed, {descriptor.stdout.strip()!r} is still installed; "
+           "check PHP upload_max_filesize and post_max_size")
     files = [line[2:] for line in installed.stdout.splitlines() if line.startswith("./")]
     with zipfile.ZipFile(package) as bundle:
         packaged = sorted(info.filename[len("vereine/"):] for info in bundle.infolist() if not info.is_dir())
@@ -287,7 +292,13 @@ def upgrade(stack: Stack) -> str:
     upload(stack, stack.package)
     switch_module(stack, "reset")
     switch_module(stack, "set")
-    about = page_ok(stack.browser().get("/custom/vereine/admin/about.php"), "about after the upgrade")
+    # PHP keeps the compiled module descriptor for a moment after the files were replaced (opcache),
+    # so the about page may still name the version of the release it upgraded from.
+    for attempt in range(10):
+        about = page_ok(stack.browser().get("/custom/vereine/admin/about.php"), "about after the upgrade")
+        if stack.module_version in about.text:
+            break
+        time.sleep(1)
     expect(stack.module_version in about.text, f"the about page does not show {stack.module_version} after the upgrade")
     expect(stack.const("VEREINE_REGISTER_NUMBER") == "987654321" and stack.const("VEREINE_AUTHORITY") == "BH Innsbruck",
            "the upgrade lost the association data")
@@ -1817,7 +1828,8 @@ def applications(stack: Stack) -> str:
     email = "amelie.antrag@runtime-verein.test"
     body = {"external_id": "web-2026-0042", "firstname": "Amelie", "lastname": "Antrag", "email": email, "birth": "2001-04-30",
             "zip": "6020", "town": "Innsbruck", "country_code": "AT", "type_id": type_id, "note": "Ich spiele gern Schach.",
-            "consents": [{"code": "fotos", "version": 2}]}
+            "consents": [{"code": "fotos", "version": 2, "granted_at": "2026-09-22T19:30:00+02:00", "form": "Beitrittsformular",
+                          "reference": "web-2026-0042"}]}
     status, _ = stack.api("vereine/applications", key, method="POST", data=body)
     expect(status == 403, f"the website user without the right to send applications got HTTP {status}")
     status, created = stack.api("vereine/applications", form_key, method="POST", data=body)
@@ -1827,6 +1839,9 @@ def applications(stack: Stack) -> str:
     expect(member == [["-1", "Amelie", "Antrag", email, str(type_id), "2001-04-30", "Innsbruck"]], f"member from the application: {member}")
     consents = stack.sql(f"SELECT code, version, given, source FROM llx_vereine_consent WHERE fk_adherent = {member_id}")
     expect(consents == [["fotos", "2", "1", "website"]], f"consents from the application: {consents}")
+    # How the website says the consent was given, for the proof (Art. 7 (1) GDPR) (#109).
+    proof = stack.sql(f"SELECT proof_at, proof_form, proof_ref FROM llx_vereine_consent WHERE fk_adherent = {member_id}")
+    expect(proof == [["2026-09-22 19:30:00", "Beitrittsformular", "web-2026-0042"]], f"proof of the consent: {proof}")
 
     status, again = stack.api("vereine/applications", form_key, method="POST", data=body)
     count = stack.value(f"SELECT COUNT(*) FROM llx_adherent WHERE email = '{email}'")
@@ -1842,14 +1857,35 @@ def applications(stack: Stack) -> str:
     tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={member_id}"), "association tab of the applicant")
     expect('data-member-consent="fotos" data-state="given" data-version="2"' in tab.text and 'data-member-consent="newsletter" data-state="none"' in tab.text,
            "the member tab does not show the consents of the application")
+    expect('data-consent-proof="online"' in tab.text and "Beitrittsformular" in tab.text, "the tab does not show how the consent was given online")
     page_ok(browser.submit(tab.form(name="vereinewithdrawconsent")), "record the withdrawal of the photo consent")
     events = stack.sql(f"SELECT code, version, given, source FROM llx_vereine_consent WHERE fk_adherent = {member_id} ORDER BY rowid")
     tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={member_id}"), "association tab after the withdrawal")
     expect(events == [["fotos", "2", "1", "website"], ["fotos", "2", "0", "paper"]] and 'data-member-consent="fotos" data-state="withdrawn"' in tab.text,
            f"withdrawal: {events}")
+    # The paper way: the signed declaration is kept with the documents of the member (#109).
+    page_ok(browser.submit(tab.form(name="vereinerecordconsent")), "record a consent on paper")
+    event = stack.value(f"SELECT rowid FROM llx_vereine_consent WHERE fk_adherent = {member_id} AND source = 'paper' AND given = 1 ORDER BY rowid DESC LIMIT 1")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={member_id}"), "association tab before the scan")
+    scanned = b"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
+    refused = page_ok(browser.post_multipart(f"/custom/vereine/member_association.php?id={member_id}",
+                                             [("token", token_of(tab)), ("action", "consentscan"), ("consent_event", event)],
+                                             [("scan_file", "erklaerung.txt", scanned)]), "a scan that is no document")
+    expect("Nur PDF" in html.unescape(refused.text), "a file that is no PDF, JPG or PNG was kept as a scan")
+    page_ok(browser.post_multipart(f"/custom/vereine/member_association.php?id={member_id}",
+                                   [("token", token_of(tab)), ("action", "consentscan"), ("consent_event", event)],
+                                   [("scan_file", "erklaerung.pdf", scanned)]), "attach the signed declaration")
+    stored = stack.value(f"SELECT scan_name FROM llx_vereine_consent WHERE rowid = {event}")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={member_id}"), "association tab with the scan")
+    expect(stored == f"einwilligung-{event}.pdf" and 'data-consent-proof="scan"' in tab.text, f"the scan was stored as {stored!r}")
+    download = browser.get(f"/custom/vereine/member_association.php?id={member_id}&action=consentscanget&consent_event={event}&token={token_of(tab)}")
+    expect(download.status == 200 and download.body.startswith(b"%PDF"), f"the scan could not be read again: HTTP {download.status}")
+    expect(denied(stack.browser("rtnobody").get(f"/custom/vereine/member_association.php?id={member_id}&action=consentscanget&consent_event={event}")),
+           "somebody without rights reads the scan of a consent")
     return ("bad code refused; photos v1 and v2 and newsletter v1 stored, API offers the newest versions; website user without right 403; "
-            "application became a member in draft with the photo consent v2 from the website; sent again: same member, duplicate; "
-            "outdated version, bad e-mail and missing name refused with 400; withdrawal recorded and shown")
+            "application became a member in draft with the photo consent v2 from the website, with the moment and the form it was given on; "
+            "sent again: same member, duplicate; outdated version, bad e-mail and missing name refused with 400; withdrawal recorded and shown; "
+            "signed declaration attached as PDF, kept with the documents of the member, readable again, not for somebody without rights")
 
 
 def functions(stack: Stack) -> str:
