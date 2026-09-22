@@ -2986,7 +2986,10 @@ def audit(stack: Stack) -> str:
     before = stack.value("SELECT COUNT(*) FROM llx_vereine_audit_check")
     admin = stack.browser()
     admin_page = page_ok(admin.get(base), "the audit for the board again")
-    page_ok(admin.post(base, [("token", token_of(admin_page)), ("action", "check"), ("element", "bank"), ("object", str(data["lines"]["large"])),
+    expect('action" value="check"' not in admin_page.text, "somebody who is no auditor gets a form to tick")
+    # The page has no form for them; a token from another page, as a crafted request would bring one.
+    token = token_of(page_ok(admin.get("/custom/vereine/admin/setup.php"), "a page with a token"))
+    page_ok(admin.post(base, [("token", token), ("action", "check"), ("element", "bank"), ("object", str(data["lines"]["large"])),
                               ("checked", "1")]), "tick as somebody who is no auditor")
     expect(stack.value("SELECT COUNT(*) FROM llx_vereine_audit_check") == before, "somebody who is no auditor ticked a sample")
     return (f"year {year}: the chair's supplier invoice, a booking without document and a large donation as hints; the board may look, "
