@@ -76,6 +76,33 @@ class VereineAccount
 	}
 
 	/**
+	 * A label as Dolibarr shows it: some are stored as language keys, such as the cash box of the point of
+	 * sale ("DefaultCashPOSLabel") or payments ("(CustomerInvoicePayment)").
+	 *
+	 * @param string $text Label as stored
+	 * @return string
+	 */
+	public static function text($text)
+	{
+		global $langs;
+
+		$text = (string) $text;
+		if (preg_match('/^\(([A-Za-z][A-Za-z0-9_]+)\)$/', $text, $parts)) {
+			$key = $parts[1];
+		} elseif (preg_match('/^[A-Za-z][A-Za-z0-9_]+$/', $text)) {
+			$key = $text;
+		} else {
+			return $text;
+		}
+		if (!is_object($langs)) {
+			return $text;
+		}
+		$langs->loadLangs(array('banks', 'bills', 'compta', 'cashdesk'));
+		$translated = $langs->transnoentitiesnoconv($key);
+		return $translated !== $key && $translated !== '' ? $translated : $text;
+	}
+
+	/**
 	 * First and last day of an association's year.
 	 *
 	 * @param int $year Year it starts in
@@ -175,8 +202,8 @@ class VereineAccount
 		$bookings = array();
 		$resql = $this->db->query($sql);
 		while ($resql && ($obj = $this->db->fetch_object($resql))) {
-			$bookings[(int) $obj->rowid] = array('id' => (int) $obj->rowid, 'date' => (string) $obj->dateo, 'account' => (string) $obj->account,
-				'label' => (string) $obj->label, 'amount' => round((float) $obj->amount, 2),
+			$bookings[(int) $obj->rowid] = array('id' => (int) $obj->rowid, 'date' => (string) $obj->dateo, 'account' => self::text($obj->account),
+				'label' => self::text($obj->label), 'amount' => round((float) $obj->amount, 2),
 				// Dolibarr books the balance an account starts with as type SOLD, without a link.
 				'links' => $obj->fk_type === 'SOLD' ? array(array('type' => 'initial', 'id' => 0)) : array());
 		}
@@ -186,18 +213,80 @@ class VereineAccount
 				$bookings[(int) $obj->fk_bank]['links'][] = array('type' => (string) $obj->type, 'id' => (int) $obj->url_id);
 			}
 		}
+		$chosen = $this->chosenAreas(array_keys($bookings));
 		$result = array();
 		foreach ($bookings as $booking) {
 			$kind = VereineAccountRules::kindOf(array_column($booking['links'], 'type'));
+			$area = VereineAccountRules::assignable($kind) && isset($chosen[$booking['id']]) ? $chosen[$booking['id']] : '';
 			if ($kind === VereineAccountRules::KIND_INVOICE || $kind === VereineAccountRules::KIND_SUPPLIER) {
 				$parts = $this->paymentParts($booking, $kind);
 			} else {
-				$parts = array(VereineAccountRules::sphereOf($kind) => $booking['amount']);
+				$parts = array($area !== '' ? $area : VereineAccountRules::sphereOf($kind) => $booking['amount']);
 			}
 			unset($booking['links']);
-			$result[] = $booking + array('kind' => $kind, 'parts' => $parts);
+			$result[] = $booking + array('kind' => $kind, 'parts' => $parts, 'area' => $area);
 		}
 		return $result;
+	}
+
+	/**
+	 * The areas the board chose for bookings.
+	 *
+	 * @param int[] $ids Bank lines
+	 * @return array<int,string> Bank line => area
+	 */
+	private function chosenAreas(array $ids)
+	{
+		$chosen = array();
+		if (!$ids) {
+			return $chosen;
+		}
+		$resql = $this->db->query("SELECT fk_bank, sphere FROM ".MAIN_DB_PREFIX."vereine_account_line WHERE fk_bank IN (".implode(',', array_map('intval', $ids)).")");
+		while ($resql && ($obj = $this->db->fetch_object($resql))) {
+			if (in_array((string) $obj->sphere, VereineAccountRules::areas(), true)) {
+				$chosen[(int) $obj->fk_bank] = (string) $obj->sphere;
+			}
+		}
+		return $chosen;
+	}
+
+	/**
+	 * Store the areas chosen for bookings of a year without invoice lines behind them.
+	 *
+	 * @param int   $year    Year
+	 * @param mixed $entered Bank line => area, empty to remove
+	 * @param User  $user    Who chooses
+	 * @return int Number of bookings stored, -1 on error
+	 */
+	public function assign($year, $entered, $user)
+	{
+		global $conf;
+
+		$allowed = array();
+		foreach ($this->bookings(self::period($year)) as $booking) {
+			if (VereineAccountRules::assignable($booking['kind'])) {
+				$allowed[] = $booking['id'];
+			}
+		}
+		$changes = VereineAccountRules::assignments($entered, $allowed);
+		$this->db->begin();
+		foreach ($changes as $bank => $area) {
+			$ok = $this->db->query("DELETE FROM ".MAIN_DB_PREFIX."vereine_account_line WHERE fk_bank = ".((int) $bank));
+			if ($ok && $area !== '') {
+				$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_account_line (entity, fk_bank, sphere, fk_user_modif)";
+				$sql .= " VALUES (".((int) $conf->entity).", ".((int) $bank).", '".$this->db->escape($area)."', ".((int) $user->id).")";
+				$ok = $this->db->query($sql);
+			}
+			if (!$ok) {
+				$this->error = $this->db->lasterror();
+				$this->db->rollback();
+				return -1;
+			}
+		}
+		$this->db->commit();
+		$given = count(array_filter($changes, 'strlen'));
+		VereineLog::add($this->db, $user, VereineLog::ACCOUNT_ASSIGNED, 0, 0, $year.': '.$given.' of '.count($changes).' bookings with an area');
+		return count($changes);
 	}
 
 	/**
@@ -287,7 +376,7 @@ class VereineAccount
 		$resql = $this->db->query($sql);
 		while ($resql && ($obj = $this->db->fetch_object($resql))) {
 			$balance = round((float) $obj->balance, 2);
-			$accounts[] = array('label' => (string) $obj->label, 'balance' => $balance);
+			$accounts[] = array('label' => self::text($obj->label), 'balance' => $balance);
 			$total = round($total + $balance, 2);
 		}
 		return array('total' => $total, 'accounts' => $accounts);
@@ -357,14 +446,25 @@ class VereineAccount
 			$net += $extra['kind'] === 'debt' ? -$extra['amount'] : $extra['amount'];
 		}
 		$previous = VereineAccountRules::totals($this->bookings(self::period($year - 1)))['totals'];
+		// Why something is not assigned: invoice lines without profile, supplier lines without area, or a booking without invoice.
+		$reasons = array('lines' => 0, 'supplier' => 0, 'bookings' => 0);
+		foreach ($bookings as $booking) {
+			if (!isset($booking['parts'][VereineAccountRules::UNASSIGNED]) || abs($booking['amount']) < 0.01 || VereineAccountRules::side($booking['kind'], $booking['amount']) === '') {
+				continue;
+			}
+			if ($booking['kind'] === VereineAccountRules::KIND_INVOICE) {
+				$reasons['lines']++;
+			} elseif ($booking['kind'] === VereineAccountRules::KIND_SUPPLIER) {
+				$reasons['supplier']++;
+			} else {
+				$reasons['bookings']++;
+			}
+		}
 		return array('period' => $period, 'record' => $record, 'bookings' => $bookings, 'totals' => $totals, 'opening' => $opening, 'closing' => $closing,
 			'reconciled' => VereineAccountRules::reconciled($opening['total'], $totals['totals']['result'], $closing['total']),
 			'receivables' => $receivables, 'payables' => $payables, 'extras' => $extras, 'net' => round($net, 2),
 			'deadline' => VereineAccountRules::deadline($period['end']), 'warnings' => VereineAccountRules::sizeWarnings($totals['totals'], $previous),
-			'unassigned' => count(array_filter($bookings, function ($booking) {
-				return isset($booking['parts'][VereineAccountRules::UNASSIGNED]) && abs($booking['amount']) >= 0.01
-					&& VereineAccountRules::side($booking['kind'], $booking['amount']) !== '';
-			})));
+			'unassigned' => array_sum($reasons), 'reasons' => $reasons);
 	}
 
 	/**

@@ -58,6 +58,9 @@ class VereineAccountRules
 	/** Every kind, in the order of the account. */
 	const KINDS = array('invoice', 'fee', 'donation', 'supplier', 'salary', 'tax', 'expense_report', 'loan', 'various', 'unlinked', 'transfer', 'opening');
 
+	/** Kinds without invoice lines behind them: the board chooses the area of each booking. */
+	const ASSIGNABLE = array('various', 'unlinked', 'salary', 'tax', 'expense_report', 'loan');
+
 	/** Area of what could not be assigned. */
 	const UNASSIGNED = 'unassigned';
 	/** The areas in the order of the account, the unassigned last. */
@@ -112,6 +115,51 @@ class VereineAccountRules
 	public static function sphereOf($kind)
 	{
 		return in_array($kind, array(self::KIND_FEE, self::KIND_DONATION), true) ? 'ideal' : self::UNASSIGNED;
+	}
+
+	/**
+	 * Whether the board chooses the area of a booking of this kind.
+	 *
+	 * @param string $kind One of KINDS
+	 * @return bool
+	 */
+	public static function assignable($kind)
+	{
+		return in_array($kind, self::ASSIGNABLE, true);
+	}
+
+	/**
+	 * The areas a booking can be given: every one but unassigned.
+	 *
+	 * @return string[]
+	 */
+	public static function areas()
+	{
+		return array_values(array_diff(self::SPHERES, array(self::UNASSIGNED)));
+	}
+
+	/**
+	 * Areas chosen per booking as entered: only for bookings that may take one and only known areas;
+	 * an empty choice removes the area again.
+	 *
+	 * @param mixed $entered Booking => area
+	 * @param int[] $allowed Bookings that may take an area
+	 * @return array<int,string> Booking => area, '' to remove
+	 */
+	public static function assignments($entered, array $allowed)
+	{
+		$result = array();
+		foreach (is_array($entered) ? $entered : array() as $booking => $area) {
+			$booking = is_numeric($booking) ? (int) $booking : 0;
+			if (!in_array($booking, $allowed, true) || !is_scalar($area)) {
+				continue;
+			}
+			$area = (string) $area;
+			if ($area === '' || in_array($area, self::areas(), true)) {
+				$result[$booking] = $area;
+			}
+		}
+		return $result;
 	}
 
 	/**

@@ -3011,7 +3011,7 @@ def account(stack: Stack) -> str:
     # The bookings of the audit and of the fixture: paid invoice over two areas, part of the chair's invoice,
     # four bookings without payment, a transfer to the cash box and the initial balance of the cash box.
     sums = {key: float(value) for key, value in re.findall(r'data-account-sum="([a-z]+:[a-z]+)" data-amount="(-?[\d.]+)"', page.text)}
-    expect(sums == {"income:ideal": 50.0, "income:harmful": 120.0, "income:unassigned": 5020.0, "expense:ideal": 100.0, "expense:unassigned": 70.0},
+    expect(sums == {"income:ideal": 50.0, "income:harmful": 120.0, "income:unassigned": 5020.0, "expense:ideal": 100.0, "expense:unassigned": 95.0},
            f"sums by area: {sums}")
     bookings = {booking: (kind, dict(part.split("=") for part in parts.split(";") if part))
                 for booking, kind, parts in re.findall(r'data-booking="(\d+)" data-kind="([a-z_]+)" data-parts="([^"]*)"', page.text)}
@@ -3022,7 +3022,25 @@ def account(stack: Stack) -> str:
     reconciled = re.search(r'data-reconciled="(\d)">(.*?)</div>', page.text)
     expect(reconciled is not None and reconciled.group(1) == "1", f"the account does not agree with the bank: {reconciled.group(2) if reconciled else None}")
     unassigned = re.search(r'data-account-unassigned="(\d+)"', page.text)
-    expect(unassigned is not None and unassigned.group(1) == "4", f"bookings without payment: {unassigned.group(1) if unassigned else None}")
+    expect(unassigned is not None and unassigned.group(1) == "5" and 'data-account-unassigned-bookings="5"' in page.text,
+           f"bookings without area: {unassigned.group(1) if unassigned else None}")
+    expect(bookings.get(str(lines["various"]), ("", {}))[0] == "various", f"the various payment: {bookings.get(str(lines['various']))}")
+    text = html.unescape(page.text)
+    expect("DefaultCashPOSLabel" not in text and "(CustomerInvoicePayment)" not in text, "labels Dolibarr stores as language keys are shown untranslated")
+
+    # The board chooses the area of the various payment and of the large booking without payment; a transfer takes none.
+    page_ok(browser.submit(page.form(name="vereineaccountassign"), {f"area[{lines['various']}]": "ideal", f"area[{lines['large']}]": "ideal"}), "choose areas")
+    page = page_ok(browser.get(base), "the account with chosen areas")
+    sums = {key: float(value) for key, value in re.findall(r'data-account-sum="([a-z]+:[a-z]+)" data-amount="(-?[\d.]+)"', page.text)}
+    expect(sums == {"income:ideal": 5050.0, "income:harmful": 120.0, "income:unassigned": 20.0, "expense:ideal": 125.0, "expense:unassigned": 70.0},
+           f"sums after choosing areas: {sums}")
+    expect(f'data-assign="{lines["various"]}" data-area="ideal"' in page.text and 'data-account-unassigned="3"' in page.text, "the chosen area is not shown")
+    page_ok(browser.post(base, [("token", token_of(page)), ("action", "assign"), (f"area[{lines['transfer_out']}]", "ideal"), (f"area[{lines['various']}]", "harmful")]),
+            "choose an area for a transfer")
+    chosen = stack.sql("SELECT fk_bank, sphere FROM llx_vereine_account_line ORDER BY fk_bank")
+    expect(sorted(chosen) == sorted([[str(lines["large"]), "ideal"], [str(lines["various"]), "harmful"]]), f"stored areas: {chosen}")
+    page_ok(browser.post(base, [("token", token_of(page_ok(browser.get(base), "the account again"))), ("action", "assign"), (f"area[{lines['various']}]", "ideal")]),
+            "choose the area of the various payment again")
     deadline = re.search(r'data-account-deadline="([\d-]+)"', page.text)
     expect(deadline is not None and deadline.group(1) > stack.today(), f"the deadline to make the account: {deadline.group(1) if deadline else None}")
     opened = {key: float(value) for key, value in re.findall(r'data-account-open="([a-z]+)" data-amount="(-?[\d.]+)"', page.text)}
@@ -3037,7 +3055,7 @@ def account(stack: Stack) -> str:
     page = page_ok(browser.get(base), "the account after storing")
     expect(f'data-account-made="{stack.today()}"' in page.text, "the day the account was made is not shown")
     net = re.search(r'data-account-net="(-?[\d.]+)"', page.text)
-    expected = 5120 + opened["receivables"] - opened["payables"] + 400 - 1000
+    expected = 5095 + opened["receivables"] - opened["payables"] + 400 - 1000
     expect(net is not None and abs(float(net.group(1)) - expected) < 0.01, f"assets {net.group(1) if net else None}, expected {expected:.2f}")
     audit_page = page_ok(browser.get(f"/custom/vereine/audit.php?year={year}"), "the audit with the account")
     expect(f'data-audit-account="{stack.today()}"' in audit_page.text, "the audit does not know when the account was made")
@@ -3068,7 +3086,8 @@ def account(stack: Stack) -> str:
     try:
         chair = stack.browser("rtreader")
         page = page_ok(chair.get(base), "the account for the chair")
-        expect('name="vereineaccount"' not in page.text and 'name="vereineaccountbuild"' not in page.text, "somebody who may not change the bank gets the forms")
+        expect('name="vereineaccount"' not in page.text and 'name="vereineaccountbuild"' not in page.text and 'name="vereineaccountassign"' not in page.text,
+               "somebody who may not change the bank gets the forms")
         page_ok(chair.submit(page.form(name=f"vereinesign{run}"), {"password": stack.reader_password}), "the chair signs")
         signed = stack.value(f"SELECT COUNT(*) FROM llx_vereine_signature_person WHERE fk_signature = {run} AND fk_adherent = {data['chair']} AND signed_at IS NOT NULL")
         expect(signed == "1", "the chair could not sign without the right to change the bank")
@@ -3080,8 +3099,9 @@ def account(stack: Stack) -> str:
     finally:
         stack.sql(f"DELETE FROM llx_user_rights WHERE fk_user = {reader} AND fk_id = {right}")
         stack.sql(f"UPDATE llx_user SET fk_member = {member_before if member_before not in (None, 'NULL') else 'NULL'} WHERE rowid = {reader}")
-    return (f"year {year}: income 5190 and expenses 170 by area, the invoice split 50 ideal / 120 business, the transfer and the cash box's initial balance "
-            "not counted, agrees with the bank; claims, debts and further assets in the statement; day made shown in the audit; table, PDF, "
+    return (f"year {year}: income 5190 and expenses 195 by area, the invoice split 50 ideal / 120 business, the transfer and the cash box's initial balance "
+            "not counted, agrees with the bank; a various payment and a booking without payment given an area, a transfer takes none; labels translated; "
+            "claims, debts and further assets in the statement; day made shown in the audit; table, PDF, "
             "the chair signs without the right to change the bank and stores nothing; nobody without bank rights")
 
 

@@ -488,7 +488,8 @@ if ($stage === 'account') {
 
 	$cash = new Account($db);
 	$cash->ref = 'RTKASSA';
-	$cash->label = 'Kassa';
+	// The name Dolibarr's point of sale gives its cash box: a language key.
+	$cash->label = 'DefaultCashPOSLabel';
 	$cash->type = Account::TYPE_CASH;
 	$cash->courant = Account::TYPE_CASH;
 	$cash->currency_code = 'EUR';
@@ -571,6 +572,26 @@ if ($stage === 'account') {
 	}
 	$bank->add_url_line($lines['transfer_out'], $lines['transfer_in'], DOL_URL_ROOT.'/compta/bank/line.php?rowid=', '(banktransfert)', 'banktransfert');
 	$cash->add_url_line($lines['transfer_in'], $lines['transfer_out'], DOL_URL_ROOT.'/compta/bank/line.php?rowid=', '(banktransfert)', 'banktransfert');
+
+	// A various payment without invoice: toner for the office, 25 euros.
+	require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/paymentvarious.class.php';
+	$various = new PaymentVarious($db);
+	$various->datep = $day(7, 4);
+	$various->datev = $various->datep;
+	$various->sens = '0';
+	$various->amount = 25;
+	$various->label = 'Druckerpatronen';
+	$various->note = '';
+	$various->num_payment = '';
+	$various->accountancy_code = '';
+	$various->subledger_account = '';
+	$various->fk_account = (int) $bank->id;
+	$various->type_payment = $transfer;
+	if ($various->create($admin) <= 0) {
+		rt_fail('various payment: '.$various->error);
+	}
+	$lines['various'] = (int) rt_value($db, "SELECT fk_bank FROM ".MAIN_DB_PREFIX."payment_various WHERE rowid = ".((int) $various->id));
+	$lines['large'] = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."bank WHERE label = 'Großspende Firma' AND fk_account = ".((int) $bank->id));
 
 	$sql = "SELECT t.fk_adherent FROM ".MAIN_DB_PREFIX."vereine_function_term as t INNER JOIN ".MAIN_DB_PREFIX."vereine_function as f ON f.rowid = t.fk_function";
 	$sql .= " WHERE f.code = 'obmann' AND (t.date_end IS NULL OR t.date_end >= CURDATE()) ORDER BY t.rowid DESC LIMIT 1";

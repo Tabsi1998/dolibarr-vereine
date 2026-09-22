@@ -138,6 +138,13 @@ if (in_array($action, array('csv', 'pdf', 'sheet', 'signed'), true)) {
 		exit;
 	}
 	setEventMessages($result < 0 ? $account->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $account->errors), 'errors');
+} elseif ($action === 'assign' && $canWrite) {
+	if ($account->assign($year, GETPOST('area', 'array'), $user) >= 0) {
+		setEventMessages($langs->trans('VereineAccountAssigned'), null, 'mesgs');
+		header('Location: '.$self.'#vereineaccountassign');
+		exit;
+	}
+	setEventMessages($account->error, null, 'errors');
 } elseif ($action === 'build' && $canWrite) {
 	if ($account->buildPdf($year, $user, $langs) !== '') {
 		setEventMessages($langs->trans('VereineAccountPdfBuilt'), null, 'mesgs');
@@ -217,8 +224,19 @@ print '<div class="'.($data['reconciled'] ? 'ok' : 'error').'" data-reconciled="
 print $langs->trans($data['reconciled'] ? 'VereineAccountReconciledShort' : 'VereineAccountNotReconciledShort', $money($data['opening']['total']), $money($totals['income']),
 	$money($totals['expense']), $money($data['closing']['total'])).'</div>';
 if ($data['unassigned'] > 0) {
-	print '<div class="warning" data-account-unassigned="'.$data['unassigned'].'">'.$langs->trans('VereineAccountUnassigned', $data['unassigned']);
-	print ' <a href="'.dol_buildpath('/vereine/taxcheck.php', 1).'?year='.$year.'">'.$langs->trans('VereineTaxCheckOpen').'</a></div>';
+	$reasons = $data['reasons'];
+	print '<div class="warning" data-account-unassigned="'.$data['unassigned'].'" data-account-unassigned-bookings="'.$reasons['bookings'].'">';
+	print $langs->trans('VereineAccountUnassigned', $data['unassigned']).'<ul>';
+	if ($reasons['lines'] > 0) {
+		print '<li>'.$langs->trans('VereineAccountUnassignedLines', $reasons['lines']).' <a href="'.dol_buildpath('/vereine/taxcheck.php', 1).'?year='.$year.'">'.$langs->trans('VereineTaxCheckOpen').'</a></li>';
+	}
+	if ($reasons['supplier'] > 0) {
+		print '<li>'.$langs->trans('VereineAccountUnassignedSupplier', $reasons['supplier']).'</li>';
+	}
+	if ($reasons['bookings'] > 0) {
+		print '<li>'.$langs->trans('VereineAccountUnassignedBookings', $reasons['bookings']).($canWrite ? ' <a href="#vereineaccountassign">'.$langs->trans('VereineAccountAssignOpen').'</a>' : '').'</li>';
+	}
+	print '</ul></div>';
 }
 
 // Income and expenses by area.
@@ -256,6 +274,33 @@ foreach ($data['bookings'] as $booking) {
 	print '<td>'.$langs->trans('VereineAccountKind_'.$booking['kind']).'</td><td>'.implode(', ', $parts).'</td><td class="right nowraponall">'.$money($booking['amount']).'</td></tr>';
 }
 print '</table></div></details>';
+
+// Bookings without invoice lines behind them: the board chooses their area.
+$assignable = array_filter($data['bookings'], function ($booking) {
+	return VereineAccountRules::assignable($booking['kind']);
+});
+if ($canWrite && $assignable) {
+	print '<br>'.load_fiche_titre($langs->trans('VereineAccountAssignTitle'), '', '', 0, 'vereineaccountassign');
+	print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineAccountAssignHelp').'</div>';
+	print '<form method="POST" action="'.$self.'#vereineaccountassign" name="vereineaccountassign">';
+	print '<input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="action" value="assign">';
+	print '<div class="div-table-responsive"><table class="noborder centpercent">';
+	print '<tr class="liste_titre"><td>'.$langs->trans('Date').'</td><td>'.$langs->trans('VereineAccountBank').'</td><td>'.$langs->trans('Description').'</td>';
+	print '<td>'.$langs->trans('VereineAccountKind').'</td><td class="right">'.$langs->trans('Amount').'</td><td>'.$langs->trans('VereineTaxSphere').'</td></tr>';
+	foreach ($assignable as $booking) {
+		print '<tr class="oddeven" data-assign="'.$booking['id'].'" data-area="'.$booking['area'].'"><td class="nowraponall">'.vereineFormatDay($booking['date']).'</td>';
+		print '<td>'.dol_escape_htmltag($booking['account']).'</td><td><a href="'.DOL_URL_ROOT.'/compta/bank/line.php?rowid='.$booking['id'].'">'.dol_escape_htmltag($booking['label']).'</a></td>';
+		print '<td>'.$langs->trans('VereineAccountKind_'.$booking['kind']).'</td><td class="right nowraponall">'.$money($booking['amount']).'</td>';
+		print '<td><select name="area['.$booking['id'].']"><option value="">'.$langs->trans('VereineAccountAssignNone').'</option>';
+		foreach (VereineAccountRules::areas() as $area) {
+			print '<option value="'.$area.'"'.($booking['area'] === $area ? ' selected' : '').'>'.$langs->trans('VereineSphereShort_'.$area).'</option>';
+		}
+		print '</select></td></tr>';
+	}
+	print '</table></div>';
+	print '<div class="center paddingtop"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('VereineAccountAssignSave')).'"></div></form>';
+}
 
 // The statement of assets at the end of the year.
 print '<br>'.load_fiche_titre($langs->trans('VereineAccountAssetsTitle', vereineFormatDay($period['end'])), '', '', 0, 'vereineaccountassets');

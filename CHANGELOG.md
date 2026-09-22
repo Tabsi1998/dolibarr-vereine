@@ -7,6 +7,28 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Neu
+
+- **Bereich für Buchungen ohne Rechnung wählen** (#190): Sonstige Zahlungen, Löhne,
+  Abgaben, Spesen, Darlehen und Buchungen ohne Zahlung haben keine Rechnungszeile mit
+  Steuerprofil. Auf der Seite *Einnahmen und Ausgaben* wählt der Vorstand für jede
+  dieser Buchungen den Bereich. Solange nichts gewählt ist, bleibt sie „nicht
+  zugeordnet“. An der Buchung in Dolibarr ändert sich nichts.
+
+### Behoben
+
+- Der Hinweis auf nicht zugeordnete Buchungen nennt jetzt den Grund: Rechnungszeilen
+  ohne Steuerprofil, Lieferantenrechnungszeilen ohne „Ausgabe für Bereich“ oder
+  Buchungen ohne Rechnung. Vorher schickte er auch bei sonstigen Zahlungen zur
+  Profil-Nachpflege, wo sie sich nicht zuordnen lassen (#190).
+- Konten und Buchungstexte, die Dolibarr als Übersetzungsschlüssel speichert, erscheinen
+  übersetzt, etwa die Kassa des Kassenmoduls („DefaultCashPOSLabel“) (#190).
+
+### Update
+
+Neues ZIP bereitstellen, dann das Modul einmal deaktivieren und aktivieren. Das legt
+die Tabelle für die gewählten Bereiche an.
+
 ## [0.6.0-beta] - 2026-09-22
 
 Einnahmen-Ausgaben-Rechnung mit Vermögensübersicht nach § 21 VerG (#8). Damit ist der
