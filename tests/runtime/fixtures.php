@@ -431,7 +431,7 @@ if ($stage === 'audit') {
 	}
 
 	// An auditor with own login: a member without function, the auditing function, read rights only.
-	$sql = "SELECT d.rowid FROM ".MAIN_DB_PREFIX."adherent as d WHERE d.statut = 1";
+	$sql = "SELECT d.rowid FROM ".MAIN_DB_PREFIX."adherent as d WHERE d.statut = 1 AND d.morphy = 'phy' AND d.lastname <> ''";
 	$sql .= " AND d.rowid NOT IN (SELECT fk_adherent FROM ".MAIN_DB_PREFIX."vereine_function_term)";
 	$sql .= " AND d.rowid NOT IN (SELECT fk_member FROM ".MAIN_DB_PREFIX."user WHERE fk_member IS NOT NULL) ORDER BY d.rowid LIMIT 1";
 	$member = (int) rt_value($db, $sql);
