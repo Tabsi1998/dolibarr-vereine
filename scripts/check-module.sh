@@ -35,7 +35,7 @@ php tests/run.php
 
 # The pages a browser opens. Every one loads Dolibarr, refuses when the module
 # is off and checks a right or administrator status before it does anything.
-pages=(vereineindex.php partners.php fees_run.php functions.php authority.php meetings.php resolutions.php circulars.php signature.php taxcheck.php audit.php account.php duties.php events.php assembly.php volunteer.php overpayments.php donations.php application.php applications.php consents.php admin/application.php admin/events.php admin/webhooks.php admin/donations.php admin/identities.php admin/functions.php partner_membership.php member_association.php admin/setup.php admin/start.php admin/partners.php admin/taxprofiles.php admin/fees.php admin/consents.php admin/statutes.php admin/meetings.php admin/signatures.php admin/api.php admin/about.php)
+pages=(vereineindex.php partners.php fees_run.php functions.php authority.php meetings.php resolutions.php circulars.php signature.php taxcheck.php audit.php account.php duties.php events.php assembly.php volunteer.php overpayments.php donations.php archive.php application.php applications.php consents.php admin/application.php admin/events.php admin/webhooks.php admin/donations.php admin/identities.php admin/functions.php partner_membership.php member_association.php admin/setup.php admin/start.php admin/partners.php admin/taxprofiles.php admin/fees.php admin/consents.php admin/statutes.php admin/meetings.php admin/signatures.php admin/api.php admin/about.php)
 for page in "${pages[@]}"; do
   grep -qi 'include of main fails' "$page" || fail "$page does not load main.inc.php"
   grep -q "isModEnabled('vereine')" "$page" || fail "$page does not refuse when the module is disabled"
@@ -49,6 +49,19 @@ for file in *.php admin/*.php; do
     if [ "$page" = "$file" ]; then known=1; fi
   done
   [ "$known" -eq 1 ] || fail "$file is a page the security contract does not know; add it to pages in scripts/check-module.sh"
+done
+
+# The one page without login: it says so, answers only while the module is on and the association lets it,
+# and never shows the title of a document (#123).
+verify=public/verify.php
+grep -qF "define('NOLOGIN', '1')" "$verify" || fail "$verify does not declare that it needs no login"
+grep -q "isModEnabled('vereine')" "$verify" || fail "$verify answers while the module is off"
+grep -qF 'VereineArchive::publicOn()' "$verify" || fail "$verify answers although the association switched the check off"
+if grep -nF "['title']" "$verify"; then
+  fail "$verify shows the title of a document"
+fi
+for file in public/*.php; do
+  [ "$file" = "$verify" ] || fail "$file is a page without login the security contract does not know"
 done
 
 # Every form posts Dolibarr's CSRF token.

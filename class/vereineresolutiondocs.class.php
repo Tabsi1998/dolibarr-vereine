@@ -157,14 +157,24 @@ class VereineResolutionDocs
 			return '';
 		}
 		$file = self::path($row['id']);
-		$pdf = $this->open($outputlangs, $file);
+		// A resolution is kept for years: PDF/A with the code it keeps when it is built again (#123).
+		require_once __DIR__.'/vereinearchive.class.php';
+		$archive = new VereineArchive($this->db);
+		$code = $archive->codeFor('resolution', $row['id']);
+		$pdf = $this->open($outputlangs, $file, '', true);
 		if ($pdf === null) {
 			return '';
 		}
 		$this->section($pdf, $outputlangs, $row, true);
 		$this->signatureLines($pdf, $outputlangs);
-		VereinePdf::finish($pdf, $outputlangs, $outputlangs->transnoentities('VereineResolutionPdfTitle', $row['ref']).' - '.$row['title']);
-		return $this->close($pdf, $file);
+		$title = $outputlangs->transnoentities('VereineResolutionPdfTitle', $row['ref']).' - '.$row['title'];
+		VereinePdf::finish($pdf, $outputlangs, $title, VereineArchive::seal($code));
+		$written = $this->close($pdf, $file);
+		if ($written !== '' && $archive->register($code, 'resolution', $row['id'], $title, $written) < 0) {
+			$this->error = $archive->error;
+			return '';
+		}
+		return $written;
 	}
 
 	/**
@@ -200,9 +210,10 @@ class VereineResolutionDocs
 	 * @param Translate $outputlangs Language of the document
 	 * @param string    $file        Where it will be written
 	 * @param string    $title       Title above the resolutions, empty for a single resolution
+	 * @param bool      $archive     Whether it is a finished document, built as PDF/A (#123)
 	 * @return TCPDF|null
 	 */
-	private function open($outputlangs, $file, $title = '')
+	private function open($outputlangs, $file, $title = '', $archive = false)
 	{
 		global $mysoc;
 
@@ -214,7 +225,7 @@ class VereineResolutionDocs
 			$this->error = 'cannot create '.dirname($file);
 			return null;
 		}
-		$pdf = VereinePdf::start($outputlangs);
+		$pdf = VereinePdf::start($outputlangs, $archive);
 		if ($title !== '') {
 			VereinePdf::title($pdf, $outputlangs, $title);
 		}

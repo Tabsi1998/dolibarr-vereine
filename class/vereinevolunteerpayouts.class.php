@@ -259,7 +259,11 @@ class VereineVolunteerPayouts
 		}
 		$organization = VereineOrganization::load($mysoc);
 		$entries = $this->entriesOf($id);
-		$pdf = VereinePdf::start($outputlangs);
+		// A finished document: PDF/A with its code (#123).
+		require_once __DIR__.'/vereinearchive.class.php';
+		$archive = new VereineArchive($this->db);
+		$code = $archive->codeFor('payout', $id);
+		$pdf = VereinePdf::start($outputlangs, true);
 		$font = pdf_getPDFFont($outputlangs);
 		$line = function ($text, $style = '', $size = 10) use ($pdf, $font) {
 			$pdf->SetFont($font, $style, $size);
@@ -282,8 +286,12 @@ class VereineVolunteerPayouts
 		$pdf->Ln(3);
 		$line($outputlangs->transnoentities('VereineVolunteerPayoutTotal', $money($payout['total'])), 'B');
 		$line($outputlangs->transnoentitiesnoconv('VereineVolunteerPayoutNote'), '', 8);
-		VereinePdf::finish($pdf, $outputlangs, $outputlangs->transnoentities('VereineVolunteerPayoutTitle'));
+		VereinePdf::finish($pdf, $outputlangs, $outputlangs->transnoentities('VereineVolunteerPayoutTitle'), VereineArchive::seal($code));
 		$pdf->Output($file, 'F');
+		if (is_file($file) && $archive->register($code, 'payout', $id, $outputlangs->transnoentities('VereineVolunteerPayoutTitle'), $file) < 0) {
+			$this->error = $archive->error;
+			return '';
+		}
 		return $file;
 	}
 

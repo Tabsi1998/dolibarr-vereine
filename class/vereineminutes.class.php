@@ -272,7 +272,11 @@ class VereineMinutes
 			$version = max($version, $existing['version'] + 1);
 		}
 		$file = self::finalPath($meetingId, $version);
-		if ($this->build($meeting, $file, $version, $approvedOn, VereineMinutesRules::text($note), $outputlangs) === '') {
+		// A final version is kept for years: PDF/A with its own code (#123).
+		require_once __DIR__.'/vereinearchive.class.php';
+		$archive = new VereineArchive($this->db);
+		$code = $archive->codeFor('minutes', 0);
+		if ($this->build($meeting, $file, $version, $approvedOn, VereineMinutesRules::text($note), $outputlangs, $code) === '') {
 			return -1;
 		}
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_meeting_minutes (entity, fk_meeting, version, approved_on, note, filename, doc_sha, datec, fk_user_modif)";
@@ -284,6 +288,10 @@ class VereineMinutes
 			return -1;
 		}
 		$id = (int) $this->db->last_insert_id(MAIN_DB_PREFIX.'vereine_meeting_minutes');
+		if ($archive->register($code, 'minutes', $id, $meeting['title'].', '.$outputlangs->transnoentities('VereineMinutesPdfVersion', $version), $file) < 0) {
+			$this->error = $archive->error;
+			return -1;
+		}
 		// The minutes are signed by those who presided and kept them, not by the functions of the catalogue.
 		$signatures = new VereineSignatures($this->db);
 		$people = array();
@@ -370,9 +378,10 @@ class VereineMinutes
 	 * @param string              $approvedOn  Day of the approval, may be empty
 	 * @param string              $note        How it was approved
 	 * @param Translate           $outputlangs Language of the minutes
+	 * @param string              $code        Code of a final version (#123), empty for a draft
 	 * @return string Path of the PDF, empty on error
 	 */
-	private function build(array $meeting, $file, $version, $approvedOn, $note, $outputlangs)
+	private function build(array $meeting, $file, $version, $approvedOn, $note, $outputlangs, $code = '')
 	{
 		global $mysoc;
 
@@ -396,7 +405,7 @@ class VereineMinutes
 			return $id > 0 && isset($roles['names'][$id]) ? $roles['names'][$id] : $outputlangs->transnoentitiesnoconv('VereineMinutesNobody');
 		};
 
-		$pdf = VereinePdf::start($outputlangs);
+		$pdf = VereinePdf::start($outputlangs, $version > 0);
 		$font = pdf_getPDFFont($outputlangs);
 		$line = function ($text, $style = '', $size = 10) use ($pdf, $font) {
 			$pdf->SetFont($font, $style, $size);
@@ -521,7 +530,7 @@ class VereineMinutes
 		$pdf->MultiCell(80, 5, $outputlangs->transnoentitiesnoconv('VereineMinutesKeeper').': '.$name($roles['keeper']), 0, 'L', false, 1);
 
 		VereinePdf::finish($pdf, $outputlangs, $title.' - '.$meeting['title'].($version > 0 ? ', '.$outputlangs->transnoentities('VereineMinutesPdfVersion', $version)
-			: ', '.$outputlangs->transnoentitiesnoconv('VereineMinutesDraft')));
+			: ', '.$outputlangs->transnoentitiesnoconv('VereineMinutesDraft')), $code !== '' ? VereineArchive::seal($code) : null);
 		$pdf->Output($file, 'F');
 		if (!is_file($file)) {
 			$this->error = 'cannot write '.$file;

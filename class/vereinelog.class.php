@@ -126,6 +126,7 @@ class VereineLog
 	const DONATION_PROTOCOL = 'donation_protocol';
 	const SETUP_GUIDE = 'setup_guide';
 	const APPLICATION_FIELD = 'application_field';
+	const ARCHIVE = 'archive';
 
 	/**
 	 * Append one entry.

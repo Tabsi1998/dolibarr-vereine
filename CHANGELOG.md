@@ -23,6 +23,16 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Art, Optionen und Länge, sodass sie es ohne feste Programmierung zeigen kann, und prüft beim
   Absenden nach Art. Im PDF steht jedes Feld passend: Linie, Datum, Kästchen, eine Auswahl mit einem
   Kästchen je Möglichkeit.
+- **Vereinsakte, PDF/A und Echtheitsprüfung** (#123): Fertige Dokumente – Protokolle, Beschlüsse,
+  Prüfberichte, Einnahmen-Ausgaben-Rechnungen, Auszahlungslisten – entstehen als **PDF/A**, damit
+  sie in zwanzig Jahren noch lesbar sind, und tragen unten auf jeder Seite eine **Kennung mit
+  QR-Code**. Jede Fassung (wie erstellt, mit ID Austria unterschrieben, unterschriebenes Papier als
+  Scan) wird mit ihrer Prüfsumme festgehalten. Eine **öffentliche Prüfseite** sagt zu einer
+  Kennung, ob es das Dokument gibt, welcher Art es ist, von wann, wer unterschrieben hat und welche
+  Prüfsummen es hat – ohne Titel und Inhalt – und vergleicht auf Wunsch eine mitgebrachte Datei. Der
+  Verein kann sie abschalten. Unter *Mitglieder > Verein > Vereinsakte* gibt es alle fertigen
+  Dokumente eines Zeitraums, dazu Statuten und Schreiben an die Behörde, als **ZIP mit
+  Inhaltsverzeichnis und Prüfsummen**, etwa bei einem Vorstandswechsel.
 
 ## [0.9.0-beta] - 2026-09-23
 

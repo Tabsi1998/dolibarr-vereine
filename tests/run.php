@@ -71,6 +71,7 @@ require_once $root.'/class/vereinevolunteerrules.class.php';
 require_once $root.'/class/vereineoverpaymentrules.class.php';
 require_once $root.'/class/vereinedonationrules.class.php';
 require_once $root.'/class/vereinesetupguiderules.class.php';
+require_once $root.'/class/vereinearchiverules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1799,7 +1800,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1829,6 +1830,8 @@ $prefixes = array(
 	'VereineDonationProtocol_' => array('ok', 'twok', 'nok'),
 	'VereineSetupState_' => VereineSetupGuideRules::STATES,
 	'VereineApplicationKind_' => VereineApplicationFormRules::KINDS,
+	'VereineArchiveKind_' => VereineArchiveRules::KINDS,
+	'VereineArchiveFile_' => VereineArchiveRules::FILES,
 	'VereineSetupStep_' => VereineSetupGuideRules::STEPS,
 	'VereineSetupStepHelp_' => VereineSetupGuideRules::STEPS,
 	'VereineSetupModule_' => array('banque', 'facture', 'prelevement', 'agenda', 'mailing', 'don', 'api', 'webportal'),
@@ -2771,6 +2774,25 @@ same(array('fields.staerke must be one of: anfaenger, profi', 'fields.spiele mus
 	'every kind refuses what it cannot take, the refused required choice named once');
 same(array('pro' => '0'), VereineApplicationFormRules::checkWeb($full, $required, array('pro' => false), array('pro' => 'nein'), $specs)['fields'], 'a no is a value too');
 same(array('fields.staerke is required'), VereineApplicationFormRules::checkWeb($full, $required, $extraSpecs, array(), $specs)['errors'], 'a required choice left out');
+
+// ------------------------------------------------------------- files of the association (#123)
+
+same('AAAAAAAAAA', VereineArchiveRules::code(str_repeat("\0", 10)), 'a code from its bytes');
+$someCode = VereineArchiveRules::code(random_bytes(10));
+expect(strlen($someCode) === 10 && strspn($someCode, VereineArchiveRules::ALPHABET) === 10, 'ten letters nobody misreads');
+same('ABCDE23456', VereineArchiveRules::normalize(' abcde-23456 '), 'typed small and with a dash');
+same('', VereineArchiveRules::normalize('ABCDE-2345O'), 'an O is no letter of a code');
+same('', VereineArchiveRules::normalize('ABCDE'), 'too short is no code');
+same('ABCDE-23456', VereineArchiveRules::format('ABCDE23456'), 'printed in two groups of five');
+same(array('from' => '2025-01-01', 'to' => '2025-12-31'), VereineArchiveRules::period('2025-01-01', '2025-12-31'), 'a year');
+same(null, VereineArchiveRules::period('2025-12-31', '2025-01-01'), 'backwards is no period');
+same(null, VereineArchiveRules::period('2025-02-30', '2025-12-31'), 'no 30th of February');
+same('2025-03-01_minutes_ABCDE23456_protokoll_v1.pdf', VereineArchiveRules::entryName(array('day' => '2025-03-01', 'kind' => 'minutes', 'code' => 'ABCDE23456',
+	'filename' => 'protokoll v1.pdf')), 'a safe name in the ZIP');
+$archiveEntries = array(array('day' => '2025-03-01', 'label' => 'Protokoll', 'title' => 'Sitzung; "März"', 'code' => 'ABCDE23456', 'name' => 'a.pdf', 'sha256' => str_repeat('a', 64)));
+same("Datum;Art;Titel;Kennung;Datei;SHA-256\r\n2025-03-01;Protokoll;\"Sitzung; \"\"März\"\"\";ABCDE-23456;a.pdf;".str_repeat('a', 64)."\r\n",
+	VereineArchiveRules::index($archiveEntries), 'the table of contents, quoted where needed');
+same(str_repeat('a', 64)."  a.pdf\n", VereineArchiveRules::sums($archiveEntries), 'checksums as sha256sum reads them');
 
 // ------------------------------------------------------------------- result
 

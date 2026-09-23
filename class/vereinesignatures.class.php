@@ -427,6 +427,9 @@ class VereineSignatures
 			return -1;
 		}
 		dolChmod($target);
+		// The signed copy belongs to the files of the document with its code (#123).
+		require_once __DIR__.'/vereinearchive.class.php';
+		(new VereineArchive($this->db))->registerCopy($run['kind'], $run['object_id'], $target, 'signed');
 		$sql = "UPDATE ".MAIN_DB_PREFIX."vereine_signature_person SET signed_at = '".$this->db->idate(dol_now())."', way = '".VereineSignatureRules::WAY_QES."',";
 		$sql .= " qes_subject = ".((string) $subject !== '' ? "'".$this->db->escape(mb_substr((string) $subject, 0, 255, 'UTF-8'))."'" : "NULL");
 		$sql .= ", fk_user_signed = ".((int) $user->id)." WHERE rowid = ".((int) $mine['id']);
@@ -482,6 +485,8 @@ class VereineSignatures
 			$this->errors[] = 'VereineSignatureErrorScanStore';
 			return 0;
 		}
+		require_once __DIR__.'/vereinearchive.class.php';
+		(new VereineArchive($this->db))->registerCopy($run['kind'], $run['object_id'], $dir.'/'.$target, 'scan');
 		$this->db->begin();
 		$sql = "UPDATE ".MAIN_DB_PREFIX."vereine_signature_person SET signed_at = '".$this->db->idate(dol_now())."',";
 		$sql .= " way = '".VereineSignatureRules::WAY_PAPER."', fk_user_signed = ".((int) $user->id)." WHERE fk_signature = ".((int) $run['id'])." AND signed_at IS NULL";
