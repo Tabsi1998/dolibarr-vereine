@@ -228,7 +228,7 @@ class VereineMemberForm
 		foreach ($this->feeLines($type, $outputlangs) as $line) {
 			$text($line);
 		}
-		$text(vereineExitRuleText((new VereineExits($this->db))->rule()));
+		$text($outputlangs->transnoentities('VereineApplicationNotice', vereineExitRuleText((new VereineExits($this->db))->rule())));
 		$pdf->Ln(1);
 		$yesNo('statuten', $outputlangs->transnoentitiesnoconv('VereineApplicationStatutes'));
 
@@ -236,12 +236,19 @@ class VereineMemberForm
 		if ($consents) {
 			VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineApplicationConsents'));
 			foreach ($consents as $consent) {
+				$body = $consent['text'] !== '' ? dol_string_nohtmltag($consent['text'], 0) : '';
+				$pdf->SetFont($font, '', 9);
+				// Title, text and the box to tick belong together on one page (#203).
+				$needed = 6 + ($body !== '' ? $pdf->getStringHeight(170, $body) : 0) + 10;
+				if ($pdf->GetY() + $needed > $pdf->getPageHeight() - VereinePdf::BOTTOM - 5) {
+					$pdf->AddPage();
+				}
 				$text($consent['label'].' (v'.((int) $consent['version']).')', 'B');
-				if ($consent['text'] !== '') {
-					$text(dol_string_nohtmltag($consent['text'], 0), '', 9);
+				if ($body !== '') {
+					$text($body, '', 9);
 				}
 				$yesNo('einwilligung_'.$consent['code'], $outputlangs->transnoentitiesnoconv('VereineApplicationConsentYesNo'));
-				$pdf->Ln(1);
+				$pdf->Ln(2);
 			}
 		}
 
@@ -321,7 +328,10 @@ class VereineMemberForm
 			return array($outputlangs->transnoentitiesnoconv('VereineApplicationNoFee'));
 		}
 		$model = $type['model'];
-		$period = $outputlangs->transnoentities('VereineApplicationPeriod_'.$model['duration_unit'], (int) $model['duration_value']);
+		// "pro Jahr" for a single period, "alle 2 Jahre" for more.
+		$value = (int) $model['duration_value'];
+		$period = $value === 1 ? $outputlangs->transnoentitiesnoconv('VereineApplicationPeriodOne_'.$model['duration_unit'])
+			: $outputlangs->transnoentities('VereineApplicationPeriod_'.$model['duration_unit'], $value);
 		// A member type without a fixed amount: the board fills it in.
 		$lines = array($model['amount'] === null ? $outputlangs->transnoentities('VereineApplicationFeeOpen', $period)
 			: $outputlangs->transnoentities('VereineApplicationFee', price($model['amount'], 0, $outputlangs, 1, -1, 2).' €', $period));

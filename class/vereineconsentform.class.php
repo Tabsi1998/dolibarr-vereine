@@ -162,10 +162,17 @@ class VereineConsentForm
 			$pdf->MultiCell(0, 4, $outputlangs->transnoentities('VereineConsentFormIntro'), 0, 'L');
 
 			foreach ($texts as $code => $text) {
+				$body = dol_string_nohtmltag($text['text'], 0);
+				$pdf->SetFont($font, '', 9);
+				// Title, text and the box to tick belong together on one page (#203).
+				if ($pdf->GetY() + 8 + $pdf->getStringHeight(170, $body) + 10 > $pdf->getPageHeight() - VereinePdf::BOTTOM - 5) {
+					$pdf->AddPage();
+				}
 				VereinePdf::heading($pdf, $outputlangs, $text['label'].' (v'.((int) $text['version']).')');
 				$pdf->SetFont($font, '', 9);
-				$pdf->MultiCell(0, 4, dol_string_nohtmltag($text['text'], 0), 0, 'L');
+				$pdf->MultiCell(0, 4, $body, 0, 'L');
 				VereinePdf::choice($pdf, $outputlangs, 'consent_'.$page.'_'.$code, $outputlangs->transnoentitiesnoconv('VereineConsentFormChoice'), $fillable);
+				$pdf->Ln(2);
 			}
 
 			$pdf->Ln(2);
