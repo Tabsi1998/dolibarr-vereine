@@ -300,9 +300,92 @@ class Vereine extends DolibarrApi
 			throw new RestException(400, implode('; ', $checked['errors']));
 		}
 		$result = $consents->createApplication($checked['application'], DolibarrApiAccess::$user);
+		if ($result === null && in_array('VereineApplicationErrorConflict', $consents->errors, true)) {
+			throw new RestException(409, 'An application with this external_id exists with other content');
+		}
 		if ($result === null) {
 			dol_syslog(__METHOD__.' '.$consents->error, LOG_ERR);
 			throw new RestException(500, 'The member could not be created');
+		}
+		return $result;
+	}
+
+	/**
+	 * State of an application
+	 *
+	 * Where a membership application stands: received, in review, accepted, rejected or withdrawn,
+	 * with the day it was decided and, when the association said no, the reason meant for the person.
+	 * Internal notes are never part of it. Needs the right to send membership applications.
+	 *
+	 * @param string $external_id The id the website gave the application
+	 * @return array State as documented in docs/API.md
+	 *
+	 * @url GET applications/{external_id}
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such application
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getApplication($external_id)
+	{
+		$this->checkAccess();
+		if (!DolibarrApiAccess::$user->hasRight('vereine', 'application', 'write')) {
+			throw new RestException(403, 'Not allowed: the user needs the right to send membership applications');
+		}
+		dol_include_once('/vereine/class/vereineapplications.class.php');
+		$applications = new VereineApplications($this->db);
+		$application = $applications->fetch(0, (string) $external_id);
+		if ($application === null) {
+			throw new RestException(404, 'No application with this external_id');
+		}
+		return array(
+			'external_id' => $application['external_id'],
+			'status' => $application['status'],
+			'received_at' => dol_print_date($application['received'], 'dayhourrfc'),
+			'decided_at' => $application['decided_on'] !== '' ? dol_print_date($this->db->jdate($application['decided_on']), 'dayhourrfc') : '',
+			'reason' => $application['status'] === VereineApplicationRules::REJECTED ? $application['reason'] : '',
+			'member_id' => $application['status'] === VereineApplicationRules::ACCEPTED ? $application['member_id'] : 0,
+			'member_ref' => $application['status'] === VereineApplicationRules::ACCEPTED ? $application['ref'] : '',
+		);
+	}
+
+	/**
+	 * Take an application back
+	 *
+	 * The website takes back an application it sent, as long as the association has not decided.
+	 * An application that was accepted, rejected or already withdrawn cannot be taken back; an
+	 * accepted membership ends through the exit of the member instead. Taking it back twice
+	 * answers the same state with changed false. Needs the right to send membership applications.
+	 *
+	 * @param string $external_id The id the website gave the application
+	 * @return array What the application looks like now
+	 *
+	 * @url POST applications/{external_id}/withdraw
+	 * @status 200
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such application
+	 * @throws RestException 409 The association has already decided
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function postApplicationWithdraw($external_id)
+	{
+		$this->checkAccess();
+		if (!DolibarrApiAccess::$user->hasRight('vereine', 'application', 'write')) {
+			throw new RestException(403, 'Not allowed: the user needs the right to send membership applications');
+		}
+		dol_include_once('/vereine/class/vereineapplications.class.php');
+		$applications = new VereineApplications($this->db);
+		if ($applications->fetch(0, (string) $external_id) === null) {
+			throw new RestException(404, 'No application with this external_id');
+		}
+		$result = $applications->withdraw((string) $external_id, DolibarrApiAccess::$user);
+		if ($result === null && in_array('VereineApplicationErrorStep', $applications->errors, true)) {
+			throw new RestException(409, 'The association has already decided about this application');
+		}
+		if ($result === null) {
+			dol_syslog(__METHOD__.' '.$applications->error, LOG_ERR);
+			throw new RestException(500, 'The application could not be withdrawn');
 		}
 		return $result;
 	}

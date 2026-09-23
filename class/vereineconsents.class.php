@@ -486,7 +486,15 @@ class VereineConsents
 		if ($application['external_id'] !== '') {
 			$existing = $this->applicationMember($application['external_id']);
 			if ($existing !== null) {
+				require_once __DIR__.'/vereineapplicationrules.class.php';
+				// The same id with other content is a conflict, never a silent change (#72).
+				if ($existing['fingerprint'] !== '' && $existing['fingerprint'] !== VereineApplicationRules::fingerprint($application)) {
+					$this->errors[] = 'VereineApplicationErrorConflict';
+					return null;
+				}
 				// Sent twice: the same member, and no second document (#111).
+				unset($existing['fingerprint']);
+				$existing['application_status'] = (string) $existing['application_status'];
 				return $existing + array('duplicate' => true, 'document' => false);
 			}
 		}
@@ -521,9 +529,11 @@ class VereineConsents
 			$this->db->rollback();
 			return null;
 		}
-		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_application (entity, external_id, fk_adherent, datec, fk_user)";
+		require_once __DIR__.'/vereineapplicationrules.class.php';
+		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_application (entity, external_id, fk_adherent, datec, fk_user, status, fingerprint)";
 		$sql .= " VALUES (".((int) $conf->entity).", ".($application['external_id'] === '' ? "NULL" : "'".$this->db->escape($application['external_id'])."'").",";
-		$sql .= " ".((int) $member->id).", '".$this->db->idate(dol_now())."', ".((int) $user->id).")";
+		$sql .= " ".((int) $member->id).", '".$this->db->idate(dol_now())."', ".((int) $user->id).", '".VereineApplicationRules::RECEIVED."',";
+		$sql .= " '".$this->db->escape(VereineApplicationRules::fingerprint($application))."')";
 		if (!$this->db->query($sql)) {
 			$this->error = $this->db->lasterror();
 			$this->db->rollback();
@@ -543,7 +553,7 @@ class VereineConsents
 		// The document comes after the transaction: a PDF that fails must not lose the application (#111).
 		$document = $this->applicationDocument($member, isset($application['signature']) ? (string) $application['signature'] : '', $user);
 		return array('id' => (int) $member->id, 'ref' => (string) $member->ref, 'status' => VereineMemberSummary::status($member->statut),
-			'duplicate' => false, 'document' => $document);
+			'application_status' => VereineApplicationRules::RECEIVED, 'duplicate' => false, 'document' => $document);
 	}
 
 	/**
@@ -556,11 +566,12 @@ class VereineConsents
 	{
 		global $conf;
 
-		$sql = "SELECT d.rowid, d.ref, d.statut FROM ".MAIN_DB_PREFIX."vereine_application as a";
+		$sql = "SELECT d.rowid, d.ref, d.statut, a.fingerprint, a.status as application_status FROM ".MAIN_DB_PREFIX."vereine_application as a";
 		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."adherent as d ON d.rowid = a.fk_adherent";
 		$sql .= " WHERE a.entity = ".((int) $conf->entity)." AND a.external_id = '".$this->db->escape($externalId)."'";
 		$resql = $this->db->query($sql);
 		$obj = $resql ? $this->db->fetch_object($resql) : null;
-		return $obj ? array('id' => (int) $obj->rowid, 'ref' => (string) $obj->ref, 'status' => VereineMemberSummary::status($obj->statut)) : null;
+		return $obj ? array('id' => (int) $obj->rowid, 'ref' => (string) $obj->ref, 'status' => VereineMemberSummary::status($obj->statut),
+			'fingerprint' => (string) $obj->fingerprint, 'application_status' => (string) $obj->application_status) : null;
 	}
 }

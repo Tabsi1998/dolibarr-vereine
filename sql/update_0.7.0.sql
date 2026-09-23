@@ -13,18 +13,10 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- Membership applications from a website: the website's own id, so an application sent twice creates one member.
-CREATE TABLE llx_vereine_application(
-	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
-	entity INTEGER DEFAULT 1 NOT NULL,
-	external_id VARCHAR(64),
-	fk_adherent INTEGER NOT NULL,
-	datec DATETIME NOT NULL,
-	fk_user INTEGER,
-	status VARCHAR(16) DEFAULT 'received' NOT NULL,
-	fingerprint VARCHAR(64),
-	decided_on DATETIME,
-	fk_user_decided INTEGER,
-	reason TEXT,
-	note TEXT
-) ENGINE=innodb;
+-- 0.7.0: a membership application has its own way: received, in review, accepted, rejected, withdrawn (#72).
+ALTER TABLE llx_vereine_application ADD COLUMN status VARCHAR(16) DEFAULT 'received' NOT NULL AFTER fk_user;
+ALTER TABLE llx_vereine_application ADD COLUMN fingerprint VARCHAR(64) AFTER status;
+ALTER TABLE llx_vereine_application ADD COLUMN decided_on DATETIME AFTER fingerprint;
+ALTER TABLE llx_vereine_application ADD COLUMN fk_user_decided INTEGER AFTER decided_on;
+ALTER TABLE llx_vereine_application ADD COLUMN reason TEXT AFTER fk_user_decided;
+ALTER TABLE llx_vereine_application ADD COLUMN note TEXT AFTER reason;

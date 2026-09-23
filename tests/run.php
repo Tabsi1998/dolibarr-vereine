@@ -61,6 +61,7 @@ require_once $root.'/class/vereinetaxcheckrules.class.php';
 require_once $root.'/class/vereineauditrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
+require_once $root.'/class/vereineapplicationrules.class.php';
 require_once $root.'/class/vereinepdf.class.php';
 require_once $root.'/class/vereinetextrepair.class.php';
 require_once $root.'/class/vereineattendancerules.class.php';
@@ -1709,6 +1710,24 @@ same(array('application', 'consent'), VereinePdf::fillableKinds('consent,applica
 same(array('consent'), VereinePdf::fillableKinds(array('consent')), 'entered as an array');
 same(array(), VereinePdf::fillableKinds(''), 'nothing to fill in: only to print');
 
+// ------------------------------------------------------------- the way of a membership application (#72)
+
+expect(VereineApplicationRules::allows('received', 'accepted') && VereineApplicationRules::allows('in_review', 'rejected')
+	&& VereineApplicationRules::allows('received', 'withdrawn'), 'an application that is not settled can be decided');
+expect(!VereineApplicationRules::allows('accepted', 'withdrawn') && !VereineApplicationRules::allows('withdrawn', 'accepted')
+	&& !VereineApplicationRules::allows('rejected', 'in_review'), 'a settled application stays as it is');
+same('Kein Platz in der Mannschaft', VereineApplicationRules::reason(' <b>Kein Platz in der Mannschaft</b> '), 'the reason for the person is plain text');
+same(500, strlen(VereineApplicationRules::reason(str_repeat('x', 600))), 'a reason is cut at 500 characters');
+$applicationOne = array('firstname' => 'Anna', 'lastname' => 'Antrag', 'email' => 'anna@example.org', 'type_id' => 5,
+	'consents' => array('fotos' => array('version' => 2)));
+$applicationTwo = $applicationOne;
+$applicationTwo['consents'] = array('fotos' => 2);
+same(VereineApplicationRules::fingerprint($applicationOne), VereineApplicationRules::fingerprint($applicationTwo),
+	'the fingerprint reads a consent as version, however it was stored');
+$applicationTwo['email'] = 'anders@example.org';
+expect(VereineApplicationRules::fingerprint($applicationOne) !== VereineApplicationRules::fingerprint($applicationTwo),
+	'other content gives another fingerprint');
+
 // ------------------------------------------------------------ language files
 
 // The module speaks German; en_US is an exact copy so an English interface shows German, not keys.
@@ -1767,7 +1786,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided'),
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
@@ -1825,6 +1844,7 @@ $prefixes = array(
 	'VereineApplicationPeriod_' => array('y', 'm', 'w', 'd'),
 	'VereineApplicationProration_' => array('month', 'quarter', 'half_year'),
 	'VereineApplicationFillable_' => VereinePdf::FILLABLE_KINDS,
+	'VereineApplicationStatus_' => VereineApplicationRules::STATUSES,
 	'VereinePh_' => array_map(function ($key) {
 		return substr(VereinePlaceholders::describedBy($key), strlen('VereinePh_'));
 	}, array_merge(VereinePlaceholders::KEYS['association'], VereinePlaceholders::KEYS['member'], VereinePlaceholders::KEYS['meeting'], VereinePlaceholders::KEYS['circular'])),

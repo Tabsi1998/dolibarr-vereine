@@ -349,6 +349,35 @@ richtet, kann ein Kind in Österreich ab 14 Jahren selbst einwilligen (§ 4 Abs.
 DSG); bei Jüngeren die Eltern fragen.
 
 
+## GET /vereine/applications/{external_id}
+
+Wo ein Beitrittsantrag steht. Braucht das Recht, Beitrittsanträge anzulegen.
+
+```json
+{ "external_id": "web-2026-0042", "status": "accepted", "received_at": "2026-09-23T10:15:00+02:00",
+  "decided_at": "2026-09-24T18:00:00+02:00", "reason": "", "member_id": 57, "member_ref": "57" }
+```
+
+| Feld | Inhalt |
+| --- | --- |
+| `status` | `received`, `in_review`, `accepted`, `rejected` oder `withdrawn` |
+| `reason` | Nur bei einer Ablehnung: der Grund, der für die Person bestimmt ist. Interne Anmerkungen sind nie enthalten |
+| `member_id`, `member_ref` | Erst nach der Aufnahme gefüllt |
+
+Aufgenommen oder abgelehnt wird **nur in Dolibarr**, nie über die API.
+
+## POST /vereine/applications/{external_id}/withdraw
+
+Die Website zieht ihren eigenen Antrag zurück, solange der Verein nicht entschieden hat.
+
+```json
+{ "external_id": "web-2026-0042", "status": "withdrawn", "changed": true }
+```
+
+- Nochmals geschickt: `changed: false`, der Antrag bleibt zurückgezogen.
+- Hat der Verein schon aufgenommen oder abgelehnt: 409. Eine bestehende Mitgliedschaft endet über den Austritt, nicht hier.
+- Derselbe `external_id` mit **anderem Inhalt** wird beim Anlegen mit 409 abgelehnt – nichts wird stillschweigend überschrieben.
+
 ## GET /vereine/members/{id}/consents
 
 Der Stand je Zweck für dieses Mitglied, für eine Seite „Meine Einwilligungen“. Braucht das Recht, die Mitglieds-Zusammenfassung zu lesen.
