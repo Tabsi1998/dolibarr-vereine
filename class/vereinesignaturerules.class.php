@@ -42,8 +42,10 @@ class VereineSignatureRules
 	const KIND_MONEY = 'money';
 	/** Income and expenditure account with the statement of assets (§ 21 (1) VerG). */
 	const KIND_ACCOUNT = 'account';
+	/** A list of volunteer allowances to pay (#7); its own kind, so its runs never meet those of a resolution. */
+	const KIND_PAYOUT = 'payout';
 	/** Kinds of document, in the order the setup page shows them. */
-	const KINDS = array('letter', 'minutes', 'resolution', 'money', 'audit_report', 'account');
+	const KINDS = array('letter', 'minutes', 'resolution', 'money', 'audit_report', 'account', 'payout');
 
 	/** Everybody named has to sign. */
 	const MODE_ALL = 'all';
@@ -87,6 +89,8 @@ class VereineSignatureRules
 			self::KIND_AUDIT_REPORT => array('roles' => array('rechnungspruefung'), 'mode' => self::MODE_ALL, 'min' => 2, 'sign' => self::SIGN_CLICK),
 			// The board makes the account; chair and treasurer sign it, as for money matters.
 			self::KIND_ACCOUNT => array('roles' => array('obmann', 'kassier'), 'mode' => self::MODE_ALL, 'min' => 2, 'sign' => self::SIGN_CLICK),
+			// Paying volunteer allowances is money leaving the association: chair and treasurer again.
+			self::KIND_PAYOUT => array('roles' => array('obmann', 'kassier'), 'mode' => self::MODE_ALL, 'min' => 2, 'sign' => self::SIGN_CLICK),
 		);
 	}
 

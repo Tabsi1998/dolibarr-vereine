@@ -3028,8 +3028,12 @@ def volunteerpayout(stack: Stack) -> str:
 
     # The chair and the treasurer sign, each for themselves.
     page = page_ok(browser.get(base), "the payout before signing")
-    page_ok(browser.submit(page.form(name=f"vereinestartsignmoney{payout}")), "ask for the signatures")
-    run = int(stack.value(f"SELECT rowid FROM llx_vereine_signature WHERE kind = 'money' AND fk_object = {payout} ORDER BY rowid DESC LIMIT 1"))
+    cancelled = stack.value("SELECT COUNT(*) FROM llx_vereine_signature WHERE kind <> 'payout' AND status = 'cancelled'")
+    page_ok(browser.submit(page.form(name=f"vereinestartsignpayout{payout}")), "ask for the signatures")
+    run = int(stack.value(f"SELECT rowid FROM llx_vereine_signature WHERE kind = 'payout' AND fk_object = {payout} ORDER BY rowid DESC LIMIT 1"))
+    # Its own kind: asking for the payout's signatures leaves a resolution with the same number alone.
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_signature WHERE kind <> 'payout' AND status = 'cancelled'") == cancelled,
+           "asking for the payout's signatures cancelled the run of another document")
     signers = [int(row[0]) for row in stack.sql(f"SELECT fk_adherent FROM llx_vereine_signature_person WHERE fk_signature = {run}")]
     expect(len(signers) >= 2, f"a money matter should need the chair and the treasurer: {signers}")
     linked = stack.value("SELECT fk_member FROM llx_user WHERE login = 'admin'")
@@ -3754,7 +3758,8 @@ def signatures(stack: Stack) -> str:
     base = "/custom/vereine/authority.php"
     page = page_ok(browser.get(setup), "signature setup")
     kinds = re.findall(r'data-rule="([a-z_]+)" data-roles="(\d+)" data-mode="(all|min)"', page.text)
-    expect([kind for kind, _, _ in kinds] == ["letter", "minutes", "resolution", "money", "audit_report", "account"], f"kinds of document: {kinds}")
+    expect([kind for kind, _, _ in kinds] == ["letter", "minutes", "resolution", "money", "audit_report", "account", "payout"],
+           f"kinds of document: {kinds}")
     expect(denied(stack.browser("rtreader").get(setup)), "a non-administrator opens the signature setup")
 
     # The chair signs letters; the runtime admin gets the chair's member, so it can sign in Dolibarr.

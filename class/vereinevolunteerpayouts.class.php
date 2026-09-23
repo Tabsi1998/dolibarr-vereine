@@ -296,8 +296,8 @@ class VereineVolunteerPayouts
 	public function payable($id)
 	{
 		$signatures = new VereineSignatures($this->db);
-		$wanted = VereineSignatureRules::wanted($signatures->rules(), VereineSignatureRules::KIND_MONEY);
-		$run = $signatures->current(VereineSignatureRules::KIND_MONEY, (int) $id, self::path($id));
+		$wanted = VereineSignatureRules::wanted($signatures->rules(), VereineSignatureRules::KIND_PAYOUT);
+		$run = $signatures->current(VereineSignatureRules::KIND_PAYOUT, (int) $id, self::path($id));
 		return VereineVolunteerRules::payable($wanted, $run !== null ? (string) $run['status'] : '',
 			$run !== null && !empty($run['document_changed']));
 	}

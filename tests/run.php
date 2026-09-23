@@ -1415,7 +1415,8 @@ foreach (VereineStatuteText::sections($statuteRules, VereineStatuteText::normali
 $moneyRules = VereineSignatureRules::normalize(null, array('obmann', 'schriftfuehrung', 'kassier', 'rechnungspruefung'));
 same(array('obmann', 'kassier'), $moneyRules['money']['roles'], 'a money matter is signed by the chair and the treasurer');
 same(array('obmann', 'schriftfuehrung'), $moneyRules['resolution']['roles'], 'an ordinary resolution stays with chair and secretary');
-expect(in_array('money', VereineSignatureRules::KINDS, true) && count(VereineSignatureRules::KINDS) === 6, 'six kinds of document');
+expect(in_array('money', VereineSignatureRules::KINDS, true) && count(VereineSignatureRules::KINDS) === 7, 'seven kinds of document');
+same(array('obmann', 'kassier'), VereineSignatureRules::defaults()['payout']['roles'], 'a volunteer payout is signed by the chair and the treasurer');
 same(true, VereineResolutionRules::normalize(array('money' => '1'))['money'], 'a resolution can be marked as a money matter');
 same(false, VereineResolutionRules::normalize(array())['money'], 'without the mark it is no money matter');
 

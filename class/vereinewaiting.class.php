@@ -190,7 +190,7 @@ class VereineWaiting
 		$sql .= " WHERE s.entity = ".$entity." AND s.status = 'open' AND p.fk_adherent = ".((int) $memberId)." AND p.signed_at IS NULL ORDER BY s.rowid";
 		$resql = $this->db->query($sql);
 		while ($resql && ($obj = $this->db->fetch_object($resql))) {
-			$url = self::signatureUrl((string) $obj->kind, (int) $obj->fk_object);
+			$url = $this->signatureUrl((string) $obj->kind, (int) $obj->fk_object);
 			if ((string) $obj->kind === 'minutes') {
 				// A run of the minutes belongs to a version; the page to sign it is the meeting.
 				$version = $this->db->query("SELECT fk_meeting FROM ".MAIN_DB_PREFIX."vereine_meeting_minutes WHERE rowid = ".((int) $obj->fk_object));
@@ -219,13 +219,24 @@ class VereineWaiting
 	 * @param int    $objectId What the run belongs to
 	 * @return string
 	 */
-	private static function signatureUrl($kind, $objectId)
+	private function signatureUrl($kind, $objectId)
 	{
 		if (in_array($kind, array('resolution', 'money'), true)) {
 			return dol_buildpath('/vereine/resolutions.php', 1).'?id='.((int) $objectId).'#vereineresolutionpdf';
 		}
 		if ($kind === 'letter') {
 			return dol_buildpath('/vereine/authority.php', 1);
+		}
+		if ($kind === 'payout') {
+			return dol_buildpath('/vereine/volunteer.php', 1).'#vereinevolunteerpayouts';
+		}
+		if ($kind === 'account') {
+			require_once __DIR__.'/vereineaccount.class.php';
+			return dol_buildpath('/vereine/account.php', 1).'?year='.((new VereineAccount($this->db))->yearOf($objectId)).'#vereineaccountpdf';
+		}
+		if ($kind === 'audit_report') {
+			require_once __DIR__.'/vereineaudit.class.php';
+			return dol_buildpath('/vereine/audit.php', 1).'?year='.((new VereineAudit($this->db))->yearOf($objectId)).'#vereineauditreport';
 		}
 		return dol_buildpath('/vereine/meetings.php', 1);
 	}

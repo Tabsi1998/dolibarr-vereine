@@ -24,12 +24,18 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 - **Jahresliste je Person** mit Einsatztagen, Summen je Art und Hinweisen, als CSV für die
   Meldungen ans Finanzamt. Abschicken bleibt Handarbeit.
 - **Auszahlen mit Unterschriften** (#7): Offene Einsätze kommen auf eine Auszahlungsliste als PDF.
-  Die wird unterschrieben wie jede Geldangelegenheit – ab Werk von Obmann/Obfrau und Kassier:in.
-  Vorher geht kein Cent hinaus. Danach legt ein Klick die Zahlungen als **sonstige Zahlungen in
+  Die wird unterschrieben wie eine Geldangelegenheit – ab Werk von Obmann/Obfrau und Kassier:in,
+  einstellbar als eigene Dokumentart *Auszahlung Freiwilligenpauschale* unter *Einrichtung –
+  Unterschriften*. Vorher geht kein Cent hinaus. Danach legt ein Klick die Zahlungen als **sonstige Zahlungen in
   Dolibarr** an, eine je Person, vom gewählten Bankkonto. Bank, Abgleich und
   Einnahmen-Ausgaben-Rechnung sehen sie wie jede andere Zahlung. Eine Liste, die nach dem
   Unterschreiben geändert wurde, lässt sich nicht auszahlen; eine noch nicht ausbezahlte Liste
   lässt sich zurücknehmen. Ausbezahlte Einsätze bleiben – sie gehören zur Buchhaltung.
+
+### Behoben
+
+- **„Was wartet auf mich“ führt zur richtigen Seite**: Unterschriften für die
+  Einnahmen-Ausgaben-Rechnung und den Prüfbericht verlinkten bisher auf die Sitzungen.
 
 ## [0.8.0-beta] - 2026-09-23
 
