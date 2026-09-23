@@ -116,6 +116,8 @@ class VereineLog
 	const IDENTITY_REVOKED = 'identity_revoked';
 	const VOLUNTEER_RECORDED = 'volunteer_recorded';
 	const VOLUNTEER_REMOVED = 'volunteer_removed';
+	const VOLUNTEER_PAYOUT = 'volunteer_payout';
+	const VOLUNTEER_PAID = 'volunteer_paid';
 
 	/**
 	 * Append one entry.

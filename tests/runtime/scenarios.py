@@ -2997,6 +2997,77 @@ def volunteers(stack: Stack) -> str:
             "once and paid once, and the list for the reports comes as CSV")
 
 
+def volunteerpayout(stack: Stack) -> str:
+    """Paying volunteer allowances: a list, refused until the chair and the treasurer signed, then Dolibarr's various payments (#7)."""
+    browser = stack.browser()
+    year = int(stack.today()[:4])
+    base = f"/custom/vereine/volunteer.php?year={year}"
+    page = page_ok(browser.get(base), "the allowances before the payout")
+    expect('data-volunteer-payable="' in page.text, "no open entry is offered for a payout")
+    open_before = int(stack.value(f"SELECT COUNT(*) FROM llx_vereine_volunteer WHERE fk_payout IS NULL AND paid_on IS NULL AND YEAR(duty_day) = {year}"))
+    page_ok(browser.submit(page.form(name="vereinevolunteerpayout")), "make the payout list")
+    payout = int(stack.value("SELECT MAX(rowid) FROM llx_vereine_volunteer_payout"))
+    on_list = int(stack.value(f"SELECT COUNT(*) FROM llx_vereine_volunteer WHERE fk_payout = {payout}"))
+    expect(on_list == open_before, f"{on_list} entries on the list, {open_before} were open")
+    total = float(stack.value(f"SELECT total FROM llx_vereine_volunteer_payout WHERE rowid = {payout}"))
+    summed = float(stack.value(f"SELECT SUM(amount) FROM llx_vereine_volunteer WHERE fk_payout = {payout}"))
+    expect(abs(total - summed) < 0.001, f"the list says {total}, its entries add up to {summed}")
+
+    # Nothing goes out before the signatures.
+    page = page_ok(browser.get(base), "the payout waiting")
+    expect(f'data-volunteer-payout="{payout}" data-volunteer-payout-status="draft"' in page.text
+           and 'data-volunteer-waits-signature="1"' in page.text, "the list does not wait for its signatures")
+    account = stack.value("SELECT rowid FROM llx_bank_account WHERE clos = 0 ORDER BY rowid LIMIT 1")
+    mode = stack.value("SELECT id FROM llx_c_paiement WHERE code = 'VIR' AND active = 1 LIMIT 1")
+    refused = page_ok(browser.post(base, [("token", token_of(page)), ("action", "paypayout"), ("payout", str(payout)),
+                                          ("bank_account", str(account)), ("payment_mode", str(mode)), ("pay_day", stack.today())]),
+                      "pay before the signatures")
+    expect("nicht vollständig unterschrieben" in html.unescape(refused.text), "paying before the signatures was not refused")
+    expect(stack.value("SELECT COUNT(*) FROM llx_payment_various WHERE label LIKE 'Freiwilligenpauschale%'") == "0",
+           "money went out before the signatures")
+
+    # The chair and the treasurer sign, each for themselves.
+    page = page_ok(browser.get(base), "the payout before signing")
+    page_ok(browser.submit(page.form(name=f"vereinestartsignmoney{payout}")), "ask for the signatures")
+    run = int(stack.value(f"SELECT rowid FROM llx_vereine_signature WHERE kind = 'money' AND fk_object = {payout} ORDER BY rowid DESC LIMIT 1"))
+    signers = [int(row[0]) for row in stack.sql(f"SELECT fk_adherent FROM llx_vereine_signature_person WHERE fk_signature = {run}")]
+    expect(len(signers) >= 2, f"a money matter should need the chair and the treasurer: {signers}")
+    linked = stack.value("SELECT fk_member FROM llx_user WHERE login = 'admin'")
+    try:
+        for signer in signers:
+            stack.sql(f"UPDATE llx_user SET fk_member = {signer} WHERE login = 'admin'")
+            page = page_ok(browser.get(base), f"the payout for member {signer}")
+            page_ok(browser.post(base, [("token", token_of(page)), ("action", "sign"), ("signature", str(run)),
+                                        ("password", stack.admin_password)]), f"member {signer} signs")
+    finally:
+        stack.sql(f"UPDATE llx_user SET fk_member = {linked if linked not in (None, '', 'NULL') else 'NULL'} WHERE login = 'admin'")
+    expect(stack.value(f"SELECT status FROM llx_vereine_signature WHERE rowid = {run}") == "done", "the list is not signed through")
+
+    # Now it goes out: one of Dolibarr's various payments per person, and the bank sees it.
+    page = page_ok(browser.get(base), "the payout ready to pay")
+    expect(f'data-volunteer-payout-payable="1"' in page.text, "a signed list cannot be paid")
+    people = int(stack.value(f"SELECT COUNT(DISTINCT fk_adherent) FROM llx_vereine_volunteer WHERE fk_payout = {payout}"))
+    page_ok(browser.submit(page.form(name=f"vereinevolunteerpay{payout}"), {"bank_account": str(account), "payment_mode": str(mode)}),
+            "pay the list")
+    payments = stack.sql("SELECT rowid, amount, fk_bank FROM llx_payment_various WHERE label LIKE 'Freiwilligenpauschale%'")
+    expect(len(payments) == people, f"{len(payments)} payments for {people} people")
+    expect(all(row[2] not in (None, "", "NULL", "0") for row in payments), "a payment has no bank line")
+    paid_total = sum(float(row[1]) for row in payments)
+    expect(abs(paid_total - total) < 0.001, f"paid {paid_total}, the list says {total}")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_volunteer WHERE fk_payout = {payout} AND paid_on IS NULL") == "0",
+           "an entry of the paid list is not marked as paid")
+    expect(stack.value(f"SELECT status FROM llx_vereine_volunteer_payout WHERE rowid = {payout}") == "paid", "the list is not marked as paid")
+
+    # A paid entry stays: it belongs to the books.
+    entry = stack.value(f"SELECT rowid FROM llx_vereine_volunteer WHERE fk_payout = {payout} LIMIT 1")
+    page = page_ok(browser.get(base), "the paid list")
+    refused = page_ok(browser.post(base, [("token", token_of(page)), ("action", "remove"), ("entry", str(entry))]), "remove a paid entry")
+    expect("Buchhaltung" in html.unescape(refused.text), "removing a paid entry was not refused")
+    return (f"{on_list} entries went on a list of {total:.2f} euros; paying was refused until the chair and the treasurer had signed; "
+            f"then {len(payments)} of Dolibarr's various payments with their bank lines went out, the entries and the list are "
+            "marked as paid, and a paid entry cannot be removed")
+
+
 def board(stack: Stack) -> str:
     """A website reads the board: names only with consent, or for the board always when it must be disclosed."""
     site = stack.notes["website"]
@@ -5116,6 +5187,7 @@ SCENARIOS = (
     ("identities", "Verified external identities: two clients, one contract, bindings that open exactly their own object", identities, ("webhooks",)),
     ("applicationfields", "The fields of an application: one list for PDF and web, own fields, the fee in real numbers", applicationfields, ("identities", "application")),
     ("volunteers", "Volunteer allowances: marked over the limit when stored, the list of the year, a helper shift paid once", volunteers, ("shifts",)),
+    ("volunteerpayout", "Paying volunteer allowances: a list, refused until signed, then Dolibarr's various payments", volunteerpayout, ("volunteers", "signatures")),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),

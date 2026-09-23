@@ -1795,7 +1795,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1815,6 +1815,7 @@ $prefixes = array(
 	'VereineVolunteerKind_' => VereineVolunteerRules::KINDS,
 	'VereineVolunteerLimit_' => VereineVolunteerRules::KINDS,
 	'VereineVolunteerFinding_' => VereineVolunteerRules::FINDINGS,
+	'VereineVolunteerPayoutStatus_' => array('draft', 'paid'),
 	'VereineDutyBasis_' => VereineDutyRules::BASES,
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
@@ -2589,6 +2590,21 @@ same(array(), VereineVolunteerRules::validate(array('member_id' => 1, 'day' => '
 	'a sensible entry with a comma is fine');
 same(array('VereineVolunteerErrorDay', 'VereineVolunteerErrorAmount'), VereineVolunteerRules::validate(
 	array('member_id' => 1, 'day' => '2026-02-30', 'activity' => 'Kassa', 'kind' => 'small', 'amount' => '0')), 'no 30 February, no zero amount');
+
+// ------------------------------------------------------------- paying volunteer allowances (#7)
+
+same(array(array('member_id' => 1, 'name' => 'Anna', 'amount' => 55.5), array('member_id' => 2, 'name' => 'Zoe', 'amount' => 30.0)),
+	VereineVolunteerRules::payoutLines(array(
+		array('member_id' => 2, 'name' => 'Zoe', 'amount' => 30),
+		array('member_id' => 1, 'name' => 'Anna', 'amount' => 25.25),
+		array('member_id' => 1, 'name' => 'Anna', 'amount' => 30.25),
+	)), 'one line per person, the days added up, by name');
+same(array(), VereineVolunteerRules::payoutLines(array()), 'an empty list has no lines');
+expect(VereineVolunteerRules::payable(true, 'done', false), 'a list everybody signed may be paid');
+expect(!VereineVolunteerRules::payable(true, 'open', false), 'a list somebody still has to sign may not be paid');
+expect(!VereineVolunteerRules::payable(true, '', false), 'a list nobody asked to sign may not be paid');
+expect(!VereineVolunteerRules::payable(true, 'done', true), 'a list that changed after it was signed may not be paid');
+expect(VereineVolunteerRules::payable(false, '', false), 'when the association signs no money matters, the list may be paid');
 
 // ------------------------------------------------------------------- result
 
