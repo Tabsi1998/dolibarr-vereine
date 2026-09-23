@@ -179,6 +179,20 @@ def denied(page: Page) -> bool:
     return '<div class="error">' in page.text and not any(part in page.text for part in refused_page_parts)
 
 
+def enable_dolibarr_module(stack: Stack, name: str) -> None:
+    """Switch on a module Dolibarr brings itself, the way an administrator does it in the module list."""
+    if stack.const("MAIN_MODULE_" + name.replace("mod", "").upper()) == "1":
+        return
+    browser = stack.browser()
+    page = page_ok(browser.get("/admin/modules.php?mode=common"), f"module list for {name}")
+    for href in re.findall(r'href="([^"]*modules\.php\?[^"]*)"', page.text):
+        target = html.unescape(href)
+        if "action=set&" in target + "&" and f"value={name}&" in target + "&":
+            page_ok(browser.get(target), f"switch {name} on")
+            return
+    raise CheckFailed(f"the module list offers no way to switch {name} on")
+
+
 def module_link(page: Page, action: str) -> str:
     """The enable or disable link of the module in Dolibarr's module list."""
     for href in re.findall(r'href="([^"]*modules\.php\?[^"]*)"', page.text):
@@ -361,6 +375,7 @@ def enable(stack: Stack) -> str:
                     ["members", "vereine_circulars", "/vereine/circulars.php"],
                     ["members", "vereine_consentform", "/vereine/consents.php"],
                     ["members", "vereine_duties", "/vereine/duties.php"],
+                    ["members", "vereine_events", "/vereine/events.php"],
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
                     ["members", "vereine_meetings", "/vereine/meetings.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"],
@@ -2228,6 +2243,110 @@ def duties(stack: Stack) -> str:
             "the report of donations falls due end of February, a second planning writes nothing; after a change of office the open task "
             "waits and moves to the successor only when confirmed, together with its agenda event; ticking it off closes the event and "
             "the overview names the deadlines; an own duty of the association is taken, a wrong code refused")
+
+
+def events(stack: Stack) -> str:
+    """Events from templates: one project of Dolibarr with its tasks, the checklist, a template that changes later (#23)."""
+    browser = stack.browser()
+    today = stack.today()
+    day = (datetime.date.fromisoformat(today) + datetime.timedelta(days=90)).isoformat()
+    base = "/custom/vereine/events.php"
+    setup = "/custom/vereine/admin/events.php"
+    expect(denied(stack.browser("rtnobody").get(base)), "a user without rights opens the events")
+    expect(denied(stack.browser("rtreader").get(setup)), "a non-administrator opens the event templates")
+
+    # Projects are Dolibarr's own; the module only leans on them.
+    enable_dolibarr_module(stack, "modProjet")
+    expect(stack.const("MAIN_MODULE_PROJET") == "1", "Dolibarr's project module could not be switched on")
+
+    # Enabling the module brought the suggested templates with their points.
+    page = page_ok(browser.get(setup), "the event templates")
+    templates = {code: int(count) for code, count in re.findall(r'data-template="([a-z_]+)" data-template-points="(\d+)"', page.text)}
+    expect({"turnier", "vereinsfest"} <= set(templates) and templates["turnier"] >= 10, f"the suggested templates: {templates}")
+    template_id = int(stack.value("SELECT rowid FROM llx_vereine_event_template WHERE code = 'turnier' AND entity = 1"))
+    points = page_ok(browser.get(f"{setup}?template={template_id}"), "the points of the tournament")
+    phases = {phase for phase in re.findall(r'data-template-phase="([a-z]+)"', points.text)}
+    expect(phases == {"before", "during", "after"}, f"the phases of the tournament: {sorted(phases)}")
+
+    # An event out of the template: one project, one task per point, the days counted from the day.
+    form = page_ok(browser.get(base), "the events").form(name="vereineevent")
+    refused = page_ok(browser.submit(form, {"template": str(template_id), "label": "Winter-Cup", "event_day": day,
+                                            "registration": "external", "external_ref": ""}), "an external sign-up without its reference")
+    expect("Kennung" in html.unescape(refused.text), "an external sign-up without its reference was not refused with an explanation")
+    form = page_ok(browser.get(base), "the events again").form(name="vereineevent")
+    page = page_ok(browser.submit(form, {"template": str(template_id), "label": "Winter-Cup", "event_day": day,
+                                         "place": "Telfs", "public": "1", "registration": "dolibarr"}), "an event from the template")
+    event_id = int(stack.value("SELECT rowid FROM llx_vereine_event WHERE label = 'Winter-Cup' AND entity = 1"))
+    project_id = int(stack.value(f"SELECT fk_projet FROM llx_vereine_event WHERE rowid = {event_id}") or 0)
+    expect(project_id > 0, "the event has no project of Dolibarr")
+    project = stack.sql(f"SELECT ref, title, public, usage_organize_event FROM llx_projet WHERE rowid = {project_id}")
+    expect(project and project[0][1] == "Winter-Cup" and project[0][3] == "1",
+           f"the project of the event: {project}; Dolibarr leads the sign-up, so its event organisation is on")
+    checklist = stack.sql(f"SELECT phase, label, due_on, fk_task FROM llx_vereine_event_task WHERE fk_event = {event_id} ORDER BY due_on")
+    expect(len(checklist) == templates["turnier"], f"{len(checklist)} points for {templates['turnier']} in the template")
+    tasks = int(stack.value(f"SELECT COUNT(*) FROM llx_projet_task WHERE fk_projet = {project_id}") or 0)
+    expect(tasks == len(checklist), f"{tasks} tasks in the project for {len(checklist)} points")
+    announced = [row for row in checklist if "Gemeinde anzeigen" in row[1]]
+    expect(announced and announced[0][2][:10] == (datetime.date.fromisoformat(day) - datetime.timedelta(days=42)).isoformat(),
+           f"the notice to the municipality is not six weeks before the day: {announced}")
+
+    # The checklist as the page shows it, with its progress.
+    page = page_ok(browser.get(f"{base}?id={event_id}"), "the event with its checklist")
+    rows = re.findall(r'data-event-task="(\d+)" data-event-phase="([a-z]+)" data-event-state="([a-z]+)"', page.text)
+    expect(len(rows) == len(checklist), f"the page shows {len(rows)} points for {len(checklist)}")
+    expect('data-event-progress="0"' in page.text, "the event starts with something done")
+
+    # Ticking a point off writes the progress back to the task of the project.
+    first_task = int(rows[0][0])
+    project_task = int(stack.value(f"SELECT fk_task FROM llx_vereine_event_task WHERE rowid = {first_task}") or 0)
+    page_ok(browser.post(f"{base}?id={event_id}", [("token", token_of(page)), ("action", "done"), ("task", str(first_task))]),
+            "tick the first point off")
+    expect((stack.value(f"SELECT done_on FROM llx_vereine_event_task WHERE rowid = {first_task}") or "")[:10] == today,
+           "the point was not noted as done")
+    expect(int(stack.value(f"SELECT progress FROM llx_projet_task WHERE rowid = {project_task}") or 0) == 100,
+           "the task of the project is still open")
+
+    # A template that changes later leaves an event that already runs alone.
+    page_ok(browser.submit(page_ok(browser.get(f"{setup}?template={template_id}"), "the points again").form(name="vereinetemplatetask"), {
+        "task_label": "Pokale bestellen", "phase": "before", "function_code": "kassier", "offset_days": "-35", "source": ""}),
+        "add a point to the template")
+    expect(int(stack.value(f"SELECT COUNT(*) FROM llx_vereine_event_task WHERE fk_event = {event_id}") or 0) == len(checklist),
+           "the running event took the new point of the template")
+    expect(int(stack.value(f"SELECT COUNT(*) FROM llx_vereine_event_template_task WHERE fk_template = {template_id}") or 0) == len(checklist) + 1,
+           "the new point did not reach the template")
+
+    # A point the association thought of itself, next to the ones from the template.
+    page = page_ok(browser.get(f"{base}?id={event_id}"), "the event before its own point")
+    page_ok(browser.submit(page.form(name="vereineeventtask"), {
+        "task_label": "Streaming-Technik testen", "phase": "during", "function_code": "", "due_on": day}), "add an own point")
+    own = stack.sql(f"SELECT label, fk_template_task, fk_task FROM llx_vereine_event_task WHERE fk_event = {event_id}"
+                    " AND label = 'Streaming-Technik testen'")
+    expect(own and own[0][1] in ("", "NULL", None) and int(own[0][2] or 0) > 0,
+           f"the own point is missing or hangs on a template: {own}")
+
+    # A second event from the same template gets its own project, and nothing of the first one moves.
+    form = page_ok(browser.get(base), "the events for a second one").form(name="vereineevent")
+    page_ok(browser.submit(form, {"template": str(template_id), "label": "Sommer-Cup",
+                                  "event_day": (datetime.date.fromisoformat(day) + datetime.timedelta(days=120)).isoformat(),
+                                  "registration": "external", "external_ref": "lionsapp-42"}), "a second event from the template")
+    second = int(stack.value("SELECT rowid FROM llx_vereine_event WHERE label = 'Sommer-Cup' AND entity = 1"))
+    second_project = int(stack.value(f"SELECT fk_projet FROM llx_vereine_event WHERE rowid = {second}") or 0)
+    expect(second_project > 0 and second_project != project_id, f"the second event shares the project {second_project}")
+    # The sign-up is led outside, so Dolibarr's own event organisation stays off: nothing is booked twice (#165).
+    expect(stack.value(f"SELECT usage_organize_event FROM llx_projet WHERE rowid = {second_project}") == "0",
+           "Dolibarr organises the sign-up although an external application leads it")
+    expect(int(stack.value(f"SELECT COUNT(*) FROM llx_vereine_event_task WHERE fk_event = {event_id}") or 0) == len(checklist) + 1,
+           "the first event changed when the second one was made")
+
+    # The list shows what is coming, with how far each event has got.
+    page = page_ok(browser.get(base), "the list of events")
+    listed = re.findall(r'data-event-row="(\d+)" data-event-done="(\d+)" data-event-total="(\d+)"', page.text)
+    found = {int(row[0]): (int(row[1]), int(row[2])) for row in listed}
+    expect(found.get(event_id) == (1, len(checklist) + 1) and second in found, f"the list of events: {found}")
+    return (f"the suggested templates stand with their phases; the Winter-Cup became project {project_id} with {tasks} tasks, the notice "
+            "to the municipality six weeks before the day; ticking a point off closed the task of the project; a point added to the "
+            "template later left the running event alone; an own point and a second event with its own project, whose sign-up is led "
+            "outside so Dolibarr does not organise it as well")
 
 
 def board(stack: Stack) -> str:
@@ -4340,6 +4459,7 @@ SCENARIOS = (
     ("audit", "The audit of the auditors: bookings and invoices with hints, samples, checklist, report with signatures", audit, ("taxcheck",)),
     ("account", "Income and expenditure account: the money of the year by area, agreeing with the bank, statement of assets, PDF, signatures", account, ("audit",)),
     ("duties", "The calendar of duties: catalogue of the law, days of the year, agenda tasks, handover after a change of office", duties, ("account",)),
+    ("events", "Events from templates: a project of Dolibarr with its tasks, the checklist, a template that changes later", events, ("duties",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),

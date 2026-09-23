@@ -9,6 +9,20 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **Veranstaltungen aus Vorlagen** (#23): Ein neuer Menüpunkt *Mitglieder > Verein >
+  Veranstaltungen*. Eine Vorlage ist eine Checkliste mit Phasen – Vorbereitung, Durchführung,
+  Nachbereitung –, mit einer Frist je Punkt (gerechnet ab dem Veranstaltungstag) und der
+  zuständigen Funktion. Mitgeliefert sind **Turnier** und **Vereinsfest**.
+- **Jede Veranstaltung wird ein Projekt in Dolibarr**, jeder Punkt der Checkliste eine Aufgabe
+  darin. Budget, Belege und Zeiten bleiben dort, wo Dolibarr sie ohnehin führt; das Modul legt
+  keine zweite Projektverwaltung an. Abhaken setzt die Dolibarr-Aufgabe auf 100 %.
+- **Österreichische Punkte sind schon drin**: Anzeige bei der Gemeinde, AKM bei Musik,
+  Jugendschutz, Veranstaltungshaftpflicht, Registrierkasse bei Bareinnahmen, dazu Helferplan
+  und Nachbereitung. Jeder Punkt nennt seine Quelle – als Erinnerung, nicht als Genehmigung.
+- **Anmeldung nur an einer Stelle**: entweder Dolibarrs eigene Veranstaltungsorganisation oder
+  eine externe Anwendung mit ihrer Kennung. So zählt keine Anmeldung doppelt.
+- **Vorlagen wirken nie rückwirkend**: Wer eine Vorlage später ändert, ändert damit keine
+  Veranstaltung, die schon läuft. Eigene Punkte lassen sich jederzeit ergänzen.
 - **Fristen und Aufgaben des Vereins** (#24): Ein neuer Menüpunkt *Mitglieder > Verein >
   Fristen und Aufgaben* führt alle wiederkehrenden Pflichten an einer Stelle. Der Katalog
   ist beim Aktivieren schon gefüllt: Einnahmen-Ausgaben-Rechnung, Rechnungsprüfung,

@@ -341,6 +341,11 @@ function vereineAdminPrepareHead()
 	$head[$h][2] = 'meetings';
 	$h++;
 
+	$head[$h][0] = dol_buildpath('/vereine/admin/events.php', 1);
+	$head[$h][1] = $langs->trans('VereineSetupTabEvents');
+	$head[$h][2] = 'events';
+	$h++;
+
 	$head[$h][0] = dol_buildpath('/vereine/admin/signatures.php', 1);
 	$head[$h][1] = $langs->trans('VereineSetupTabSignatures');
 	$head[$h][2] = 'signatures';

@@ -314,6 +314,21 @@ class modVereine extends DolibarrModules
 			'target' => '',
 			'user' => 0,
 		);
+		// Events of the association from templates: one project of Dolibarr per event (#23).
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
+			'titre' => 'VereineMenuEvents',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_events',
+			'url' => '/vereine/events.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->hasRight("vereine", "association", "read")',
+			'target' => '',
+			'user' => 0,
+		);
 		// What the association has to do again and again, with its days (#24).
 		$this->menu[$r++] = array(
 			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
@@ -476,6 +491,14 @@ class modVereine extends DolibarrModules
 		$written = $register->backfill($user);
 		if ($written > 0) {
 			dol_syslog('modVereine::init wrote '.$written.' entries in the register of resolutions', LOG_INFO);
+		}
+
+		// The suggested event templates, so a first event has a checklist to start from (#23).
+		dol_include_once('/vereine/class/vereineevents.class.php');
+		$events = new VereineEvents($this->db);
+		if ($events->ensureStandard() < 0) {
+			$this->error = $events->error;
+			dol_syslog('modVereine::init '.$events->error, LOG_ERR);
 		}
 
 		// What Austrian law asks of every association goes into the catalogue of duties (#24).
