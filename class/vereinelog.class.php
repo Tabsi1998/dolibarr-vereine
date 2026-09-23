@@ -111,6 +111,9 @@ class VereineLog
 	const HOOK_TARGET = 'hook_target';
 	const HOOK_ROTATED = 'hook_rotated';
 	const HOOK_RETRY = 'hook_retry';
+	const IDENTITY_INVITE = 'identity_invite';
+	const IDENTITY_LINKED = 'identity_linked';
+	const IDENTITY_REVOKED = 'identity_revoked';
 
 	/**
 	 * Append one entry.

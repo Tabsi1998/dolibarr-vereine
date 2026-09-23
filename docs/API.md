@@ -696,6 +696,78 @@ lückenlos im Feed weiter.
 einem Datum wirkt, oder eine Korrektur direkt in der Datenbank – erzeugen keinen Eintrag. Genau
 dafür ist der regelmäßige Vollabgleich da.
 
+## Wer handelt? Dienstzugang und persönlicher Zugriff
+
+Die API kennt zwei Arten, zu fragen, und hält sie bewusst auseinander.
+
+**Der Dienstzugang** (API v1, alle Endpunkte oben): Ein technischer Benutzer mit API-Schlüssel –
+etwa der Server der Vereinswebsite – liest mit dem Recht *Mitglieds-Zusammenfassungen für eine
+Website* Daten **mehrerer** Mitglieder. Das ist eine **Server-zu-Server-Vertrauensgrenze**: Der
+Verein vertraut diesem Server. Er beweist aber **nicht**, welcher Mensch gerade vor dem Bildschirm
+sitzt. Wer diesen Zugang nutzt, muss selbst dafür sorgen, dass ein eingeloggtes Mitglied nur
+seine eigenen Daten sieht. Daran ändert sich nichts, und durch das Update bekommt kein
+bestehender Schlüssel ein zusätzliches Recht.
+
+**Der persönliche Zugriff** (neu, `identities/*` und `me/*`): Hier handelt eine Anwendung für
+**eine bestimmte Person**, und das Modul prüft bei jedem Aufruf selbst, ob sie das darf:
+
+1. Die Anwendung hat das Recht **„Für Personen handeln"** (`vereine:identity:use`). Das ist ein
+   eigenes Recht – weder der Dienstzugang noch das Recht für den Änderungsfeed schließt es ein.
+2. Für die Kennung (`subject`), unter der die Anwendung die Person führt, gibt es eine
+   **Bindung** – bei **genau dieser Anwendung** und in **diesem Mandanten**.
+3. Die Bindung ist nicht widerrufen.
+4. Die Bindung trägt die **Fähigkeit**, um die es geht (`consents`, `applications`, `documents`,
+   `votes`). Alle sind aus, bis der Verein sie einschaltet.
+5. Das Objekt ist **das eigene**: das gebundene Mitglied oder der gebundene Antrag. Wer nach einem
+   fremden fragt, wird abgewiesen, nicht umgeleitet.
+
+**Was nie als Nachweis gilt.** Ein `verified=true` der Anwendung, eine E-Mail-Adresse oder eine
+Mitgliedsnummer. Eine Familie teilt sich eine Adresse, eine Nummer lässt sich raten. Beides
+liefert in der Verwaltung nur **Kandidaten**, die ein Mensch ansieht.
+
+**Wie eine Bindung entsteht.** Der Verein erzeugt unter *Einrichtung > Vereine > Externe
+Identitäten* eine **Einladung**: einen Code, der genau einmal gezeigt wird, eine Stunde gilt,
+beim ersten Einlösen verfällt und bei einer anderen Anwendung wertlos ist. Gespeichert wird nur
+sein Hash. Zwei gleichzeitige Einlöseversuche: einer gewinnt, der andere bekommt „schon
+eingelöst".
+
+**Antragsteller** werden an ihren Antrag gebunden, nicht an ein Mitglied. So eine Bindung öffnet
+den Stand des eigenen Antrags und sonst nichts – auch keine Mitgliedsrechte. Erst die Aufnahme
+macht jemanden zum Mitglied; dann bindet der Verein neu.
+
+**Familienzahler** sind nicht automatisch gesetzliche Vertretung. Wer für jemand anderen handeln
+soll, bekommt dafür eine eigene, ausdrückliche Bindung.
+
+**Widerruf** wirkt sofort: der nächste Aufruf wird abgewiesen.
+
+**Vertrauensannahmen.** Die Anwendung authentisiert die Person selbst (Login, Passkey, was sie
+eben hat) und hält ihre Kennung stabil. Das Modul betreibt bewusst keine eigene OAuth-Plattform.
+Es prüft, ob die Anwendung für Personen handeln darf und ob die Bindung passt – mehr kann ein
+Server, der die Person nicht selbst sieht, nicht prüfen, und das sagt diese Seite offen.
+
+### POST /vereine/identities/claim
+
+`subject` und `code`. Antwort: die Bindung. Abgewiesen (403) bei fremdem, eingelöstem oder
+abgelaufenem Code und wenn es für die Kennung bei dieser Anwendung schon eine Bindung gibt.
+
+### GET /vereine/identities/me
+
+`subject`. Antwort: gebundenes Mitglied oder gebundener Antrag, Fähigkeiten, Nachweis.
+
+```json
+{"subject":"auth0|61f2c9","member_id":42,"application_id":null,
+ "capabilities":["consents"],"proof":"invitation","linked_at":"2026-09-23T14:05:11Z"}
+```
+
+### GET /vereine/me/consents
+
+`subject`, braucht die Fähigkeit `consents`. Die eigenen Einwilligungen, im selben Format wie
+`GET /vereine/members/{id}/consents`.
+
+### GET /vereine/me/application
+
+`subject`, braucht die Fähigkeit `applications`. Der Stand des eigenen Beitrittsantrags.
+
 ## Signierte Webhooks
 
 Ein Webhook ist ein **Hinweis zum Nachlesen, kein Beweis**. Er sagt, dass sich etwas geändert

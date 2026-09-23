@@ -173,6 +173,12 @@ class modVereine extends DolibarrModules
 		$this->rights[$r][4] = 'sync';
 		$this->rights[$r][5] = 'read';
 		$r++;
+		// Acting for a person is not the same as synchronising, and not the same as reading summaries.
+		$this->rights[$r][0] = $this->numero.'06';
+		$this->rights[$r][1] = 'Act through the API for people a client vouches for, within their own bindings';
+		$this->rights[$r][4] = 'identity';
+		$this->rights[$r][5] = 'use';
+		$r++;
 
 		$this->menu = array();
 		$r = 0;

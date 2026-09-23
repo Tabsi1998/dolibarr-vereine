@@ -351,6 +351,11 @@ function vereineAdminPrepareHead()
 	$head[$h][2] = 'signatures';
 	$h++;
 
+	$head[$h][0] = dol_buildpath('/vereine/admin/identities.php', 1);
+	$head[$h][1] = $langs->trans('VereineSetupTabIdentities');
+	$head[$h][2] = 'identities';
+	$h++;
+
 	$head[$h][0] = dol_buildpath('/vereine/admin/webhooks.php', 1);
 	$head[$h][1] = $langs->trans('VereineSetupTabWebhooks');
 	$head[$h][2] = 'webhooks';
