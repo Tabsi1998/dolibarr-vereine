@@ -744,6 +744,201 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Bind a person of a client to a member or an application
+	 *
+	 * The application sends the name it knows the person by and the one-time code the association gave
+	 * that person. The code is short lived, dies on first use and is worth nothing at another client.
+	 * An e-mail address or a member number is never enough: they find candidates, they prove nothing.
+	 *
+	 * Needs the right to act for verified people. The binding that comes out belongs to this client and
+	 * this entity and carries only the abilities the association switched on for it.
+	 *
+	 * @param string $subject How the application calls the person; stable, never an address alone
+	 * @param string $code    The one-time code of the invitation
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url POST identities/claim
+	 *
+	 * @throws RestException 400 subject or code missing
+	 * @throws RestException 403 Not allowed, code used, expired, or the name is taken
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function postIdentityClaim($subject = '', $code = '')
+	{
+		$this->checkAccess();
+		$this->checkIdentityRight();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		if ((string) $subject === '' || (string) $code === '') {
+			throw new RestException(400, 'subject and code are both needed');
+		}
+		$access = $this->access();
+		$result = $access->claim((string) DolibarrApiAccess::$user->login, (string) $subject, (string) $code, DolibarrApiAccess::$user);
+		if (!$result['ok']) {
+			throw new RestException(403, 'Not allowed: '.$result['reason']);
+		}
+		return VereineIdentityRules::describe($result['identity']);
+	}
+
+	/**
+	 * Who the caller is acting for
+	 *
+	 * What the association knows about this person at this client: the member or the application they
+	 * are bound to, what they may do, and how the binding came about. Nothing else, and nothing about
+	 * anybody else.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET identities/me
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed or no binding
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getIdentityMe($subject = '')
+	{
+		$this->checkAccess();
+		$this->checkIdentityRight();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		$identity = $this->boundIdentity((string) $subject);
+		return VereineIdentityRules::describe($identity);
+	}
+
+	/**
+	 * The consents of the person the caller acts for
+	 *
+	 * Only the person's own consents, and only when the association switched the ability consents on for
+	 * this binding. A binding that carries only an application has no member and gets nothing here.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET me/consents
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyConsents($subject = '')
+	{
+		$this->checkAccess();
+		$this->checkIdentityRight();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		$identity = $this->allowed((string) $subject, VereineIdentityRules::CAPABILITY_CONSENTS, 'member');
+		dol_include_once('/vereine/class/vereineconsents.class.php');
+		$consents = new VereineConsents($this->db);
+		return $consents->stateFor((int) $identity['member_id']);
+	}
+
+	/**
+	 * The application for membership of the person the caller acts for
+	 *
+	 * An applicant is nobody's member yet. This is the one thing such a binding opens: the state of
+	 * their own application, never a member's data.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET me/application
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 No such application
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyApplication($subject = '')
+	{
+		$this->checkAccess();
+		$this->checkIdentityRight();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		$identity = $this->allowed((string) $subject, VereineIdentityRules::CAPABILITY_APPLICATIONS, 'application');
+		dol_include_once('/vereine/class/vereineapplications.class.php');
+		$applications = new VereineApplications($this->db);
+		$row = $applications->fetch((int) $identity['application_id']);
+		if ($row === null) {
+			throw new RestException(404, 'No such application');
+		}
+		// The same form as GET applications/{external_id} gives: a moment, or empty while nobody decided.
+		return array('application_id' => (int) $row['id'], 'status' => (string) $row['status'],
+			'decided_at' => (string) $row['decided_on'] !== '' ? dol_print_date($this->db->jdate($row['decided_on']), 'dayhourrfc') : '',
+			'reason' => (string) $row['reason']);
+	}
+
+	/**
+	 * Refuse the call unless this client may act for verified people at all.
+	 *
+	 * @return void
+	 *
+	 * @throws RestException
+	 */
+	private function checkIdentityRight()
+	{
+		if (!DolibarrApiAccess::$user->hasRight('vereine', 'identity', 'use')) {
+			throw new RestException(403, 'Not allowed: the user needs the right to act for verified people');
+		}
+	}
+
+	/**
+	 * The access service.
+	 *
+	 * @return VereineAccess
+	 */
+	private function access()
+	{
+		dol_include_once('/vereine/class/vereineaccess.class.php');
+		return new VereineAccess($this->db);
+	}
+
+	/**
+	 * The binding of a person at this client, or a refusal.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array<string,mixed>
+	 *
+	 * @throws RestException
+	 */
+	private function boundIdentity($subject)
+	{
+		global $conf;
+
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		if ((string) $subject === '') {
+			throw new RestException(400, 'subject is needed');
+		}
+		$access = $this->access();
+		$client = (string) DolibarrApiAccess::$user->login;
+		$identity = $access->identity($client, (string) $subject);
+		$wrong = VereineIdentityRules::alive($identity, $client, (int) $conf->entity);
+		if ($wrong !== '') {
+			throw new RestException(403, 'Not allowed: '.$wrong);
+		}
+		return $identity;
+	}
+
+	/**
+	 * The binding of a person, refused unless it may do this to that kind of object.
+	 *
+	 * @param string $subject    How the application calls the person
+	 * @param string $capability What is to be done
+	 * @param string $objectType member or application
+	 * @return array<string,mixed>
+	 *
+	 * @throws RestException
+	 */
+	private function allowed($subject, $capability, $objectType)
+	{
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		if ((string) $subject === '') {
+			throw new RestException(400, 'subject is needed');
+		}
+		$result = $this->access()->check(DolibarrApiAccess::$user, (string) $subject, (string) $capability, (string) $objectType);
+		if (!$result['ok']) {
+			throw new RestException(403, 'Not allowed: '.$result['reason']);
+		}
+		return $result['identity'];
+	}
+
+	/**
 	 * Refuse the call unless the module is on and the user may read the association.
 	 *
 	 * @return void

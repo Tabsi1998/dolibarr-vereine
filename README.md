@@ -66,6 +66,10 @@ und bringt eine REST-API für die Vereinswebsite mit.
   qualifiziert, rechtlich wie eigenhändig – über einen eigenen Signaturdienst
   (PDF-AS). Einrichtung in [docs/ID-AUSTRIA.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/ID-AUSTRIA.md).
 
+- **Persönlicher Zugriff über die API**: Eine App oder Website handelt für eine
+  bestimmte Person nur über eine Bindung, die der Verein per einmaliger Einladung
+  erzeugt hat – je Anwendung, je Objekt, mit einzeln eingeschalteten Fähigkeiten.
+  E-Mail-Adresse und Mitgliedsnummer sind dafür nie ein Nachweis.
 - **Signierte Webhooks**: Der Verein trägt ein Ziel ein, das Modul schickt jede
   Änderung dorthin – signiert, erst nach dem Commit und über eine geplante
   Aufgabe, damit ein langsamer Empfänger niemanden aufhält. Mit Wiederholung,

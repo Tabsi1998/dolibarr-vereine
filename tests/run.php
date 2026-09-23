@@ -65,6 +65,7 @@ require_once $root.'/class/vereineshiftrules.class.php';
 require_once $root.'/class/vereineassemblyrules.class.php';
 require_once $root.'/class/vereinechangerules.class.php';
 require_once $root.'/class/vereinehookrules.class.php';
+require_once $root.'/class/vereineidentityrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1792,7 +1793,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1805,6 +1806,9 @@ $prefixes = array(
 	'VereineAssemblyStep_' => array_keys(VereineAssemblyRules::STEPS),
 	'VereineAssemblyHelp_' => array_keys(VereineAssemblyRules::STEPS),
 	'VereineHookStatus_' => VereineHookRules::STATUSES,
+	'VereineIdentityCapability_' => VereineIdentityRules::CAPABILITIES,
+	'VereineIdentityProof_' => VereineIdentityRules::PROOFS,
+	'VereineIdentityInviteState_' => array('open', 'used', 'expired'),
 	'VereineDutyBasis_' => VereineDutyRules::BASES,
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
@@ -2383,6 +2387,87 @@ expect(strpos(VereineHookRules::maskError('v1=deadbeefdeadbeef broken', array())
 	'a signature is taken out of a message');
 same('a1b2c3d4…', VereineHookRules::maskSecret('a1b2c3d4'), 'the setup shows the name of the secret, never the secret');
 same(250, mb_strlen(VereineHookRules::maskError(str_repeat('x', 400), array()), 'UTF-8'), 'a message stays short');
+
+// ------------------------------------------------------------- verified external identities (#153)
+
+$memberIdentity = array('entity' => 1, 'client' => 'lionsapp', 'subject' => 'sub-1', 'member_id' => 42,
+	'application_id' => 0, 'capabilities' => 'consents', 'revoked_at' => '', 'proof' => 'invitation',
+	'linked_at' => '2026-09-23 14:05:11');
+$applicantIdentity = array('entity' => 1, 'client' => 'website', 'subject' => 'sub-2', 'member_id' => 0,
+	'application_id' => 7, 'capabilities' => 'applications', 'revoked_at' => '', 'proof' => 'invitation',
+	'linked_at' => '2026-09-23 14:05:11');
+
+// What a name at a client may look like.
+same('', VereineIdentityRules::checkSubject('sub-1'), 'a plain name is fine');
+same('', VereineIdentityRules::checkSubject('auth0|61f2c9'), 'the name an identity provider gives is fine');
+same('VereineIdentityErrorSubject', VereineIdentityRules::checkSubject(''), 'no name is refused');
+same('VereineIdentityErrorSubject', VereineIdentityRules::checkSubject('mit leerzeichen'), 'a name with a blank is refused');
+same('VereineIdentityErrorSubject', VereineIdentityRules::checkSubject(str_repeat('x', 129)), 'a name that long is refused');
+
+// Abilities are off until somebody switches them on.
+same(array(), VereineIdentityRules::capabilities(''), 'nothing is allowed by default');
+same(array('consents'), VereineIdentityRules::capabilities('consents'), 'what was switched on is allowed');
+same(array('consents', 'votes'), VereineIdentityRules::capabilities('consents, votes, unfug'),
+	'an ability nobody defined is dropped');
+same(array('consents'), VereineIdentityRules::capabilities('consents,consents'), 'an ability named twice counts once');
+
+// A binding is alive only for its own client and entity.
+same('', VereineIdentityRules::alive($memberIdentity, 'lionsapp', 1), 'the binding of this client is alive');
+same('VereineIdentityErrorClient', VereineIdentityRules::alive($memberIdentity, 'website', 1),
+	'a binding of one application is worth nothing at another');
+same('VereineIdentityErrorEntity', VereineIdentityRules::alive($memberIdentity, 'lionsapp', 2),
+	'a binding of one entity is worth nothing in another');
+same('VereineIdentityErrorUnknown', VereineIdentityRules::alive(null, 'lionsapp', 1), 'without a binding nothing is alive');
+same('VereineIdentityErrorRevoked', VereineIdentityRules::alive(array('revoked_at' => '2026-09-01 08:00:00') + $memberIdentity,
+	'lionsapp', 1), 'a binding that was taken back is not alive');
+
+// Who may do what to which object.
+same('', VereineIdentityRules::decide($memberIdentity, 'lionsapp', 1, 'consents', 'member'),
+	'the member reads their own consents');
+same('', VereineIdentityRules::decide($memberIdentity, 'lionsapp', 1, 'consents', 'member', 42),
+	'naming their own member changes nothing');
+same('VereineIdentityErrorForeign', VereineIdentityRules::decide($memberIdentity, 'lionsapp', 1, 'consents', 'member', 43),
+	'asking for somebody else is refused, not forgiven');
+same('VereineIdentityErrorNotAllowed', VereineIdentityRules::decide($memberIdentity, 'lionsapp', 1, 'votes', 'member'),
+	'an ability that is off is refused');
+same('VereineIdentityErrorCapability', VereineIdentityRules::decide($memberIdentity, 'lionsapp', 1, 'alles', 'member'),
+	'an ability nobody defined is refused');
+same('VereineIdentityErrorNoBinding', VereineIdentityRules::decide($memberIdentity, 'lionsapp', 1, 'consents', 'application'),
+	'a member binding is no application binding');
+
+// An applicant is bound to their application and to nothing else.
+same('', VereineIdentityRules::decide($applicantIdentity, 'website', 1, 'applications', 'application'),
+	'the applicant reads their own application');
+same('VereineIdentityErrorNoBinding', VereineIdentityRules::decide($applicantIdentity, 'website', 1, 'applications', 'member'),
+	'an applicant is nobody\'s member, whatever they ask for');
+same('VereineIdentityErrorForeign', VereineIdentityRules::decide($applicantIdentity, 'website', 1, 'applications', 'application', 8),
+	'another application is not theirs');
+same('VereineIdentityErrorNotAllowed', VereineIdentityRules::decide($applicantIdentity, 'website', 1, 'consents', 'application'),
+	'the applicant did not get the ability for consents');
+
+// A code is only ever kept as its hash, and an invitation dies.
+$code = VereineIdentityRules::newCode();
+expect(strlen($code['code']) >= 30 && $code['hash'] !== $code['code'], 'a code is long and is not what is stored');
+same($code['hash'], VereineIdentityRules::hash($code['code']), 'the same code gives the same hash');
+expect(VereineIdentityRules::hash('anderer code') !== $code['hash'], 'another code gives another hash');
+$invite = array('client' => 'lionsapp', 'used_at' => '', 'expires_at' => '2026-09-23 15:00:00');
+same('', VereineIdentityRules::inviteUsable($invite, 'lionsapp', '2026-09-23 14:05:11'), 'a fresh invitation can be used');
+same('VereineIdentityErrorExpired', VereineIdentityRules::inviteUsable($invite, 'lionsapp', '2026-09-23 15:00:01'),
+	'an invitation that ran out cannot be used');
+same('VereineIdentityErrorUsed', VereineIdentityRules::inviteUsable(array('used_at' => '2026-09-23 14:30:00') + $invite,
+	'lionsapp', '2026-09-23 14:35:00'), 'an invitation works once');
+same('VereineIdentityErrorClient', VereineIdentityRules::inviteUsable($invite, 'website', '2026-09-23 14:05:11'),
+	'an invitation for one application is worth nothing at another');
+same('VereineIdentityErrorCode', VereineIdentityRules::inviteUsable(null, 'lionsapp', '2026-09-23 14:05:11'),
+	'a code nobody handed out is refused');
+
+// What a caller is told about itself, and what it is not told.
+$described = VereineIdentityRules::describe($memberIdentity);
+same(array('subject', 'member_id', 'application_id', 'capabilities', 'proof', 'linked_at'), array_keys($described),
+	'the answer carries the binding and nothing else');
+same(42, $described['member_id'], 'the member of the binding is named');
+same(null, $described['application_id'], 'what the binding does not carry is null, not zero');
+same(array('consents'), $described['capabilities'], 'the abilities are named as a list');
 
 // ------------------------------------------------------------------- result
 

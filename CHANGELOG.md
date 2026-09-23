@@ -9,6 +9,22 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **Persönlicher Zugriff über die API** (#153): Eine App, eine Website oder Dolibarrs Portal kann
+  jetzt für **eine bestimmte Person** handeln – aber nur über eine Bindung, die der Verein
+  ausdrücklich erzeugt hat. Neue Endpunkte `POST /vereine/identities/claim`,
+  `GET /vereine/identities/me`, `GET /vereine/me/consents` und `GET /vereine/me/application`.
+- **Eine Stelle entscheidet**: Darf die Anwendung überhaupt für Personen handeln? Gibt es eine
+  Bindung bei genau dieser Anwendung und in diesem Mandanten? Ist sie nicht widerrufen, trägt
+  sie die Fähigkeit, und geht es um das eigene Objekt? Fremdes wird abgewiesen, nicht umgeleitet.
+- **Einladung statt Vermutung**: Unter *Einrichtung > Vereine > Externe Identitäten* erzeugt der
+  Verein einen Code, der einmal gezeigt wird, eine Stunde gilt und beim ersten Einlösen verfällt.
+  E-Mail-Adresse und Mitgliedsnummer liefern nur Kandidaten – eine Familie teilt sich eine
+  Adresse, und eine Nummer lässt sich raten.
+- **Antragsteller** werden an ihren Antrag gebunden, nicht an ein Mitglied, und bekommen dadurch
+  keine Mitgliedsrechte.
+- **Alle Fähigkeiten sind aus**, bis der Verein sie einschaltet. Der bisherige Dienstzugang
+  (API v1) bleibt unverändert, bekommt durch das Update kein zusätzliches Recht, und seine
+  Vertrauensgrenze steht jetzt ausdrücklich in `docs/API.md`.
 - **Signierte Webhooks** (#155): Unter *Einrichtung > Vereine > Webhooks* trägt der Verein ein
   Ziel ein; eine geplante Aufgabe schickt jede Änderung des Feeds dorthin. **Nie während einer
   Fachtransaktion**: ein zurückgerollter Vorgang wird nie zugestellt, und ein langsamer oder

@@ -374,7 +374,8 @@ def enable(stack: Stack) -> str:
            "enabling left the country profile of earlier versions in place")
     rights = stack.sql("SELECT id, perms, subperms FROM llx_rights_def WHERE module = 'vereine' AND entity = 1 ORDER BY id")
     expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"], ["49210003", "website", "read"],
-                      ["49210004", "application", "write"], ["49210005", "sync", "read"]], f"rights after enabling: {rights}")
+                      ["49210004", "application", "write"], ["49210005", "sync", "read"],
+                      ["49210006", "identity", "use"]], f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_account", "/vereine/account.php"],
                     ["members", "vereine_application", "/vereine/application.php"],
@@ -2742,6 +2743,111 @@ def webhooks(stack: Stack) -> str:
             "and takes the same event only once")
 
 
+def identities(stack: Stack) -> str:
+    """Two independent clients on the same contract: an invitation binds, a foreign subject, a used code and a missing ability are refused (#153)."""
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/identities.php"
+    expect(denied(stack.browser("rtreader").get(setup)), "a non-administrator opens the identities")
+    page = page_ok(browser.get(setup), "the identities")
+    expect('data-identity-none="1"' in page.text, "there is already a binding")
+
+    # Two clients that know nothing of each other, each with its own key and the right to act for people.
+    right = int(stack.value("SELECT id FROM llx_rights_def WHERE module = 'vereine' AND perms = 'identity'"
+                            " AND subperms = 'use' AND entity = 1") or 0)
+    expect(right > 0, "enabling the module did not register the right to act for people")
+    clients = {}
+    for login in ("rtapp", "rtportal"):
+        key = secrets.token_hex(16)
+        stack.php_fixture("apiclient", RT_LOGIN=login, RT_CLIENT_KEY=key)
+        clients[login] = key
+
+    # Without a binding nothing works, however well the client is authenticated.
+    status, refused = stack.api("vereine/identities/me?subject=sub-unbekannt", clients["rtapp"])
+    expect(status == 403, f"an unknown subject answered HTTP {status}")
+
+    # An invitation from the association binds one person at one client.
+    member = int(stack.value("SELECT rowid FROM llx_adherent WHERE statut = 1 ORDER BY rowid LIMIT 1"))
+    page = page_ok(browser.get(setup), "the identities before the invitation")
+    page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {
+        "client": "rtapp", "member_id": str(member), "application_id": "0", "capabilities[]": "consents"}),
+        "invite the member")
+    code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text)
+    expect(code is not None and 'data-identity-code="1"' in page.text, "the invitation showed no code")
+    code = code.group(1)
+    expect(code not in page_ok(browser.get(setup), "the identities again").text, "the code is shown a second time")
+
+    # The other client cannot use that invitation, however it asks.
+    status, wrong = stack.api(f"vereine/identities/claim?subject=sub-portal&code={code}", clients["rtportal"],
+                              method="POST")
+    expect(status == 403, f"another client used the invitation: HTTP {status}")
+    status, claimed = stack.api(f"vereine/identities/claim?subject=sub-app-1&code={code}", clients["rtapp"], method="POST")
+    expect(status == 200 and claimed["member_id"] == member, f"the invitation did not bind: HTTP {status}, {claimed}")
+    expect(claimed["capabilities"] == ["consents"] and claimed["application_id"] is None,
+           f"the binding carries the wrong abilities: {claimed}")
+
+    # A code works once.
+    status, again = stack.api(f"vereine/identities/claim?subject=sub-app-2&code={code}", clients["rtapp"], method="POST")
+    expect(status == 403, f"the same code bound a second person: HTTP {status}")
+
+    # What the binding opens, and what it does not.
+    status, mine = stack.api("vereine/identities/me?subject=sub-app-1", clients["rtapp"])
+    expect(status == 200 and mine["member_id"] == member, f"the binding cannot read itself: {mine}")
+    status, consents = stack.api("vereine/me/consents?subject=sub-app-1", clients["rtapp"])
+    expect(status == 200, f"the member cannot read their own consents: HTTP {status}")
+    status, refused = stack.api("vereine/me/application?subject=sub-app-1", clients["rtapp"])
+    expect(status == 403, f"a member binding opened an application: HTTP {status}")
+
+    # The same subject at the other client is a different person, and that client sees nothing.
+    status, foreign = stack.api("vereine/identities/me?subject=sub-app-1", clients["rtportal"])
+    expect(status == 403, f"the binding of one client worked at another: HTTP {status}")
+    status, foreign = stack.api("vereine/me/consents?subject=sub-app-1", clients["rtportal"])
+    expect(status == 403, f"another client read the consents of a stranger: HTTP {status}")
+
+    # An applicant: bound to their application, and to nothing else.
+    application = int(stack.value("SELECT rowid FROM llx_vereine_application ORDER BY rowid LIMIT 1") or 0)
+    expect(application > 0, "there is no application to bind an applicant to")
+    page = page_ok(browser.get(setup), "the identities before the applicant")
+    page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {
+        "client": "rtportal", "member_id": "0", "application_id": str(application), "capabilities[]": "applications"}),
+        "invite the applicant")
+    applicant_code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+    status, bound = stack.api(f"vereine/identities/claim?subject=sub-antrag&code={applicant_code}", clients["rtportal"],
+                              method="POST")
+    expect(status == 200 and bound["member_id"] is None and bound["application_id"] == application,
+           f"the applicant was bound to a member: {bound}")
+    status, own = stack.api("vereine/me/application?subject=sub-antrag", clients["rtportal"])
+    expect(status == 200 and own["application_id"] == application, f"the applicant cannot read their own application: {own}")
+    status, refused = stack.api("vereine/me/consents?subject=sub-antrag", clients["rtportal"])
+    expect(status == 403, f"an applicant read a member's consents: HTTP {status}")
+
+    # An address finds candidates, never a binding.
+    email = stack.value("SELECT email FROM llx_adherent WHERE COALESCE(email, '') <> '' ORDER BY rowid LIMIT 1")
+    expect(email not in ("", "NULL", None), "no member has an address to search for")
+    page = page_ok(browser.get(setup), "the identities before the search")
+    found = page_ok(browser.submit(page.form(name="vereineidentitysearch"), {"email": email, "ref": ""}), "search by address")
+    expect('data-identity-candidate=' in found.text, "the search found nobody to look at")
+    expect(int(stack.value("SELECT COUNT(*) FROM llx_vereine_identity") or 0) == 2,
+           "the search made a binding out of a hit")
+
+    # Taking a binding back stops what it allowed, at once.
+    identity = int(stack.value("SELECT rowid FROM llx_vereine_identity WHERE subject = 'sub-app-1'"))
+    page = page_ok(browser.get(setup), "the identities before the revocation")
+    page_ok(browser.post(setup, [("token", token_of(page)), ("action", "revoke"), ("identity", str(identity))]), "revoke")
+    status, after = stack.api("vereine/me/consents?subject=sub-app-1", clients["rtapp"])
+    expect(status == 403, f"a revoked binding still read consents: HTTP {status}")
+
+    # The service access of API v1 is untouched and still knows nothing about people.
+    status, summary = stack.api("vereine/members?limit=1", stack.notes["website"]["key"])
+    expect(status == 200, f"the website key lost its own access: HTTP {status}")
+    status, refused = stack.api("vereine/identities/me?subject=sub-app-1", stack.notes["website"]["key"])
+    expect(status == 403, f"the website key acted for a person: HTTP {status}")
+    return ("two clients on the same contract without a special case; an invitation binds one member at one client, "
+            "the other client cannot use it and the code works once; a member binding opens the consents and not the "
+            "application, an applicant binding opens the application and no member data; an address finds candidates "
+            "without binding anybody; a revocation stops the access at once, and the service access of API v1 stays "
+            "what it was")
+
+
 def board(stack: Stack) -> str:
     """A website reads the board: names only with consent, or for the board always when it must be disclosed."""
     site = stack.notes["website"]
@@ -4857,6 +4963,7 @@ SCENARIOS = (
     ("assembly", "The way through a general assembly: deadlines before, the day itself, and what follows from it", assembly, ("shifts", "minutes")),
     ("changes", "The change feed: notes without content, a cursor that loses nothing, resync instead of a silent gap", changes, ("assembly",)),
     ("webhooks", "Signed webhooks: https targets only, delivery after the commit, backoff, rotation, reference receiver", webhooks, ("changes",)),
+    ("identities", "Verified external identities: two clients, one contract, bindings that open exactly their own object", identities, ("webhooks",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),

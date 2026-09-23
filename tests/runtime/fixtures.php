@@ -1381,4 +1381,36 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian or reset');
+if ($stage === 'apiclient') {
+	// A technical client of an external application: it authenticates itself, and nothing more. For whom
+	// it may act comes from a binding, never from the client saying so (#153).
+	$login = rt_env('RT_LOGIN');
+	$client = new User($db);
+	if ($client->fetch(0, $login) <= 0) {
+		$client->login = $login;
+		$client->lastname = 'Client';
+		$client->firstname = 'Runtime';
+		$client->admin = 0;
+		$client->entity = 1;
+		if ($client->create($admin) <= 0) {
+			rt_fail('user '.$login.': '.$client->error);
+		}
+		$client->fetch($client->id);
+	}
+	$client->api_key = rt_env('RT_CLIENT_KEY');
+	if ($client->update($admin) <= 0) {
+		rt_fail('API key for '.$login.': '.$client->error);
+	}
+	foreach (array(array('association', 'read'), array('identity', 'use')) as $right) {
+		$sql = "SELECT id FROM ".MAIN_DB_PREFIX."rights_def WHERE module = 'vereine' AND perms = '".$right[0]."'";
+		$sql .= " AND subperms = '".$right[1]."' AND entity = 1";
+		$rightId = (int) rt_value($db, $sql);
+		if ($rightId <= 0 || $client->addrights($rightId) < 0) {
+			rt_fail('granting vereine/'.$right[0].'/'.$right[1].' to '.$login.': '.$client->error);
+		}
+	}
+	print json_encode(array('user' => (int) $client->id, 'login' => $login))."\n";
+	exit(0);
+}
+
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient or reset');
