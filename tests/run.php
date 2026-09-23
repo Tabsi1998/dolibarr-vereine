@@ -1934,6 +1934,7 @@ $prefixes = array(
 	'VereineExitReason_' => VereineExitRules::REASONS,
 	'VereineExitAt_' => VereineExitRules::ATS,
 	'VereineExitRuleText_' => VereineExitRules::ATS,
+	'VereineApplicationExit_' => VereineExitRules::ATS,
 	'VereineExitPast_' => array('done', 'cancelled'),
 	'VereineInvoiceStatus_' => array('draft', 'open', 'overdue', 'paid', 'abandoned'),
 	'VereineFeeReasonProrated_' => array('month', 'quarter', 'half_year'),

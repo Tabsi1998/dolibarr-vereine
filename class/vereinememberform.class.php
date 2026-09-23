@@ -230,32 +230,47 @@ class VereineMemberForm
 			$pdf->SetFont($font, $style, $size);
 			$pdf->MultiCell(0, 5, $value, 0, 'L');
 		};
-		// A field of the form: what it is called, and the value or a line to write on.
+		// A field of the form: what it is called, and a line with the value on it or to write on.
 		$field = function ($name, $label, $value, $required = false) use ($pdf, $font, $fillable) {
+			$pdf->SetFont($font, '', 9);
+			$pdf->MultiCell(28, 7, $label.($required ? ' *' : ''), 0, 'L', false, 0, '', '', true, 0, false, true, 7, 'B');
 			$pdf->SetFont($font, '', 10);
-			$pdf->MultiCell(55, 6, $label.($required ? ' *' : '').':', 0, 'L', false, 0);
-			if ($value !== '') {
-				$pdf->SetFont($font, 'B', 10);
-				$pdf->MultiCell(115, 6, $value, 0, 'L', false, 1);
-				return;
+			VereinePdf::input($pdf, 'antrag_'.$name, 142, $fillable, 7, $value);
+		};
+		// Two short fields side by side, such as first and last name (#202).
+		$pair = function (array $left, array $right) use ($pdf, $font, $fillable) {
+			foreach (array($left, $right) as $index => $one) {
+				$pdf->SetX(VereinePdf::SIDE + $index * 87);
+				$pdf->SetFont($font, '', 9);
+				$pdf->MultiCell(28, 7, $one[1].(!empty($one[3]) ? ' *' : ''), 0, 'L', false, 0, '', '', true, 0, false, true, 7, 'B');
+				$pdf->SetFont($font, '', 10);
+				VereinePdf::line($pdf, 'antrag_'.$one[0], 55, $fillable, 7, $one[2]);
 			}
-			VereinePdf::input($pdf, 'antrag_'.$name, 115, $fillable);
+			$pdf->Ln(7);
 		};
 		$yesNo = function ($name, $label) use ($pdf, $outputlangs, $fillable) {
 			VereinePdf::choice($pdf, $outputlangs, 'antrag_'.$name, $label, $fillable);
 		};
 
-		VereinePdf::title($pdf, $outputlangs, $outputlangs->transnoentities('VereineApplicationTitle'),
-			$organization['name'].($organization['register']['number'] !== '' ? ' – ZVR '.$organization['register']['number'] : ''));
+		VereinePdf::title($pdf, $outputlangs, $outputlangs->transnoentities('VereineApplicationTitle'));
 		if ($settings['intro'] !== '') {
 			$text($this->filled($settings['intro'], $member));
 			$pdf->Ln(2);
 		}
 
 		VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineApplicationPerson'));
+		$person = array();
 		foreach (self::FIELDS as $name) {
-			$field($name, $outputlangs->transnoentitiesnoconv('VereineApplicationField_'.$name), $this->personValue($member, $name, $outputlangs),
+			$person[$name] = array($name, $outputlangs->transnoentitiesnoconv('VereineApplicationField_'.$name), $this->personValue($member, $name, $outputlangs),
 				in_array($name, $settings['required'], true));
+		}
+		// Short fields in pairs, the long ones across the page.
+		foreach (array(array('lastname', 'firstname'), array('birth', 'gender'), array('address'), array('zip', 'town'), array('country', 'phone'), array('email')) as $row) {
+			if (count($row) === 2) {
+				$pair($person[$row[0]], $person[$row[1]]);
+			} else {
+				$field($person[$row[0]][0], $person[$row[0]][1], $person[$row[0]][2], $person[$row[0]][3]);
+			}
 		}
 		// The association's own fields, such as a gamer tag, with the value the member already has.
 		foreach ($settings['extra'] as $code => $mustHave) {
@@ -272,7 +287,11 @@ class VereineMemberForm
 		foreach ($this->feeLines($type, $outputlangs) as $line) {
 			$text($line);
 		}
-		$text($outputlangs->transnoentities('VereineApplicationNotice', vereineExitRuleText((new VereineExits($this->db))->rule())));
+		$bank = self::bank($this->db);
+		if ($bank !== '') {
+			$text($outputlangs->transnoentities('VereineApplicationBankLine', $bank), '', 9);
+		}
+		$text(self::exitSentence((new VereineExits($this->db))->rule(), $outputlangs));
 		foreach ($type !== null ? $this->discountLines((int) $type['id'], $outputlangs) : array() as $line) {
 			$text($line, '', 9);
 		}
@@ -292,7 +311,7 @@ class VereineMemberForm
 			}
 			$pdf->Ln(1);
 		}
-		$yesNo('statuten', $outputlangs->transnoentitiesnoconv('VereineApplicationStatutes'));
+		VereinePdf::tick($pdf, $outputlangs, 'antrag_statuten', $outputlangs->transnoentitiesnoconv('VereineApplicationStatutes'), $fillable);
 
 		$consents = (new VereineConsents($this->db))->currentTexts();
 		if ($consents) {
@@ -305,7 +324,7 @@ class VereineMemberForm
 				if ($pdf->GetY() + $needed > $pdf->getPageHeight() - VereinePdf::BOTTOM - 5) {
 					$pdf->AddPage();
 				}
-				$text($consent['label'].' (v'.((int) $consent['version']).')', 'B');
+				VereinePdf::label($pdf, $outputlangs, $consent['label'], $outputlangs->transnoentities('VereineApplicationConsentVersion', (int) $consent['version']));
 				if ($body !== '') {
 					$text($body, '', 9);
 				}
@@ -329,7 +348,7 @@ class VereineMemberForm
 			VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineApplicationSepaTitle'));
 			$creditor = getDolGlobalString('PRELEVEMENT_ICS');
 			$text($outputlangs->transnoentities('VereineApplicationSepaText', $organization['name'],
-				$creditor !== '' ? $outputlangs->transnoentities('VereineApplicationSepaCreditor', $creditor) : ''), '', 9);
+				$creditor !== '' ? ' '.$outputlangs->transnoentities('VereineApplicationSepaCreditor', $creditor) : ''), '', 9);
 			foreach (array('kontoinhaber' => 'VereineApplicationSepaHolder', 'iban' => 'VereineApplicationSepaIban') as $name => $label) {
 				$field($name, $outputlangs->transnoentitiesnoconv($label), '');
 			}
@@ -337,10 +356,6 @@ class VereineMemberForm
 		}
 
 		$this->signatures($pdf, $member, $outputlangs, $fillable && !$submitted, $submitted);
-		$footer = $this->footer($organization);
-		$pdf->Ln(4);
-		$pdf->SetFont($font, 'I', 8);
-		$pdf->MultiCell(0, 4, $footer, 0, 'L');
 
 		VereinePdf::finish($pdf, $outputlangs, $outputlangs->transnoentities('VereineApplicationTitle'));
 		$pdf->Output($file, 'F');
@@ -591,28 +606,20 @@ class VereineMemberForm
 	}
 
 	/**
-	 * The footer: address, contact, bank account and register number of the association.
+	 * How to leave, as a sentence for the one who applies (#202).
 	 *
-	 * @param array<string,mixed> $organization Association
+	 * @param array<string,mixed> $rule        Rule of VereineExits::rule()
+	 * @param Translate           $outputlangs Language
 	 * @return string
 	 */
-	private function footer(array $organization)
+	public static function exitSentence(array $rule, $outputlangs)
 	{
-		$parts = array($organization['name']);
-		$address = trim($organization['address']['street'].', '.trim($organization['address']['zip'].' '.$organization['address']['town']), ' ,');
-		foreach (array($address, $organization['email'], $organization['phone'], $organization['url']) as $value) {
-			if ((string) $value !== '') {
-				$parts[] = $value;
-			}
-		}
-		$bank = self::bank($this->db);
-		if ($bank !== '') {
-			$parts[] = $bank;
-		}
-		if ($organization['register']['number'] !== '') {
-			$parts[] = 'ZVR '.$organization['register']['number'];
-		}
-		return implode(' · ', $parts);
+		$months = array(1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April', 5 => 'May', 6 => 'June', 7 => 'July', 8 => 'August',
+			9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December');
+		$span = (int) $rule['months'] === 1 ? $outputlangs->transnoentitiesnoconv('VereineMonthsOne')
+			: $outputlangs->transnoentities('VereineMonthsMany', (int) $rule['months']);
+		$start = isset($months[(int) $rule['start_month']]) ? $outputlangs->transnoentitiesnoconv($months[(int) $rule['start_month']]) : '';
+		return $outputlangs->transnoentities('VereineApplicationExit_'.$rule['at'], $span, $start);
 	}
 
 	/**
