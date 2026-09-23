@@ -72,6 +72,7 @@ require_once __DIR__.'/class/vereineminutes.class.php';
 require_once __DIR__.'/class/vereineresolutiondocs.class.php';
 require_once __DIR__.'/class/vereineaudit.class.php';
 require_once __DIR__.'/class/vereineaccount.class.php';
+require_once __DIR__.'/class/vereinevolunteerpayouts.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('members', 'vereine@vereine'));
@@ -123,6 +124,9 @@ function vereineSignatureDocument($db, array $run)
 	if ($run['kind'] === VereineSignatureRules::KIND_ACCOUNT) {
 		return array('file' => VereineAccount::pdfPath($run['object_id']),
 			'back' => dol_buildpath('/vereine/account.php', 1).'?year='.((new VereineAccount($db))->yearOf($run['object_id'])).'#vereineaccountpdf');
+	}
+	if ($run['kind'] === VereineSignatureRules::KIND_PAYOUT) {
+		return array('file' => VereineVolunteerPayouts::path($run['object_id']), 'back' => dol_buildpath('/vereine/volunteer.php', 1).'#vereinevolunteerpayouts');
 	}
 	return array('file' => '', 'back' => dol_buildpath('/vereine/vereineindex.php', 1));
 }

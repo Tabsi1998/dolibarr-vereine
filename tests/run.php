@@ -68,6 +68,7 @@ require_once $root.'/class/vereinehookrules.class.php';
 require_once $root.'/class/vereineidentityrules.class.php';
 require_once $root.'/class/vereineapplicationformrules.class.php';
 require_once $root.'/class/vereinevolunteerrules.class.php';
+require_once $root.'/class/vereineoverpaymentrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1415,7 +1416,8 @@ foreach (VereineStatuteText::sections($statuteRules, VereineStatuteText::normali
 $moneyRules = VereineSignatureRules::normalize(null, array('obmann', 'schriftfuehrung', 'kassier', 'rechnungspruefung'));
 same(array('obmann', 'kassier'), $moneyRules['money']['roles'], 'a money matter is signed by the chair and the treasurer');
 same(array('obmann', 'schriftfuehrung'), $moneyRules['resolution']['roles'], 'an ordinary resolution stays with chair and secretary');
-expect(in_array('money', VereineSignatureRules::KINDS, true) && count(VereineSignatureRules::KINDS) === 6, 'six kinds of document');
+expect(in_array('money', VereineSignatureRules::KINDS, true) && count(VereineSignatureRules::KINDS) === 7, 'seven kinds of document');
+same(array('obmann', 'kassier'), VereineSignatureRules::defaults()['payout']['roles'], 'a volunteer payout is signed by the chair and the treasurer');
 same(true, VereineResolutionRules::normalize(array('money' => '1'))['money'], 'a resolution can be marked as a money matter');
 same(false, VereineResolutionRules::normalize(array())['money'], 'without the mark it is no money matter');
 
@@ -1795,7 +1797,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1813,6 +1815,12 @@ $prefixes = array(
 	'VereineIdentityInviteState_' => array('open', 'used', 'expired'),
 	'VereineApplicationExtra_' => array('off', 'optional', 'required'),
 	'VereineVolunteerKind_' => VereineVolunteerRules::KINDS,
+	'VereineOverpaymentState_' => array_merge(array(VereineOverpaymentRules::STATE_OPEN, VereineOverpaymentRules::STATE_DOLIBARR), VereineOverpaymentRules::KINDS),
+	'VereineOverpaymentWay_' => VereineOverpaymentRules::KINDS,
+	'VereineOverpaymentPreview_' => VereineOverpaymentRules::KINDS,
+	'VereineOverpaymentDo_' => VereineOverpaymentRules::KINDS,
+	'VereineOverpaymentAssigned_' => VereineOverpaymentRules::KINDS,
+	'VereineOverpaymentShow_' => array('open', 'all'),
 	'VereineVolunteerLimit_' => VereineVolunteerRules::KINDS,
 	'VereineVolunteerFinding_' => VereineVolunteerRules::FINDINGS,
 	'VereineVolunteerPayoutStatus_' => array('draft', 'paid'),
@@ -2605,6 +2613,28 @@ expect(!VereineVolunteerRules::payable(true, 'open', false), 'a list somebody st
 expect(!VereineVolunteerRules::payable(true, '', false), 'a list nobody asked to sign may not be paid');
 expect(!VereineVolunteerRules::payable(true, 'done', true), 'a list that changed after it was signed may not be paid');
 expect(VereineVolunteerRules::payable(false, '', false), 'when the association signs no money matters, the list may be paid');
+
+// ------------------------------------------------------------- overpayments (#54)
+
+same(0.32, VereineOverpaymentRules::excess(37.68, 38.00, 0), 'the example of the issue: 37,68 paid with 38,00 leaves 0,32');
+same(0.0, VereineOverpaymentRules::excess(37.68, 37.68, 0), 'paid exactly is no overpayment');
+same(0.0, VereineOverpaymentRules::excess(37.68, 20, 0), 'paid in part is no overpayment');
+same(5.0, VereineOverpaymentRules::excess(100, 80, 25), 'a credit note used on the invoice counts as paid');
+same(0.0, VereineOverpaymentRules::excess(10, 10.004, 0), 'less than a cent is no overpayment');
+same('open', VereineOverpaymentRules::state('', false), 'nobody decided: open');
+same('dolibarr', VereineOverpaymentRules::state('', true), "Dolibarr's own button made a credit of it");
+same('donation', VereineOverpaymentRules::state('donation', false), 'what the module stored is where it stands');
+same(array(), VereineOverpaymentRules::check('credit', 0.32, 'open', false), 'an open excess may stay as a credit');
+same(array(), VereineOverpaymentRules::check('refund', 0.32, 'open', false), 'an open excess may go back');
+same(array('VereineOverpaymentErrorConfirm'), VereineOverpaymentRules::check('donation', 0.32, 'open', false), 'a donation needs the word that it was given freely');
+same(array(), VereineOverpaymentRules::check('donation', 0.32, 'open', true), 'given freely, the excess may become a donation');
+same(array('VereineOverpaymentErrorAssigned'), VereineOverpaymentRules::check('refund', 0.32, 'credit', false), 'an excess is assigned once');
+same(array('VereineOverpaymentErrorAssigned'), VereineOverpaymentRules::check('donation', 0.32, 'dolibarr', true), 'an excess Dolibarr converted is assigned');
+same(array('VereineOverpaymentErrorNone'), VereineOverpaymentRules::check('credit', 0.0, 'open', false), 'nothing to assign without an excess');
+same(array('VereineOverpaymentErrorKind'), VereineOverpaymentRules::check('keep', 0.32, 'open', true), 'only the three ways');
+same(array('invoice' => 37.68, 'donation' => 0.32), VereineOverpaymentRules::splitDonation(38.0, 0.32), 'the payment: 37,68 for the invoice, 0,32 donation');
+same(array('invoice' => 0.0, 'donation' => 0.2), VereineOverpaymentRules::splitDonation(0.2, 0.32), 'never more donation than the payment brought');
+same(array('invoice' => 50.0, 'donation' => 0.0), VereineOverpaymentRules::splitDonation(50, 0), 'without a donation the payment stays with the invoice');
 
 // ------------------------------------------------------------------- result
 

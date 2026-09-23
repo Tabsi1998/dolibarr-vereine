@@ -155,7 +155,7 @@ if ($action === 'record' && $mayRecord) {
 	setEventMessages($result < 0 ? $payouts->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $payouts->errors), 'errors');
 } elseif ($action === 'startsign' && $mayRecord) {
 	$objectId = GETPOSTINT('object');
-	$result = $payouts->fetch($objectId) !== null ? $signatures->start(VereineSignatureRules::KIND_MONEY, $objectId,
+	$result = $payouts->fetch($objectId) !== null ? $signatures->start(VereineSignatureRules::KIND_PAYOUT, $objectId,
 		VereineVolunteerPayouts::path($objectId), $today, $user) : 0;
 	if ($result > 0) {
 		setEventMessages($langs->trans('VereineSignatureStarted'), null, 'mesgs');
@@ -166,7 +166,7 @@ if ($action === 'record' && $mayRecord) {
 } elseif ($action === 'sign' || $action === 'signscan') {
 	// Who may sign is the signature run's business: it knows who is asked to sign this list.
 	$run = $signatures->fetch(GETPOSTINT('signature'));
-	$ok = $run !== null && $run['kind'] === VereineSignatureRules::KIND_MONEY && $payouts->fetch($run['object_id']) !== null;
+	$ok = $run !== null && $run['kind'] === VereineSignatureRules::KIND_PAYOUT && $payouts->fetch($run['object_id']) !== null;
 	if ($action === 'sign') {
 		$result = $ok ? $signatures->sign($run['id'], GETPOST('password', 'password'), VereineVolunteerPayouts::path($run['object_id']), $user, $langs) : 0;
 	} else {
@@ -185,7 +185,7 @@ if ($action === 'record' && $mayRecord) {
 		$file = $payouts->fetch(GETPOSTINT('payout')) !== null ? VereineVolunteerPayouts::path(GETPOSTINT('payout')) : '';
 	} else {
 		$run = $signatures->fetch(GETPOSTINT('signature'));
-		$money = $run !== null && $run['kind'] === VereineSignatureRules::KIND_MONEY && $payouts->fetch($run['object_id']) !== null;
+		$money = $run !== null && $run['kind'] === VereineSignatureRules::KIND_PAYOUT && $payouts->fetch($run['object_id']) !== null;
 		$file = !$money ? '' : ($action === 'sheet' ? VereineSignatures::sheetPath($run['id']) : VereineSignatures::scanPath($run));
 	}
 	if ($file === '' || !is_file($file)) {
@@ -346,7 +346,7 @@ foreach ($allPayouts as $payout) {
 	print '<br><span class="badge badge-status '.($payout['status'] === VereineVolunteerPayouts::STATUS_PAID ? 'badge-status6' : 'badge-status1').'">';
 	print $langs->trans('VereineVolunteerPayoutStatus_'.$payout['status']).($payout['paid_on'] !== '' ? ' '.vereineFormatDay($payout['paid_on']) : '').'</span>';
 	print '</td><td>';
-	vereineSignatureBlock($signatures, VereineSignatureRules::KIND_MONEY, $payout['id'], VereineVolunteerPayouts::path($payout['id']), $mayRecord, 'vereinevolunteerpayouts');
+	vereineSignatureBlock($signatures, VereineSignatureRules::KIND_PAYOUT, $payout['id'], VereineVolunteerPayouts::path($payout['id']), $mayRecord, 'vereinevolunteerpayouts');
 	print '</td><td class="right">';
 	if ($mayRecord && $payable) {
 		print '<form method="POST" name="vereinevolunteerpay'.((int) $payout['id']).'" action="'.$self.'#vereinevolunteerpayouts">';

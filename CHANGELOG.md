@@ -24,12 +24,29 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 - **Jahresliste je Person** mit Einsatztagen, Summen je Art und Hinweisen, als CSV für die
   Meldungen ans Finanzamt. Abschicken bleibt Handarbeit.
 - **Auszahlen mit Unterschriften** (#7): Offene Einsätze kommen auf eine Auszahlungsliste als PDF.
-  Die wird unterschrieben wie jede Geldangelegenheit – ab Werk von Obmann/Obfrau und Kassier:in.
-  Vorher geht kein Cent hinaus. Danach legt ein Klick die Zahlungen als **sonstige Zahlungen in
+  Die wird unterschrieben wie eine Geldangelegenheit – ab Werk von Obmann/Obfrau und Kassier:in,
+  einstellbar als eigene Dokumentart *Auszahlung Freiwilligenpauschale* unter *Einrichtung –
+  Unterschriften*. Vorher geht kein Cent hinaus. Danach legt ein Klick die Zahlungen als **sonstige Zahlungen in
   Dolibarr** an, eine je Person, vom gewählten Bankkonto. Bank, Abgleich und
   Einnahmen-Ausgaben-Rechnung sehen sie wie jede andere Zahlung. Eine Liste, die nach dem
   Unterschreiben geändert wurde, lässt sich nicht auszahlen; eine noch nicht ausbezahlte Liste
   lässt sich zurücknehmen. Ausbezahlte Einsätze bleiben – sie gehören zur Buchhaltung.
+- **Überzahlungen zuordnen** (#54): Neuer Menüpunkt *Mitglieder > Verein > Überzahlungen*. Hat
+  jemand 38,00 € auf eine Rechnung über 37,68 € überwiesen, zeigt das Modul die 0,32 € auf der
+  Rechnung und in einer Liste (Filter nach Jahr, Rechnung oder Geschäftspartner). Du wählst mit
+  Vorschau: **Guthaben** (Dolibarrs eigenes Guthaben, wie der Knopf auf der Rechnung),
+  **Rückzahlung** (sonstige Zahlung vom Bankkonto) oder – nur nach der Bestätigung, dass er
+  freiwillig und ohne Gegenleistung gegeben wurde – **Spende** über genau den Mehrbetrag im
+  Spendenmodul, mit der Rechnung verknüpft. Die Rechnung bleibt unverändert und gilt danach als
+  bezahlt. Derselbe Mehrbetrag lässt sich nicht zweimal zuordnen, auch nicht über Dolibarrs
+  eigenen Knopf. Die Einnahmen-Ausgaben-Rechnung zählt einen gespendeten Mehrbetrag zum ideellen
+  Bereich; die Vereinsübersicht meldet offene Überzahlungen.
+
+
+### Behoben
+
+- **„Was wartet auf mich“ führt zur richtigen Seite**: Unterschriften für die
+  Einnahmen-Ausgaben-Rechnung und den Prüfbericht verlinkten bisher auf die Sitzungen.
 
 ## [0.8.0-beta] - 2026-09-23
 

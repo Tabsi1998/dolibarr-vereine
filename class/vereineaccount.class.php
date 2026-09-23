@@ -317,16 +317,32 @@ class VereineAccount
 			if ($supplier) {
 				$sql = "SELECT pf.fk_facturefourn as invoice, pf.amount FROM ".MAIN_DB_PREFIX."paiementfourn_facturefourn as pf WHERE pf.fk_paiementfourn IN (".implode(',', $payments).")";
 			} else {
-				$sql = "SELECT pf.fk_facture as invoice, pf.amount FROM ".MAIN_DB_PREFIX."paiement_facture as pf WHERE pf.fk_paiement IN (".implode(',', $payments).")";
+				$sql = "SELECT pf.fk_facture as invoice, pf.amount, pf.fk_paiement as payment FROM ".MAIN_DB_PREFIX."paiement_facture as pf WHERE pf.fk_paiement IN (".implode(',', $payments).")";
 			}
 			$resql = $this->db->query($sql);
 			$allocations = array();
 			while ($resql && ($obj = $this->db->fetch_object($resql))) {
 				// A supplier payment leaves the bank: its parts carry the sign of the booking.
-				$allocations[] = array('invoice' => (int) $obj->invoice, 'amount' => $supplier ? -(float) $obj->amount : (float) $obj->amount);
+				$allocations[] = array('invoice' => (int) $obj->invoice, 'amount' => $supplier ? -(float) $obj->amount : (float) $obj->amount,
+					'payment' => $supplier ? 0 : (int) $obj->payment);
+			}
+			// An excess that became a donation (#54) is no longer part of the invoice: it counts as a donation.
+			$donations = array();
+			if (!$supplier && $allocations) {
+				require_once __DIR__.'/vereineoverpayments.class.php';
+				$donations = (new VereineOverpayments($this->db))->donations(array_column($allocations, 'invoice'));
 			}
 			foreach ($allocations as $allocation) {
-				foreach (VereineAccountRules::split($allocation['amount'], $this->invoiceLines($allocation['invoice'], $supplier)) as $sphere => $part) {
+				$donation = isset($donations[$allocation['invoice']]) && $donations[$allocation['invoice']]['payment'] === $allocation['payment']
+					? $donations[$allocation['invoice']]['amount'] : 0.0;
+				$carved = $donation > 0 ? VereineOverpaymentRules::splitDonation($allocation['amount'], $donation)
+					: array('invoice' => $allocation['amount'], 'donation' => 0.0);
+				$shares = VereineAccountRules::split($carved['invoice'], $this->invoiceLines($allocation['invoice'], $supplier));
+				if ($carved['donation'] > 0) {
+					$area = VereineAccountRules::sphereOf(VereineAccountRules::KIND_DONATION);
+					$shares[$area] = round((isset($shares[$area]) ? $shares[$area] : 0.0) + $carved['donation'], 2);
+				}
+				foreach ($shares as $sphere => $part) {
 					$parts[$sphere] = round((isset($parts[$sphere]) ? $parts[$sphere] : 0.0) + $part, 2);
 				}
 				$allocated += $allocation['amount'];
