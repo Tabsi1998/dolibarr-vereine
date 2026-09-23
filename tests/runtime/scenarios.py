@@ -3289,7 +3289,8 @@ def application(stack: Stack) -> str:
 
     # What the association writes itself; everything else comes from Dolibarr.
     page_ok(browser.submit(page_ok(browser.get(setup), "application setup").form(name="vereineapplicationsetup"),
-                           {"intro": "Bitte im Vereinsheim abgeben.", "privacy": "Die Daten dienen nur der Mitgliederverwaltung.",
+                           {"intro": "Bitte im Vereinsheim abgeben, __VEREINE_NAME__, __VEREINE_ADRESSE__.",
+                            "privacy": "Fragen zum Datenschutz an __VEREINE_EMAIL__. Die Daten dienen nur der Mitgliederverwaltung.",
                             "privacy_url": "https://runtime-verein.test/datenschutz", "required[]": "birth"}, drop=("required[]",)), "store the texts")
     expect((stack.const("VEREINE_APPLICATION_REQUIRED"), stack.const("VEREINE_APPLICATION_PRIVACY_URL"))
            == ("birth", "https://runtime-verein.test/datenschutz"), "the texts of the application were not stored")
@@ -3303,11 +3304,19 @@ def application(stack: Stack) -> str:
     for word in ("Mitgliedsantrag", "Statuten", "Vereinsheim", "Datenschutz", "Fotos", "ZVR", "pro Jahr", "ndigung",
                  "Aus den Statuten", "Zweck des Vereins", "verpflichtet"):
         expect(word in blank, f"the blank application lacks {word!r}")
+    # The free texts of the association understand the placeholders of the module (#206).
+    expect("__VEREINE_" not in blank and "runtime-verein.test" in blank,
+           "placeholders in the texts of the association were not filled in on the form")
     # Only to print: the brackets to tick, and every consent asks once (#203).
     expect(blank.count("Ich willige ein") == blank.count("Ja [") - 1, f"the print form does not ask every consent exactly once: "
            + f"{blank.count('Ich willige ein')} consents, {blank.count('Ja [')} pairs of brackets")
     expect("Bezahlt" not in blank, "the blank application carries the data of a member")
     expect("Vereinstrikot" in blank, "what the member type includes is missing on the form")
+    # Discounts of the fee model belong on the form, and the mandate when Dolibarr collects by direct debit (#206).
+    discounts = stack.value("SELECT COUNT(*) FROM llx_vereine_fee_discount WHERE active = 1")
+    expect(int(discounts) == 0 or "rm" in blank.lower(), f"{discounts} discounts are set up but none is named on the form")
+    if stack.const("MAIN_MODULE_PRELEVEMENT") == "1":
+        expect("SEPA" in blank and "IBAN" in blank, "the mandate is missing on the form although Dolibarr collects by direct debit")
 
     # Dolibarr's member card offers the template and fills it in.
     card = page_ok(browser.get(f"/adherents/card.php?id={member}"), "member card")
@@ -3340,6 +3349,7 @@ def application(stack: Stack) -> str:
     expect(pages is not None and declaration.count("Art. 7") == int(pages.group(1)) and int(pages.group(1)) > 1,
            f"{pages.group(1) if pages else None} members named, {declaration.count('Art. 7')} pages")
     expect("Fotos" in declaration, "the declaration lacks the text of the consent")
+    expect("runtime-verein.test" in declaration, "the declaration does not say where a consent can be withdrawn")
     # Exactly the members whose latest event for the consent is not a consent.
     missing = stack.value("SELECT COUNT(*) FROM llx_adherent as d WHERE d.statut = 1 AND COALESCE((SELECT c.given FROM llx_vereine_consent as c"
                           " WHERE c.fk_adherent = d.rowid AND c.code = 'fotos' ORDER BY c.date_event DESC, c.rowid DESC LIMIT 1), 0) = 0")

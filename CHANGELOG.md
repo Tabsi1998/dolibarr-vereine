@@ -9,6 +9,19 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **Der Antrag holt sich noch mehr selbst** (#206): Einleitung und Datenschutz-Text verstehen
+  jetzt dieselben Platzhalter wie die E-Mail-Vorlagen (`__VEREINE_NAME__`,
+  `__VEREINE_ADRESSE__`, `__VEREINE_EMAIL__` …) – Stammdaten ändern, fertig.
+- **Ermäßigungen stehen auf dem Antrag**: was im Beitragsmodell eingerichtet ist, etwa
+  „Ermäßigung „Jugend“ (bis 18 Jahre): 50 %“, dazu die Familienermäßigung.
+- **SEPA-Abschnitt auf dem Antrag**: Ist Dolibarrs Lastschrift aktiv, gibt es Felder für
+  Kontoinhaber:in und IBAN, den Ermächtigungstext mit Gläubiger-ID und eine eigene
+  Unterschriftszeile – so geht das Mandat auch auf Papier.
+- **Einwilligungserklärung nennt den Kontakt** für den Widerruf (E-Mail oder Anschrift des
+  Vereins) statt nur „formlos beim Verein“.
+
+### Neu
+
 - **Der Mitgliedsantrag holt sich mehr aus Dolibarr** (#204): Was die Mitgliedschaft umfasst
   (etwa Trikot, Trainingszeiten, Startgelder), steht an der Mitgliedsart in Dolibarr und
   erscheint als „Enthalten in der Mitgliedschaft“. Dazu ein Abschnitt „Aus den Statuten“ mit

@@ -177,7 +177,9 @@ class VereineConsentForm
 
 			$pdf->Ln(2);
 			$pdf->SetFont($font, 'I', 8);
-			$pdf->MultiCell(0, 4, $outputlangs->transnoentities('VereineConsentFormWithdraw'), 0, 'L');
+			$contact = trim((string) $organization['email']) !== '' ? (string) $organization['email']
+				: trim($organization['address']['street'].', '.trim($organization['address']['zip'].' '.$organization['address']['town']), ' ,');
+			$pdf->MultiCell(0, 4, $outputlangs->transnoentities('VereineConsentFormWithdraw', $contact !== '' ? $contact : $organization['name']), 0, 'L');
 			$birth = !empty($member->birth) ? dol_print_date($member->birth, '%Y-%m-%d', 'tzserver') : '';
 			$lines = array('VereineApplicationSignApplicant');
 			if (VereineMemberForm::isMinor($birth, $today)) {

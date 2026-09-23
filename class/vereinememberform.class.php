@@ -33,6 +33,10 @@ require_once __DIR__.'/vereineconsents.class.php';
 require_once __DIR__.'/vereineexits.class.php';
 require_once __DIR__.'/vereinestatutes.class.php';
 require_once __DIR__.'/vereinestatutetext.class.php';
+require_once __DIR__.'/vereineplaceholders.class.php';
+require_once __DIR__.'/vereinefeediscountstore.class.php';
+require_once __DIR__.'/vereinefeefamilystore.class.php';
+require_once __DIR__.'/vereinesepastore.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 
 /**
@@ -211,7 +215,7 @@ class VereineMemberForm
 		VereinePdf::title($pdf, $outputlangs, $outputlangs->transnoentities('VereineApplicationTitle'),
 			$organization['name'].($organization['register']['number'] !== '' ? ' – ZVR '.$organization['register']['number'] : ''));
 		if ($settings['intro'] !== '') {
-			$text($settings['intro']);
+			$text($this->filled($settings['intro'], $member));
 			$pdf->Ln(2);
 		}
 
@@ -231,6 +235,9 @@ class VereineMemberForm
 			$text($line);
 		}
 		$text($outputlangs->transnoentities('VereineApplicationNotice', vereineExitRuleText((new VereineExits($this->db))->rule())));
+		foreach ($type !== null ? $this->discountLines((int) $type['id'], $outputlangs) : array() as $line) {
+			$text($line, '', 9);
+		}
 		// What the member type includes, as the association wrote it at the member type in Dolibarr.
 		if ($type !== null && trim((string) $type['note']) !== '') {
 			$text($outputlangs->transnoentitiesnoconv('VereineApplicationIncluded'), 'B', 9);
@@ -272,11 +279,23 @@ class VereineMemberForm
 		if ($settings['privacy'] !== '' || $settings['privacy_url'] !== '') {
 			VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineApplicationPrivacy'));
 			if ($settings['privacy'] !== '') {
-				$text($settings['privacy'], '', 9);
+				$text($this->filled($settings['privacy'], $member), '', 9);
 			}
 			if ($settings['privacy_url'] !== '') {
 				$text($settings['privacy_url'], '', 9);
 			}
+		}
+
+		// The SEPA mandate on paper, when the association collects by direct debit (#206).
+		if (VereineSepaStore::enabled()) {
+			VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineApplicationSepaTitle'));
+			$creditor = getDolGlobalString('PRELEVEMENT_ICS');
+			$text($outputlangs->transnoentities('VereineApplicationSepaText', $organization['name'],
+				$creditor !== '' ? $outputlangs->transnoentities('VereineApplicationSepaCreditor', $creditor) : ''), '', 9);
+			foreach (array('kontoinhaber' => 'VereineApplicationSepaHolder', 'iban' => 'VereineApplicationSepaIban') as $name => $label) {
+				$field($name, $outputlangs->transnoentitiesnoconv($label), '');
+			}
+			VereinePdf::signatures($pdf, $outputlangs, array('VereineApplicationSepaSign'), 'sepa', $fillable && !$submitted);
 		}
 
 		$this->signatures($pdf, $member, $outputlangs, $fillable && !$submitted, $submitted);
@@ -293,6 +312,64 @@ class VereineMemberForm
 		}
 		dolChmod($file);
 		return $file;
+	}
+
+	/**
+	 * A text the association wrote itself, with the placeholders of the module filled in (#206): so the
+	 * name, the address or the e-mail of the association never has to be typed twice.
+	 *
+	 * @param string        $text   Text as entered
+	 * @param Adherent|null $member Member the form is for, null for a blank form
+	 * @return string
+	 */
+	private function filled($text, $member)
+	{
+		if (strpos((string) $text, '__') === false) {
+			return (string) $text;
+		}
+		$placeholders = new VereinePlaceholders($this->db);
+		$values = $placeholders->associationValues();
+		if ($member !== null && !empty($member->id)) {
+			$values = array_merge($values, $placeholders->memberValues((int) $member->id));
+		}
+		return make_substitutions((string) $text, $values);
+	}
+
+	/**
+	 * The discounts of a member type in plain words, from the fee model (#206).
+	 *
+	 * @param int       $typeId      Member type
+	 * @param Translate $outputlangs Language
+	 * @return string[]
+	 */
+	private function discountLines($typeId, $outputlangs)
+	{
+		$lines = array();
+		$store = new VereineFeeDiscountStore($this->db);
+		foreach ($store->fetchAll(true) as $rule) {
+			if ((int) $rule['type_id'] !== (int) $typeId && (int) $rule['type_id'] !== 0) {
+				continue;
+			}
+			$value = $rule['mode'] === 'free' ? $outputlangs->transnoentitiesnoconv('VereineApplicationDiscountFree')
+				: ($rule['mode'] === 'percent' ? price($rule['value'], 0, $outputlangs, 1, -1, 0).' %' : price($rule['value'], 0, $outputlangs, 1, -1, 2).' €');
+			if ($rule['kind'] === VereineFeeDiscounts::KIND_AGE) {
+				$range = $rule['age_to'] !== '' && $rule['age_from'] !== ''
+					? $outputlangs->transnoentities('VereineApplicationDiscountAgeRange', $rule['age_from'], $rule['age_to'])
+					: ($rule['age_to'] !== '' ? $outputlangs->transnoentities('VereineApplicationDiscountAgeUnder', $rule['age_to'])
+						: $outputlangs->transnoentities('VereineApplicationDiscountAgeFrom', $rule['age_from']));
+				$lines[] = $outputlangs->transnoentities('VereineApplicationDiscountLine', $rule['label'], $range, $value);
+			} else {
+				$lines[] = $outputlangs->transnoentities('VereineApplicationDiscountLine', $rule['label'],
+					$outputlangs->transnoentitiesnoconv('VereineApplicationDiscountProof'), $value);
+			}
+		}
+		$family = (new VereineFeeFamilyStore($this->db))->setting();
+		if (isset($family['mode']) && $family['mode'] === 'percent' && (float) $family['value'] > 0) {
+			$lines[] = $outputlangs->transnoentities('VereineApplicationFamilyPercent', price((float) $family['value'], 0, $outputlangs, 1, -1, 0).' %');
+		} elseif (isset($family['mode']) && $family['mode'] === 'cap' && (float) $family['value'] > 0) {
+			$lines[] = $outputlangs->transnoentities('VereineApplicationFamilyCap', price((float) $family['value'], 0, $outputlangs, 1, -1, 2).' €');
+		}
+		return $lines;
 	}
 
 	/**
