@@ -7,6 +7,11 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.7.1-beta] - 2026-09-23
+
+Mitgliedsantrag und Einwilligungserklärung: aufgeräumtes Layout, ein Ja/Nein statt zwei, und
+alles kommt aus Dolibarr und den Statuten (#203, #204, #206).
+
 ### Neu
 
 - **Der Antrag holt sich noch mehr selbst** (#206): Einleitung und Datenschutz-Text verstehen
@@ -1664,7 +1669,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.7.0-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.7.1-beta...HEAD
+[0.7.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.7.1-beta
 [0.7.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.7.0-beta
 [0.6.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.6.2-beta
 [0.6.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.6.1-beta
