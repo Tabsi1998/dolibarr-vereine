@@ -2112,3 +2112,24 @@ VereineApplicationErrorStep=Dieser Schritt passt nicht zum aktuellen Stand des A
 VereineApplicationErrorReason=Bitte einen Grund für die Person angeben.
 VereineApplicationErrorConflict=Unter dieser Kennung gibt es schon einen Antrag mit anderem Inhalt.
 VereineLog_application_decided=Über einen Beitrittsantrag entschieden
+
+# SEPA-Mandat am Mitglied mit Dolibarrs Online-Unterschrift (#125)
+VereineSepaMandateTitle=SEPA-Mandat
+VereineSepaStatus_valid=Mandat gültig
+VereineSepaStatus_expired=Mandat abgelaufen: seit 36 Monaten kein Einzug
+VereineSepaStatus_none=Kein Mandat hinterlegt
+VereineSepaOff=Dolibarrs Modul Lastschrift ist nicht aktiv, deshalb gibt es hier kein Mandat.
+VereineSepaReference=Mandatsreferenz %s
+VereineSepaSignedOn=Unterschrieben am %s
+VereineSepaSignedDocument=Online unterschriebenes Mandat vom %s
+VereineSepaNoMandate=Für den Zahler ist noch kein Bankkonto mit Mandat hinterlegt. Das legst du beim Geschäftspartner unter „Zahlungsarten“ an.
+VereineSepaOnlineOff=Dolibarrs Online-Unterschrift für Bankkonten ist ausgeschaltet. Einschalten: Einstellungen – Module – Geschäftspartner, „Online-Unterschrift für Bankkonten erlauben“.
+VereineSepaOnlineOpen=Unterschriftsseite öffnen
+VereineSepaInvite=Link zum Unterschreiben schicken
+VereineSepaInviteHelp=Geht an die E-Mail-Adresse des Zahlers. Der Versand passiert nur auf Klick, nie beim Öffnen dieser Seite.
+VereineSepaInviteSubject=SEPA-Mandat online unterschreiben
+VereineSepaInviteBody=Hallo %s,\n\nbitte unterschreibe das SEPA-Mandat für den Mitgliedsbeitrag online:\n%s\n\nDanke!
+VereineSepaInviteSent=Der Link ist an %s gegangen.
+VereineSepaErrorNoLink=Für dieses Mandat gibt es keine Unterschriftsseite. Prüfe, ob das Mandat hinterlegt und Dolibarrs Online-Unterschrift eingeschaltet ist.
+VereineSepaErrorNoEmail=Der Zahler hat keine E-Mail-Adresse hinterlegt.
+VereineLog_sepa_invite=Link zur Mandats-Unterschrift verschickt

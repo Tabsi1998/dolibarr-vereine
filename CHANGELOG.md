@@ -9,6 +9,20 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **SEPA-Mandat am Mitglied** (#125): Der Reiter *Verein* zeigt jetzt, wie der Beitrag
+  eingezogen wird – Mandat gültig, abgelaufen oder keines –, dazu Mandatsreferenz, Tag der
+  Unterschrift und das online unterschriebene Mandat, wenn es eines gibt.
+- **Online unterschreiben über Dolibarr**: Ist Dolibarrs Online-Unterschrift für Bankkonten
+  eingeschaltet, steht der Link zu Dolibarrs eigener Unterschriftsseite am Mitglied, und ein
+  Klick schickt ihn dem Zahler per E-Mail (mit Vermerk im Protokoll). Das Modul baut keine
+  eigene Unterschriftsseite und behauptet nichts: Der Stand kommt immer aus Dolibarrs Daten,
+  nie aus einer Rückkehr im Browser.
+- Die API nennt in der Mitglieds-Zusammenfassung den Stand des Mandats (`fee.mandate`) –
+  ohne IBAN und ohne Bankdaten. Der Beitragslauf fordert wie bisher nur mit gültigem Mandat
+  eine Lastschrift an.
+
+### Neu
+
 - **Beitrittsanträge mit Stand** (#72): Neuer Menüpunkt *Mitglieder – Verein –
   Beitrittsanträge*. Jeder Antrag hat einen Stand – eingegangen, in Prüfung, aufgenommen,
   abgelehnt, zurückgezogen. Aufgenommen oder abgelehnt wird **nur in Dolibarr**; die

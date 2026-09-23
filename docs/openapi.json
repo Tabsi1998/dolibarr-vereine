@@ -1531,6 +1531,30 @@
               "payment_url": {
                 "type": "string",
                 "description": "Dolibarrs Online-Zahlungsseite für den Beitrag; leer, außer der Beitrag ist fällig, das Mitglied zahlt selbst und ein Online-Zahlungsdienst ist eingerichtet"
+              },
+              "mandate": {
+                "type": "object",
+                "description": "Stand des SEPA-Mandats des Zahlers. Nie Kontodaten",
+                "required": [
+                  "status",
+                  "signed_on"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "off",
+                      "none",
+                      "valid",
+                      "expired"
+                    ],
+                    "description": "off: Dolibarrs Lastschrift-Modul ist aus; none: kein Mandat; valid: gültig; expired: 36 Monate kein Einzug"
+                  },
+                  "signed_on": {
+                    "type": "string",
+                    "description": "Tag der Unterschrift, sonst leer"
+                  }
+                }
               }
             }
           },
