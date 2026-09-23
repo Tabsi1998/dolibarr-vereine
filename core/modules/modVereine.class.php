@@ -314,6 +314,21 @@ class modVereine extends DolibarrModules
 			'target' => '',
 			'user' => 0,
 		);
+		// What the association has to do again and again, with its days (#24).
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
+			'titre' => 'VereineMenuDuties',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_duties',
+			'url' => '/vereine/duties.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->hasRight("vereine", "association", "read")',
+			'target' => '',
+			'user' => 0,
+		);
 		// The income and expenditure account with the statement of assets.
 		$this->menu[$r++] = array(
 			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
@@ -461,6 +476,14 @@ class modVereine extends DolibarrModules
 		$written = $register->backfill($user);
 		if ($written > 0) {
 			dol_syslog('modVereine::init wrote '.$written.' entries in the register of resolutions', LOG_INFO);
+		}
+
+		// What Austrian law asks of every association goes into the catalogue of duties (#24).
+		dol_include_once('/vereine/class/vereineduties.class.php');
+		$duties = new VereineDuties($this->db);
+		if ($duties->ensureStandard() < 0) {
+			$this->error = $duties->error;
+			dol_syslog('modVereine::init '.$duties->error, LOG_ERR);
 		}
 
 		// The e-mails of the module as Dolibarr templates, with the text they always had.
