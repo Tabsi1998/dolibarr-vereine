@@ -41,6 +41,16 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Aufgaben, Helferdienste, Freiwilligenpauschale, Spenden und die Vorgänge des Moduls. Stimmen und
   Einträge anderer stehen nicht darin. Die Kopie wird nicht aufbewahrt, nur Tag, Prüfung, Ausgabe
   und Prüfsumme; die Frist von einem Monat steht dabei.
+- **Löschen nach dem Austritt** (#10, zweiter Teil): Auf dem Reiter *Verein* eines ehemaligen
+  Mitglieds zeigt eine Liste je Art der Daten, was noch gespeichert ist und wann es fällig wird:
+  Kontaktdaten und App-Verbindungen gleich nach dem Austritt, E-Mail-Adressen in Einladungen ein
+  Jahr nach der Sitzung, Einwilligungen, Anträge und das Modul-Protokoll nach drei Jahren,
+  Freiwilligenpauschale und Spenderdaten sieben Jahre nach dem Jahresende. Beiträge, Rechnungen
+  und Vereinsunterlagen bleiben unverändert; der Name wird erst durch „Anonymisiert“ ersetzt, wenn
+  nichts Aufbewahrtes ihn mehr braucht, und nie bei jemandem, der eine Funktion hatte. Gelöscht
+  wird nur nach Klick und Rückfrage; offene Rechnungen oder eine Sperre mit Grund halten alles
+  an. Jeder Durchgang wird mit Anzahlen festgehalten, ohne die Daten selbst. Die Fristen und ihre
+  Gründe stehen unter *Einstellungen > Datenschutz*; wo der Verein wählen darf, lassen sie sich ändern.
 
 ## [0.9.0-beta] - 2026-09-23
 

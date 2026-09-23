@@ -31,6 +31,8 @@ und bringt eine REST-API für die Vereinswebsite mit.
   Rechnung bleibt, wie sie ist.
 - **Auskunft nach Art. 15 DSGVO**: Anfrage und Prüfung festgehalten, die Kopie der eigenen
   Daten als PDF und JSON, ohne Daten anderer.
+- **Löschen nach dem Austritt**: Vorschau je Art der Daten mit Frist und Grund, gelöscht wird nur
+  das Fällige nach Klick; Buchhaltung und Vereinsunterlagen bleiben.
 - **Vereinsakte**: Fertige Dokumente als PDF/A mit Kennung und QR-Code, eine öffentliche
   Echtheitsprüfung ohne Titel und Inhalt, und die Akte eines Zeitraums als ZIP mit
   Inhaltsverzeichnis und Prüfsummen.

@@ -5431,6 +5431,87 @@ def agreements(stack: Stack) -> str:
             "named in the minutes, suggested for the next meeting; a vote on the item takes its agreement over; the logo heads the PDF, pages numbered")
 
 
+def erasure(stack: Stack) -> str:
+    """Erasing after the exit: a preview kind by kind, the hold, only what is due goes, a second run does nothing, the name last (#10)."""
+    browser = stack.browser()
+    key = stack.notes["website"]["key"]
+    setup = page_ok(browser.get("/custom/vereine/admin/privacy.php"), "data protection setup")
+    expect('data-erasure-kinds="13"' in setup.text and 'data-erasure-kind="bookkeeping" data-erasure-years="7"' in setup.text,
+           "the setup does not list the kinds with their periods")
+    refused = page_ok(browser.submit(setup.form(name="vereineprivacy"), {"years_consents": "40"}), "40 years for consents")
+    expect(stack.const("VEREINE_ERASURE_PERIODS") is None and "0 bis 30" in html.unescape(refused.text), "40 years were stored or not explained")
+    setup = page_ok(browser.get("/custom/vereine/admin/privacy.php"), "data protection setup again")
+    page_ok(browser.submit(setup.form(name="vereineprivacy"), {"years_tasks": "0"}), "no waiting for tasks")
+    expect(json.loads(stack.const("VEREINE_ERASURE_PERIODS") or "{}").get("tasks") == 0, f"stored periods: {stack.const('VEREINE_ERASURE_PERIODS')}")
+
+    fixture = stack.php_fixture("erasuremember")
+    member = int(fixture["member"])
+    tab = f"/custom/vereine/member_association.php?id={member}"
+
+    def states() -> dict:
+        page = page_ok(browser.get(tab), "the former member's tab")
+        return dict(re.findall(r'data-erasure-kind="(\w+)" data-erasure-state="(\w+)"', page.text))
+
+    before = states()
+    expected = {"identities": "due", "contact": "due", "invitations": "due", "consents": "due", "disclosures": "due", "log": "due",
+                "applications": "none", "bookkeeping": "kept", "records": "kept", "name": "waiting"}
+    expect(all(before.get(kind) == state for kind, state in expected.items()), f"preview of a member gone four years: {before}")
+    member_tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={stack.value('SELECT MIN(rowid) FROM llx_adherent WHERE statut = 1')}"), "an active member's tab")
+    expect('data-erasure="member"' in member_tab.text, "an active member is offered for erasing")
+
+    page = page_ok(browser.get(tab), "the tab to hold")
+    refused = page_ok(browser.submit(page.form(name="vereineerasurehold"), {"hold_note": ""}), "a hold without a reason")
+    expect("warum das Löschen gesperrt" in html.unescape(refused.text), "a hold without a reason was taken")
+    page = page_ok(browser.get(tab), "the tab to hold again")
+    page_ok(browser.submit(page.form(name="vereineerasurehold"), {"hold_note": "Verfahren beim Schiedsgericht"}), "hold the erasure")
+    held = states()
+    expect(set(held[kind] for kind in expected if expected[kind] == "due") == {"held"}, f"on hold: {held}")
+    page = page_ok(browser.get(tab), "the tab on hold")
+    page_ok(browser.post(tab, [("token", token_of(page)), ("action", "confirm_erase"), ("confirm", "yes")]), "erase while on hold")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_erasure WHERE fk_adherent = {member} AND kind = 'run'") == "0", "a run went through while on hold")
+    page_ok(browser.submit(page_ok(browser.get(tab), "the tab to release").form(name="vereineerasurerelease")), "lift the hold")
+
+    page = page_ok(browser.get(f"{tab}&action=erase&token={token_of(page_ok(browser.get(tab), 'the tab to erase'))}"), "the question before erasing")
+    expect("rückgängig" in html.unescape(page.text), "no question before erasing")
+    last_log = int(stack.value("SELECT IFNULL(MAX(rowid), 0) FROM llx_vereine_log") or 0)
+    feed = f"SELECT COUNT(*) FROM llx_vereine_change WHERE object_type = 'membership' AND object_id = {member} AND change_kind = 'updated'"
+    changes = int(stack.value(feed) or 0)
+    page_ok(browser.post(tab, [("token", token_of(page)), ("action", "confirm_erase"), ("confirm", "yes")]), "erase what is due")
+    kept = stack.sql(f"SELECT lastname, IFNULL(email, '-'), IFNULL(address, '-'), IFNULL(birth, '-') FROM llx_adherent WHERE rowid = {member}")
+    expect(kept == [["Vergessen", "-", "-", "-"]], f"the member after the first run: {kept}")
+    left = {table: stack.value(f"SELECT COUNT(*) FROM llx_vereine_{table} WHERE fk_adherent = {member}") for table in ("identity", "consent", "disclosure")}
+    expect(left == {"identity": "0", "consent": "0", "disclosure": "0"}, f"rows left after the first run: {left}")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_meeting_invitation WHERE fk_adherent = {member} AND email IS NOT NULL") == "0"
+           and stack.value(f"SELECT name FROM llx_vereine_meeting_invitation WHERE fk_adherent = {member}") == "Emil Vergessen",
+           "the invitation kept its address or lost its name")
+    expect(stack.shell(f"test -e '{fixture['scan']}'").returncode != 0, "the scan of the consent is still there")
+    actions = [row[0] for row in stack.sql(f"SELECT action FROM llx_vereine_log WHERE fk_adherent = {member} AND rowid <= {last_log} ORDER BY rowid")]
+    expect(set(actions) == {"erasure_hold"}, f"the log of the member from before the run: {actions}")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_log WHERE fk_adherent = {member} AND action = 'erasure'") == "1", "the run was not logged")
+    run = json.loads(stack.value(f"SELECT done FROM llx_vereine_erasure WHERE fk_adherent = {member} AND kind = 'run'") or "{}")
+    expect(set(run) == {"identities", "contact", "invitations", "consents", "disclosures", "log"} and "Vergessen" not in json.dumps(run), f"the run kept: {run}")
+    expect(int(stack.value(feed) or 0) > changes, "the change feed did not learn about the erasure")
+    status, summary = stack.api(f"vereine/members/{member}/summary", key)
+    expect(status == 200, f"the summary of the erased member: HTTP {status} {summary}")
+
+    page = page_ok(browser.get(tab), "the tab after the first run")
+    expect('data-erasure-due="0"' in page.text, "something is still due after the run")
+    page_ok(browser.post(tab, [("token", token_of(page)), ("action", "confirm_erase"), ("confirm", "yes")]), "erase again")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_erasure WHERE fk_adherent = {member} AND kind = 'run'") == "1", "a second run without anything due was kept")
+
+    # Once the bookkeeping is past its seven years, the name goes as well.
+    stack.sql(f"UPDATE llx_subscription SET dateadh = DATE_SUB(dateadh, INTERVAL 5 YEAR), datef = DATE_SUB(datef, INTERVAL 5 YEAR) WHERE fk_adherent = {member}")
+    expect(states().get("name") == "due", "the name is not due once the bookkeeping is past")
+    page = page_ok(browser.get(tab), "the tab before the name goes")
+    page_ok(browser.post(tab, [("token", token_of(page)), ("action", "confirm_erase"), ("confirm", "yes")]), "erase the name")
+    name = stack.sql(f"SELECT lastname, IFNULL(firstname, '-'), IFNULL(login, '-') FROM llx_adherent WHERE rowid = {member}")
+    expect(name == [["Anonymisiert", "-", "-"]], f"the name after the second run: {name}")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_subscription WHERE fk_adherent = {member}") == "1", "the fee was touched")
+    return (f"13 kinds listed, 40 years refused; the member gone four years ago had {sum(1 for state in before.values() if state == 'due')} kinds due; "
+            "on hold nothing went; the run emptied contact data, took the binding back, deleted consent with scan, access record and log, "
+            "kept the invitation's name, told the change feed; a second run did nothing; the name went once the fee was past seven years")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -5585,6 +5666,7 @@ SCENARIOS = (
     ("disclosure", "Access to one's own data: request with its check, a copy with the member's rows and nobody else's", disclosure, ("archive",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
+    ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )
 

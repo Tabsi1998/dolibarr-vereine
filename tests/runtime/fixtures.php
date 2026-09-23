@@ -1519,4 +1519,59 @@ if ($stage === 'apiclient') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore or reset');
+// A former member for erasing (#10): contact data, a binding, a consent with its scan, an invitation of two years ago,
+// an access request and a fee of four years ago, an exit carried out four years ago.
+if ($stage === 'erasuremember') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+	dol_include_once('/vereine/class/vereinelog.class.php');
+	$fourYears = dol_time_plus_duree(dol_now(), -4, 'y');
+	$twoYears = dol_time_plus_duree(dol_now(), -2, 'y');
+	$member = new Adherent($db);
+	$member->typeid = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."adherent_type WHERE libelle = 'Beitragspflichtig'");
+	$member->morphy = 'phy';
+	$member->firstname = 'Emil';
+	$member->lastname = 'Vergessen';
+	$member->email = 'emil.vergessen@runtime-verein.test';
+	$member->address = 'Löschgasse 3';
+	$member->zip = '6020';
+	$member->town = 'Innsbruck';
+	$member->phone = '+43 512 000000';
+	$member->birth = dol_mktime(12, 0, 0, 5, 17, 1980);
+	$member->country_id = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+	$member->public = 0;
+	if ($member->create($admin) <= 0 || $member->validate($admin) <= 0) {
+		rt_fail('member Emil: '.$member->error.' '.implode(' | ', (array) $member->errors));
+	}
+	if ($member->subscription($fourYears, 30, 0, '', 'Beitrag', '', '', '', dol_time_plus_duree($fourYears, 1, 'y') - 86400) <= 0 || $member->resiliate($admin) <= 0) {
+		rt_fail('fee or exit of Emil: '.$member->error.' '.implode(' | ', (array) $member->errors));
+	}
+	$id = (int) $member->id;
+	$day = dol_print_date($fourYears, '%Y-%m-%d');
+	$p = MAIN_DB_PREFIX;
+	foreach (array(
+		"INSERT INTO ".$p."vereine_member_exit (entity, fk_adherent, reason, notice_day, last_day, status, datec, date_done) VALUES (1, ".$id.", 'resignation', '".$day."', '".$day."', 'done', '".$db->idate($fourYears)."', '".$db->idate($fourYears)."')",
+		"INSERT INTO ".$p."vereine_identity (entity, client, subject, fk_adherent, proof, capabilities, linked_at, datec) VALUES (1, 'rt-erase', 'erase-subject-1', ".$id.", 'known', 'profile', '".$db->idate($fourYears)."', '".$db->idate($fourYears)."')",
+		"INSERT INTO ".$p."vereine_consent (entity, fk_adherent, code, version, given, source, date_event, scan_name) VALUES (1, ".$id.", 'fotos', 1, 1, 'paper', '".$db->idate($fourYears)."', 'einwilligung-9999.pdf')",
+		"INSERT INTO ".$p."vereine_disclosure (entity, fk_adherent, requested_on, identity_check, delivered_at, sha256, fk_user, datec) VALUES (1, ".$id.", '".$day."', 'known', '".$db->idate($fourYears)."', '".str_repeat('a', 64)."', ".((int) $admin->id).", '".$db->idate($fourYears)."')",
+		"INSERT INTO ".$p."vereine_meeting (entity, kind, title, meeting_day, meeting_time, format, status, datec) VALUES (1, 'board', 'Vorstandssitzung vor zwei Jahren', '".dol_print_date($twoYears, '%Y-%m-%d')."', '19:00', 'physical', 'held', '".$db->idate($twoYears)."')",
+	) as $sql) {
+		if (!$db->query($sql)) {
+			rt_fail('erasure fixture: '.$db->lasterror());
+		}
+	}
+	$meeting = (int) $db->last_insert_id($p.'vereine_meeting');
+	if (!$db->query("INSERT INTO ".$p."vereine_meeting_invitation (entity, fk_meeting, fk_adherent, name, email, channel, voting, sent_at, datec) VALUES (1, ".$meeting.", ".$id
+		.", 'Emil Vergessen', 'emil.vergessen@runtime-verein.test', 'email', 1, '".$db->idate($twoYears)."', '".$db->idate($twoYears)."')")) {
+		rt_fail('erasure fixture: '.$db->lasterror());
+	}
+	VereineLog::add($db, $admin, VereineLog::CONSENT_GIVEN, $id, 0, 'fotos v1');
+	$folder = $conf->adherent->dir_output.'/'.dol_sanitizeFileName($member->ref);
+	if (dol_mkdir($folder) < 0 || file_put_contents($folder.'/einwilligung-9999.pdf', "%PDF-1.4\n% Scan\n") === false) {
+		rt_fail('erasure fixture: cannot write the scan into '.$folder);
+	}
+	print json_encode(array('member' => $id, 'scan' => $folder.'/einwilligung-9999.pdf', 'exit' => $day))."\n";
+	exit(0);
+}
+
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember or reset');
