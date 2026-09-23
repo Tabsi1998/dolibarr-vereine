@@ -7,6 +7,16 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Neu
+
+- **Erste Schritte** (#126): Die Einrichtung beginnt mit einem neuen Reiter, der einen Verein in
+  neun Schritten einrichtet – Vereinsdaten, Dolibarr-Module (Pflicht und wahlweise, jeweils mit
+  Zweck), Statuten, Funktionen und Vorstand, Mitgliedsarten und Beiträge, Einwilligungen,
+  E-Mail-Versand mit Testnachricht, Sitzungen und Unterschriften, Website und API. Jeder Schritt
+  führt zur Seite, auf der die Einstellung schon wohnt, und gilt erst als erledigt, wenn die Daten
+  da sind. Was ein Verein nicht braucht, lässt er aus. Übersicht und Einrichtung zeigen, wie weit
+  die Einrichtung ist, bis alles erledigt ist oder der Hinweis ausgeblendet wird.
+
 ## [0.9.0-beta] - 2026-09-23
 
 Spenden & Ehrenamt: Freiwilligenpauschale und PRAE mit Grenzen, Jahresliste und Auszahlung über

@@ -3280,6 +3280,67 @@ def donations(stack: Stack) -> str:
             "and the company got a confirmation")
 
 
+def setupguide(stack: Stack) -> str:
+    """First steps: a fresh installation shows every step open, the association data close step 1, a missing module is explained (#126)."""
+    browser = stack.browser()
+    start = "/custom/vereine/admin/start.php"
+    expect(denied(stack.browser("rtreader").get(start)), "a non-administrator opens the first steps")
+    page = page_ok(browser.get(start), "the first steps after enabling")
+    states = dict(re.findall(r'data-setup-step="([a-z]+)" data-setup-state="([a-z]+)"', page.text))
+    expect(list(states) == ["association", "modules", "statutes", "board", "fees", "consents", "mail", "meetings", "website"],
+           f"the steps: {list(states)}")
+    expect(states["association"] == "open" and states["statutes"] == "open" and states["website"] == "optional" and states["modules"] == "done",
+           f"a fresh installation: {states}")
+    overview = page_ok(browser.get("/custom/vereine/vereineindex.php"), "the overview with the hint")
+    expect("data-setup-hint=" in overview.text and "/admin/start.php" in overview.text, "the overview does not point at the first steps")
+
+    # The association data close step 1; what the test set is taken back for the scenarios after it.
+    before = {name: stack.const(name) for name in ("VEREINE_REGISTER_NUMBER", "VEREINE_PURPOSE", "MAIN_INFO_SOCIETE_NOM")}
+    try:
+        for name, value in (("VEREINE_REGISTER_NUMBER", "123456789"), ("VEREINE_PURPOSE", "Sport"), ("MAIN_INFO_SOCIETE_NOM", "Runtime Verein")):
+            stack.sql(f"DELETE FROM llx_const WHERE name = '{name}' AND entity = 1")
+            stack.sql(f"INSERT INTO llx_const (name, entity, value, type, visible) VALUES ('{name}', 1, '{value}', 'chaine', 0)")
+        page = page_ok(browser.get(start), "the first steps with the association data")
+        expect('data-setup-step="association" data-setup-state="done"' in page.text, "the association data do not close step 1")
+    finally:
+        for name, value in before.items():
+            stack.sql(f"DELETE FROM llx_const WHERE name = '{name}' AND entity = 1")
+            if value is not None:
+                stack.sql(f"INSERT INTO llx_const (name, entity, value, type, visible) VALUES ('{name}', 1, '{value.replace(chr(39), chr(39) * 2)}', 'chaine', 0)")
+
+    # A required module switched off is named and explained.
+    try:
+        stack.sql("UPDATE llx_const SET value = '0' WHERE name = 'MAIN_MODULE_CATEGORIE' AND entity = 1")
+        page = page_ok(browser.get(start), "the first steps without categories")
+        expect('data-setup-step="modules" data-setup-state="open"' in page.text and 'data-setup-module-missing="categorie"' in page.text,
+               "a missing required module is not explained")
+    finally:
+        stack.sql("UPDATE llx_const SET value = '1' WHERE name = 'MAIN_MODULE_CATEGORIE' AND entity = 1")
+
+    # Leaving out and taking back in; the test e-mail reaches the mailbox and closes its step.
+    page = page_ok(browser.get(start), "the first steps again")
+    page_ok(browser.submit(page.form(name="vereinesetupskipwebsite")), "leave the website out")
+    page = page_ok(browser.get(start), "after leaving out")
+    expect('data-setup-step="website" data-setup-state="skipped"' in page.text, "a step left out is not shown as left out")
+    page_ok(browser.submit(page.form(name="vereinesetupskipwebsite")), "take the website back in")
+    address = stack.value("SELECT email FROM llx_user WHERE login = 'admin'")
+    try:
+        stack.sql("UPDATE llx_user SET email = 'kassier.test@runtime-verein.test' WHERE login = 'admin'")
+        page = page_ok(browser.get(start), "the first steps with an address")
+        page_ok(browser.submit(page.form(name="vereinesetupmail")), "send the test e-mail")
+        arrived = [message for message in stack.mailpit().messages() if "Testnachricht" in (message.get("Subject") or "")
+                   and any(to.get("Address") == "kassier.test@runtime-verein.test" for to in message.get("To") or [])]
+        expect(arrived, "the test e-mail did not arrive")
+        page = page_ok(browser.get(start), "after the test e-mail")
+        expect('data-setup-step="mail" data-setup-state="done"' in page.text and 'data-setup-step="website" data-setup-state="optional"' in page.text,
+               "the test e-mail does not close its step, or the website stayed left out")
+    finally:
+        stack.sql(f"UPDATE llx_user SET email = {repr(address) if address not in (None, 'NULL') else 'NULL'} WHERE login = 'admin'")
+    return ("a fresh installation showed all nine steps with the association data open and the website optional, the overview pointed at "
+            "them; the association data closed step 1, a switched-off required module was named, a step could be left out and taken back, "
+            "and the test e-mail arrived and closed its step")
+
+
 def board(stack: Stack) -> str:
     """A website reads the board: names only with consent, or for the board always when it must be disclosed."""
     site = stack.notes["website"]
@@ -5341,7 +5402,8 @@ SCENARIOS = (
     ("deploy", "The package deploys through Deploy an external module", deploy, ("upgrade",)),
     ("enable", "Enabling registers rights and menu and removes the old country profile", enable, ("deploy",)),
     ("pages", "Overview, setup, about and the menu entry render", pages, ("enable",)),
-    ("setup", "Setup validates, normalises and stores the association", setup, ("pages",)),
+    ("setupguide", "First steps: every step open after enabling, association data close step 1, a missing module explained", setupguide, ("pages",)),
+    ("setup", "Setup validates, normalises and stores the association", setup, ("setupguide",)),
     ("access", "Rights decide who sees overview and setup", access, ("setup",)),
     ("api", "REST API answers with the right and refuses without", api, ("setup",)),
     ("partners", "Members and third parties are linked and reconciled", partners, ("access", "api")),

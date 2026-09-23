@@ -70,6 +70,7 @@ require_once $root.'/class/vereineapplicationformrules.class.php';
 require_once $root.'/class/vereinevolunteerrules.class.php';
 require_once $root.'/class/vereineoverpaymentrules.class.php';
 require_once $root.'/class/vereinedonationrules.class.php';
+require_once $root.'/class/vereinesetupguiderules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1798,7 +1799,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1826,6 +1827,10 @@ $prefixes = array(
 	'VereineDonationVbpkState_' => VereineDonationRules::STATES,
 	'VereineDonationType_' => array('E', 'A', 'S'),
 	'VereineDonationProtocol_' => array('ok', 'twok', 'nok'),
+	'VereineSetupState_' => VereineSetupGuideRules::STATES,
+	'VereineSetupStep_' => VereineSetupGuideRules::STEPS,
+	'VereineSetupStepHelp_' => VereineSetupGuideRules::STEPS,
+	'VereineSetupModule_' => array('banque', 'facture', 'prelevement', 'agenda', 'mailing', 'don', 'api', 'webportal'),
 	'VereineVolunteerLimit_' => VereineVolunteerRules::KINDS,
 	'VereineVolunteerFinding_' => VereineVolunteerRules::FINDINGS,
 	'VereineVolunteerPayoutStatus_' => array('draft', 'paid'),
@@ -2711,6 +2716,29 @@ expect(VereineDonationRules::accepted($read, 'SP-1') && !VereineDonationRules::a
 $readNok = VereineDonationRules::protocol(str_replace(array('<Info>TWOK</Info>', '<Uebermittlung>P</Uebermittlung>'), array('<Info>NOK</Info>', '<Uebermittlung>T</Uebermittlung>'), $protocolTwok));
 expect(!VereineDonationRules::accepted($readNok, 'SP-1') && $readNok['test'], 'a refused report takes nothing, and a test says so');
 same(null, VereineDonationRules::protocol('<html></html>'), 'something else is no protocol');
+
+// ------------------------------------------------------------- setup guide (#126)
+
+$freshFacts = array('name' => 'Verein', 'town' => 'Telfs', 'zvr' => '', 'purpose' => '', 'modules_missing' => array('categorie'), 'statute_rules' => false,
+	'statute_versions' => 0, 'functions_missing' => 3, 'board_users' => 0, 'member_types' => 0, 'consents' => 0, 'mail_tested' => false,
+	'signature_rules' => false, 'meeting_templates' => 0, 'api' => false, 'api_users' => 0);
+$freshStates = VereineSetupGuideRules::states($freshFacts, array());
+same(array('open'), array_values(array_unique(array_diff_key($freshStates, array('website' => 1)))), 'a fresh installation: every step open');
+same('optional', $freshStates['website'], 'a website is up to the association');
+same(array('finished' => 1, 'total' => 9, 'complete' => false), VereineSetupGuideRules::progress($freshStates), 'only the optional step counts as finished');
+expect(!VereineSetupGuideRules::done('association', array('purpose' => 'Sport') + $freshFacts), 'without a ZVR number the association data are not complete');
+expect(VereineSetupGuideRules::done('association', array('zvr' => '123456789', 'purpose' => 'Sport') + $freshFacts), 'name, town, ZVR and purpose: done');
+expect(VereineSetupGuideRules::done('modules', array('modules_missing' => array()) + $freshFacts), 'every required module on: done');
+expect(VereineSetupGuideRules::done('statutes', array('statute_versions' => 1) + $freshFacts), 'an uploaded version of the statutes counts');
+expect(!VereineSetupGuideRules::done('board', array('functions_missing' => 0) + $freshFacts), 'a board nobody of which can log in is not done');
+expect(VereineSetupGuideRules::done('board', array('functions_missing' => 0, 'board_users' => 1) + $freshFacts), 'every function held and one of them with an account');
+expect(VereineSetupGuideRules::done('mail', array('mail_tested' => true) + $freshFacts), 'a test e-mail went out');
+expect(!VereineSetupGuideRules::done('website', array('api' => true) + $freshFacts), 'the API alone is no website access');
+same('skipped', VereineSetupGuideRules::states($freshFacts, array('consents'))['consents'], 'a step left out on purpose');
+same(array('consents', 'mail'), VereineSetupGuideRules::skipped('consents, mail,unknown,consents'), 'only known steps are left out, each once');
+$doneStates = VereineSetupGuideRules::states(array('zvr' => '1', 'purpose' => 'x', 'modules_missing' => array(), 'statute_rules' => true, 'functions_missing' => 0,
+	'board_users' => 1, 'member_types' => 1, 'consents' => 1, 'mail_tested' => true, 'signature_rules' => true) + $freshFacts, array());
+same(array('finished' => 9, 'total' => 9, 'complete' => true), VereineSetupGuideRules::progress($doneStates), 'everything done: the hint goes away');
 
 // ------------------------------------------------------------------- result
 
