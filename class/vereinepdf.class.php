@@ -25,6 +25,8 @@
  * on every page, into margins kept free for them - so a page break never runs into the logo.
  */
 
+require_once __DIR__.'/vereinearchiverules.class.php';
+
 /**
  * Head and foot of the PDFs of the association.
  */
@@ -43,16 +45,38 @@ class VereinePdf
 	const FILLABLE = 'VEREINE_PDF_FILLABLE';
 
 	/**
-	 * A new document with room for head and foot.
+	 * A new document of Dolibarr's PDF library; for a finished document as PDF/A (#123).
 	 *
-	 * @param Translate $outputlangs Language of the document
+	 * @param bool $archive Whether it is a finished document to keep for years: PDF/A-3b, fonts embedded
 	 * @return TCPDF
 	 */
-	public static function start($outputlangs)
+	public static function instance($archive = false)
 	{
 		require_once DOL_DOCUMENT_ROOT.'/core/lib/pdf.lib.php';
 
 		$pdf = pdf_getInstance();
+		if (!$archive) {
+			return $pdf;
+		}
+		// The same class and page Dolibarr chose, only in PDF/A mode: readable in twenty years, and a signature
+		// with ID Austria added later keeps it valid.
+		$format = pdf_getFormat();
+		$class = get_class($pdf);
+		return new $class('P', 'mm', array($format['width'], $format['height']), true, 'UTF-8', false, 3);
+	}
+
+	/**
+	 * A new document with room for head and foot.
+	 *
+	 * @param Translate $outputlangs Language of the document
+	 * @param bool      $archive     Whether it is a finished document, built as PDF/A (#123)
+	 * @return TCPDF
+	 */
+	public static function start($outputlangs, $archive = false)
+	{
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/pdf.lib.php';
+
+		$pdf = self::instance($archive);
 		$pdf->setPrintHeader(false);
 		$pdf->setPrintFooter(false);
 		$pdf->SetMargins(self::SIDE, self::TOP, self::SIDE);
@@ -172,9 +196,10 @@ class VereinePdf
 	 * @param TCPDF     $pdf         Document
 	 * @param Translate $outputlangs Language of the document
 	 * @param string    $what        What the document is, for the foot (for instance "Protokoll, Fassung 1")
+	 * @param array{code:string,url:string}|null $seal Code of a finished document and the address of its check (#123)
 	 * @return void
 	 */
-	public static function finish($pdf, $outputlangs, $what)
+	public static function finish($pdf, $outputlangs, $what, $seal = null)
 	{
 		$pages = $pdf->getNumPages();
 		for ($page = 1; $page <= $pages; $page++) {
@@ -182,7 +207,7 @@ class VereinePdf
 			// Head and foot lie in the margins; switch the page break off while drawing there.
 			$pdf->SetAutoPageBreak(false);
 			self::head($pdf, $outputlangs);
-			self::foot($pdf, $outputlangs, $what, $page, $pages);
+			self::foot($pdf, $outputlangs, $what, $page, $pages, $seal);
 			$pdf->SetAutoPageBreak(true, self::BOTTOM + 5);
 		}
 		$pdf->lastPage();
@@ -447,18 +472,37 @@ class VereinePdf
 	 * @param string    $what        What the document is
 	 * @param int       $page        This page
 	 * @param int       $pages       All pages
+	 * @param array{code:string,url:string}|null $seal Code and address of the check, null for a document without
 	 * @return void
 	 */
-	private static function foot($pdf, $outputlangs, $what, $page, $pages)
+	private static function foot($pdf, $outputlangs, $what, $page, $pages, $seal = null)
 	{
 		$font = pdf_getPDFFont($outputlangs);
 		$width = $pdf->getPageWidth();
 		$y = $pdf->getPageHeight() - self::BOTTOM + 6;
+		$sealed = is_array($seal) && (string) $seal['code'] !== '';
+		$qr = $sealed && (string) $seal['url'] !== '' ? 14 : 0;
+		$usable = $width - 2 * self::SIDE - ($qr > 0 ? $qr + 3 : 0);
 		$pdf->SetDrawColor(200, 200, 200);
 		$pdf->Line(self::SIDE, $y - 2, $width - self::SIDE, $y - 2);
 		$pdf->SetFont($font, '', 8);
 		$pdf->SetXY(self::SIDE, $y);
-		$pdf->Cell(($width - 2 * self::SIDE) * 0.7, 4, (string) $what, 0, 0, 'L');
-		$pdf->Cell(($width - 2 * self::SIDE) * 0.3, 4, $outputlangs->transnoentities('VereinePdfPage', $page, $pages), 0, 0, 'R');
+		$pdf->Cell($usable * 0.7, 4, (string) $what, 0, 0, 'L');
+		$pdf->Cell($usable * 0.3, 4, $outputlangs->transnoentities('VereinePdfPage', $page, $pages), 0, 0, 'R');
+		if (!$sealed) {
+			return;
+		}
+		// The code on every page, and where anybody checks it; the QR code leads there (#123).
+		$code = VereineArchiveRules::format($seal['code']);
+		$pdf->SetFont($font, '', 7);
+		$pdf->SetTextColor(110, 110, 110);
+		$pdf->SetXY(self::SIDE, $y + 4.5);
+		$pdf->Cell($usable, 3.5, $qr > 0 ? $outputlangs->transnoentities('VereineArchiveSealCheck', $code, $seal['url'])
+			: $outputlangs->transnoentities('VereineArchiveSealCode', $code), 0, 0, 'L');
+		$pdf->SetTextColor(0, 0, 0);
+		if ($qr > 0) {
+			$pdf->write2DBarcode((string) $seal['url'], 'QRCODE,M', $width - self::SIDE - $qr, $y - 1, $qr, $qr,
+				array('border' => false, 'padding' => 0, 'fgcolor' => array(0, 0, 0), 'bgcolor' => false));
+		}
 	}
 }

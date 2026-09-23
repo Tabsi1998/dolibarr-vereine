@@ -380,6 +380,7 @@ def enable(stack: Stack) -> str:
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_account", "/vereine/account.php"],
                     ["members", "vereine_application", "/vereine/application.php"],
                     ["members", "vereine_applications", "/vereine/applications.php"],
+                    ["members", "vereine_archive", "/vereine/archive.php"],
                     ["members", "vereine_assembly", "/vereine/assembly.php"],
                     ["members", "vereine_audit", "/vereine/audit.php"],
                     ["members", "vereine_authority", "/vereine/authority.php"],
@@ -3366,6 +3367,65 @@ def setupguide(stack: Stack) -> str:
             "and the test e-mail arrived and closed its step")
 
 
+def archive(stack: Stack) -> str:
+    """Files of the association: a finished PDF is PDF/A with a code, the public check knows it and nothing more, the export has every file with its checksum (#123)."""
+    browser = stack.browser()
+    code = stack.value("SELECT code FROM llx_vereine_document WHERE kind = 'account' ORDER BY rowid DESC LIMIT 1")
+    expect(code is not None, "the account built in its scenario got no code")
+    relpath = stack.value("SELECT f.relpath FROM llx_vereine_document_file as f INNER JOIN llx_vereine_document as d ON d.rowid = f.fk_document"
+                          f" WHERE d.code = '{code}' AND f.what = 'built' ORDER BY f.rowid DESC LIMIT 1")
+    data = base64.b64decode(stack.shell(f"base64 '/var/www/documents/vereine/{relpath}'").stdout)
+    printed = f"{code[:5]}-{code[5:]}"
+    expect(b"pdfaid:part" in data, "the account is no PDF/A")
+    expect(printed in pdf_bytes_text(data), f"the account does not carry its code {printed}")
+
+    # The public check, without logging in: the kind and the day, never the title.
+    anybody = Browser(stack.url)
+    check = f"/custom/vereine/public/verify.php?code={printed}"
+    page = page_ok(anybody.get(check), "the public check")
+    expect('data-verify="genuine"' in page.text and 'data-verify-kind="account"' in page.text, "the public check does not know the account")
+    minutes, title = (stack.sql("SELECT code, title FROM llx_vereine_document WHERE kind = 'minutes' ORDER BY rowid LIMIT 1") or [[None, None]])[0]
+    if minutes is not None:
+        shown = page_ok(anybody.get(f"/custom/vereine/public/verify.php?code={minutes}"), "the public check of minutes").text
+        expect('data-verify="genuine"' in shown and html.escape(title) not in shown and title not in shown, "the public check shows the title of minutes")
+    unknown = page_ok(anybody.get("/custom/vereine/public/verify.php?code=ZZZZZ-ZZZZZ"), "an unknown code")
+    expect('data-verify="unknown"' in unknown.text, "an unknown code is not called unknown")
+    matched = page_ok(anybody.post_multipart("/custom/vereine/public/verify.php", [("token", token_of(page)), ("code", printed)],
+                                             [("document", "rechnung.pdf", data)]), "compare the file")
+    expect('data-verify-file="match"' in matched.text, "the genuine file does not match")
+    changed = page_ok(anybody.post_multipart("/custom/vereine/public/verify.php", [("token", token_of(page)), ("code", printed)],
+                                             [("document", "rechnung.pdf", data + b"\n%changed")]), "compare a changed file")
+    expect('data-verify-file="nomatch"' in changed.text, "a changed file matches")
+
+    # The association switches the check off: it answers nothing.
+    own = page_ok(browser.get("/custom/vereine/archive.php"), "the files of the association")
+    page_ok(browser.submit(own.form(name="vereinearchivepublic")), "switch the public check off")
+    try:
+        off = anybody.get(check)
+        expect(off.status == 404 and 'data-verify="off"' in off.text and "genuine" not in off.text, f"the switched off check answers: HTTP {off.status}")
+    finally:
+        own = page_ok(browser.get("/custom/vereine/archive.php"), "the files of the association again")
+        page_ok(browser.submit(own.form(name="vereinearchivepublic")), "switch the public check on again")
+    expect(stack.const("VEREINE_VERIFY_PUBLIC") == "1", "the public check did not come back on")
+
+    # The export of the year: every file with its checksum, and the table of contents.
+    year = stack.today()[:4]
+    own = page_ok(browser.get("/custom/vereine/archive.php"), "the export")
+    answer = browser.submit(own.form(name="vereinearchiveexport"), {"from": f"{year}-01-01", "to": f"{year}-12-31"})
+    expect(answer.status == 200 and answer.body[:2] == b"PK", f"the export is no ZIP: HTTP {answer.status}")
+    with zipfile.ZipFile(io.BytesIO(answer.body)) as archived:
+        names = archived.namelist()
+        sums = dict(reversed(line.split("  ", 1)) for line in archived.read("pruefsummen.sha256").decode("utf-8").splitlines() if line)
+        wrong = [name for name, sha in sums.items() if hashlib.sha256(archived.read(name)).hexdigest() != sha]
+        index = archived.read("inhaltsverzeichnis.csv").decode("utf-8-sig")
+    expect("inhaltsverzeichnis.csv" in names and any("_account_" in name for name in sums), f"the export lacks the account or its table of contents: {names}")
+    expect(not wrong and len(sums) == len(names) - 2, f"checksums of the export do not match: {wrong}")
+    expect(printed in index and "Einnahmen-Ausgaben-Rechnung" in index, "the table of contents does not name the account with its code")
+    return (f"the account is PDF/A and carries its code {printed}; the public check knew it without login, showed no title, called an unknown "
+            f"code unknown, matched the genuine file and not a changed one, and answered nothing while switched off; the export of {year} "
+            f"held {len(sums)} files whose checksums match, with the table of contents")
+
+
 def board(stack: Stack) -> str:
     """A website reads the board: names only with consent, or for the board always when it must be disclosed."""
     site = stack.notes["website"]
@@ -5492,6 +5552,7 @@ SCENARIOS = (
     ("volunteerpayout", "Paying volunteer allowances: a list, refused until signed, then Dolibarr's various payments", volunteerpayout, ("volunteers", "signatures")),
     ("overpayments", "Overpayments: 37,68 paid with 38,00, the 0,32 assigned once to a credit, a refund or a donation", overpayments, ("account", "volunteerpayout")),
     ("donations", "Donation report: date of birth encrypted, vbPK from the register file, XML against the schema, protocol, E then A", donations, ("overpayments",)),
+    ("archive", "Files of the association: PDF/A with a code, a public check that shows no title, the export with checksums", archive, ("donations",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),

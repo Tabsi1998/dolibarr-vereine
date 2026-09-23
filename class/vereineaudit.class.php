@@ -434,7 +434,11 @@ class VereineAudit
 			$this->error = 'cannot create '.dirname($file);
 			return '';
 		}
-		$pdf = VereinePdf::start($outputlangs);
+		// A finished document: PDF/A with its code (#123).
+		require_once __DIR__.'/vereinearchive.class.php';
+		$archive = new VereineArchive($this->db);
+		$code = $archive->codeFor('audit_report', $audit['id']);
+		$pdf = VereinePdf::start($outputlangs, true);
 		$font = pdf_getPDFFont($outputlangs);
 		$line = function ($text, $style = '', $size = 10) use ($pdf, $font) {
 			$pdf->SetFont($font, $style, $size);
@@ -515,8 +519,12 @@ class VereineAudit
 		$pdf->SetFont($font, 'I', 8);
 		$pdf->MultiCell(0, 4, $outputlangs->transnoentities('VereineAuditReportLaw'), 0, 'L');
 
-		VereinePdf::finish($pdf, $outputlangs, $outputlangs->transnoentities('VereineAuditReportTitle', $period['label']));
+		VereinePdf::finish($pdf, $outputlangs, $outputlangs->transnoentities('VereineAuditReportTitle', $period['label']), VereineArchive::seal($code));
 		$pdf->Output($file, 'F');
+		if (is_file($file) && $archive->register($code, 'audit_report', $audit['id'], $outputlangs->transnoentities('VereineAuditReportTitle', $period['label']), $file) < 0) {
+			$this->error = $archive->error;
+			return '';
+		}
 		if (!is_file($file)) {
 			$this->error = 'cannot write '.$file;
 			return '';

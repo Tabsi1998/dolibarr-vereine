@@ -550,7 +550,11 @@ class VereineAccount
 		}
 		$period = $account['period'];
 		$organization = VereineOrganization::load($mysoc);
-		$pdf = VereinePdf::start($outputlangs);
+		// A finished document: PDF/A with its code (#123).
+		require_once __DIR__.'/vereinearchive.class.php';
+		$archive = new VereineArchive($this->db);
+		$code = $archive->codeFor('account', $account['record']['id']);
+		$pdf = VereinePdf::start($outputlangs, true);
 		$font = pdf_getPDFFont($outputlangs);
 		$row = function ($label, $amount, $style = '') use ($pdf, $font, $outputlangs) {
 			$pdf->SetFont($font, $style, 10);
@@ -600,8 +604,12 @@ class VereineAccount
 		$pdf->Ln(4);
 		$pdf->MultiCell(0, 4, $outputlangs->transnoentities('VereineAccountPdfLaw'), 0, 'L');
 
-		VereinePdf::finish($pdf, $outputlangs, $outputlangs->transnoentities('VereineAccountPdfTitle', $period['label']));
+		VereinePdf::finish($pdf, $outputlangs, $outputlangs->transnoentities('VereineAccountPdfTitle', $period['label']), VereineArchive::seal($code));
 		$pdf->Output($file, 'F');
+		if (is_file($file) && $archive->register($code, 'account', $account['record']['id'], $outputlangs->transnoentities('VereineAccountPdfTitle', $period['label']), $file) < 0) {
+			$this->error = $archive->error;
+			return '';
+		}
 		if (!is_file($file)) {
 			$this->error = 'cannot write '.$file;
 			return '';
