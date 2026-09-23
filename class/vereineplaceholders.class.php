@@ -45,8 +45,9 @@ class VereinePlaceholders
 	const KEYS = array(
 		'association' => array('__VEREINE_NAME__', '__VEREINE_ZVR__', '__VEREINE_SITZ__', '__VEREINE_ADRESSE__', '__VEREINE_EMAIL__', '__VEREINE_WEBSITE__',
 			'__VEREINE_BEHOERDE__', '__VEREINE_GEGRUENDET__', '__VEREINE_ZWECK__', '__VEREINE_OBMANN__', '__VEREINE_KASSIER__', '__VEREINE_SCHRIFTFUEHRUNG__',
-			'__VEREINE_VORSTAND__'),
-		'member' => array('__VEREINE_MITGLIED_FUNKTIONEN__'),
+			'__VEREINE_VORSTAND__', '__VEREINE_BANKVERBINDUNG__'),
+		'member' => array('__VEREINE_MITGLIED_FUNKTIONEN__', '__VEREINE_MITGLIED_NUMMER__', '__VEREINE_MITGLIED_ART__', '__VEREINE_MITGLIED_BEITRAG__',
+			'__VEREINE_MITGLIED_SEIT__', '__VEREINE_MITGLIED_EINWILLIGUNGEN__'),
 		'meeting' => array('__VEREINE_EMPFAENGER__', '__VEREINE_SITZUNG_TITEL__', '__VEREINE_SITZUNG_ART__', '__VEREINE_SITZUNG_TAG__', '__VEREINE_SITZUNG_ZEIT__',
 			'__VEREINE_SITZUNG_ORT__', '__VEREINE_SITZUNG_ZUGANG__', '__VEREINE_SITZUNG_EINLEITUNG__', '__VEREINE_SITZUNG_DETAILS__', '__VEREINE_TAGESORDNUNG__',
 			'__VEREINE_ANTRAGSFRIST__', '__VEREINE_SITZUNG_HINWEISE__'),
@@ -100,9 +101,10 @@ class VereinePlaceholders
 	 * @param array<int,array{code:string,label:string,board:bool}> $functions    Active functions of the catalogue
 	 * @param array<string,array<int,string>>                $holders      Names of the holders today by function code
 	 * @param string                                         $founded      Founding day as shown, empty when unknown
+	 * @param string                                         $bank         Bank account of the association, IBAN and BIC
 	 * @return array<string,string>
 	 */
-	public static function association(array $organization, array $functions, array $holders, $founded)
+	public static function association(array $organization, array $functions, array $holders, $founded, $bank = '')
 	{
 		$address = trim($organization['address']['street']);
 		$town = trim($organization['address']['zip'].' '.$organization['address']['town']);
@@ -123,6 +125,7 @@ class VereinePlaceholders
 			'__VEREINE_GEGRUENDET__' => (string) $founded,
 			'__VEREINE_ZWECK__' => (string) $organization['purpose'],
 			'__VEREINE_VORSTAND__' => implode("\n", $board),
+			'__VEREINE_BANKVERBINDUNG__' => (string) $bank,
 		);
 		foreach (self::FUNCTIONS as $key => $code) {
 			$values[$key] = !empty($holders[$code]) ? implode(', ', $holders[$code]) : '';
@@ -234,6 +237,8 @@ class VereinePlaceholders
 		require_once __DIR__.'/vereinefunctions.class.php';
 		require_once dirname(__DIR__).'/lib/vereine.lib.php';
 
+		require_once __DIR__.'/vereinememberform.class.php';
+
 		$organization = VereineOrganization::load($mysoc);
 		$functions = new VereineFunctions($this->db);
 		$names = array();
@@ -241,7 +246,8 @@ class VereinePlaceholders
 			$names[$code] = array_column($holders, 'name');
 		}
 		$founded = (string) $organization['founded'] !== '' ? vereineFormatDay($organization['founded']) : '';
-		self::$cache = self::association($organization, $functions->fetchAll(true), $names, $founded);
+		// The bank account of the association, the same one the application form shows in its footer.
+		self::$cache = self::association($organization, $functions->fetchAll(true), $names, $founded, VereineMemberForm::bank($this->db));
 		return self::$cache;
 	}
 
@@ -253,11 +259,39 @@ class VereinePlaceholders
 	 */
 	public function memberValues($memberId)
 	{
+		global $langs;
+
 		require_once __DIR__.'/vereinefunctions.class.php';
+		require_once __DIR__.'/vereinefeemodel.class.php';
+		require_once __DIR__.'/vereineconsents.class.php';
+		require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
 
 		$functions = new VereineFunctions($this->db);
 		$held = $functions->memberFunctions((int) $memberId, dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
-		return array('__VEREINE_MITGLIED_FUNKTIONEN__' => implode(', ', array_column($held, 'label')));
+		$member = new Adherent($this->db);
+		$known = $member->fetch((int) $memberId) > 0;
+		$types = (new VereineFeeModel($this->db))->memberTypes(false);
+		$type = $known && isset($types[(int) $member->typeid]) ? $types[(int) $member->typeid] : null;
+		$fee = '';
+		if ($type !== null && !empty($type['subscription']) && $type['model']['amount'] !== null) {
+			$fee = price($type['model']['amount'], 0, $langs, 1, -1, 2).' € '.$langs->transnoentities('VereineApplicationPeriod_'.$type['model']['duration_unit'],
+				(int) $type['model']['duration_value']);
+		}
+		$consents = array();
+		foreach ((new VereineConsents($this->db))->stateFor((int) $memberId) as $consent) {
+			if ($consent['state'] !== 'none') {
+				$consents[] = $consent['label'].': '.$langs->transnoentities('VereineConsentState_'.$consent['state']).' (v'.$consent['version'].')';
+			}
+		}
+		return array(
+			'__VEREINE_MITGLIED_FUNKTIONEN__' => implode(', ', array_column($held, 'label')),
+			'__VEREINE_MITGLIED_NUMMER__' => $known ? (string) $member->ref : '',
+			'__VEREINE_MITGLIED_ART__' => $type !== null ? $type['label'] : '',
+			'__VEREINE_MITGLIED_BEITRAG__' => $fee,
+			'__VEREINE_MITGLIED_SEIT__' => $known && !empty($member->first_subscription_date)
+				? dol_print_date($member->first_subscription_date, 'day') : ($known && !empty($member->datec) ? dol_print_date($member->datec, 'day') : ''),
+			'__VEREINE_MITGLIED_EINWILLIGUNGEN__' => implode('; ', $consents),
+		);
 	}
 
 	/**

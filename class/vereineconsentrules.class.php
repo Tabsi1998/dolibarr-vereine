@@ -114,6 +114,9 @@ class VereineConsentRules
 		return array('at' => $at, 'form' => $value('form', 128), 'ref' => $value('ref', 64));
 	}
 
+	/** What somebody can decide about a purpose. */
+	const DECISIONS = array('given', 'withdrawn');
+
 	/** Largest signature image a website may send, in bytes. */
 	const SIGNATURE_BYTES = 200000;
 
@@ -140,6 +143,49 @@ class VereineConsentRules
 			return array('image' => '', 'errors' => array('signature must be at most '.self::SIGNATURE_BYTES.' bytes'));
 		}
 		return array('image' => $image, 'errors' => array());
+	}
+
+	/**
+	 * Check and normalise a decision about one consent, as a website sends it for a member (#98).
+	 *
+	 * Giving a consent needs the version that was shown, so nobody agrees silently to a newer text.
+	 * Withdrawing needs no version: a new text must never stand in the way of a withdrawal
+	 * (Art. 7 (3) GDPR).
+	 *
+	 * @param mixed                             $data    Body of the request
+	 * @param array<string,int>                 $texts   Current version of every active text by code
+	 * @param array<string,array<string,mixed>> $current The member's effective consents by code
+	 * @return array{errors:string[],decision:array<string,mixed>} Errors in English for the API answer
+	 */
+	public static function decision($data, array $texts, array $current)
+	{
+		$errors = array();
+		$code = is_array($data) && isset($data['code']) && is_scalar($data['code']) ? trim((string) $data['code']) : '';
+		$what = is_array($data) && isset($data['decision']) && is_scalar($data['decision']) ? trim((string) $data['decision']) : '';
+		$version = is_array($data) && isset($data['version']) && is_numeric($data['version']) ? (int) $data['version'] : 0;
+		if (!in_array($what, self::DECISIONS, true)) {
+			$errors[] = 'decision must be '.implode(' or ', self::DECISIONS);
+		}
+		$given = isset($current[$code]) && $current[$code]['given'];
+		if ($what === 'given') {
+			if (!isset($texts[$code])) {
+				$errors[] = 'code '.$code.' is no active consent text, see GET /vereine/consents';
+			} elseif ($version !== $texts[$code]) {
+				$errors[] = 'version '.$version.' was given, the text shown must be the current version '.$texts[$code];
+			}
+		} elseif ($what === 'withdrawn') {
+			if (!$given) {
+				$errors[] = 'code '.$code.' is not given right now, so there is nothing to withdraw';
+			} else {
+				$version = (int) $current[$code]['version'];
+			}
+		}
+		$proof = self::proof(array(
+			'at' => is_array($data) && isset($data['granted_at']) ? $data['granted_at'] : '',
+			'form' => is_array($data) && isset($data['form']) ? $data['form'] : '',
+			'ref' => is_array($data) && isset($data['reference']) ? $data['reference'] : '',
+		));
+		return array('errors' => $errors, 'decision' => array('code' => $code, 'decision' => $what, 'version' => $version, 'proof' => $proof));
 	}
 
 	/**

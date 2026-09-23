@@ -13,6 +13,7 @@ import base64
 import datetime
 import hashlib
 import html
+import io
 import json
 import re
 import secrets
@@ -354,6 +355,7 @@ def enable(stack: Stack) -> str:
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_account", "/vereine/account.php"],
                     ["members", "vereine_application", "/vereine/application.php"],
+                    ["members", "vereine_applications", "/vereine/applications.php"],
                     ["members", "vereine_audit", "/vereine/audit.php"],
                     ["members", "vereine_authority", "/vereine/authority.php"],
                     ["members", "vereine_circulars", "/vereine/circulars.php"],
@@ -375,7 +377,7 @@ def enable(stack: Stack) -> str:
     granted = stack.php_fixture("rights")
     expect(granted.get("right") == 49210001, f"granting the right returned {granted}")
     return (f"module {stack.module_version} on with Members, third parties and categories; no country profile; "
-            "4 rights, 13 menu entries, log table, 3 categories")
+            "4 rights, 14 menu entries, log table, 3 categories")
 
 
 def pages(stack: Stack) -> str:
@@ -1882,6 +1884,78 @@ def applications(stack: Stack) -> str:
     tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={member_id}"), "association tab after the withdrawal")
     expect(events == [["fotos", "2", "1", "website"], ["fotos", "2", "0", "paper"]] and 'data-member-consent="fotos" data-state="withdrawn"' in tab.text,
            f"withdrawal: {events}")
+    # The member decides over the API: give, withdraw, and the same order twice (#98).
+    status, state = stack.api(f"vereine/members/{member_id}/consents", key)
+    by_code = {row["code"]: row for row in state} if status == 200 else {}
+    expect(status == 200 and by_code.get("fotos", {}).get("state") == "withdrawn" and by_code["fotos"]["can_give"] is True
+           and by_code["fotos"]["can_withdraw"] is False and by_code.get("newsletter", {}).get("state") == "none",
+           f"GET vereine/members/id/consents answered HTTP {status}: {state}")
+    status, _ = stack.api(f"vereine/members/{member_id}/consents", form_key)
+    expect(status == 403, f"reading the consents without the website right answered HTTP {status}")
+    decision = {"code": "newsletter", "decision": "given", "version": by_code["newsletter"]["current_version"],
+                "granted_at": "2026-09-23T10:15:00+02:00", "form": "Mein Konto", "reference": "web-c-77"}
+    status, answer = stack.api(f"vereine/members/{member_id}/consents", form_key, method="POST", data={**decision, "version": 99})
+    expect(status == 400 and "current version" in json.dumps(answer), f"a consent with a wrong version answered HTTP {status}: {answer}")
+    status, answer = stack.api(f"vereine/members/{member_id}/consents", form_key, method="POST", data=decision)
+    expect(status == 200 and answer.get("recorded") is True, f"giving the newsletter consent answered HTTP {status}: {answer}")
+    events = stack.value(f"SELECT COUNT(*) FROM llx_vereine_consent WHERE fk_adherent = {member_id} AND code = 'newsletter'")
+    status, again_answer = stack.api(f"vereine/members/{member_id}/consents", form_key, method="POST", data=decision)
+    events_again = stack.value(f"SELECT COUNT(*) FROM llx_vereine_consent WHERE fk_adherent = {member_id} AND code = 'newsletter'")
+    expect(status == 200 and again_answer.get("recorded") is False and events_again == events,
+           f"the same order twice: HTTP {status} {again_answer}, {events} then {events_again} entries")
+
+    # A new version of the text must not stand in the way of a withdrawal (Art. 7 (3) GDPR).
+    page_ok(browser.submit(page_ok(browser.get("/custom/vereine/admin/consents.php"), "consent setup").form(name="vereineconsenttext"),
+                           {"code": "newsletter", "label": "Newsletter", "text": "Der Newsletter darf an meine E-Mail-Adresse gehen, dritte Fassung."}),
+            "a third version of the newsletter consent")
+    status, answer = stack.api(f"vereine/members/{member_id}/consents", form_key, method="POST",
+                               data={"code": "newsletter", "decision": "withdrawn", "granted_at": "2026-09-23T11:00:00+02:00", "reference": "web-c-78"})
+    expect(status == 200 and answer.get("state") == "withdrawn", f"withdrawing after a new version answered HTTP {status}: {answer}")
+    status, state = stack.api(f"vereine/members/{member_id}/consents", key)
+    newest = {row["code"]: row for row in state}["newsletter"]["current_version"]
+    status, answer = stack.api(f"vereine/members/{member_id}/consents", form_key, method="POST",
+                               data={"code": "newsletter", "decision": "given", "version": newest,
+                                     "granted_at": "2026-09-23T09:00:00+02:00", "reference": "web-c-79"})
+    expect(status == 409, f"a consent from before the withdrawal answered HTTP {status}: {answer}")
+    status, _ = stack.api("vereine/members/999999/consents", form_key, method="POST", data=decision)
+    expect(status == 404, f"a decision for a member that does not exist answered HTTP {status}")
+
+    # The way of an application: state, the association decides in Dolibarr, the website may take it back (#72).
+    status, state = stack.api(f"vereine/applications/{body['external_id']}", form_key)
+    expect(status == 200 and state.get("status") == "received" and state.get("member_id") == 0,
+           f"GET vereine/applications/external answered HTTP {status}: {state}")
+    status, conflict = stack.api("vereine/applications", form_key, method="POST", data={**body, "lastname": "Anders"})
+    expect(status == 409, f"the same external_id with other content answered HTTP {status}: {conflict}")
+    page = page_ok(browser.get("/custom/vereine/applications.php"), "the applications in Dolibarr")
+    rows = re.findall(r'data-application="(\d+)" data-status="([a-z_]+)" data-lookalikes="(\d+)"', page.text)
+    expect(any(row[1] == "received" for row in rows), f"the application is not waiting in Dolibarr: {rows}")
+    application_id = [row[0] for row in rows if row[1] == "received"][0]
+    refused = page_ok(browser.post("/custom/vereine/applications.php", [("token", token_of(page)), ("action", "decide"),
+                                                                       ("application", application_id), ("status", "rejected"), ("reason", "")]),
+                      "say no without a reason")
+    expect("Grund" in html.unescape(refused.text), "an application was rejected without a reason for the person")
+    page_ok(browser.submit(page.form(name=f"vereineapplication{application_id}"), {"status": "accepted"}), "take the applicant in")
+    member_status = stack.value(f"SELECT statut FROM llx_adherent WHERE rowid = {member_id}")
+    status, state = stack.api(f"vereine/applications/{body['external_id']}", form_key)
+    expect(member_status == "1" and state.get("status") == "accepted" and state.get("member_id") == member_id,
+           f"after taking in: member status {member_status}, application {state}")
+    status, answer = stack.api(f"vereine/applications/{body['external_id']}/withdraw", form_key, method="POST")
+    expect(status == 409, f"withdrawing an accepted application answered HTTP {status}: {answer}")
+    logged = stack.value(f"SELECT COUNT(*) FROM llx_vereine_log WHERE fk_adherent = {member_id} AND action = 'application_decided'")
+    expect(logged == "1", f"{logged} entries about the decision, expected 1")
+
+    # A second application that the website takes back again.
+    second = {**body, "external_id": "web-2026-0043", "email": "zweite.antrag@runtime-verein.test", "lastname": "Zweitantrag"}
+    status, created_second = stack.api("vereine/applications", form_key, method="POST", data=second)
+    expect(status == 200 and created_second.get("application_status") == "received", f"the second application answered HTTP {status}: {created_second}")
+    status, withdrawn = stack.api(f"vereine/applications/{second['external_id']}/withdraw", form_key, method="POST")
+    status_again, withdrawn_again = stack.api(f"vereine/applications/{second['external_id']}/withdraw", form_key, method="POST")
+    expect(status == 200 and withdrawn.get("changed") is True and status_again == 200 and withdrawn_again.get("changed") is False,
+           f"withdrawing: {withdrawn} then {withdrawn_again}")
+    status, _ = stack.api("vereine/applications/gibtsnicht", form_key)
+    expect(status == 404, f"an application that does not exist answered HTTP {status}")
+    expect(denied(stack.browser("rtnobody").get("/custom/vereine/applications.php")), "a user without rights opens the applications")
+
     # The paper way: the signed declaration is kept with the documents of the member (#109).
     page_ok(browser.submit(tab.form(name="vereinerecordconsent")), "record a consent on paper")
     event = stack.value(f"SELECT rowid FROM llx_vereine_consent WHERE fk_adherent = {member_id} AND source = 'paper' AND given = 1 ORDER BY rowid DESC LIMIT 1")
@@ -3281,6 +3355,25 @@ def application(stack: Stack) -> str:
     page_ok(browser.submit(again.form(name=f"vereineapplication{type_id}")), "build the blank application once more")
     printed = base64.b64decode(stack.shell("base64 $(ls -t $(find /var/www/documents/vereine/application -name '*.pdf') | head -1)").stdout)
     expect(b"antrag_lastname" not in printed, "the application carries fields although only the declaration was switched on")
+
+    # The association's own documents from an ODT template of Dolibarr, with the module's placeholders (#113).
+    stack.shell("mkdir -p /var/www/documents/doctemplates/mitglieder && cp /var/www/html/custom/vereine/docs/vorlagen/vereinsvereinbarung.odt"
+                " /var/www/documents/doctemplates/mitglieder/ && chown -R www-data:www-data /var/www/documents/doctemplates")
+    stack.sql("INSERT INTO llx_const (name, entity, value, type, visible) VALUES ('ADHERENT_ADDON_PDF_ODT_PATH', 1, 'DOL_DATA_ROOT/doctemplates/mitglieder', 'chaine', 0)"
+              " ON DUPLICATE KEY UPDATE value = 'DOL_DATA_ROOT/doctemplates/mitglieder'")
+    stack.sql("INSERT INTO llx_document_model (nom, type, entity, libelle, description) SELECT 'generic_member_odt', 'member', 1, 'ODT', 'ADHERENT_ADDON_PDF_ODT_PATH'"
+              " FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM llx_document_model WHERE nom = 'generic_member_odt' AND type = 'member' AND entity = 1)")
+    card = page_ok(browser.get(f"/adherents/card.php?id={member}"), "member card for the ODT template")
+    offered = re.findall(r'value="(generic_member_odt[^"]*)"', card.text) or ["generic_member_odt:vereinsvereinbarung.odt"]
+    built = page_ok(browser.post(f"/adherents/card.php?id={member}", [("token", token_of(card)), ("action", "builddoc"), ("model", offered[0])]),
+                    "fill the ODT template")
+    generated = stack.shell("ls -t $(find /var/www/documents/adherent -name '*.odt' 2>/dev/null) 2>/dev/null | head -1").stdout.strip()
+    expect(generated.endswith(".odt"), f"Dolibarr filled no ODT template ({offered[0]}): {generated!r}; answer "
+           + repr(re.sub(r"\s+", " ", html.unescape(built.text))[-500:]))
+    text = zipfile.ZipFile(io.BytesIO(base64.b64decode(stack.shell(f"base64 '{generated}'").stdout))).read("content.xml").decode("utf-8")
+    expect("123456789" in text and "Bezahlt" in text, f"the filled template misses the association or the member: {text[:200]!r}")
+    expect("{__VEREINE_MITGLIED_ART__}" not in text and "{__VEREINE_ZVR__}" not in text, "placeholders of the module stayed in the document")
+    expect("Beitragspflichtig" in text, "the member type is missing in the filled template")
 
     reader = stack.browser("rtreader")
     page = page_ok(reader.get(base), "the applications for somebody who may only read members")

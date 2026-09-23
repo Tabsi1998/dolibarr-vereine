@@ -348,6 +348,75 @@ Einwilligungen von Kindern: Bei einem Online-Formular, das sich direkt an Kinder
 richtet, kann ein Kind in Österreich ab 14 Jahren selbst einwilligen (§ 4 Abs. 4
 DSG); bei Jüngeren die Eltern fragen.
 
+
+## GET /vereine/applications/{external_id}
+
+Wo ein Beitrittsantrag steht. Braucht das Recht, Beitrittsanträge anzulegen.
+
+```json
+{ "external_id": "web-2026-0042", "status": "accepted", "received_at": "2026-09-23T10:15:00+02:00",
+  "decided_at": "2026-09-24T18:00:00+02:00", "reason": "", "member_id": 57, "member_ref": "57" }
+```
+
+| Feld | Inhalt |
+| --- | --- |
+| `status` | `received`, `in_review`, `accepted`, `rejected` oder `withdrawn` |
+| `reason` | Nur bei einer Ablehnung: der Grund, der für die Person bestimmt ist. Interne Anmerkungen sind nie enthalten |
+| `member_id`, `member_ref` | Erst nach der Aufnahme gefüllt |
+
+Aufgenommen oder abgelehnt wird **nur in Dolibarr**, nie über die API.
+
+## POST /vereine/applications/{external_id}/withdraw
+
+Die Website zieht ihren eigenen Antrag zurück, solange der Verein nicht entschieden hat.
+
+```json
+{ "external_id": "web-2026-0042", "status": "withdrawn", "changed": true }
+```
+
+- Nochmals geschickt: `changed: false`, der Antrag bleibt zurückgezogen.
+- Hat der Verein schon aufgenommen oder abgelehnt: 409. Eine bestehende Mitgliedschaft endet über den Austritt, nicht hier.
+- Derselbe `external_id` mit **anderem Inhalt** wird beim Anlegen mit 409 abgelehnt – nichts wird stillschweigend überschrieben.
+
+## GET /vereine/members/{id}/consents
+
+Der Stand je Zweck für dieses Mitglied, für eine Seite „Meine Einwilligungen“. Braucht das Recht, die Mitglieds-Zusammenfassung zu lesen.
+
+```json
+[
+  { "code": "fotos", "label": "Fotos auf der Website", "state": "given", "version": 2, "current_version": 2,
+    "moment": "2026-09-22T19:30:00+02:00", "can_give": false, "can_withdraw": true }
+]
+```
+
+| Feld | Inhalt |
+| --- | --- |
+| `state` | `none` (noch nie entschieden), `given` oder `withdrawn` |
+| `version` | Die Version, der das Mitglied zugestimmt hat |
+| `current_version` | Die aktuelle Version des Textes; `0`, wenn der Zweck nicht mehr aktiv ist |
+| `can_give`, `can_withdraw` | Was jetzt möglich ist – so muss die Website nicht selbst rechnen |
+
+## POST /vereine/members/{id}/consents
+
+Erteilen oder widerrufen. Braucht das Recht, Beitrittsanträge anzulegen.
+
+```json
+{ "code": "newsletter", "decision": "given", "version": 1,
+  "granted_at": "2026-09-23T10:15:00+02:00", "form": "Mein Konto", "reference": "web-c-77" }
+```
+
+Antwort:
+
+```json
+{ "code": "newsletter", "state": "given", "version": 1, "recorded": true }
+```
+
+- **Zustimmen** geht nur mit der Version, die der Person gezeigt wurde. Eine ältere Version wird mit 400 abgelehnt – niemand stimmt still einer neuen Fassung zu.
+- **Widerrufen** braucht keine Version und funktioniert auch dann, wenn es inzwischen eine neue Fassung gibt (Art. 7 Abs. 3 DSGVO).
+- `reference` macht den Auftrag wiederholbar: derselbe Auftrag nochmals geschickt antwortet mit `recorded: false` und legt keinen zweiten Eintrag an.
+- Eine Zustimmung, die älter ist als ein schon gespeicherter Widerruf, wird mit 409 abgelehnt; der Widerruf bleibt.
+- Für welche Person eine Website handeln darf, bindet erst die geprüfte Client-Zuordnung (#153); bis dahin ist die Website dafür verantwortlich, nach dem richtigen Mitglied zu fragen.
+
 ## GET /vereine/members
 
 Zusammenfassungen aller Mitglieder nach ID, für eine Website, die eine eigene

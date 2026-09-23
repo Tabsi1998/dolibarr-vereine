@@ -9,6 +9,34 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **Beitrittsanträge mit Stand** (#72): Neuer Menüpunkt *Mitglieder – Verein –
+  Beitrittsanträge*. Jeder Antrag hat einen Stand – eingegangen, in Prüfung, aufgenommen,
+  abgelehnt, zurückgezogen. Aufgenommen oder abgelehnt wird **nur in Dolibarr**; die
+  Aufnahme macht aus dem Entwurf ein gültiges Mitglied. Bei einer Ablehnung gibt es einen
+  Grund für die Person, getrennt von internen Anmerkungen. Die Seite warnt, wenn es schon
+  jemanden mit gleichem Namen oder gleicher E-Mail gibt.
+- Über die API: `GET /vereine/applications/{external_id}` zeigt den Stand,
+  `POST /vereine/applications/{external_id}/withdraw` zieht den eigenen Antrag zurück,
+  solange der Verein nicht entschieden hat. Derselbe `external_id` mit anderem Inhalt wird
+  mit 409 abgelehnt statt still überschrieben.
+
+- **Einwilligungen über die API** (#98): `GET /vereine/members/{id}/consents` zeigt je
+  Zweck den Stand, die zugestimmte und die aktuelle Textversion und was jetzt möglich ist.
+  `POST /vereine/members/{id}/consents` erteilt oder widerruft. Zustimmen geht nur mit der
+  Version, die der Person gezeigt wurde; widerrufen geht immer, auch bei neuer Fassung
+  (Art. 7 Abs. 3 DSGVO). Derselbe Auftrag nochmals geschickt wird einmal gespeichert, und
+  eine Zustimmung, die älter ist als ein gespeicherter Widerruf, wird abgelehnt.
+- **Eigene Dokumente über Dolibarrs ODT-Vorlagen** (#113): Das Modul liefert Platzhalter
+  für eigene Vorlagen – Vereinsdaten samt Bankverbindung, Mitgliedsnummer, Mitgliedsart,
+  Beitrag, Mitglied seit, Funktionen und Einwilligungen. Dazu eine Beispielvorlage
+  (`docs/vorlagen/vereinsvereinbarung.odt`) und eine Anleitung Schritt für Schritt
+  (`docs/ODT-VORLAGEN.md`), etwa für die Vereinbarung mit einem Vertragsspieler.
+- Wissenswert aus der Anleitung: Ab Dolibarr 24 müssen ODT-Vorlagen unter
+  `documents/doctemplates` liegen, sonst lehnt Dolibarr sie ab. In ODT-Vorlagen stehen die
+  Platzhalter in geschweiften Klammern, in E-Mail-Vorlagen ohne.
+
+### Neu
+
 - **Online-Antrag als PDF am Mitglied** (#111): Kommt ein Beitrittsantrag über die Website,
   legt das Modul denselben Antrag als PDF bei den Dokumenten des Mitglieds ab – mit dem
   Vermerk „Elektronisch eingereicht am … über die Website“, den gesendeten Daten und den

@@ -63,6 +63,11 @@ class pdf_vereineantrag extends ModelePDFCards
 	public $result = '';
 
 	/**
+	 * @var string[] Warnings of the last run; Dolibarr reads them after generating a document
+	 */
+	public $warnings = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @param DoliDB $db Database handler

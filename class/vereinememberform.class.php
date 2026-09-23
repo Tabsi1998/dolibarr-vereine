@@ -385,7 +385,7 @@ class VereineMemberForm
 				$parts[] = $value;
 			}
 		}
-		$bank = $this->bank();
+		$bank = self::bank($this->db);
 		if ($bank !== '') {
 			$parts[] = $bank;
 		}
@@ -398,16 +398,17 @@ class VereineMemberForm
 	/**
 	 * The association's bank account for the footer: the one chosen in the setup, else the first open one.
 	 *
+	 * @param DoliDB $db Database handler
 	 * @return string IBAN and BIC, empty when there is none
 	 */
-	private function bank()
+	public static function bank($db)
 	{
 		$chosen = getDolGlobalInt(self::ACCOUNT);
 		$sql = "SELECT label, iban_prefix, bic FROM ".MAIN_DB_PREFIX."bank_account WHERE entity IN (".getEntity('bank_account').") AND clos = 0";
 		$sql .= $chosen > 0 ? " AND rowid = ".$chosen : "";
 		$sql .= " ORDER BY rowid";
-		$resql = $this->db->query($sql);
-		$obj = $resql ? $this->db->fetch_object($resql) : null;
+		$resql = $db->query($sql);
+		$obj = $resql ? $db->fetch_object($resql) : null;
 		if (!$obj || (string) $obj->iban_prefix === '') {
 			return '';
 		}
