@@ -7,6 +7,18 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.9.0-beta] - 2026-09-23
+
+Spenden & Ehrenamt: Freiwilligenpauschale und PRAE mit Grenzen, Jahresliste und Auszahlung über
+Dolibarr nach den Unterschriften, Überzahlungen auf Rechnungen sauber als Guthaben, Rückzahlung
+oder Spende zugeordnet, und die Spendenmeldung ans Finanzamt mit vbPK und XML nach dem Schema des
+Finanzministeriums. Dazu ein Mitgliedsantrag, der aussieht wie ein Formular (#6, #7, #54, #202).
+
+**Nach dem Update** das Modul unter *Einrichtung > Module* einmal aus- und wieder einschalten,
+damit die neuen Tabellen, Menüpunkte und die Berechtigung *Spendenmeldung vorbereiten* angelegt
+werden. Für Spenden aus Überzahlungen und für die Spendenmeldung muss das Dolibarr-Modul
+*Spenden* eingeschaltet sein.
+
 ### Neu
 
 - **Freiwilligenpauschale und PRAE** (#7): Ein neuer Menüpunkt *Mitglieder > Verein >
@@ -1876,7 +1888,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.8.0-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.9.0-beta...HEAD
+[0.9.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.9.0-beta
 [0.8.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.8.0-beta
 [0.7.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.7.1-beta
 [0.7.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.7.0-beta
