@@ -153,6 +153,12 @@ class modVereine extends DolibarrModules
 		$this->rights[$r][4] = 'application';
 		$this->rights[$r][5] = 'write';
 		$r++;
+		// A service that synchronises follows the change feed; that is not the same as reading a member's own data.
+		$this->rights[$r][0] = $this->numero.'05';
+		$this->rights[$r][1] = 'Follow the change feed of the association for a service that synchronises';
+		$this->rights[$r][4] = 'sync';
+		$this->rights[$r][5] = 'read';
+		$r++;
 
 		$this->menu = array();
 		$r = 0;

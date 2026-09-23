@@ -670,6 +670,80 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Changes since a cursor
+	 *
+	 * What changed about the objects an external application may follow: membership, functions, fees,
+	 * applications and consents. An entry says only that something changed, never what: kind of object,
+	 * its id, its revision, the kind of change and when it happened. The current data is read through
+	 * the ordinary endpoints, which decide for themselves what a client may see.
+	 *
+	 * A reader follows the feed with the opaque cursor it got last. Entries younger than a few seconds
+	 * are held back, so a transaction that is still open cannot slip in behind a cursor that was already
+	 * confirmed. When the cursor is older than the feed is kept, the answer says resync_required and
+	 * carries no events; the reader then reconciles through changes/snapshot. Needs the right to follow
+	 * the change feed, which is not the right to read member summaries.
+	 *
+	 * @param string $cursor Where the reader stands, empty to start at the beginning
+	 * @param int    $limit  Entries per page, 1 to 500
+	 * @param string $types  Kinds of object, comma separated; empty for all
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET changes
+	 *
+	 * @throws RestException 400 limit invalid
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getChanges($cursor = '', $limit = 100, $types = '')
+	{
+		$this->checkAccess();
+		$this->checkSyncRight();
+		if ((int) $limit < 1 || (int) $limit > 500) {
+			throw new RestException(400, 'The limit must be between 1 and 500');
+		}
+		dol_include_once('/vereine/class/vereinechanges.class.php');
+		$changes = new VereineChanges($this->db);
+		return $changes->feed((string) $cursor, (int) $limit, (string) $types);
+	}
+
+	/**
+	 * Which objects exist right now
+	 *
+	 * The full reconciliation after a break that was too long. One page carries the ids of one kind of
+	 * object and nothing else. The last page says complete; only then may a client act on what is
+	 * missing on its side. A reconciliation that broke off is no proof that anything was deleted.
+	 *
+	 * The answer also carries the cursor of the moment the reconciliation started from, so the reader
+	 * continues with the feed from there and loses nothing in between. Needs the right to follow the
+	 * change feed.
+	 *
+	 * @param string $object_type Kind of object: membership, function, fee, application or consent
+	 * @param int    $after       Continue after this object, 0 to start
+	 * @param int    $limit       Objects per page, 1 to 500
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET changes/snapshot
+	 *
+	 * @throws RestException 400 object_type or limit invalid
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getChangesSnapshot($object_type = 'membership', $after = 0, $limit = 100)
+	{
+		$this->checkAccess();
+		$this->checkSyncRight();
+		dol_include_once('/vereine/class/vereinechanges.class.php');
+		if (!in_array((string) $object_type, VereineChangeRules::TYPES, true)) {
+			throw new RestException(400, 'The object_type must be one of: '.implode(', ', VereineChangeRules::TYPES));
+		}
+		if ((int) $limit < 1 || (int) $limit > 500 || (int) $after < 0) {
+			throw new RestException(400, 'The limit must be between 1 and 500 and after 0 or more');
+		}
+		$changes = new VereineChanges($this->db);
+		return $changes->snapshot((string) $object_type, (int) $after, (int) $limit);
+	}
+
+	/**
 	 * Refuse the call unless the module is on and the user may read the association.
 	 *
 	 * @return void
@@ -683,6 +757,20 @@ class Vereine extends DolibarrApi
 		}
 		if (!DolibarrApiAccess::$user->hasRight('vereine', 'association', 'read')) {
 			throw new RestException(403, 'Not allowed: the user needs the right to read the association');
+		}
+	}
+
+	/**
+	 * Refuse the call unless the user may follow the change feed.
+	 *
+	 * @return void
+	 *
+	 * @throws RestException
+	 */
+	private function checkSyncRight()
+	{
+		if (!DolibarrApiAccess::$user->hasRight('vereine', 'sync', 'read')) {
+			throw new RestException(403, 'Not allowed: the user needs the right to follow the change feed');
 		}
 	}
 

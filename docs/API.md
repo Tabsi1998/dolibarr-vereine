@@ -619,6 +619,83 @@ Dokument-Download antwortet:
 - Die Website darf das PDF nur dem Mitglied geben, dem es gehört: Es trägt Name
   und Anschrift des Mitglieds. Durchreichen, nicht speichern.
 
+## GET /vereine/changes
+
+Der Änderungsfeed: Er sagt, **dass** sich etwas geändert hat, nie **was**. Ein Eintrag nennt
+Objektart, ID, Revision, Änderungsart und Zeitpunkt – keine Namen, Beträge, Rechnungsinhalte,
+Unterschriften oder Stimmen. Die aktuellen Daten liest der Client über die fachlichen
+Endpunkte, die selbst entscheiden, was er sehen darf.
+
+Braucht das eigene Recht **„Änderungsfeed verfolgen"** (`vereine:sync:read`). Das ist bewusst
+nicht dasselbe wie das Recht auf Mitglieds-Zusammenfassungen: ein Dienst, der abgleicht, ist
+kein Mitglied, das seine eigenen Daten liest.
+
+| Parameter | Bedeutung |
+| --- | --- |
+| `cursor` | Stand des Lesers. Leer beginnt am Anfang. Undurchsichtig – unverändert zurückgeben. |
+| `limit` | Ereignisse je Seite, 1 bis 500, ohne Angabe 100. |
+| `types` | Objektarten mit Komma getrennt: `membership`, `function`, `fee`, `application`, `consent`. |
+
+```json
+{
+  "events": [
+    {"event_id": "9f2c…", "object_type": "membership", "object_id": 42, "revision": 3,
+     "change": "updated", "occurred_at": "2026-09-23T14:05:11Z"}
+  ],
+  "next_cursor": "76312d…",
+  "resync_required": false,
+  "has_more": false,
+  "retention_days": 90
+}
+```
+
+**Reihenfolge und Lücken.** Gelesen wird nach dem Zeitpunkt des Eintrags und, bei gleichem
+Zeitpunkt, nach der Zeile. Einträge der letzten Sekunden hält der Feed zurück: eine noch offene
+Transaktion kann eine kleinere Zeilennummer haben als eine, die früher fertig wurde, und ohne
+diesen Sicherheitsabstand würde sie hinter einem bereits bestätigten Cursor auftauchen. Der
+Abstand macht den Feed nicht perfekt – deshalb bleibt ein regelmäßiger Vollabgleich Pflicht.
+
+**Zurückgerollte Änderungen** erscheinen nie: der Vermerk entsteht in derselben Transaktion wie
+die Änderung selbst und verschwindet mit ihr.
+
+**Wiederholung.** Dieselbe Änderung behält dieselbe `event_id`. Ein Client, der einen Eintrag
+schon kennt, darf ihn verwerfen.
+
+**`resync_required`.** Liegt der Cursor vor der Aufbewahrung (`retention_days`) oder stammt er
+nicht von diesem Verein, antwortet der Feed mit `resync_required: true` und **ohne** Ereignisse.
+Dann ist ein Vollabgleich fällig – eine stille Lücke gibt es nicht.
+
+## GET /vereine/changes/snapshot
+
+Der Vollabgleich. Eine Seite führt die IDs **einer** Objektart auf, sonst nichts.
+
+| Parameter | Bedeutung |
+| --- | --- |
+| `object_type` | `membership`, `function`, `fee`, `application` oder `consent`. |
+| `after` | Weiter nach dieser ID, 0 zum Beginnen. |
+| `limit` | Objekte je Seite, 1 bis 500, ohne Angabe 100. |
+
+```json
+{
+  "object_type": "membership",
+  "objects": [{"object_type": "membership", "object_id": 42}],
+  "next_after": 42,
+  "complete": true,
+  "cursor": "76312d…"
+}
+```
+
+**`complete` ist die Abschlussmarkierung.** Erst wenn sie `true` ist, hat der Client alles
+gesehen. Ein abgebrochener Abgleich ist **kein** Beweis, dass fehlende Objekte gelöscht wurden –
+wer vorher aufräumt, löscht Daten, die es noch gibt.
+
+Der mitgelieferte `cursor` ist der Stand zu Beginn des Abgleichs. Damit liest der Client danach
+lückenlos im Feed weiter.
+
+**Was der Feed nicht kann.** Änderungen, die niemand beobachtet – etwa eine Regel, die erst zu
+einem Datum wirkt, oder eine Korrektur direkt in der Datenbank – erzeugen keinen Eintrag. Genau
+dafür ist der regelmäßige Vollabgleich da.
+
 ## Benachrichtigung über Webhooks
 
 Statt alle paar Minuten zu fragen, kann eine Website erfahren, wann sich die

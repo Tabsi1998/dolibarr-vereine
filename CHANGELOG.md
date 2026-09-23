@@ -9,6 +9,22 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **Änderungsfeed für externe Anwendungen** (#154): Zwei neue Endpunkte,
+  `GET /vereine/changes` und `GET /vereine/changes/snapshot`. Eine Website oder App liest mit
+  einem Cursor nach, was sich geändert hat, und holt nach einer Unterbrechung genau den
+  freigegebenen Stand nach.
+- **Der Feed sagt nur, dass sich etwas geändert hat, nie was**: Objektart, ID, Revision,
+  Änderungsart und Zeitpunkt – keine Namen, Beträge, Rechnungsinhalte, Unterschriften oder
+  Stimmen. Die Daten selbst liest der Client über die fachlichen Endpunkte, die weiterhin selbst
+  prüfen, was er sehen darf.
+- **Keine stillen Lücken**: Ein zurückgerollter Vorgang erzeugt keinen Eintrag, dieselbe
+  Änderung behält dieselbe Kennung, und ein Cursor, der älter ist als die Aufbewahrung
+  (90 Tage), führt zu `resync_required` statt zu einem lautlosen Sprung.
+- **Vollabgleich mit Abschlussmarkierung**: Erst wenn `complete` auf `true` steht, hat der
+  Client alles gesehen. Ein abgebrochener Abgleich ist kein Beweis für Löschungen – so räumt
+  niemand versehentlich Daten weg, die es noch gibt.
+- **Eigenes Recht** `vereine:sync:read`: ein Dienst, der abgleicht, ist nicht dasselbe wie ein
+  Mitglied, das seine eigenen Daten liest.
 - **Generalversammlung Schritt für Schritt** (#127): Ein neuer Menüpunkt *Mitglieder > Verein >
   Generalversammlung* zeigt den ganzen Ablauf einer Versammlung, rückwärts vom Termin gerechnet.
   17 Schritte in drei Phasen – vorher, in der Sitzung, nachher – jeder mit Stand und Frist.
