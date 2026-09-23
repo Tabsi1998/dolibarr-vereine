@@ -61,6 +61,7 @@ require_once $root.'/class/vereinetaxcheckrules.class.php';
 require_once $root.'/class/vereineauditrules.class.php';
 require_once $root.'/class/vereinedutyrules.class.php';
 require_once $root.'/class/vereineeventrules.class.php';
+require_once $root.'/class/vereineshiftrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1788,12 +1789,14 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
 	'VereineEventStatus_' => VereineEventRules::STATUSES,
 	'VereineEventRegistration_' => VereineEventRules::REGISTRATIONS,
+	'VereineShiftStatus_' => VereineShiftRules::STATUSES,
+	'VereineShiftTo_' => array('confirmed', 'done', 'cancelled'),
 	'VereineDutyBasis_' => VereineDutyRules::BASES,
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
@@ -2123,6 +2126,52 @@ same(array(), VereineEventRules::validateEvent(array('registration' => 'external
 	'an external sign-up with its reference is fine');
 same(array('VereineEventErrorEndDay'), VereineEventRules::validateEvent(array('end_day' => '2026-12-04') + $eventData),
 	'an end before the beginning is refused');
+
+// ------------------------------------------------------------- helper shifts (#23)
+
+$shift = array('capacity' => 2, 'shift_day' => '2026-12-05', 'start_time' => '10:00', 'end_time' => '14:00');
+same(array(), VereineShiftRules::validate(array('label' => 'Kassa', 'capacity' => '2') + $shift), 'a sensible shift is fine');
+same(array('VereineShiftErrorEndTime'), VereineShiftRules::validate(array('label' => 'Kassa', 'capacity' => '2',
+	'shift_day' => '2026-12-05', 'start_time' => '14:00', 'end_time' => '10:00')), 'a shift that ends before it starts is refused');
+same(array('VereineShiftErrorCapacity'), VereineShiftRules::validate(array('label' => 'Kassa', 'capacity' => '0') + $shift),
+	'a shift without a place is refused');
+same(array('VereineShiftErrorTime'), VereineShiftRules::validate(array('label' => 'Kassa', 'capacity' => '2',
+	'shift_day' => '2026-12-05', 'start_time' => '25:00', 'end_time' => '')), 'a time that does not exist is refused');
+
+// Places: what is asked for does not take a place, what is confirmed or done does.
+$entries = array(
+	array('member_id' => 1, 'status' => 'confirmed'),
+	array('member_id' => 2, 'status' => 'requested'),
+);
+same(array('taken' => 1, 'free' => 1, 'requested' => 1, 'done' => 0, 'full' => false), VereineShiftRules::places(2, $entries),
+	'one place taken, one free, one asking');
+$full = array(array('member_id' => 1, 'status' => 'confirmed'), array('member_id' => 3, 'status' => 'done'));
+same(true, VereineShiftRules::places(2, $full)['full'], 'somebody who was there still holds their place');
+
+// Two shifts at the same time.
+$morning = array('shift_day' => '2026-12-05', 'start_time' => '08:00', 'end_time' => '12:00');
+$noon = array('shift_day' => '2026-12-05', 'start_time' => '12:00', 'end_time' => '16:00');
+$overlapping = array('shift_day' => '2026-12-05', 'start_time' => '11:00', 'end_time' => '13:00');
+expect(!VereineShiftRules::overlap($morning, $noon), 'one shift ending when the next starts is no overlap');
+expect(VereineShiftRules::overlap($morning, $overlapping), 'shifts that share an hour overlap');
+expect(!VereineShiftRules::overlap($morning, array('shift_day' => '2026-12-06', 'start_time' => '08:00', 'end_time' => '12:00')),
+	'shifts on different days never overlap');
+expect(VereineShiftRules::overlap($morning, array('shift_day' => '2026-12-05', 'start_time' => '', 'end_time' => '')),
+	'a shift without times covers the whole day');
+
+// Who may go on a shift.
+same('', VereineShiftRules::refuse($shift, $entries, array(), 5, 'confirmed'), 'a free place takes another person');
+same('VereineShiftErrorTwice', VereineShiftRules::refuse($shift, $entries, array(), 1, 'confirmed'), 'nobody stands on a shift twice');
+same('VereineShiftErrorFull', VereineShiftRules::refuse($shift, $full, array(), 5, 'confirmed'), 'a full shift takes nobody');
+same('', VereineShiftRules::refuse($shift, $full, array(), 5, 'requested'), 'asking is fine even when the shift is full');
+same('VereineShiftErrorOverlap', VereineShiftRules::refuse(array('capacity' => 2) + $overlapping, array(), array($morning), 5, 'confirmed'),
+	'nobody does two shifts at once');
+same('VereineShiftErrorStatus', VereineShiftRules::refuse($shift, $entries, array(), 5, 'vielleicht'), 'a status that does not exist is refused');
+
+// How long a shift lasts.
+same(4.0, VereineShiftRules::hours($shift), 'ten to two is four hours');
+same(1.5, VereineShiftRules::hours(array('start_time' => '18:00', 'end_time' => '19:30')), 'half hours are counted');
+same(0.0, VereineShiftRules::hours(array('start_time' => '', 'end_time' => '')), 'without times there are no hours');
 
 // ------------------------------------------------------------------- result
 

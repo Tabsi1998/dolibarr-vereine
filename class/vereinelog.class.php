@@ -104,6 +104,10 @@ class VereineLog
 	const EVENT_TASK = 'event_task';
 	const EVENT_TASK_DONE = 'event_task_done';
 	const EVENT_STATUS = 'event_status';
+	const EVENT_REPORT = 'event_report';
+	const SHIFT_SAVED = 'shift_saved';
+	const SHIFT_SIGNUP = 'shift_signup';
+	const SHIFT_DONE = 'shift_done';
 
 	/**
 	 * Append one entry.

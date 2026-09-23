@@ -68,6 +68,7 @@ if (!$res) {
  */
 
 require_once __DIR__.'/class/vereineevents.class.php';
+require_once __DIR__.'/class/vereineshifts.class.php';
 require_once __DIR__.'/class/vereinefunctions.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
@@ -84,6 +85,7 @@ if (!$user->hasRight('vereine', 'association', 'read')) {
 }
 
 $events = new VereineEvents($db);
+$shifts = new VereineShifts($db);
 $action = GETPOST('action', 'aZ09');
 $today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
 $mayManage = $events->mayManage($user, $today);
@@ -123,6 +125,60 @@ if ($action === 'create' && $mayManage) {
 		exit;
 	}
 	setEventMessages($events->error, null, 'errors');
+} elseif ($action === 'saveshift' && $mayManage && $id > 0) {
+	$entered = array('label' => GETPOST('shift_label', 'alphanohtml'), 'shift_day' => GETPOST('shift_day', 'alphanohtml'),
+		'start_time' => GETPOST('start_time', 'alphanohtml'), 'end_time' => GETPOST('end_time', 'alphanohtml'),
+		'capacity' => GETPOST('capacity', 'alphanohtml'), 'function_code' => GETPOST('shift_function', 'aZ09'),
+		'note' => GETPOST('shift_note', 'alphanohtml'));
+	$result = $shifts->save(GETPOSTINT('shift'), $id, $entered, $user);
+	if ($result > 0) {
+		header('Location: '.$self.'#vereineeventshifts');
+		exit;
+	}
+	setEventMessages($result < 0 ? $shifts->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $shifts->errors), 'errors');
+} elseif ($action === 'removeshift' && $mayManage && $id > 0) {
+	if ($shifts->remove(GETPOSTINT('shift'), $user) > 0) {
+		header('Location: '.$self.'#vereineeventshifts');
+		exit;
+	}
+	setEventMessages($shifts->error, null, 'errors');
+} elseif ($action === 'signup' && $id > 0) {
+	// Whoever plans may put anybody on a shift; everyone else only asks for themselves.
+	$member = $mayManage ? GETPOSTINT('member') : (int) $user->fk_member;
+	$status = $mayManage ? VereineShiftRules::STATUS_CONFIRMED : VereineShiftRules::STATUS_REQUESTED;
+	$result = $member > 0 ? $shifts->signUp(GETPOSTINT('shift'), $member, $status, 'dolibarr', $user) : 0;
+	if ($result > 0) {
+		setEventMessages($langs->trans($mayManage ? 'VereineShiftTaken' : 'VereineShiftRequested'), null, 'mesgs');
+		header('Location: '.$self.'#vereineeventshifts');
+		exit;
+	}
+	setEventMessages($result < 0 ? $shifts->error : null, $result < 0 ? null
+		: array_map(array($langs, 'trans'), $shifts->errors ? $shifts->errors : array('VereineShiftErrorNoMember')), 'errors');
+} elseif ($action === 'entry' && $mayManage && $id > 0) {
+	$result = $shifts->setStatus(GETPOSTINT('entry'), GETPOST('status', 'aZ09'), GETPOST('hours', 'alphanohtml'), $user);
+	if ($result > 0) {
+		header('Location: '.$self.'#vereineeventshifts');
+		exit;
+	}
+	setEventMessages($result < 0 ? $shifts->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $shifts->errors), 'errors');
+} elseif ($action === 'report' && $id > 0) {
+	$file = $mayManage ? $events->buildReport($id, $today, $user, $langs) : '';
+	if ($file !== '') {
+		setEventMessages($langs->trans('VereineEventReportBuilt'), null, 'mesgs');
+		header('Location: '.$self.'#vereineeventreport');
+		exit;
+	}
+	setEventMessages($events->error, null, 'errors');
+} elseif ($action === 'reportpdf' && $id > 0) {
+	$file = VereineEvents::reportPath($id);
+	if (!is_file($file)) {
+		accessforbidden();
+	}
+	header('Content-Type: application/pdf');
+	header('Content-Disposition: attachment; filename="'.basename($file).'"');
+	header('Content-Length: '.filesize($file));
+	readfile($file);
+	exit;
 } elseif ($action === 'status' && $mayManage && $id > 0) {
 	$result = $events->setStatus($id, GETPOST('status', 'aZ09'), $user);
 	if ($result > 0) {
@@ -287,7 +343,132 @@ if ($event === null) {
 		print '</select> <input type="date" name="due_on" value="">';
 		print ' <input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('Add')).'">';
 		print '</td></tr></table></form>';
+	}
 
+	// Who helps, when, and who really was there.
+	$plan = $shifts->forEvent($id);
+	$helpers = $shifts->summary($id);
+	print load_fiche_titre($langs->trans('VereineShiftTitle'), '', 'fa-hands-helping', 0, 'vereineeventshifts');
+	print '<div class="paddingbottom" data-shift-summary="'.((int) $helpers['taken']).'/'.((int) $helpers['capacity']).'"';
+	print ' data-shift-hours="'.((float) $helpers['hours']).'">'.$langs->trans('VereineShiftSummary', $helpers['taken'], $helpers['capacity'],
+		$helpers['requested']).'</div>';
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-shifts="'.count($plan).'">';
+	print '<tr class="liste_titre"><td>'.$langs->trans('VereineShiftWhen').'</td><td>'.$langs->trans('VereineShiftName').'</td>';
+	print '<td>'.$langs->trans('VereineShiftPlaces').'</td><td>'.$langs->trans('VereineShiftPeople').'</td><td></td></tr>';
+	foreach ($plan as $shift) {
+		print '<tr class="oddeven" data-shift="'.((int) $shift['id']).'" data-shift-free="'.((int) $shift['places']['free']).'"';
+		print ' data-shift-taken="'.((int) $shift['places']['taken']).'">';
+		print '<td class="nowraponall">'.vereineFormatDay($shift['shift_day']);
+		if ($shift['start_time'] !== '') {
+			print '<br><span class="opacitymedium small">'.dol_escape_htmltag($shift['start_time'].($shift['end_time'] !== '' ? '–'.$shift['end_time'] : '')).'</span>';
+		}
+		print '</td><td>'.dol_escape_htmltag($shift['label']);
+		if ($shift['function_code'] !== '') {
+			print '<br><span class="opacitymedium small">'.dol_escape_htmltag(isset($functionLabels[$shift['function_code']])
+				? $functionLabels[$shift['function_code']] : $shift['function_code']).'</span>';
+		}
+		print '</td>';
+		print '<td class="nowraponall">'.$langs->trans('VereineShiftPlacesValue', $shift['places']['taken'], (int) $shift['capacity']);
+		if ($shift['places']['requested'] > 0) {
+			print ' <span class="badge badge-status badge-status1">'.$langs->trans('VereineShiftRequestedValue', $shift['places']['requested']).'</span>';
+		}
+		print '</td><td>';
+		foreach ($shift['entries'] as $entry) {
+			print '<div data-shift-entry="'.((int) $entry['id']).'" data-shift-status="'.$entry['status'].'">';
+			print dol_escape_htmltag($entry['name']).' <span class="badge badge-status '.($entry['status'] === VereineShiftRules::STATUS_DONE
+				? 'badge-status6' : ($entry['status'] === VereineShiftRules::STATUS_CONFIRMED ? 'badge-status4' : 'badge-status1')).'">';
+			print $langs->trans('VereineShiftStatus_'.$entry['status']).'</span>';
+			if ($entry['status'] === VereineShiftRules::STATUS_DONE && $entry['hours'] > 0) {
+				print ' <span class="opacitymedium small">'.$langs->trans('VereineShiftHoursValue', price($entry['hours'], 0, $langs, 1, -1, 2)).'</span>';
+			}
+			if ($mayManage) {
+				foreach (array(VereineShiftRules::STATUS_CONFIRMED, VereineShiftRules::STATUS_DONE, VereineShiftRules::STATUS_CANCELLED) as $next) {
+					if ($next === $entry['status']) {
+						continue;
+					}
+					print ' <form method="POST" action="'.$self.'" class="inline-block"><input type="hidden" name="token" value="'.newToken().'">';
+					print '<input type="hidden" name="action" value="entry"><input type="hidden" name="entry" value="'.((int) $entry['id']).'">';
+					print '<input type="hidden" name="status" value="'.$next.'">';
+					print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineShiftTo_'.$next)).'"></form>';
+				}
+			}
+			print '</div>';
+		}
+		if (!$shift['entries']) {
+			print '<span class="opacitymedium" data-shift-empty="1">'.$langs->trans('VereineShiftNobody').'</span>';
+		}
+		print '</td><td class="right nowraponall">';
+		if (!$mayManage && (int) $user->fk_member > 0 && !$shift['places']['full']) {
+			print '<form method="POST" action="'.$self.'" class="inline-block"><input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="signup"><input type="hidden" name="shift" value="'.((int) $shift['id']).'">';
+			print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineShiftSignUp')).'"></form>';
+		}
+		if ($mayManage) {
+			print '<form method="POST" action="'.$self.'" class="inline-block"><input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="removeshift"><input type="hidden" name="shift" value="'.((int) $shift['id']).'">';
+			print '<input type="submit" class="button small butActionDelete" value="'.dol_escape_htmltag($langs->trans('Delete')).'"></form>';
+		}
+		print '</td></tr>';
+	}
+	if (!$plan) {
+		print '<tr class="oddeven"><td colspan="5"><span class="opacitymedium" data-shifts-none="1">'.$langs->trans('VereineShiftNone').'</span></td></tr>';
+	}
+	print '</table></div>';
+
+	if ($mayManage) {
+		$members = array();
+		$resql = $db->query("SELECT rowid, firstname, lastname FROM ".MAIN_DB_PREFIX."adherent WHERE entity = ".((int) $conf->entity)
+			." AND statut = 1 ORDER BY lastname, firstname");
+		while ($resql && ($obj = $db->fetch_object($resql))) {
+			$members[(int) $obj->rowid] = trim($obj->firstname.' '.$obj->lastname);
+		}
+		print '<form method="POST" name="vereineshift" action="'.$self.'#vereineeventshifts">';
+		print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="saveshift">';
+		print '<table class="border centpercent"><tr><td class="titlefield">'.$langs->trans('VereineShiftAdd').'</td><td>';
+		print '<input type="text" name="shift_label" size="30" maxlength="255" value="" placeholder="'.dol_escape_htmltag($langs->trans('VereineShiftName')).'">';
+		print ' <input type="date" name="shift_day" value="'.dol_escape_htmltag($event['event_day']).'">';
+		print ' <input type="time" name="start_time" value=""> <input type="time" name="end_time" value="">';
+		print ' <input type="number" name="capacity" min="1" max="999" size="3" value="2"> '.$langs->trans('VereineShiftCapacity');
+		print ' <select name="shift_function" class="flat"><option value="">&nbsp;</option>';
+		foreach ($functions as $function) {
+			print '<option value="'.dol_escape_htmltag($function['code']).'">'.dol_escape_htmltag($function['label']).'</option>';
+		}
+		print '</select> <input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('Add')).'">';
+		print '</td></tr></table></form>';
+
+		if ($plan) {
+			print '<form method="POST" name="vereineshiftperson" action="'.$self.'#vereineeventshifts">';
+			print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="signup">';
+			print '<table class="border centpercent"><tr><td class="titlefield">'.$langs->trans('VereineShiftPutOn').'</td><td>';
+			print '<select name="shift" class="flat">';
+			foreach ($plan as $shift) {
+				print '<option value="'.((int) $shift['id']).'">'.dol_escape_htmltag($shift['label'].' · '.vereineFormatDay($shift['shift_day'])).'</option>';
+			}
+			print '</select> <select name="member" class="flat">';
+			foreach ($members as $memberId => $name) {
+				print '<option value="'.$memberId.'">'.dol_escape_htmltag($name).'</option>';
+			}
+			print '</select> <input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineShiftPutOnButton')).'">';
+			print '</td></tr></table></form>';
+		}
+	}
+
+	// The short report of the event.
+	print load_fiche_titre($langs->trans('VereineEventReportHeading'), '', '', 0, 'vereineeventreport');
+	$reportFile = VereineEvents::reportPath($id);
+	print '<div class="paddingbottom" data-event-report="'.(is_file($reportFile) ? 1 : 0).'">';
+	if (is_file($reportFile)) {
+		print '<a href="'.$self.'&amp;action=reportpdf&amp;token='.newToken().'">'.$langs->trans('VereineEventReportDownload').'</a> ';
+		print '<span class="opacitymedium small">'.dol_print_date(filemtime($reportFile), 'dayhour').'</span>';
+	} else {
+		print '<span class="opacitymedium">'.$langs->trans('VereineEventReportNone').'</span>';
+	}
+	print '</div>';
+
+	if ($mayManage) {
+		print '<div class="tabsAction"><form method="POST" name="vereineeventreport" action="'.$self.'">';
+		print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="report">';
+		print '<input type="submit" class="butAction" value="'.dol_escape_htmltag($langs->trans('VereineEventReportBuild')).'"></form></div>';
 		print '<div class="tabsAction"><form method="POST" name="vereineeventstatus" action="'.$self.'">';
 		print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="status">';
 		print '<select name="status" class="flat">';

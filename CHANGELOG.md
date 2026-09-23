@@ -9,6 +9,16 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **Helferdienste je Veranstaltung** (#23): Schichten mit Tag, Uhrzeit, Anzahl der Plätze und
+  zuständiger Funktion. Mitglieder fragen selbst an, der Vorstand teilt ein – und nach der
+  Veranstaltung wird bestätigt, wer wirklich da war, samt Stunden. **Erst das ist eine
+  geleistete Stunde**; eine Anmeldung allein begründet nichts (wichtig für die
+  Freiwilligenpauschale, #7).
+- **Das Modul passt auf**: eine volle Schicht nimmt niemanden mehr, niemand steht zweimal auf
+  derselben Schicht, und niemand wird zu zwei Schichten zur selben Zeit eingeteilt.
+- **Kurzbericht als PDF**: Checkliste mit Haken, Helferschichten mit bestätigten Stunden und
+  das, was auf das Projekt verrechnet wurde – mit dem klaren Hinweis, dass die
+  Einnahmen-Ausgaben-Rechnung Zahlungen zählt und die Beträge daher abweichen können.
 - **Veranstaltungen aus Vorlagen** (#23): Ein neuer Menüpunkt *Mitglieder > Verein >
   Veranstaltungen*. Eine Vorlage ist eine Checkliste mit Phasen – Vorbereitung, Durchführung,
   Nachbereitung –, mit einer Frist je Punkt (gerechnet ab dem Veranstaltungstag) und der

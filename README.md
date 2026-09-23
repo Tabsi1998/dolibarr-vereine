@@ -74,6 +74,11 @@ und bringt eine REST-API für die Vereinswebsite mit.
   (Anzeige bei der Gemeinde, AKM, Jugendschutz, Versicherung, Registrierkasse) –
   als Erinnerung, nicht als Genehmigung. Die Anmeldung führt entweder Dolibarr
   oder eine externe Anwendung, nie beide.
+- **Helferdienste**: Schichten mit Uhrzeit und Plätzen. Mitglieder fragen an, der
+  Verein teilt ein, und nach der Veranstaltung wird bestätigt, wer wirklich da war
+  – erst das ist eine geleistete Stunde. Doppelbelegung und Überschneidungen
+  fängt das Modul ab. Dazu ein **Kurzbericht als PDF** mit Checkliste, Helfer-
+  stunden und dem, was auf dem Projekt verrechnet wurde.
 - **Fristen und Aufgaben**: ein Katalog der wiederkehrenden Pflichten – die des
   Vereinsgesetzes und der Steuer sind schon drin, eigene kommen dazu. Das Modul
   rechnet für jedes Vereinsjahr die Fristen aus, legt sie als Aufgaben in

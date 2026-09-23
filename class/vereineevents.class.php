@@ -718,6 +718,151 @@ class VereineEvents
 	}
 
 	/**
+	 * Where the short reports of the events are kept.
+	 *
+	 * @return string
+	 */
+	public static function directory()
+	{
+		global $conf;
+
+		return $conf->vereine->dir_output.'/veranstaltungen';
+	}
+
+	/**
+	 * The file of the short report of an event.
+	 *
+	 * @param int $id Event
+	 * @return string
+	 */
+	public static function reportPath($id)
+	{
+		return self::directory().'/veranstaltung-'.((int) $id).'.pdf';
+	}
+
+	/**
+	 * What an event brought in and cost, from the invoices of its project.
+	 *
+	 * The income and expenditure account counts payments, this counts invoices, so the two answer
+	 * different questions; the report says so.
+	 *
+	 * @param int $projectId Project of Dolibarr
+	 * @return array{income:float,expense:float,invoices:int,supplier:int}
+	 */
+	public function money($projectId)
+	{
+		$figures = array('income' => 0.0, 'expense' => 0.0, 'invoices' => 0, 'supplier' => 0);
+		if ((int) $projectId < 1) {
+			return $figures;
+		}
+		$sums = array(
+			array('table' => 'facture', 'key' => 'income', 'count' => 'invoices'),
+			array('table' => 'facture_fourn', 'key' => 'expense', 'count' => 'supplier'),
+		);
+		foreach ($sums as $what) {
+			$sql = "SELECT COUNT(*) as rows_found, COALESCE(SUM(total_ttc), 0) as total FROM ".MAIN_DB_PREFIX.$what['table'];
+			$sql .= " WHERE fk_projet = ".((int) $projectId)." AND fk_statut > 0";
+			$resql = $this->db->query($sql);
+			$obj = $resql ? $this->db->fetch_object($resql) : null;
+			if ($obj) {
+				$figures[$what['key']] = (float) $obj->total;
+				$figures[$what['count']] = (int) $obj->rows_found;
+			}
+		}
+		return $figures;
+	}
+
+	/**
+	 * The short report of an event as PDF: what was planned, what was done, who helped and what it
+	 * brought in.
+	 *
+	 * @param int       $eventId     Event
+	 * @param string    $today       Today, YYYY-MM-DD
+	 * @param User      $user        Who builds it
+	 * @param Translate $outputlangs Language of the document
+	 * @return string The file, empty on error
+	 */
+	public function buildReport($eventId, $today, $user, $outputlangs)
+	{
+		global $mysoc;
+
+		require_once __DIR__.'/vereinepdf.class.php';
+		require_once __DIR__.'/vereineshifts.class.php';
+		require_once __DIR__.'/vereineorganization.class.php';
+		require_once dirname(__DIR__).'/lib/vereine.lib.php';
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/pdf.lib.php';
+
+		$event = $this->fetch($eventId);
+		if ($event === null) {
+			$this->errors[] = 'VereineEventErrorUnknown';
+			return '';
+		}
+		$outputlangs->loadLangs(array('main', 'bills', 'vereine@vereine'));
+		$checklist = $this->checklist($eventId, $today);
+		$progress = VereineEventRules::progress($checklist, $today);
+		$shifts = new VereineShifts($this->db);
+		$helpers = $shifts->summary($eventId);
+		$money = $this->money((int) $event['project_id']);
+		$organization = VereineOrganization::load($mysoc);
+
+		$file = self::reportPath($eventId);
+		if (dol_mkdir(dirname($file)) < 0) {
+			$this->error = 'cannot create '.dirname($file);
+			return '';
+		}
+		$pdf = VereinePdf::start($outputlangs);
+		$font = pdf_getPDFFont($outputlangs);
+		$line = function ($text, $style = '', $size = 10) use ($pdf, $font) {
+			$pdf->SetFont($font, $style, $size);
+			$pdf->MultiCell(0, 5, $text, 0, 'L');
+		};
+
+		$period = vereineFormatDay($event['event_day']).($event['end_day'] !== '' ? ' – '.vereineFormatDay($event['end_day']) : '');
+		VereinePdf::title($pdf, $outputlangs, $outputlangs->transnoentities('VereineEventReportTitle', $event['label']), $period);
+		$line($outputlangs->transnoentities('VereineEventReportFor', $organization['name']));
+		if ($event['place'] !== '') {
+			$line($outputlangs->transnoentities('VereineEventReportPlace', $event['place']));
+		}
+		$line($outputlangs->transnoentities('VereineEventReportRegistration',
+			$outputlangs->transnoentitiesnoconv('VereineEventRegistration_'.$event['registration'])));
+
+		VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineEventReportChecklist'));
+		$line($outputlangs->transnoentities('VereineEventProgressValue', $progress['done'], $progress['total']));
+		foreach (VereineEventRules::PHASES as $phase) {
+			$points = array();
+			foreach ($checklist as $row) {
+				if ($row['phase'] === $phase) {
+					$points[] = ($row['done_on'] !== '' ? '[x] ' : '[ ] ').$row['label']
+						.($row['due_on'] !== '' ? ' ('.vereineFormatDay($row['due_on']).')' : '');
+				}
+			}
+			if (!$points) {
+				continue;
+			}
+			$line($outputlangs->transnoentitiesnoconv('VereineEventPhase_'.$phase), 'B');
+			foreach ($points as $point) {
+				$line($point);
+			}
+		}
+
+		VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineEventReportHelpers'));
+		$line($outputlangs->transnoentities('VereineEventReportShifts', $helpers['shifts'], $helpers['capacity'], $helpers['taken']));
+		$line($outputlangs->transnoentities('VereineEventReportHours', $helpers['done'], price($helpers['hours'], 0, $outputlangs, 1, -1, 2)));
+		$line($outputlangs->transnoentitiesnoconv('VereineEventReportHoursNote'));
+
+		VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineEventReportMoney'));
+		$line($outputlangs->transnoentities('VereineEventReportIncome', $money['invoices'], price($money['income'], 0, $outputlangs, 1, -1, 2)));
+		$line($outputlangs->transnoentities('VereineEventReportExpense', $money['supplier'], price($money['expense'], 0, $outputlangs, 1, -1, 2)));
+		$line($outputlangs->transnoentities('VereineEventReportResult', price($money['income'] - $money['expense'], 0, $outputlangs, 1, -1, 2)), 'B');
+		$line($outputlangs->transnoentitiesnoconv('VereineEventReportMoneyNote'));
+
+		VereinePdf::finish($pdf, $outputlangs, $outputlangs->transnoentities('VereineEventReportTitle', $event['label']));
+		$pdf->Output($file, 'F');
+		VereineLog::add($this->db, $user, VereineLog::EVENT_REPORT, 0, 0, $event['label']);
+		return $file;
+	}
+
+	/**
 	 * Whether someone may plan events and tick points off: administrators and whoever holds a function.
 	 *
 	 * @param User   $user  Who looks

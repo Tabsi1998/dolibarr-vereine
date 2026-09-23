@@ -2349,6 +2349,88 @@ def events(stack: Stack) -> str:
             "outside so Dolibarr does not organise it as well")
 
 
+def shifts(stack: Stack) -> str:
+    """Helper shifts: places, overlapping times, who really was there, and the short report as PDF (#23)."""
+    browser = stack.browser()
+    today = stack.today()
+    event_id = int(stack.value("SELECT rowid FROM llx_vereine_event WHERE label = 'Winter-Cup' AND entity = 1"))
+    day = stack.value(f"SELECT event_day FROM llx_vereine_event WHERE rowid = {event_id}")[:10]
+    base = f"/custom/vereine/events.php?id={event_id}"
+    page = page_ok(browser.get(base), "the event without shifts")
+    expect('data-shifts-none="1"' in page.text, "the event already has shifts")
+
+    # Two shifts of the day, one after the other, each with two places.
+    for label, start, end in (("Kassa Vormittag", "08:00", "12:00"), ("Kassa Nachmittag", "12:00", "16:00")):
+        page = page_ok(browser.get(base), f"the event before {label}")
+        page_ok(browser.submit(page.form(name="vereineshift"), {
+            "shift_label": label, "shift_day": day, "start_time": start, "end_time": end, "capacity": "2",
+            "shift_function": "kassier"}), f"add the shift {label}")
+    page = page_ok(browser.get(base), "the event with its shifts")
+    refused = page_ok(browser.submit(page.form(name="vereineshift"), {
+        "shift_label": "Unfug", "shift_day": day, "start_time": "16:00", "end_time": "08:00", "capacity": "2"}),
+        "a shift that ends before it starts")
+    expect("Ende muss nach dem Beginn" in html.unescape(refused.text), "a shift ending before it starts was not refused with an explanation")
+    plan = stack.sql(f"SELECT rowid, label, capacity FROM llx_vereine_event_shift WHERE fk_event = {event_id} ORDER BY start_time")
+    expect(len(plan) == 2, f"the shifts of the event: {plan}")
+    morning, afternoon = int(plan[0][0]), int(plan[1][0])
+
+    # Three members: two fill the morning, the third is refused, and nobody does two shifts at once.
+    members = [int(row[0]) for row in stack.sql("SELECT rowid FROM llx_adherent WHERE statut = 1 ORDER BY rowid LIMIT 3")]
+    expect(len(members) == 3, f"three members are needed for the shifts: {members}")
+    for member in members[:2]:
+        page = page_ok(browser.get(base), "the event before somebody is put on")
+        page_ok(browser.submit(page.form(name="vereineshiftperson"), {"shift": str(morning), "member": str(member)}),
+                f"put member {member} on the morning shift")
+    page = page_ok(browser.get(base), "the event with a full shift")
+    refused = page_ok(browser.submit(page.form(name="vereineshiftperson"), {"shift": str(morning), "member": str(members[2])}),
+                      "a third person on a shift for two")
+    expect("voll" in html.unescape(refused.text), "a full shift took a third person without saying anything")
+    page = page_ok(browser.get(base), "the event before the same person twice")
+    refused = page_ok(browser.submit(page.form(name="vereineshiftperson"), {"shift": str(morning), "member": str(members[0])}),
+                      "the same person twice on one shift")
+    expect("steht schon" in html.unescape(refused.text), "the same person went on one shift twice")
+    taken = stack.sql(f"SELECT fk_adherent, status FROM llx_vereine_event_shift_entry WHERE fk_shift = {morning} ORDER BY rowid")
+    expect(len(taken) == 2 and {row[1] for row in taken} == {"confirmed"}, f"who is on the morning shift: {taken}")
+
+    # The afternoon shift takes the third member; the times do not overlap, so that is fine.
+    page = page_ok(browser.get(base), "the event before the afternoon shift")
+    page_ok(browser.submit(page.form(name="vereineshiftperson"), {"shift": str(afternoon), "member": str(members[2])}),
+            "put the third member on the afternoon shift")
+    expect(int(stack.value(f"SELECT COUNT(*) FROM llx_vereine_event_shift_entry WHERE fk_shift = {afternoon}") or 0) == 1,
+           "the afternoon shift did not take the third member")
+
+    # Being put on a shift is not having been there: the association confirms that afterwards, with hours.
+    entry = int(stack.value(f"SELECT rowid FROM llx_vereine_event_shift_entry WHERE fk_shift = {morning} ORDER BY rowid LIMIT 1"))
+    expect(stack.value(f"SELECT hours FROM llx_vereine_event_shift_entry WHERE rowid = {entry}") in ("", "NULL", None),
+           "somebody who was put on a shift already carries hours")
+    page = page_ok(browser.get(base), "the event before somebody is noted as present")
+    page_ok(browser.post(base, [("token", token_of(page)), ("action", "entry"), ("entry", str(entry)), ("status", "done"), ("hours", "")]),
+            "note the first helper as present")
+    done = stack.sql(f"SELECT status, hours FROM llx_vereine_event_shift_entry WHERE rowid = {entry}")
+    expect(done and done[0][0] == "done" and float(done[0][1]) == 4.0, f"the confirmed duty: {done}; the shift lasts four hours")
+
+    # The short report holds the checklist, the helpers and the money of the project.
+    page = page_ok(browser.get(base), "the event before the report")
+    expect('data-event-report="0"' in page.text, "a report exists although nobody built one")
+    page_ok(browser.post(base, [("token", token_of(page)), ("action", "report")]), "build the short report")
+    page = page_ok(browser.get(base), "the event with the report")
+    expect('data-event-report="1"' in page.text, "the report was not built")
+    link = re.search(r'href="([^"]*action=reportpdf[^"]*)"', page.text)
+    expect(link is not None, "the page offers no link to the report")
+    pdf = browser.get(html.unescape(link.group(1)))
+    expect(pdf.status == 200 and pdf.body[:4] == b"%PDF", f"the report is no PDF: {pdf.status}, {pdf.body[:8]!r}")
+    text = pdf_bytes_text(pdf.body)
+    expect("Kurzbericht" in text and "Winter-Cup" in text, f"the report names neither itself nor the event: {text[:200]!r}")
+    expect("Stunden" in text and "Helferdienste" in text, f"the report says nothing about the helpers: {text[:400]!r}")
+
+    # What a member sees of their own shifts, and that a member without rights cannot plan.
+    expect(denied(stack.browser("rtnobody").get(base)), "a user without rights opens the event")
+    return (f"two shifts of four hours each with two places; the morning shift refused a third person and the same person twice, the "
+            "afternoon shift took the third member because the times do not overlap; being put on a shift carried no hours until the "
+            "association noted the first helper as present with four hours; the short report is a PDF with the checklist, the helpers "
+            "and the money of the project")
+
+
 def board(stack: Stack) -> str:
     """A website reads the board: names only with consent, or for the board always when it must be disclosed."""
     site = stack.notes["website"]
@@ -4460,6 +4542,7 @@ SCENARIOS = (
     ("account", "Income and expenditure account: the money of the year by area, agreeing with the bank, statement of assets, PDF, signatures", account, ("audit",)),
     ("duties", "The calendar of duties: catalogue of the law, days of the year, agenda tasks, handover after a change of office", duties, ("account",)),
     ("events", "Events from templates: a project of Dolibarr with its tasks, the checklist, a template that changes later", events, ("duties",)),
+    ("shifts", "Helper shifts: places, overlapping times, confirmed duties, and the short report as PDF", shifts, ("events",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
