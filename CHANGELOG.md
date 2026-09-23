@@ -7,6 +7,13 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.7.0-beta] - 2026-09-23
+
+Mitglieder: Antrag, Einwilligungen und eigene Dokumente. Der Meilenstein v0.7 ist komplett –
+Mitgliedsantrag und Einwilligungserklärung als PDF, Nachweis je Einwilligung, Beitrittsanträge
+mit Stand, Einwilligungen und Antragsstand über die API, eigene ODT-Vorlagen und das
+SEPA-Mandat am Mitglied.
+
 ### Neu
 
 - **SEPA-Mandat am Mitglied** (#125): Der Reiter *Verein* zeigt jetzt, wie der Beitrag
@@ -1621,7 +1628,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.6.2-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.7.0-beta...HEAD
+[0.7.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.7.0-beta
 [0.6.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.6.2-beta
 [0.6.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.6.1-beta
 [0.6.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.6.0-beta
