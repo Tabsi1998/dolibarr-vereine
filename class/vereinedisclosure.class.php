@@ -160,6 +160,9 @@ class VereineDisclosure
 			}
 		}
 		$sections['donations'] = $donations;
+		// Fee arrears the Mahnwesen module reported: the invoice, the step and what became of it; never the dunning file.
+		$sections['arrears'] = $this->rows("SELECT f.ref as invoice, a.level, a.state, a.date_state as day FROM ".MAIN_DB_PREFIX."vereine_arrear as a LEFT JOIN "
+			.MAIN_DB_PREFIX."facture as f ON f.rowid = a.fk_facture WHERE a.entity = ".$entity." AND a.fk_adherent = ".$id." ORDER BY a.rowid");
 		// What the module did about the member: the kind and the day; the texts may name others and stay out.
 		$sections['log'] = $this->rows("SELECT datec as day, action FROM ".MAIN_DB_PREFIX."vereine_log WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY rowid");
 		return $sections;
@@ -303,6 +306,6 @@ class VereineDisclosure
 			'given', 'source', 'proof_at', 'external_id', 'received', 'decided_on', 'reason', 'function', 'notice_day', 'last_day', 'done', 'client',
 			'capabilities', 'linked_at', 'revoked_at', 'meeting', 'channel', 'voting', 'sent_at', 'state', 'resolution', 'choice', 'voted_at', 'document',
 			'signed_at', 'way', 'task', 'deadline', 'done_at', 'duty', 'year', 'due_on', 'done_on', 'shift', 'hours', 'activity', 'kind', 'paid_on', 'refnr',
-			'vbpk', 'action'), true);
+			'vbpk', 'action', 'invoice', 'level'), true);
 	}
 }

@@ -72,6 +72,7 @@ require_once __DIR__.'/class/vereinefunctions.class.php';
 require_once __DIR__.'/class/vereineresolutions.class.php';
 require_once __DIR__.'/class/vereinedisclosure.class.php';
 require_once __DIR__.'/class/vereineerasure.class.php';
+require_once __DIR__.'/class/vereinearrears.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('companies', 'members', 'bills', 'categories', 'vereine@vereine'));
@@ -607,6 +608,25 @@ foreach ($memberResolutions as $entry) {
 	print '<td>'.$langs->trans($entry['passed'] ? 'VereineResolutionPassed' : 'VereineResolutionRejected').'</td></tr>';
 }
 print '</table></div><br>';
+
+// Fee arrears the Mahnwesen module reported (#17): what the board has to look at, never a decision.
+$memberArrears = (new VereineArrears($db))->forMember((int) $object->id);
+if ($memberArrears) {
+	print load_fiche_titre($langs->trans('VereineArrearTitle'), '', '', 0, 'vereinearrears');
+	print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineArrearHowTo').'</div>';
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+	print '<tr class="liste_titre"><td>'.$langs->trans('VereineArrearInvoice').'</td><td class="right">'.$langs->trans('VereineArrearLevel').'</td>';
+	print '<td>'.$langs->trans('VereineArrearState').'</td><td>'.$langs->trans('VereineArrearMeeting').'</td></tr>';
+	foreach ($memberArrears as $arrear) {
+		print '<tr class="oddeven" data-arrear-state="'.dol_escape_htmltag($arrear['state']).'">';
+		print '<td><a href="'.DOL_URL_ROOT.'/compta/facture/card.php?facid='.((int) $arrear['invoice_id']).'">'.dol_escape_htmltag($arrear['invoice_ref']).'</a></td>';
+		print '<td class="right">'.((int) $arrear['level']).'</td>';
+		print '<td>'.$langs->trans('VereineArrearState_'.$arrear['state']).' <span class="opacitymedium small">'.$langs->trans('VereineArrearSince', dol_print_date($arrear['since'], 'day')).'</span></td>';
+		print '<td>'.($arrear['meeting_id'] > 0 ? '<a href="'.dol_buildpath('/vereine/meetings.php', 1).'?id='.((int) $arrear['meeting_id']).'">'.dol_escape_htmltag($arrear['meeting']).'</a> '
+			.vereineFormatDay($arrear['meeting_day']) : '<span class="opacitymedium">–</span>').'</td></tr>';
+	}
+	print '</table></div><br>';
+}
 
 // Access to one's own data (Art. 15 GDPR, #10).
 print load_fiche_titre($langs->trans('VereineDisclosureTitle'), '', '', 0, 'vereinedisclosure');

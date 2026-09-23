@@ -66,6 +66,7 @@ if (!$res) {
 require_once __DIR__.'/class/vereinemeetings.class.php';
 require_once __DIR__.'/class/vereineminutes.class.php';
 require_once __DIR__.'/class/vereineresolutions.class.php';
+require_once __DIR__.'/class/vereinearrears.class.php';
 require_once __DIR__.'/class/vereinemeetingdocs.class.php';
 require_once __DIR__.'/class/vereinemail.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
@@ -157,7 +158,26 @@ if ($action === 'document') {
 		$items = VereineResolutionRules::suggestions($chosen, $langs);
 		$entered['agenda'] = trim(trim((string) $entered['agenda'])."\n".implode("\n", $items));
 	}
-	$result = $meetings->save($id, $entered, $user);
+	// Fee arrears go before the board only: an invitation to the general assembly reaches every member (#17).
+	$arrears = new VereineArrears($db);
+	$takenArrears = array();
+	foreach ($arrears->waiting() as $arrear) {
+		if (in_array((string) $arrear['id'], (array) GETPOST('arrear', 'array:aZ09'), true)) {
+			$takenArrears[] = $arrear;
+		}
+	}
+	if ($takenArrears && $entered['kind'] !== VereineMeetingRules::KIND_BOARD) {
+		$meetings->errors = array('VereineArrearOnlyBoard');
+		$result = 0;
+	} else {
+		foreach ($takenArrears as $arrear) {
+			$entered['agenda'] = trim(trim((string) $entered['agenda'])."\n".VereineArrearRules::agendaItem($arrear['name'], $arrear['invoice_ref'], $langs));
+		}
+		$result = $meetings->save($id, $entered, $user);
+		if ($result > 0 && $takenArrears && $arrears->putOnAgenda(array_column($takenArrears, 'id'), $result, $user) < 0) {
+			setEventMessages($arrears->error, null, 'errors');
+		}
+	}
 	if ($result > 0) {
 		setEventMessages($langs->trans('VereineMeetingSaved'), null, 'mesgs');
 		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$result);
@@ -378,9 +398,10 @@ llxHeader('', $langs->trans('VereineMeetingsTitle'), '', '', 0, 0, '', '', '', '
  * @param array<string,mixed>            $meeting     Meeting to show
  * @param int                            $id          Meeting, 0 for a new one
  * @param array<int,array<string,mixed>> $suggestions Open follow-ups of resolutions, offered as agenda items
+ * @param array<int,array<string,mixed>> $arrears     Fee arrears waiting for the board, offered for a board meeting
  * @return void
  */
-function vereineMeetingForm(array $meeting, $id, array $suggestions = array())
+function vereineMeetingForm(array $meeting, $id, array $suggestions = array(), array $arrears = array())
 {
 	global $langs;
 
@@ -417,6 +438,14 @@ function vereineMeetingForm(array $meeting, $id, array $suggestions = array())
 			print dol_escape_htmltag($task['label']).' <span class="opacitymedium small">'.dol_escape_htmltag($task['ref']).'</span></label></div>';
 		}
 		print '<div class="opacitymedium small">'.$langs->trans('VereineResolutionOpenHelp').'</div></td></tr>';
+	}
+	if ($arrears) {
+		print '<tr><td class="tdtop">'.$langs->trans('VereineArrearOpenTitle').'</td><td>';
+		foreach ($arrears as $arrear) {
+			print '<div><label data-arrear="'.((int) $arrear['id']).'"><input type="checkbox" name="arrear[]" value="'.((int) $arrear['id']).'"> ';
+			print dol_escape_htmltag($arrear['name']).' <span class="opacitymedium small">'.dol_escape_htmltag($arrear['invoice_ref']).'</span></label></div>';
+		}
+		print '<div class="opacitymedium small">'.$langs->trans('VereineArrearOpenHelp').'</div></td></tr>';
 	}
 	print '</table>';
 	print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'"></div>';
@@ -841,7 +870,7 @@ if ($meeting === null) {
 				'agenda' => implode("\n", VereineMinutesRules::agenda($meetings->templates(), $template))));
 		}
 		$suggested = VereineMeetingRules::normalize(array('day' => VereineMeetingRules::addDays($today, (int) $rules['invite_days'])));
-		vereineMeetingForm($entered !== null ? $entered : $suggested, 0, $register->openTasks());
+		vereineMeetingForm($entered !== null ? $entered : $suggested, 0, $register->openTasks(), (new VereineArrears($db))->waiting());
 	}
 	llxFooter();
 	$db->close();

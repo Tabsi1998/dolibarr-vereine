@@ -64,6 +64,7 @@ class VereineErasureRules
 		'tasks' => array('action' => 'delete', 'start' => 'exit', 'years' => 1, 'setting' => true),
 		'consents' => array('action' => 'delete', 'start' => 'exit', 'years' => 3, 'setting' => true),
 		'applications' => array('action' => 'delete', 'start' => 'exit', 'years' => 3, 'setting' => true),
+		'arrears' => array('action' => 'delete', 'start' => 'exit', 'years' => 3, 'setting' => true),
 		'disclosures' => array('action' => 'delete', 'start' => 'entry', 'years' => 3, 'setting' => true),
 		'log' => array('action' => 'delete', 'start' => 'exit', 'years' => 3, 'setting' => true),
 		'volunteer' => array('action' => 'delete', 'start' => 'year', 'years' => 7, 'setting' => false),

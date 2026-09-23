@@ -51,6 +51,15 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   wird nur nach Klick und Rückfrage; offene Rechnungen oder eine Sperre mit Grund halten alles
   an. Jeder Durchgang wird mit Anzahlen festgehalten, ohne die Daten selbst. Die Fristen und ihre
   Gründe stehen unter *Einstellungen > Datenschutz*; wo der Verein wählen darf, lassen sie sich ändern.
+- **Zusammenarbeit mit dem Mahnwesen-Modul** (#17): Erreicht eine Beitragsrechnung dort die letzte
+  Stufe „Mitgliedschaft prüfen“, legt Vereine genau einen Vorschlag für die nächste
+  Vorstandssitzung an. Beitragsrechnung heißt: Dolibarr hat sie mit einem Mitgliedsbeitrag
+  verknüpft; ein Verkauf an dasselbe Mitglied zählt nicht. Beim Anlegen einer Vorstandssitzung
+  hakst du den Rückstand an, dann steht er auf der Tagesordnung. Bei einer Generalversammlung
+  lehnt das Modul das ab, weil deren Einladung an alle geht. Zahlung, Pause und Wiederaufnahme im
+  Mahnwesen ändern den Stand, doppelte und verspätete Meldungen werden erkannt, und eine vor der
+  Meldung bezahlte Rechnung kommt gar nicht erst zum Vorstand. Niemand wird automatisch
+  ausgeschlossen; *Zu erledigen* zählt die Rückstände ohne Namen. Ohne Mahnwesen ändert sich nichts.
 
 ## [0.9.0-beta] - 2026-09-23
 

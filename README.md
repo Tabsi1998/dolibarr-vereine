@@ -33,6 +33,9 @@ und bringt eine REST-API für die Vereinswebsite mit.
   Daten als PDF und JSON, ohne Daten anderer.
 - **Löschen nach dem Austritt**: Vorschau je Art der Daten mit Frist und Grund, gelöscht wird nur
   das Fällige nach Klick; Buchhaltung und Vereinsunterlagen bleiben.
+- **Mit dem Mahnwesen-Modul**: Beitragsrückstände auf der letzten Mahnstufe kommen als Vorschlag in
+  die nächste Vorstandssitzung; Zahlung und Pause halten den Stand aktuell, ausgeschlossen wird
+  niemand automatisch.
 - **Vereinsakte**: Fertige Dokumente als PDF/A mit Kennung und QR-Code, eine öffentliche
   Echtheitsprüfung ohne Titel und Inhalt, und die Akte eines Zeitraums als ZIP mit
   Inhaltsverzeichnis und Prüfsummen.
