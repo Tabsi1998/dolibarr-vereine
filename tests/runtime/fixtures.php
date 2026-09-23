@@ -1447,6 +1447,46 @@ if ($stage === 'overpaid') {
 	exit(0);
 }
 
+// Paid donations of a year (#6): two of one third party, one of a person without, one of a company.
+if ($stage === 'donors' || $stage === 'donorsmore') {
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+	require_once DOL_DOCUMENT_ROOT.'/don/class/don.class.php';
+	if (!isModEnabled('don')) {
+		$result = activateModule('modDon');
+		if (!empty($result['errors'])) {
+			rt_fail('enable donations: '.implode(' | ', (array) $result['errors']));
+		}
+	}
+	$year = (int) rt_env('RT_YEAR');
+	$socid = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."societe WHERE nom = 'Rechnung Kunde'");
+	$give = function ($socid, $first, $last, $company, $amount, $month) use ($db, $admin, $year) {
+		$don = new Don($db);
+		$don->socid = $socid;
+		$don->firstname = $first;
+		$don->lastname = $last;
+		$don->societe = $company;
+		$don->address = 'Hauptstraße 12a';
+		$don->zip = '6410';
+		$don->town = 'Telfs';
+		$don->amount = $amount;
+		$don->date = dol_mktime(12, 0, 0, $month, 15, $year);
+		$don->public = 0;
+		$id = (int) $don->create($admin);
+		if ($id <= 0 || $don->valid_promesse($id, $admin->id) < 0 || $don->setPaid($id, 0) < 0) {
+			rt_fail('donation of '.$last.': '.$don->error);
+		}
+		return $id;
+	};
+	if ($stage === 'donorsmore') {
+		print json_encode(array('more' => $give(0, 'Erika', 'Beispiel', '', 20, 11)))."\n";
+		exit(0);
+	}
+	$made = array('customer' => array($give($socid, 'Max', 'Kunde', '', 50, 3), $give($socid, 'Max', 'Kunde', '', 25, 10)),
+		'person' => $give(0, 'Erika', 'Beispiel', '', 100, 5), 'company' => $give(0, '', '', 'Beispiel GmbH', 200, 6));
+	print json_encode($made)."\n";
+	exit(0);
+}
+
 if ($stage === 'apiclient') {
 	// A technical client of an external application: it authenticates itself, and nothing more. For whom
 	// it may act comes from a binding, never from the client saying so (#153).
@@ -1479,4 +1519,4 @@ if ($stage === 'apiclient') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore or reset');

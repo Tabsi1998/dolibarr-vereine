@@ -69,6 +69,7 @@ require_once $root.'/class/vereineidentityrules.class.php';
 require_once $root.'/class/vereineapplicationformrules.class.php';
 require_once $root.'/class/vereinevolunteerrules.class.php';
 require_once $root.'/class/vereineoverpaymentrules.class.php';
+require_once $root.'/class/vereinedonationrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1797,7 +1798,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1821,6 +1822,10 @@ $prefixes = array(
 	'VereineOverpaymentDo_' => VereineOverpaymentRules::KINDS,
 	'VereineOverpaymentAssigned_' => VereineOverpaymentRules::KINDS,
 	'VereineOverpaymentShow_' => array('open', 'all'),
+	'VereineDonationKind_' => array_map(array('VereineDonationRules', 'kindKey'), VereineDonationRules::KINDS),
+	'VereineDonationVbpkState_' => VereineDonationRules::STATES,
+	'VereineDonationType_' => array('E', 'A', 'S'),
+	'VereineDonationProtocol_' => array('ok', 'twok', 'nok'),
 	'VereineVolunteerLimit_' => VereineVolunteerRules::KINDS,
 	'VereineVolunteerFinding_' => VereineVolunteerRules::FINDINGS,
 	'VereineVolunteerPayoutStatus_' => array('draft', 'paid'),
@@ -2635,6 +2640,76 @@ same(array('VereineOverpaymentErrorKind'), VereineOverpaymentRules::check('keep'
 same(array('invoice' => 37.68, 'donation' => 0.32), VereineOverpaymentRules::splitDonation(38.0, 0.32), 'the payment: 37,68 for the invoice, 0,32 donation');
 same(array('invoice' => 0.0, 'donation' => 0.2), VereineOverpaymentRules::splitDonation(0.2, 0.32), 'never more donation than the payment brought');
 same(array('invoice' => 50.0, 'donation' => 0.0), VereineOverpaymentRules::splitDonation(50, 0), 'without a donation the payment stays with the invoice');
+
+// ------------------------------------------------------------- donation report (#6)
+
+same('SP-1', VereineDonationRules::refNr(' SP-1 '), 'a reference number as the schema takes it');
+same('', VereineDonationRules::refNr('M 1'), 'no spaces in a reference number');
+same('', VereineDonationRules::refNr(str_repeat('1', 24)), 'at most 23 characters');
+$fakeVbpk = str_repeat('Ab3+', 43);
+same($fakeVbpk, VereineDonationRules::vbpk(substr($fakeVbpk, 0, 80)."\n ".substr($fakeVbpk, 80)), 'an identifier copied with a line break');
+same('', VereineDonationRules::vbpk(substr($fakeVbpk, 0, 171)), 'an identifier cut short is none');
+same('123456789', VereineDonationRules::fastnr('12-345/6789'), 'a tax number with its separators');
+same(null, VereineDonationRules::fastnr('1234'), 'four digits are no tax number');
+same('', VereineDonationRules::fastnr(''), 'no tax number at all is allowed');
+same('1980-05-12', VereineDonationRules::birthDate('1980-05-12', '2026-09-23'), 'a real date of birth');
+same('', VereineDonationRules::birthDate('1980-02-30', '2026-09-23'), 'no 30th of February');
+same('', VereineDonationRules::birthDate('1840-01-01', '2026-09-23'), 'the register searches from 1850');
+same('', VereineDonationRules::birthDate('2027-01-01', '2026-09-23'), 'not born in the future');
+same('100.00', VereineDonationRules::amount(100), 'a sum with two decimals');
+same('', VereineDonationRules::amount(0), 'nothing is no sum the schema takes');
+same('E', VereineDonationRules::transmission(100, null), 'nothing at the tax office: a first transmission');
+same('', VereineDonationRules::transmission(0, null), 'nothing given, nothing held: nothing to send');
+same('', VereineDonationRules::transmission(100, 100.0), 'the tax office holds the sum: nothing to send');
+same('A', VereineDonationRules::transmission(120, 100.0), 'a changed sum is a change');
+same('S', VereineDonationRules::transmission(0, 100.0), 'every donation gone: cancel the reference number');
+same('E', VereineDonationRules::transmission(50, 0.0), 'after a cancellation a new first transmission');
+same('OE', VereineDonationRules::kindKey('Ö'), 'language keys without umlauts');
+expect(in_array('SP', VereineDonationRules::KINDS, true) && in_array('GM', VereineDonationRules::KINDS, true) && count(VereineDonationRules::KINDS) === 24, 'the 24 kinds of body of the schema');
+same(array('Hauptstraße', '12a'), VereineDonationRules::splitAddress('Hauptstraße 12a'), 'street and house number apart');
+same(array('Am Platz', ''), VereineDonationRules::splitAddress('Am Platz'), 'a street without a number stays whole');
+expect(strlen(VereineDonationRules::messageRef(2025, 12, '20260923221530')) <= 36 && preg_match('/^[0-9a-zA-Z\-]+$/', VereineDonationRules::messageRef(2025, 12, '20260923221530')) === 1, 'a message reference of the schema');
+
+$szr = VereineDonationRules::szrFile(array('contact' => 'Kassier; 0664', 'email' => 'kassa@example.org', 'vkz' => 'XZVR-123456789', 'reference' => 'Test'),
+	array(array('ref' => 'SP-1', 'lastname' => 'Beispiel', 'firstname' => 'Erika', 'birth' => '1980-05-12', 'town' => 'Telfs', 'zip' => '6410', 'address' => 'Hauptstraße 12a', 'country' => 'AT')));
+$szrLines = explode("\r\n", $szr);
+same('KONTAKT=Kassier, 0664', $szrLines[0], 'no separator inside the header of the register file');
+expect(in_array('VERSCHLÜSSELTEBPK=BMF+SA', $szrLines, true) && in_array('DATUMSFORMAT=JJJJ-MM-TT', $szrLines, true), 'the register file asks for vbPK SA with ISO dates');
+same('', $szrLines[12], 'an empty line between the header and the columns');
+same(implode(';', VereineDonationRules::SZR_COLUMNS), $szrLines[13], 'the columns in the order the register fixes');
+same('SP-1;Beispiel;Erika;1980-05-12;;;;;AUT;Telfs;6410;Hauptstraße;12a', $szrLines[14], 'one line per person');
+
+$answer = "KONTAKT=x\r\nVERSCHLÜSSELTEBPK=BMF+SA\r\n\r\nLAUFNR;NACHNAME;VORNAME;GEBDATUM;NAME_VOR_ERSTER_EHE;GEBORT;GESCHLECHT;STAATSANGEHÖRIGKEIT;ANSCHRIFTSSTAAT;GEMEINDENAME;PLZ;STRASSE;HAUSNR;REGISTER;VBPK_FÜR_VKZ=BMF+SA;ZUSATZINFO\r\nSP-1;Beispiel;Erika;1980-05-12;;;;;AUT;Telfs;6410;Hauptstraße;12a;ZMR; ".$fakeVbpk.";\r\n";
+same(array('refs' => array('SP-1'), 'vbpk' => array('SP-1' => $fakeVbpk)), VereineDonationRules::szrResult($answer), 'the identifier out of the register answer');
+same(array('refs' => array('D7'), 'vbpk' => array()), VereineDonationRules::szrResult("\xEF\xBB\xBFLAUFNR;NACHNAME\nD7;Muster\n"), 'a person the register did not find');
+same('found', VereineDonationRules::szrKind('BPK_XZVR-1_1_20260923-120000_VERSCHL_BPK.csv'), 'the file of the identifiers');
+same('notfound', VereineDonationRules::szrKind('BPK_XZVR-1_1_20260923-120000_KEINTREFFER.csv'), 'the file of the misses');
+same('ambiguous', VereineDonationRules::szrKind('bpk_x_nicht_eindeutig.csv'), 'the file of the many hits');
+same('', VereineDonationRules::szrKind('BPK_XZVR-1_1_20260923-120000_STATISTIK.csv'), 'the statistics say nothing about a person');
+
+$xml = VereineDonationRules::xml(array('message_ref' => 'VRN-2025-1-20260923221530', 'timestamp' => '2026-09-23T22:15:30', 'kind' => 'SP', 'year' => '2025',
+	'fastnr_org' => '', 'fastnr_tn' => ''),
+	array(array('type' => 'E', 'ref' => 'SP-1', 'amount' => '100.00', 'vbpk' => $fakeVbpk), array('type' => 'A', 'ref' => 'D7', 'amount' => '75.50', 'vbpk' => ''),
+		array('type' => 'S', 'ref' => 'D8', 'amount' => '', 'vbpk' => '')));
+same(array(), VereineDonationRules::validate($xml, $root.'/xsd/UebermittlungSonderausgaben_2.xsd'), 'a report of first, change and cancellation holds against the schema of the Ministry of Finance');
+expect(strpos($xml, 'Info_Daten') === false, 'without a tax number of the association the block Info_Daten stays out');
+expect(substr_count($xml, '<vbPK>') === 1 && strpos($xml, '<Betrag>75.50</Betrag>') !== false, 'the identifier only in the first transmission, a change with its new sum');
+$withNumbers = VereineDonationRules::xml(array('message_ref' => 'VRN-2025-2-1', 'timestamp' => '2026-09-23T22:15:30', 'kind' => 'GM', 'year' => '2025',
+	'fastnr_org' => '123456789', 'fastnr_tn' => ''), array(array('type' => 'E', 'ref' => '1', 'amount' => '5.00', 'vbpk' => $fakeVbpk)));
+same(array(), VereineDonationRules::validate($withNumbers, $root.'/xsd/UebermittlungSonderausgaben_2.xsd'), 'with the tax number of the association it holds too');
+expect(strpos($withNumbers, '<Fastnr_Fon_Tn>123456789</Fastnr_Fon_Tn>') !== false, 'the association sends for itself: both tax numbers the same');
+expect(VereineDonationRules::validate(str_replace('<Zeitraum>2025</Zeitraum>', '<Zeitraum>1999x</Zeitraum>', $xml), $root.'/xsd/UebermittlungSonderausgaben_2.xsd') !== array(), 'a broken report is caught by the schema');
+
+$protocolTwok = implode('', array('<?xml version="1.0" encoding="UTF-8"?><SonderausgabenResponse xmlns="https://finanzonline.bmf.gv.at/fon/ws/uebermittlungSonderausgaben">',
+	'<MessageSpec><MessageRefId>VRN-2025-1-1</MessageRefId><EinbringungsTimestamp>2026-02-10T16:08:59</EinbringungsTimestamp><Art>UEB_SA</Art><Uebermittlung>P</Uebermittlung><Info>TWOK</Info></MessageSpec>',
+	'<SonderausgabenError><RefNr>D7</RefNr><Error><Code>ERR-U-008</Code><Text>Die Erstübermittlung ist nicht möglich.</Text></Error></SonderausgabenError></SonderausgabenResponse>'));
+$read = VereineDonationRules::protocol($protocolTwok);
+same(array('VRN-2025-1-1', 'TWOK', false), array($read['message_ref'], $read['info'], $read['test']), 'what the protocol is about');
+same(array('D7' => array('ERR-U-008 Die Erstübermittlung ist nicht möglich.')), $read['errors'], 'the refused reference number with its reason');
+expect(VereineDonationRules::accepted($read, 'SP-1') && !VereineDonationRules::accepted($read, 'D7'), 'in a partly accepted report only the refused line failed');
+$readNok = VereineDonationRules::protocol(str_replace(array('<Info>TWOK</Info>', '<Uebermittlung>P</Uebermittlung>'), array('<Info>NOK</Info>', '<Uebermittlung>T</Uebermittlung>'), $protocolTwok));
+expect(!VereineDonationRules::accepted($readNok, 'SP-1') && $readNok['test'], 'a refused report takes nothing, and a test says so');
+same(null, VereineDonationRules::protocol('<html></html>'), 'something else is no protocol');
 
 // ------------------------------------------------------------------- result
 
