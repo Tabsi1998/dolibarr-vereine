@@ -31,6 +31,8 @@ require_once __DIR__.'/vereinefeemodel.class.php';
 require_once __DIR__.'/vereinefeerules.class.php';
 require_once __DIR__.'/vereineconsents.class.php';
 require_once __DIR__.'/vereineexits.class.php';
+require_once __DIR__.'/vereinestatutes.class.php';
+require_once __DIR__.'/vereinestatutetext.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 
 /**
@@ -229,7 +231,22 @@ class VereineMemberForm
 			$text($line);
 		}
 		$text($outputlangs->transnoentities('VereineApplicationNotice', vereineExitRuleText((new VereineExits($this->db))->rule())));
+		// What the member type includes, as the association wrote it at the member type in Dolibarr.
+		if ($type !== null && trim((string) $type['note']) !== '') {
+			$text($outputlangs->transnoentitiesnoconv('VereineApplicationIncluded'), 'B', 9);
+			$text(dol_string_nohtmltag((string) $type['note'], 0), '', 9);
+		}
 		$pdf->Ln(1);
+
+		// Everything here comes from the statutes of the association, nothing is written twice.
+		$statutes = $this->statuteFacts($outputlangs);
+		if ($statutes) {
+			VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineApplicationStatutesTitle'));
+			foreach ($statutes as $line) {
+				$text($line, '', 9);
+			}
+			$pdf->Ln(1);
+		}
 		$yesNo('statuten', $outputlangs->transnoentitiesnoconv('VereineApplicationStatutes'));
 
 		$consents = (new VereineConsents($this->db))->currentTexts();
@@ -276,6 +293,46 @@ class VereineMemberForm
 		}
 		dolChmod($file);
 		return $file;
+	}
+
+	/**
+	 * What the statutes say and the applicant should know: the purpose, the duties of a member and the
+	 * version of the statutes that is in force (#204). Empty when the association has no statutes yet.
+	 *
+	 * @param Translate $outputlangs Language
+	 * @return string[] Lines for the form
+	 */
+	private function statuteFacts($outputlangs)
+	{
+		global $mysoc;
+
+		$organization = VereineOrganization::load($mysoc);
+		$lines = array();
+		if (trim((string) $organization['purpose']) !== '') {
+			$lines[] = $outputlangs->transnoentities('VereineApplicationPurpose', trim((string) $organization['purpose']));
+		}
+		$store = new VereineStatutes($this->db);
+		$rules = $store->rules();
+		$text = VereineStatuteText::normalize(json_decode((string) getDolGlobalString(VereineStatutes::CONST_TEXT), true));
+		$duties = '';
+		foreach (VereineStatuteText::sections($rules, $text, $store->context($rules)) as $section) {
+			if (strpos((string) $section['title'], 'Pflichten') === false) {
+				continue;
+			}
+			foreach ($section['paragraphs'] as $paragraph) {
+				if (strpos($paragraph, 'verpflichtet') !== false) {
+					$duties = $paragraph;
+				}
+			}
+		}
+		if ($duties !== '') {
+			$lines[] = $duties;
+		}
+		$version = $store->current(dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+		$lines[] = $version !== null
+			? $outputlangs->transnoentities('VereineApplicationStatutesVersion', (int) $version['version'], vereineFormatDay($version['valid_from']))
+			: $outputlangs->transnoentitiesnoconv('VereineApplicationStatutesCurrent');
+		return $lines;
 	}
 
 	/**

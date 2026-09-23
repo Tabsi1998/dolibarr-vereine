@@ -7,6 +7,15 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Neu
+
+- **Der Mitgliedsantrag holt sich mehr aus Dolibarr** (#204): Was die Mitgliedschaft umfasst
+  (etwa Trikot, Trainingszeiten, Startgelder), steht an der Mitgliedsart in Dolibarr und
+  erscheint als „Enthalten in der Mitgliedschaft“. Dazu ein Abschnitt „Aus den Statuten“ mit
+  Vereinszweck, den Pflichten der Mitglieder im Wortlaut der Statuten und der geltenden
+  Fassung („Es gilt die Fassung 3 der Statuten, gültig ab …“). Nichts davon muss doppelt
+  gepflegt werden.
+
 ### Behoben
 
 - **Mitgliedsantrag und Einwilligungserklärung sehen besser aus** (#203): Bei ausfüllbaren
