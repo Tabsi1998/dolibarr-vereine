@@ -29,6 +29,8 @@ und bringt eine REST-API für die Vereinswebsite mit.
   in einer Liste. Der Mehrbetrag wird mit Vorschau Guthaben, Rückzahlung oder –
   nur wenn er freiwillig und ohne Gegenleistung kam – Spende, genau einmal. Die
   Rechnung bleibt, wie sie ist.
+- **Auskunft nach Art. 15 DSGVO**: Anfrage und Prüfung festgehalten, die Kopie der eigenen
+  Daten als PDF und JSON, ohne Daten anderer.
 - **Vereinsakte**: Fertige Dokumente als PDF/A mit Kennung und QR-Code, eine öffentliche
   Echtheitsprüfung ohne Titel und Inhalt, und die Akte eines Zeitraums als ZIP mit
   Inhaltsverzeichnis und Prüfsummen.

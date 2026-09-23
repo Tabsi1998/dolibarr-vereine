@@ -33,6 +33,14 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Verein kann sie abschalten. Unter *Mitglieder > Verein > Vereinsakte* gibt es alle fertigen
   Dokumente eines Zeitraums, dazu Statuten und Schreiben an die Behörde, als **ZIP mit
   Inhaltsverzeichnis und Prüfsummen**, etwa bei einem Vorstandswechsel.
+- **Auskunft über gespeicherte Daten** (#10, erster Teil): Auf dem Reiter *Verein* der
+  Mitgliedskarte hältst du eine Anfrage nach Art. 15 DSGVO fest – wann sie kam und wie du geprüft
+  hast, dass sie von der Person selbst kommt – und bekommst die Kopie ihrer Daten als ZIP mit PDF
+  zum Lesen und JSON zum Mitnehmen: Stammdaten, eigene Felder, Beiträge, Rechnungen, Einwilligungen,
+  Anträge, Funktionen, Austritt, App-Verbindungen, Sitzungen, eigene Stimmen, Unterschriften,
+  Aufgaben, Helferdienste, Freiwilligenpauschale, Spenden und die Vorgänge des Moduls. Stimmen und
+  Einträge anderer stehen nicht darin. Die Kopie wird nicht aufbewahrt, nur Tag, Prüfung, Ausgabe
+  und Prüfsumme; die Frist von einem Monat steht dabei.
 
 ## [0.9.0-beta] - 2026-09-23
 

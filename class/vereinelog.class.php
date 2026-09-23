@@ -127,6 +127,7 @@ class VereineLog
 	const SETUP_GUIDE = 'setup_guide';
 	const APPLICATION_FIELD = 'application_field';
 	const ARCHIVE = 'archive';
+	const DISCLOSURE = 'disclosure';
 
 	/**
 	 * Append one entry.

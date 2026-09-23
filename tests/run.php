@@ -72,6 +72,8 @@ require_once $root.'/class/vereineoverpaymentrules.class.php';
 require_once $root.'/class/vereinedonationrules.class.php';
 require_once $root.'/class/vereinesetupguiderules.class.php';
 require_once $root.'/class/vereinearchiverules.class.php';
+require_once $root.'/class/vereinedisclosurerules.class.php';
+require_once $root.'/class/vereinedisclosure.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1800,7 +1802,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1832,6 +1834,9 @@ $prefixes = array(
 	'VereineApplicationKind_' => VereineApplicationFormRules::KINDS,
 	'VereineArchiveKind_' => VereineArchiveRules::KINDS,
 	'VereineArchiveFile_' => VereineArchiveRules::FILES,
+	'VereineDisclosureSection_' => VereineDisclosureRules::SECTIONS,
+	'VereineDisclosureCheck_' => VereineDisclosureRules::CHECKS,
+	'VereineDisclosureField_' => array_keys(VereineDisclosure::fieldWords()),
 	'VereineSetupStep_' => VereineSetupGuideRules::STEPS,
 	'VereineSetupStepHelp_' => VereineSetupGuideRules::STEPS,
 	'VereineSetupModule_' => array('banque', 'facture', 'prelevement', 'agenda', 'mailing', 'don', 'api', 'webportal'),
@@ -2793,6 +2798,24 @@ $archiveEntries = array(array('day' => '2025-03-01', 'label' => 'Protokoll', 'ti
 same("Datum;Art;Titel;Kennung;Datei;SHA-256\r\n2025-03-01;Protokoll;\"Sitzung; \"\"März\"\"\";ABCDE-23456;a.pdf;".str_repeat('a', 64)."\r\n",
 	VereineArchiveRules::index($archiveEntries), 'the table of contents, quoted where needed');
 same(str_repeat('a', 64)."  a.pdf\n", VereineArchiveRules::sums($archiveEntries), 'checksums as sha256sum reads them');
+
+// ------------------------------------------------------------- access to one's own data (#10)
+
+$asked = VereineDisclosureRules::request(array('requested_on' => '2026-09-20', 'check' => 'id_document', 'note' => ''), '2026-09-24');
+same(array(), $asked['errors'], 'a request with its day and how the person was checked');
+same(array('VereineDisclosureErrorDay', 'VereineDisclosureErrorCheck'), VereineDisclosureRules::request(array('requested_on' => '2026-09-30', 'check' => 'guess'), '2026-09-24')['errors'],
+	'a request from the future and without a check is refused');
+same(array('VereineDisclosureErrorNote'), VereineDisclosureRules::request(array('requested_on' => '2026-09-20', 'check' => 'other'), '2026-09-24')['errors'],
+	'another way of checking needs a word how');
+same('2026-10-20', VereineDisclosureRules::deadline('2026-09-20'), 'one month to answer');
+same('2026-02-28', VereineDisclosureRules::deadline('2026-01-31'), 'the end of a shorter month');
+same('2027-01-15', VereineDisclosureRules::deadline('2026-12-15'), 'into the next year');
+$disclosed = json_decode(VereineDisclosureRules::json(array('member' => 'Anna Muster'), array('consents' => array(array('code' => 'fotos')))), true);
+same(VereineDisclosureRules::SECTIONS, array_keys($disclosed['sections']), 'every section in its order, empty ones too, so nothing looks forgotten');
+same('vereine-auskunft-1', $disclosed['format'], 'the copy names its format');
+same('Kürzel: fotos · eingewilligt: ja', VereineDisclosureRules::line(array('code' => 'fotos', 'note' => '', 'given' => true), array('code' => 'Kürzel', 'given' => 'eingewilligt', '_yes' => 'ja')),
+	'a row to read, empty fields left out');
+expect(count(VereineDisclosure::fieldWords()) > 60, 'every field of the copy has its word');
 
 // ------------------------------------------------------------------- result
 

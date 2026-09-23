@@ -3426,6 +3426,35 @@ def archive(stack: Stack) -> str:
             f"held {len(sums)} files whose checksums match, with the table of contents")
 
 
+def disclosure(stack: Stack) -> str:
+    """Access to one's own data: the request kept with its check, a copy as PDF and JSON with the member's rows and nobody else's (#10)."""
+    browser = stack.browser()
+    member = int(stack.value("SELECT fk_adherent FROM llx_vereine_consent GROUP BY fk_adherent ORDER BY COUNT(*) DESC LIMIT 1"))
+    first, last = stack.sql(f"SELECT firstname, lastname FROM llx_adherent WHERE rowid = {member}")[0]
+    other = stack.sql(f"SELECT firstname, lastname FROM llx_adherent WHERE rowid <> {member} AND lastname <> '{last}' ORDER BY rowid LIMIT 1")[0]
+    tab = f"/custom/vereine/member_association.php?id={member}"
+    page = page_ok(browser.get(tab), "the member's tab")
+    refused = page_ok(browser.submit(page.form(name="vereinedisclosure"), {"check": ""}), "a request without a check")
+    expect("wie du geprüft hast" in html.unescape(refused.text) and stack.value(f"SELECT COUNT(*) FROM llx_vereine_disclosure WHERE fk_adherent = {member}") == "0",
+           "a request without a check of the person was taken")
+    page = page_ok(browser.get(tab), "the member's tab again")
+    answer = browser.submit(page.form(name="vereinedisclosure"), {"check": "id_document", "requested_on": stack.today()})
+    expect(answer.status == 200 and answer.body[:2] == b"PK", f"the copy is no ZIP: HTTP {answer.status}")
+    with zipfile.ZipFile(io.BytesIO(answer.body)) as copy:
+        data = json.loads(copy.read("auskunft.json").decode("utf-8"))
+        text = pdf_bytes_text(copy.read("auskunft.pdf"))
+    expect(data["sections"]["member"][0]["lastname"] == last and data["sections"]["consents"], f"the copy lacks the member or the consents: {list(data['sections'])}")
+    everything = json.dumps(data, ensure_ascii=False)
+    expect(f"{other[0]} {other[1]}" not in everything and other[1] not in text, f"the copy names another member: {other}")
+    expect("Einwilligungen" in text and last in text, "the PDF does not show the consents of the member")
+    kept = stack.sql(f"SELECT identity_check, sha256 FROM llx_vereine_disclosure WHERE fk_adherent = {member}")
+    expect(kept == [["id_document", hashlib.sha256(answer.body).hexdigest()]], f"the request was not kept with the checksum of what went out: {kept}")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_log WHERE action = 'disclosure'") == "1", "handing out the copy was not logged")
+    expect(denied(stack.browser("rtnobody").get(tab)), "a user without rights opens the member's tab")
+    return (f"a request without a check was refused; the copy for {first} {last} came as ZIP with PDF and JSON, holds the member's data and "
+            f"{len(data['sections']['consents'])} consents and no other member; the request was kept with the checksum of the copy and logged")
+
+
 def board(stack: Stack) -> str:
     """A website reads the board: names only with consent, or for the board always when it must be disclosed."""
     site = stack.notes["website"]
@@ -5553,6 +5582,7 @@ SCENARIOS = (
     ("overpayments", "Overpayments: 37,68 paid with 38,00, the 0,32 assigned once to a credit, a refund or a donation", overpayments, ("account", "volunteerpayout")),
     ("donations", "Donation report: date of birth encrypted, vbPK from the register file, XML against the schema, protocol, E then A", donations, ("overpayments",)),
     ("archive", "Files of the association: PDF/A with a code, a public check that shows no title, the export with checksums", archive, ("donations",)),
+    ("disclosure", "Access to one's own data: request with its check, a copy with the member's rows and nobody else's", disclosure, ("archive",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),

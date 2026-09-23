@@ -70,6 +70,7 @@ require_once __DIR__.'/class/vereineexits.class.php';
 require_once __DIR__.'/class/vereineconsents.class.php';
 require_once __DIR__.'/class/vereinefunctions.class.php';
 require_once __DIR__.'/class/vereineresolutions.class.php';
+require_once __DIR__.'/class/vereinedisclosure.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('companies', 'members', 'bills', 'categories', 'vereine@vereine'));
@@ -224,6 +225,21 @@ if ($action === 'consentscanget') {
 	header('Content-Length: '.filesize($file));
 	readfile($file);
 	exit;
+}
+// A copy of the member's own data (Art. 15 GDPR, #10): handed out as ZIP, not kept; the request is.
+if ($action === 'disclose' && $canExit) {
+	$disclosure = new VereineDisclosure($db);
+	$zip = $disclosure->make($object, array('requested_on' => GETPOST('requested_on', 'alphanohtml'), 'check' => GETPOST('check', 'aZ09'),
+		'note' => GETPOST('note', 'alphanohtml')), $today, $user, $langs);
+	if ($zip !== '' && is_file($zip)) {
+		header('Content-Type: application/zip');
+		header('Content-Disposition: attachment; filename="auskunft-'.dol_sanitizeFileName($object->lastname).'-'.$today.'.zip"');
+		header('Content-Length: '.filesize($zip));
+		readfile($zip);
+		dol_delete_file($zip);
+		exit;
+	}
+	setEventMessages($disclosure->errors ? null : $disclosure->error, array_map(array($langs, 'trans'), $disclosure->errors), 'errors');
 }
 if (($action === 'cancelexit' || $action === 'carryoutexit') && $canExit) {
 	foreach ($exits->planned(array((int) $object->id)) as $exit) {
@@ -568,6 +584,37 @@ foreach ($memberResolutions as $entry) {
 	print '<td>'.$langs->trans($entry['passed'] ? 'VereineResolutionPassed' : 'VereineResolutionRejected').'</td></tr>';
 }
 print '</table></div><br>';
+
+// Access to one's own data (Art. 15 GDPR, #10).
+print load_fiche_titre($langs->trans('VereineDisclosureTitle'), '', '', 0, 'vereinedisclosure');
+print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineDisclosureHowTo').'</div>';
+$requests = (new VereineDisclosure($db))->requests((int) $object->id);
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-disclosures="'.count($requests).'">';
+print '<tr class="liste_titre"><td>'.$langs->trans('VereineDisclosureRequested').'</td><td>'.$langs->trans('VereineDisclosureDeadline').'</td>';
+print '<td>'.$langs->trans('VereineDisclosureCheck').'</td><td>'.$langs->trans('VereineDisclosureDelivered').'</td><td>SHA-256</td></tr>';
+foreach ($requests as $request) {
+	print '<tr class="oddeven" data-disclosure-check="'.dol_escape_htmltag($request['check']).'"><td class="nowraponall">'.vereineFormatDay($request['requested_on']).'</td>';
+	print '<td class="nowraponall">'.vereineFormatDay(VereineDisclosureRules::deadline($request['requested_on'])).'</td>';
+	print '<td>'.$langs->trans('VereineDisclosureCheck_'.$request['check']).($request['note'] !== '' ? ' <span class="opacitymedium">('.dol_escape_htmltag($request['note']).')</span>' : '').'</td>';
+	print '<td class="nowraponall">'.dol_print_date($request['delivered_at'], 'dayhour').($request['user'] !== '' ? ' · '.dol_escape_htmltag($request['user']) : '').'</td>';
+	print '<td><span class="small opacitymedium">'.dol_escape_htmltag(substr($request['sha256'], 0, 16)).'…</span></td></tr>';
+}
+if (!$requests) {
+	print '<tr class="oddeven"><td colspan="5"><span class="opacitymedium">'.$langs->trans('VereineDisclosureNone').'</span></td></tr>';
+}
+print '</table></div>';
+if ($canExit) {
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereinedisclosure" name="vereinedisclosure" class="paddingtop">';
+	print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="disclose">';
+	print $langs->trans('VereineDisclosureRequested').' <input type="date" name="requested_on" value="'.dol_escape_htmltag($today).'"> ';
+	print $langs->trans('VereineDisclosureCheck').' <select name="check" class="flat"><option value=""></option>';
+	foreach (VereineDisclosureRules::CHECKS as $check) {
+		print '<option value="'.$check.'">'.$langs->trans('VereineDisclosureCheck_'.$check).'</option>';
+	}
+	print '</select> <input type="text" name="note" size="30" maxlength="255" placeholder="'.dol_escape_htmltag($langs->trans('VereineDisclosureNotePlaceholder')).'"> ';
+	print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineDisclosureMake')).'"></form>';
+}
+print '<br>';
 
 vereinePrintLog($db, (int) $object->id, $partner ? (int) $partner->id : 0);
 
