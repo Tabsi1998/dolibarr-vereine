@@ -375,7 +375,7 @@ def enable(stack: Stack) -> str:
     rights = stack.sql("SELECT id, perms, subperms FROM llx_rights_def WHERE module = 'vereine' AND entity = 1 ORDER BY id")
     expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"], ["49210003", "website", "read"],
                       ["49210004", "application", "write"], ["49210005", "sync", "read"],
-                      ["49210006", "identity", "use"]], f"rights after enabling: {rights}")
+                      ["49210006", "identity", "use"], ["49210007", "donation", "write"]], f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_account", "/vereine/account.php"],
                     ["members", "vereine_application", "/vereine/application.php"],
@@ -385,6 +385,7 @@ def enable(stack: Stack) -> str:
                     ["members", "vereine_authority", "/vereine/authority.php"],
                     ["members", "vereine_circulars", "/vereine/circulars.php"],
                     ["members", "vereine_consentform", "/vereine/consents.php"],
+                    ["members", "vereine_donations", "/vereine/donations.php"],
                     ["members", "vereine_duties", "/vereine/duties.php"],
                     ["members", "vereine_events", "/vereine/events.php"],
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
@@ -3171,6 +3172,114 @@ def overpayments(stack: Stack) -> str:
             "and neither the module nor Dolibarr's button assigned an excess twice")
 
 
+def donations(stack: Stack) -> str:
+    """The donation report: date of birth encrypted, vbPK through the register file, XML against the schema, protocol E then A (#6)."""
+    year = int(stack.today()[:4]) - 1
+    base = f"/custom/vereine/donations.php?year={year}"
+    expect(denied(stack.browser("rtnobody").get(base)), "a user without rights opens the donation report")
+    expect(denied(stack.browser("rtreader").get(base)), "a reader of the association sees dates of birth of donors")
+    stack.php_fixture("donors", RT_YEAR=str(year))
+    browser = stack.browser()
+
+    setup = page_ok(browser.get("/custom/vereine/admin/donations.php"), "the setup of the donation report")
+    page_ok(browser.submit(setup.form(name="vereinedonationsetup"), {"kind": "SP", "contact": "Kassier 0664 000", "email": "kassa@example.org"}),
+            "a sports club")
+    expect(stack.const("VEREINE_DONATION_KIND") == "SP", "the kind of body was not stored")
+
+    page = page_ok(browser.get(base), "the donors of last year")
+    people = {ref: (total, nxt) for ref, total, nxt in re.findall(r'data-donation-ref="([^"]+)" data-donation-total="([\d.]+)" data-donation-next="([EAS]?)"', page.text)}
+    customer = stack.value("SELECT d.refnr FROM llx_vereine_donor as d INNER JOIN llx_societe as s ON s.rowid = d.fk_soc WHERE s.nom = 'Rechnung Kunde'")
+    erika = stack.value("SELECT rowid FROM llx_vereine_donor WHERE lastname = 'Beispiel' AND firstname = 'Erika'")
+    expect(people.get(customer) == ("75.00", "") and len(people) >= 3, f"two donations of one third party are one donor of 75: {people}")
+
+    # Erika gives her date of birth and gets her own reference number; it is stored encrypted.
+    page = browser.get(f"{base}&person={erika}")
+    expect(page.status == 200 and not page.denied(),
+           f"Erika's data (donor {erika!r}): HTTP {page.status} {html.unescape(re.sub(r'<[^>]+>', ' ', page.text))[:600]}")
+    page_ok(browser.submit(page.form(name="vereinedonationdonor"), {"birth": "1980-05-12", "refnr": "SP-1", "given_on": stack.today()}), "Erika's date of birth")
+    stored = stack.value(f"SELECT birth FROM llx_vereine_donor WHERE rowid = {erika}") or ""
+    expect(stored.startswith("dolcrypt:") and "1980" not in stored, f"the date of birth is not stored encrypted: {stored[:20]}")
+    page = page_ok(browser.get(f"{base}&person={erika}"), "Erika's data again")
+    expect('value="1980-05-12"' in page.text, "the date of birth does not come back for whoever may see it")
+    max_id = stack.value(f"SELECT rowid FROM llx_vereine_donor WHERE refnr = '{customer}'")
+    page = page_ok(browser.get(f"{base}&person={max_id}"), "the customer's data")
+    page_ok(browser.submit(page.form(name="vereinedonationdonor"), {"birth": "1975-01-02"}), "the customer's date of birth")
+
+    # The register file holds both people with their dates of birth, never the company.
+    export = browser.get(f"{base}&action=szrexport&token={token_of(page)}")
+    expect(export.status == 200 and "VERSCHLÜSSELTEBPK=BMF+SA" in export.text and "\r\nSP-1;Beispiel;Erika;1980-05-12;" in export.text
+           and f"\r\n{customer};Kunde;Max;1975-01-02;" in export.text and "GmbH" not in export.text, f"the register file: {export.text[:600]}")
+
+    # The register answers: Erika found, the customer not.
+    vbpk = "Ab3+" * 43
+    found = ("KONTAKT=Kassier\r\nVERSCHLÜSSELTEBPK=BMF+SA\r\n\r\nLAUFNR;NACHNAME;VORNAME;GEBDATUM;NAME_VOR_ERSTER_EHE;GEBORT;GESCHLECHT;STAATSANGEHÖRIGKEIT;"
+             f"ANSCHRIFTSSTAAT;GEMEINDENAME;PLZ;STRASSE;HAUSNR;REGISTER;VBPK_FÜR_VKZ=BMF+SA;ZUSATZINFO\r\nSP-1;Beispiel;Erika;1980-05-12;;;;;AUT;Telfs;6410;Hauptstraße;12a;ZMR;{vbpk};\r\n")
+    missed = f"KONTAKT=Kassier\r\n\r\nLAUFNR;NACHNAME;VORNAME;GEBDATUM\r\n{customer};Kunde;Max;1975-01-02\r\n"
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("BPK_XZVR-1_1_20260923-120000_VERSCHL_BPK.csv", found.encode("utf-8"))
+        archive.writestr("BPK_XZVR-1_1_20260923-120000_KEINTREFFER.csv", missed.encode("utf-8"))
+        archive.writestr("BPK_XZVR-1_1_20260923-120000_STATISTIK.csv", b"Treffer: 1")
+    page = page_ok(browser.get(base), "before the answer of the register")
+    page_ok(browser.post_multipart(base, [("token", token_of(page)), ("action", "szrimport")], [("szr_file", "BPK_XZVR-1_1_20260923-120000.zip", buffer.getvalue())]),
+            "read the answer of the register")
+    states = dict(stack.sql("SELECT refnr, vbpk_state FROM llx_vereine_donor WHERE refnr IN ('SP-1', '" + customer + "')"))
+    expect(states == {"SP-1": "found", customer: "notfound"} and stack.value("SELECT vbpk FROM llx_vereine_donor WHERE refnr = 'SP-1'") == vbpk,
+           f"what the register answered: {states}")
+
+    # The report: one first transmission for Erika, checked against the schema, downloaded as it was written.
+    page = page_ok(browser.get(base), "ready to report")
+    expect('data-donation-reportable="1"' in page.text, "Erika is not ready to report")
+    page_ok(browser.submit(page.form(name="vereinedonationreport")), "write the report")
+    report, ref = stack.sql("SELECT rowid, message_ref FROM llx_vereine_donation_report ORDER BY rowid DESC LIMIT 1")[0]
+    xml = browser.get(f"{base}&action=xml&report={report}&token={token_of(page)}").text
+    expect('<Uebermittlungsart>SP</Uebermittlungsart>' in xml and f"<Zeitraum>{year}</Zeitraum>" in xml and 'Uebermittlungs_Typ="E"' in xml
+           and "<RefNr>SP-1</RefNr>" in xml and "<Betrag>100.00</Betrag>" in xml and f"<vbPK>{vbpk}</vbPK>" in xml and customer not in xml,
+           f"the report: {xml[:900]}")
+    page = page_ok(browser.get(base), "the report waiting")
+    expect('data-donation-reportable="0"' in page.text, "a person waiting for the protocol is offered a second time")
+
+    def protocol(info: str, where: str, errors: str = "") -> bytes:
+        return ('<?xml version="1.0" encoding="UTF-8"?><SonderausgabenResponse xmlns="https://finanzonline.bmf.gv.at/fon/ws/uebermittlungSonderausgaben">'
+                f"<MessageSpec><MessageRefId>{ref}</MessageRefId><EinbringungsTimestamp>2026-02-10T16:08:59</EinbringungsTimestamp><Art>UEB_SA</Art>"
+                f"<Uebermittlung>{where}</Uebermittlung><Info>{info}</Info></MessageSpec>{errors}</SonderausgabenResponse>").encode("utf-8")
+
+    # A test transmission counts for nothing; the real one takes the line.
+    page_ok(browser.post_multipart(base, [("token", token_of(page)), ("action", "protocol")], [("protocol_file", "test.xml", protocol("OK", "T"))]), "a test protocol")
+    expect(stack.value(f"SELECT state FROM llx_vereine_donation_line WHERE fk_report = {report}") == "sent", "a test transmission counted as filed")
+    page = page_ok(browser.get(base), "after the test")
+    page_ok(browser.post_multipart(base, [("token", token_of(page)), ("action", "protocol")], [("protocol_file", "protokoll.xml", protocol("OK", "P"))]), "the protocol")
+    expect(stack.value(f"SELECT state FROM llx_vereine_donation_line WHERE fk_report = {report}") == "ok"
+           and stack.value(f"SELECT status FROM llx_vereine_donation_report WHERE rowid = {report}") == "done", "the accepted report is not marked")
+
+    # Another donation of Erika: the next report changes her sum to 120.
+    stack.php_fixture("donorsmore", RT_YEAR=str(year))
+    page = page_ok(browser.get(base), "after another donation")
+    expect(re.search(r'data-donation-ref="SP-1" data-donation-total="120.00" data-donation-next="A"', page.text) is not None, "the changed sum is not offered as a change")
+    page_ok(browser.submit(page.form(name="vereinedonationreport")), "write the change")
+    report, ref = stack.sql("SELECT rowid, message_ref FROM llx_vereine_donation_report ORDER BY rowid DESC LIMIT 1")[0]
+    xml = browser.get(f"{base}&action=xml&report={report}&token={token_of(page)}").text
+    expect('Uebermittlungs_Typ="A"' in xml and "<Betrag>120.00</Betrag>" in xml and "<vbPK>" not in xml, f"the change: {xml[:900]}")
+    refused = ("<SonderausgabenError><RefNr>SP-1</RefNr><Error><Code>ERR-U-009</Code><Text>Änderung nicht möglich.</Text></Error></SonderausgabenError>")
+    page = page_ok(browser.get(base), "the change waiting")
+    page_ok(browser.post_multipart(base, [("token", token_of(page)), ("action", "protocol")], [("protocol_file", "protokoll2.xml", protocol("TWOK", "P", refused))]),
+            "a partly accepted protocol")
+    line = stack.sql(f"SELECT state, error FROM llx_vereine_donation_line WHERE fk_report = {report}")[0]
+    expect(line[0] == "failed" and "ERR-U-009" in line[1], f"the refused line: {line}")
+    page = page_ok(browser.get(base), "after the refusal")
+    expect(re.search(r'data-donation-ref="SP-1" data-donation-total="120.00" data-donation-next="A"', page.text) is not None, "a refused change is not offered again")
+
+    # A company gets a confirmation instead.
+    company = stack.value("SELECT rowid FROM llx_vereine_donor WHERE lastname = 'Beispiel GmbH'")
+    receipt = browser.get(f"{base}&action=receipt&person={company}&token={token_of(page)}")
+    text = pdf_bytes_text(receipt.body)
+    expect(receipt.status == 200 and "Beispiel GmbH" in text and "200,00" in text, "the confirmation of the company's donation")
+    return (f"donors of {year} linked (two donations of one third party are one donor), the date of birth stored encrypted, the register file "
+            "with both people and the answer read from its ZIP (found and not found), a first transmission checked against the schema, a test "
+            "protocol counted for nothing, the real one took the line, another donation became a change to 120, a refused change stays open, "
+            "and the company got a confirmation")
+
+
 def board(stack: Stack) -> str:
     """A website reads the board: names only with consent, or for the board always when it must be disclosed."""
     site = stack.notes["website"]
@@ -5293,6 +5402,7 @@ SCENARIOS = (
     ("volunteers", "Volunteer allowances: marked over the limit when stored, the list of the year, a helper shift paid once", volunteers, ("shifts",)),
     ("volunteerpayout", "Paying volunteer allowances: a list, refused until signed, then Dolibarr's various payments", volunteerpayout, ("volunteers", "signatures")),
     ("overpayments", "Overpayments: 37,68 paid with 38,00, the 0,32 assigned once to a credit, a refund or a donation", overpayments, ("account", "volunteerpayout")),
+    ("donations", "Donation report: date of birth encrypted, vbPK from the register file, XML against the schema, protocol, E then A", donations, ("overpayments",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),

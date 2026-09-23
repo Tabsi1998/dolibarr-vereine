@@ -179,6 +179,12 @@ class modVereine extends DolibarrModules
 		$this->rights[$r][4] = 'identity';
 		$this->rights[$r][5] = 'use';
 		$r++;
+		// Dates of birth and tax identifiers of donors: only for whoever prepares the report (#6).
+		$this->rights[$r][0] = $this->numero.'07';
+		$this->rights[$r][1] = 'Prepare the donation report to the tax office: donors with date of birth, vbPK, XML';
+		$this->rights[$r][4] = 'donation';
+		$this->rights[$r][5] = 'write';
+		$r++;
 
 		$this->menu = array();
 		$r = 0;
@@ -352,6 +358,21 @@ class modVereine extends DolibarrModules
 			'position' => 1100 + $r,
 			'enabled' => 'isModEnabled("vereine")',
 			'perms' => '$user->hasRight("vereine", "association", "read")',
+			'target' => '',
+			'user' => 0,
+		);
+		// The donation report to the tax office (#6).
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
+			'titre' => 'VereineMenuDonations',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_donations',
+			'url' => '/vereine/donations.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->hasRight("vereine", "association", "read") && $user->hasRight("vereine", "donation", "write")',
 			'target' => '',
 			'user' => 0,
 		);

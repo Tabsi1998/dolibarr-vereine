@@ -29,6 +29,11 @@ und bringt eine REST-API für die Vereinswebsite mit.
   in einer Liste. Der Mehrbetrag wird mit Vorschau Guthaben, Rückzahlung oder –
   nur wenn er freiwillig und ohne Gegenleistung kam – Spende, genau einmal. Die
   Rechnung bleibt, wie sie ist.
+- **Spendenmeldung ans Finanzamt**: Summe je Person und Jahr aus dem Spendenmodul,
+  Geburtsdatum verschlüsselt, vbPK über die Abgleichliste des Stammzahlenregisters,
+  XML nach dem Schema des Finanzministeriums mit Erst-, Änderungs- und
+  Stornomeldung, Protokoll aus der DataBox zurück. Hochladen bleibt ein Klick in
+  FinanzOnline.
 
 ### Mitglieder und Beiträge
 
@@ -151,7 +156,7 @@ Bereich fällt, hängt vom Einzelfall ab. Quellen und Stand stehen in
 | Stelle in Dolibarr | Was das Modul ergänzt oder nutzt |
 | --- | --- |
 | *Start > Einstellungen > Unternehmen/Organisation* | Name, Anschrift, E-Mail, Telefon, Website und erster Monat des Rechnungsjahres – das Modul liest sie, es führt keine eigene Kopie |
-| *Start > Einstellungen > Module > Vereine* | Einrichtung mit den Reitern Verein, Partner, Steuerprofile, Beiträge, Funktionen, Statuten, Sitzungsvorlagen, API, Einwilligungen und Über |
+| *Start > Einstellungen > Module > Vereine* | Einrichtung mit den Reitern Verein, Partner, Steuerprofile, Beiträge, Funktionen, Statuten, Sitzungsvorlagen, API, Einwilligungen, Spendenmeldung und Über |
 | *Mitglieder*, *Geschäftspartner*, *Kategorien* (Dolibarr-eigene Module) | Pflicht und werden mit Vereine aktiviert; das Mitglieder-Menü bekommt *Verein* mit Übersicht, Abgleich, Beitragslauf, Funktionen, Schreiben an die Behörde und Sitzungen |
 | Startseite | Widget *Vereine: Grenzen des Jahres* (für Benutzer, die Rechnungen lesen dürfen) |
 | Karte eines Geschäftspartners | Reiter *Mitgliedschaft*; Kategorien *Mitglied* und *Ehemaliges Mitglied* |
@@ -161,7 +166,7 @@ Bereich fällt, hängt vom Einzelfall ab. Quellen und Stand stehen in
 | Kundenrechnung | Hinweis bei einer Überzahlung mit Link zum Zuordnen; danach steht dort, wohin der Mehrbetrag ging |
 | Rechnungs-PDF (Dolibarr-Vorlagen, unverändert) | Hinweise der Steuerprofile je Zeile und ZVR-Zahl im Hinweisbereich |
 | E-Mail-Kampagnen | Empfängerauswahl *Vereine* |
-| *Benutzer & Gruppen > Berechtigungen* | *Vereinsübersicht und Vereinsdaten lesen*; *Mitglieder und Geschäftspartner verknüpfen und abgleichen*; *Mitglieder-Zusammenfassung für die Website über die API lesen*; *Beitrittsanträge über die API anlegen* |
+| *Benutzer & Gruppen > Berechtigungen* | *Vereinsübersicht und Vereinsdaten lesen*; *Mitglieder und Geschäftspartner verknüpfen und abgleichen*; *Mitglieder-Zusammenfassung für die Website über die API lesen*; *Beitrittsanträge über die API anlegen*; *Spendenmeldung vorbereiten* (sieht Geburtsdaten und vbPK der Spender:innen) |
 | Modul *API REST* | Nötig für `/api/index.php/vereine/...`; die Übersicht warnt, solange es aus ist |
 
 So hängt es zusammen: Die Einrichtung speichert die Vereinsdaten als

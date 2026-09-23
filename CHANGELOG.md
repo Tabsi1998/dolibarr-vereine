@@ -41,6 +41,19 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   bezahlt. Derselbe Mehrbetrag lässt sich nicht zweimal zuordnen, auch nicht über Dolibarrs
   eigenen Knopf. Die Einnahmen-Ausgaben-Rechnung zählt einen gespendeten Mehrbetrag zum ideellen
   Bereich; die Vereinsübersicht meldet offene Überzahlungen.
+- **Spendenmeldung an das Finanzamt** (#6): Neuer Menüpunkt *Mitglieder > Verein > Spendenmeldung*
+  mit eigener Berechtigung, weil dort Geburtsdaten stehen. Die Spenden bleiben im Spendenmodul
+  von Dolibarr; das Modul fasst sie je Person und Jahr zusammen. **Geburtsdatum** wird
+  verschlüsselt gespeichert (ohne Dolibarr-Schlüssel gar nicht). Die **vbPK** kommt über die
+  Abgleichliste für das Stammzahlenregister (herunterladen, in FinanzOnline hochladen, Ergebnis
+  als ZIP einlesen) oder händisch. Die **Meldung als XML** enthält nur, was das Finanzamt noch
+  nicht hat – Erstmeldung, Änderung mit neuer Jahressumme oder Storno – und wird vor dem
+  Herunterladen gegen das Schema des Finanzministeriums geprüft. Das **Protokoll aus der
+  DataBox** (OK, teilweise OK, abgelehnt) wird eingelesen; ein Testprotokoll zählt nicht als
+  gemeldet, abgelehnte Zeilen stehen mit Grund da und kommen in die nächste Meldung. Für Firmen
+  gibt es eine **Spendenbestätigung** als PDF. Einstellungen unter *Einrichtung – Spendenmeldung*:
+  Art der Einrichtung (z. B. SP für Sport, GM für andere gemeinnützige Vereine), Steuernummer,
+  Kontakt für das Stammzahlenregister. Hochladen in FinanzOnline bleibt ein Klick bei euch.
 
 
 ### Behoben

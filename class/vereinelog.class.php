@@ -119,6 +119,11 @@ class VereineLog
 	const VOLUNTEER_PAYOUT = 'volunteer_payout';
 	const VOLUNTEER_PAID = 'volunteer_paid';
 	const OVERPAYMENT_ASSIGNED = 'overpayment_assigned';
+	const DONATION_SETUP = 'donation_setup';
+	const DONATION_DONOR = 'donation_donor';
+	const DONATION_SZR = 'donation_szr';
+	const DONATION_REPORT = 'donation_report';
+	const DONATION_PROTOCOL = 'donation_protocol';
 
 	/**
 	 * Append one entry.
