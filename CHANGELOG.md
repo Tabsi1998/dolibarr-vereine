@@ -33,6 +33,33 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Verein kann sie abschalten. Unter *Mitglieder > Verein > Vereinsakte* gibt es alle fertigen
   Dokumente eines Zeitraums, dazu Statuten und Schreiben an die Behörde, als **ZIP mit
   Inhaltsverzeichnis und Prüfsummen**, etwa bei einem Vorstandswechsel.
+- **Auskunft über gespeicherte Daten** (#10, erster Teil): Auf dem Reiter *Verein* der
+  Mitgliedskarte hältst du eine Anfrage nach Art. 15 DSGVO fest – wann sie kam und wie du geprüft
+  hast, dass sie von der Person selbst kommt – und bekommst die Kopie ihrer Daten als ZIP mit PDF
+  zum Lesen und JSON zum Mitnehmen: Stammdaten, eigene Felder, Beiträge, Rechnungen, Einwilligungen,
+  Anträge, Funktionen, Austritt, App-Verbindungen, Sitzungen, eigene Stimmen, Unterschriften,
+  Aufgaben, Helferdienste, Freiwilligenpauschale, Spenden und die Vorgänge des Moduls. Stimmen und
+  Einträge anderer stehen nicht darin. Die Kopie wird nicht aufbewahrt, nur Tag, Prüfung, Ausgabe
+  und Prüfsumme; die Frist von einem Monat steht dabei.
+- **Löschen nach dem Austritt** (#10, zweiter Teil): Auf dem Reiter *Verein* eines ehemaligen
+  Mitglieds zeigt eine Liste je Art der Daten, was noch gespeichert ist und wann es fällig wird:
+  Kontaktdaten und App-Verbindungen gleich nach dem Austritt, E-Mail-Adressen in Einladungen ein
+  Jahr nach der Sitzung, Einwilligungen, Anträge und das Modul-Protokoll nach drei Jahren,
+  Freiwilligenpauschale und Spenderdaten sieben Jahre nach dem Jahresende. Beiträge, Rechnungen
+  und Vereinsunterlagen bleiben unverändert; der Name wird erst durch „Anonymisiert“ ersetzt, wenn
+  nichts Aufbewahrtes ihn mehr braucht, und nie bei jemandem, der eine Funktion hatte. Gelöscht
+  wird nur nach Klick und Rückfrage; offene Rechnungen oder eine Sperre mit Grund halten alles
+  an. Jeder Durchgang wird mit Anzahlen festgehalten, ohne die Daten selbst. Die Fristen und ihre
+  Gründe stehen unter *Einstellungen > Datenschutz*; wo der Verein wählen darf, lassen sie sich ändern.
+- **Zusammenarbeit mit dem Mahnwesen-Modul** (#17): Erreicht eine Beitragsrechnung dort die letzte
+  Stufe „Mitgliedschaft prüfen“, legt Vereine genau einen Vorschlag für die nächste
+  Vorstandssitzung an. Beitragsrechnung heißt: Dolibarr hat sie mit einem Mitgliedsbeitrag
+  verknüpft; ein Verkauf an dasselbe Mitglied zählt nicht. Beim Anlegen einer Vorstandssitzung
+  hakst du den Rückstand an, dann steht er auf der Tagesordnung. Bei einer Generalversammlung
+  lehnt das Modul das ab, weil deren Einladung an alle geht. Zahlung, Pause und Wiederaufnahme im
+  Mahnwesen ändern den Stand, doppelte und verspätete Meldungen werden erkannt, und eine vor der
+  Meldung bezahlte Rechnung kommt gar nicht erst zum Vorstand. Niemand wird automatisch
+  ausgeschlossen; *Zu erledigen* zählt die Rückstände ohne Namen. Ohne Mahnwesen ändert sich nichts.
 
 ## [0.9.0-beta] - 2026-09-23
 

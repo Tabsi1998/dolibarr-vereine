@@ -71,6 +71,17 @@ class InterfaceVereineTriggers extends DolibarrTriggers
 			return 0;
 		}
 		$result = 0;
+		// Fee arrears from the Mahnwesen module (#17): one proposal per case for the board, kept up to date by payment or pause.
+		if (strpos($action, 'MAHNWESEN_') === 0 && is_object($object) && isset($object->element) && $object->element === 'mahnwesen_event') {
+			dol_include_once('/vereine/class/vereinearrears.class.php');
+			$arrears = new VereineArrears($this->db);
+			$result = $arrears->onEvent($object, $user);
+			if ($result < 0) {
+				// Refused, so the Mahnwesen module keeps the event and delivers it again.
+				$this->errors[] = $arrears->error;
+			}
+			return $result;
+		}
 		if (in_array($action, self::MEMBER_EVENTS, true) && $object instanceof Adherent) {
 			dol_include_once('/vereine/class/vereinepartnerservice.class.php');
 			$service = new VereinePartnerService($this->db);

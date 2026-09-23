@@ -3426,6 +3426,35 @@ def archive(stack: Stack) -> str:
             f"held {len(sums)} files whose checksums match, with the table of contents")
 
 
+def disclosure(stack: Stack) -> str:
+    """Access to one's own data: the request kept with its check, a copy as PDF and JSON with the member's rows and nobody else's (#10)."""
+    browser = stack.browser()
+    member = int(stack.value("SELECT fk_adherent FROM llx_vereine_consent GROUP BY fk_adherent ORDER BY COUNT(*) DESC LIMIT 1"))
+    first, last = stack.sql(f"SELECT firstname, lastname FROM llx_adherent WHERE rowid = {member}")[0]
+    other = stack.sql(f"SELECT firstname, lastname FROM llx_adherent WHERE rowid <> {member} AND lastname <> '{last}' ORDER BY rowid LIMIT 1")[0]
+    tab = f"/custom/vereine/member_association.php?id={member}"
+    page = page_ok(browser.get(tab), "the member's tab")
+    refused = page_ok(browser.submit(page.form(name="vereinedisclosure"), {"check": ""}), "a request without a check")
+    expect("wie du geprüft hast" in html.unescape(refused.text) and stack.value(f"SELECT COUNT(*) FROM llx_vereine_disclosure WHERE fk_adherent = {member}") == "0",
+           "a request without a check of the person was taken")
+    page = page_ok(browser.get(tab), "the member's tab again")
+    answer = browser.submit(page.form(name="vereinedisclosure"), {"check": "id_document", "requested_on": stack.today()})
+    expect(answer.status == 200 and answer.body[:2] == b"PK", f"the copy is no ZIP: HTTP {answer.status}")
+    with zipfile.ZipFile(io.BytesIO(answer.body)) as copy:
+        data = json.loads(copy.read("auskunft.json").decode("utf-8"))
+        text = pdf_bytes_text(copy.read("auskunft.pdf"))
+    expect(data["sections"]["member"][0]["lastname"] == last and data["sections"]["consents"], f"the copy lacks the member or the consents: {list(data['sections'])}")
+    everything = json.dumps(data, ensure_ascii=False)
+    expect(f"{other[0]} {other[1]}" not in everything and other[1] not in text, f"the copy names another member: {other}")
+    expect("Einwilligungen" in text and last in text, "the PDF does not show the consents of the member")
+    kept = stack.sql(f"SELECT identity_check, sha256 FROM llx_vereine_disclosure WHERE fk_adherent = {member}")
+    expect(kept == [["id_document", hashlib.sha256(answer.body).hexdigest()]], f"the request was not kept with the checksum of what went out: {kept}")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_log WHERE action = 'disclosure'") == "1", "handing out the copy was not logged")
+    expect(denied(stack.browser("rtnobody").get(tab)), "a user without rights opens the member's tab")
+    return (f"a request without a check was refused; the copy for {first} {last} came as ZIP with PDF and JSON, holds the member's data and "
+            f"{len(data['sections']['consents'])} consents and no other member; the request was kept with the checksum of the copy and logged")
+
+
 def board(stack: Stack) -> str:
     """A website reads the board: names only with consent, or for the board always when it must be disclosed."""
     site = stack.notes["website"]
@@ -5402,6 +5431,174 @@ def agreements(stack: Stack) -> str:
             "named in the minutes, suggested for the next meeting; a vote on the item takes its agreement over; the logo heads the PDF, pages numbered")
 
 
+def erasure(stack: Stack) -> str:
+    """Erasing after the exit: a preview kind by kind, the hold, only what is due goes, a second run does nothing, the name last (#10)."""
+    browser = stack.browser()
+    key = stack.notes["website"]["key"]
+    setup = page_ok(browser.get("/custom/vereine/admin/privacy.php"), "data protection setup")
+    expect('data-erasure-kinds="14"' in setup.text and 'data-erasure-kind="bookkeeping" data-erasure-years="7"' in setup.text,
+           "the setup does not list the kinds with their periods")
+    refused = page_ok(browser.submit(setup.form(name="vereineprivacy"), {"years_consents": "40"}), "40 years for consents")
+    expect(stack.const("VEREINE_ERASURE_PERIODS") is None and "0 bis 30" in html.unescape(refused.text), "40 years were stored or not explained")
+    setup = page_ok(browser.get("/custom/vereine/admin/privacy.php"), "data protection setup again")
+    page_ok(browser.submit(setup.form(name="vereineprivacy"), {"years_tasks": "0"}), "no waiting for tasks")
+    expect(json.loads(stack.const("VEREINE_ERASURE_PERIODS") or "{}").get("tasks") == 0, f"stored periods: {stack.const('VEREINE_ERASURE_PERIODS')}")
+
+    fixture = stack.php_fixture("erasuremember")
+    member = int(fixture["member"])
+    tab = f"/custom/vereine/member_association.php?id={member}"
+
+    def states() -> dict:
+        page = page_ok(browser.get(tab), "the former member's tab")
+        return dict(re.findall(r'data-erasure-kind="(\w+)" data-erasure-state="(\w+)"', page.text))
+
+    before = states()
+    expected = {"identities": "due", "contact": "due", "invitations": "due", "consents": "due", "disclosures": "due", "log": "due",
+                "applications": "none", "bookkeeping": "kept", "records": "kept", "name": "waiting"}
+    expect(all(before.get(kind) == state for kind, state in expected.items()), f"preview of a member gone four years: {before}")
+    member_tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={stack.value('SELECT MIN(rowid) FROM llx_adherent WHERE statut = 1')}"), "an active member's tab")
+    expect('data-erasure="member"' in member_tab.text, "an active member is offered for erasing")
+
+    page = page_ok(browser.get(tab), "the tab to hold")
+    refused = page_ok(browser.submit(page.form(name="vereineerasurehold"), {"hold_note": ""}), "a hold without a reason")
+    expect("warum das Löschen gesperrt" in html.unescape(refused.text), "a hold without a reason was taken")
+    page = page_ok(browser.get(tab), "the tab to hold again")
+    page_ok(browser.submit(page.form(name="vereineerasurehold"), {"hold_note": "Verfahren beim Schiedsgericht"}), "hold the erasure")
+    held = states()
+    expect(set(held[kind] for kind in expected if expected[kind] == "due") == {"held"}, f"on hold: {held}")
+    page = page_ok(browser.get(tab), "the tab on hold")
+    page_ok(browser.post(tab, [("token", token_of(page)), ("action", "confirm_erase"), ("confirm", "yes")]), "erase while on hold")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_erasure WHERE fk_adherent = {member} AND kind = 'run'") == "0", "a run went through while on hold")
+    page_ok(browser.submit(page_ok(browser.get(tab), "the tab to release").form(name="vereineerasurerelease")), "lift the hold")
+
+    page = page_ok(browser.get(f"{tab}&action=erase&token={token_of(page_ok(browser.get(tab), 'the tab to erase'))}"), "the question before erasing")
+    expect("rückgängig" in html.unescape(page.text), "no question before erasing")
+    last_log = int(stack.value("SELECT IFNULL(MAX(rowid), 0) FROM llx_vereine_log") or 0)
+    feed = f"SELECT COUNT(*) FROM llx_vereine_change WHERE object_type = 'membership' AND object_id = {member} AND change_kind = 'updated'"
+    changes = int(stack.value(feed) or 0)
+    page_ok(browser.post(tab, [("token", token_of(page)), ("action", "confirm_erase"), ("confirm", "yes")]), "erase what is due")
+    kept = stack.sql(f"SELECT lastname, IFNULL(email, '-'), IFNULL(address, '-'), IFNULL(birth, '-') FROM llx_adherent WHERE rowid = {member}")
+    expect(kept == [["Vergessen", "-", "-", "-"]], f"the member after the first run: {kept}")
+    left = {table: stack.value(f"SELECT COUNT(*) FROM llx_vereine_{table} WHERE fk_adherent = {member}") for table in ("identity", "consent", "disclosure")}
+    expect(left == {"identity": "0", "consent": "0", "disclosure": "0"}, f"rows left after the first run: {left}")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_meeting_invitation WHERE fk_adherent = {member} AND email IS NOT NULL") == "0"
+           and stack.value(f"SELECT name FROM llx_vereine_meeting_invitation WHERE fk_adherent = {member}") == "Emil Vergessen",
+           "the invitation kept its address or lost its name")
+    expect(stack.shell(f"test -e '{fixture['scan']}'").returncode != 0, "the scan of the consent is still there")
+    actions = [row[0] for row in stack.sql(f"SELECT action FROM llx_vereine_log WHERE fk_adherent = {member} AND rowid <= {last_log} ORDER BY rowid")]
+    expect(set(actions) == {"erasure_hold"}, f"the log of the member from before the run: {actions}")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_log WHERE fk_adherent = {member} AND action = 'erasure'") == "1", "the run was not logged")
+    run = json.loads(stack.value(f"SELECT done FROM llx_vereine_erasure WHERE fk_adherent = {member} AND kind = 'run'") or "{}")
+    expect(set(run) == {"identities", "contact", "invitations", "consents", "disclosures", "log"} and "Vergessen" not in json.dumps(run), f"the run kept: {run}")
+    expect(int(stack.value(feed) or 0) > changes, "the change feed did not learn about the erasure")
+    status, summary = stack.api(f"vereine/members/{member}/summary", key)
+    expect(status == 200, f"the summary of the erased member: HTTP {status} {summary}")
+
+    page = page_ok(browser.get(tab), "the tab after the first run")
+    expect('data-erasure-due="0"' in page.text, "something is still due after the run")
+    page_ok(browser.post(tab, [("token", token_of(page)), ("action", "confirm_erase"), ("confirm", "yes")]), "erase again")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_erasure WHERE fk_adherent = {member} AND kind = 'run'") == "1", "a second run without anything due was kept")
+
+    # Once the bookkeeping is past its seven years, the name goes as well.
+    stack.sql(f"UPDATE llx_subscription SET dateadh = DATE_SUB(dateadh, INTERVAL 5 YEAR), datef = DATE_SUB(datef, INTERVAL 5 YEAR) WHERE fk_adherent = {member}")
+    expect(states().get("name") == "due", "the name is not due once the bookkeeping is past")
+    page = page_ok(browser.get(tab), "the tab before the name goes")
+    page_ok(browser.post(tab, [("token", token_of(page)), ("action", "confirm_erase"), ("confirm", "yes")]), "erase the name")
+    name = stack.sql(f"SELECT lastname, IFNULL(firstname, '-'), IFNULL(login, '-') FROM llx_adherent WHERE rowid = {member}")
+    expect(name == [["Anonymisiert", "-", "-"]], f"the name after the second run: {name}")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_subscription WHERE fk_adherent = {member}") == "1", "the fee was touched")
+    return (f"14 kinds listed, 40 years refused; the member gone four years ago had {sum(1 for state in before.values() if state == 'due')} kinds due; "
+            "on hold nothing went; the run emptied contact data, took the binding back, deleted consent with scan, access record and log, "
+            "kept the invitation's name, told the change feed; a second run did nothing; the name went once the fee was past seven years")
+
+
+# The published release of the Mahnwesen module the integration is tested with, and its published checksum (#17).
+MAHNWESEN_RELEASE = ("1.5.0", "de0f8aaa0e4d83efb1575f4c676eaa86e928c729c6b9c4f1ec2db13b577b062f")
+
+
+def mahnwesen_package() -> Path:
+    """The Mahnwesen release, fetched once from its GitHub release and checked against its checksum."""
+    version, digest = MAHNWESEN_RELEASE
+    target = Path(__file__).resolve().parents[2] / ".local-testing" / "mahnwesen" / f"module_mahnwesen-{version}.zip"
+    if not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        url = f"https://github.com/Tabsi1998/dolibarr-mahnwesen/releases/download/v{version}/module_mahnwesen-{version}.zip"
+        with urllib.request.urlopen(url, timeout=120) as response:
+            target.write_bytes(response.read())
+    expect(hashlib.sha256(target.read_bytes()).hexdigest() == digest, f"{target.name} does not match its published checksum")
+    return target
+
+
+def arrears(stack: Stack) -> str:
+    """Both modules together: a fee at the last dunning step becomes one proposal for the board, a sale does not; payment, pause
+    and late events update it; only a board meeting takes it; nobody is excluded (#17)."""
+    browser = stack.browser()
+    package = mahnwesen_package()
+    page = page_ok(browser.get("/admin/modules.php?mode=deploy"), "deploy page")
+    form = page.form(name="forminstall")
+    fields = [(name, value) for name, value in form.values() if name != "checkforcompliance"]
+    result = browser.post_multipart(form.url(), fields, [("fileinstall", package.name, package.read_bytes())])
+    expect(result.status == 200 and not result.errors(), f"uploading {package.name}: HTTP {result.status} {result.errors()}")
+    expect(stack.shell("test -f /var/www/html/custom/mahnwesen/core/modules/modMahnwesen.class.php").returncode == 0, f"{package.name} was not deployed")
+    stack.php_fixture("mahnwesen")
+    people = stack.php_fixture("arrearmembers")
+    moritz, nina, sale = people["moritz"], people["nina"], people["sale"]
+
+    def event(invoice: int, kind: str = "", pay: str = "") -> dict:
+        extra = {"RT_INVOICE_ID": str(invoice), **({"RT_TYPE": kind} if kind else {}), **({"RT_PAY": pay} if pay else {})}
+        return stack.php_fixture("arrearevent", **extra)
+
+    def kept(invoice: int) -> list[list[str]]:
+        return stack.sql(f"SELECT state, fk_meeting FROM llx_vereine_arrear WHERE fk_facture = {invoice}")
+
+    for invoice in (moritz["invoice"], sale["invoice"]):
+        event(invoice, "MAHNWESEN_CASE_FINAL_STAGE")
+    expect(kept(moritz["invoice"]) == [["open", "0"]] and kept(sale["invoice"]) == [],
+           f"after the last step: fee {kept(moritz['invoice'])}, sale of the same member {kept(sale['invoice'])}")
+    event(moritz["invoice"], "MAHNWESEN_CASE_FINAL_STAGE")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_arrear") == "1", "the last step again made a second proposal")
+    event(nina["invoice"], "MAHNWESEN_CASE_FINAL_STAGE", pay="before")
+    expect(kept(nina["invoice"]) == [], "a fee paid before the event still went to the board")
+    case = stack.value(f"SELECT fk_case FROM llx_vereine_arrear WHERE fk_facture = {moritz['invoice']}") or "0"
+    late = stack.php_fixture("arrearstale", RT_CASE_ID=case, RT_INVOICE_ID=str(moritz["invoice"]))
+    expect(late.get("result") == 0 and kept(moritz["invoice"])[0][0] == "open", f"a late close: {late}, then {kept(moritz['invoice'])}")
+    arrear = int(stack.value(f"SELECT rowid FROM llx_vereine_arrear WHERE fk_facture = {moritz['invoice']}") or 0)
+
+    index = page_ok(browser.get("/custom/vereine/vereineindex.php"), "overview")
+    todo = re.search(r'data-todo-kind="arrear".*?</tr>', index.text, re.S)
+    expect(todo is not None and moritz["name"] not in html.unescape(todo.group(0)), "the to-do list does not count the arrear, or names the member")
+
+    page = page_ok(browser.get("/custom/vereine/meetings.php?template=general"), "a new general assembly")
+    expect(f'data-arrear="{arrear}"' in page.text, "the meeting form does not offer the arrear")
+    refused = page_ok(browser.submit(page.form(name="vereinemeeting"), {"arrear[]": str(arrear)}), "the arrear on a general assembly")
+    expect("nur auf die Tagesordnung einer Vorstandssitzung" in html.unescape(refused.text) and kept(moritz["invoice"])[0][1] == "0",
+           "the arrear went on the agenda of a general assembly")
+    page = page_ok(browser.get("/custom/vereine/meetings.php?template=board"), "a new board meeting")
+    page_ok(browser.submit(page.form(name="vereinemeeting"), {"arrear[]": str(arrear), "time": "19:00", "place": "Vereinsheim"}), "the arrear on a board meeting")
+    meeting = int(kept(moritz["invoice"])[0][1])
+    board = html.unescape(page_ok(browser.get(f"/custom/vereine/meetings.php?id={meeting}"), "the board meeting").text) if meeting else ""
+    expect(f"Beitragsrückstand von {moritz['name']}" in board and moritz["ref"] in board, f"the agenda of board meeting {meeting} lacks the arrear")
+    expect("data-arrear=" not in page_ok(browser.get("/custom/vereine/meetings.php?template=board"), "the next board meeting").text,
+           "the arrear is offered again after it went on an agenda")
+
+    states = []
+    for kind in ("MAHNWESEN_CASE_PAUSED", "MAHNWESEN_CASE_RESUMED"):
+        event(moritz["invoice"], kind)
+        states.append(kept(moritz["invoice"])[0][0])
+    event(moritz["invoice"], pay="close")
+    states.append(kept(moritz["invoice"])[0][0])
+    expect(states == ["paused", "open", "settled"], f"pause, resume, payment: {states}")
+    expect(stack.value(f"SELECT statut FROM llx_adherent WHERE rowid = {moritz['member']}") == "1", "dunning took the membership away")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={moritz['member']}"), "Moritz's tab")
+    expect('data-arrear-state="settled"' in tab.text, "the member's tab does not show the settled arrear")
+    status, summary = stack.api(f"vereine/members/{moritz['member']}/summary", stack.notes["website"]["key"])
+    carried = json.dumps(summary).lower()
+    expect(status == 200 and "mahn" not in carried and "dunning" not in carried, f"the member summary carries the dunning file: {summary}")
+    return (f"Mahnwesen {MAHNWESEN_RELEASE[0]} deployed next to this module; the last step made one proposal for the fee and none for the sale "
+            "of the same member, none for a fee paid first, none twice; a late event changed nothing; the to-do list counts without a name; "
+            "a general assembly refused it, a board meeting took it; pause, resume and payment followed; the member stayed a member")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -5553,9 +5750,12 @@ SCENARIOS = (
     ("overpayments", "Overpayments: 37,68 paid with 38,00, the 0,32 assigned once to a credit, a refund or a donation", overpayments, ("account", "volunteerpayout")),
     ("donations", "Donation report: date of birth encrypted, vbPK from the register file, XML against the schema, protocol, E then A", donations, ("overpayments",)),
     ("archive", "Files of the association: PDF/A with a code, a public check that shows no title, the export with checksums", archive, ("donations",)),
+    ("disclosure", "Access to one's own data: request with its check, a copy with the member's rows and nobody else's", disclosure, ("archive",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
+    ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
+    ("arrears", "With the Mahnwesen module: one proposal per fee at the last step, updated by payment and pause, board only", arrears, ("erasure", "disable")),
 )
 
 

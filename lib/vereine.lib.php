@@ -380,6 +380,11 @@ function vereineAdminPrepareHead()
 	$head[$h][2] = 'consents';
 	$h++;
 
+	$head[$h][0] = dol_buildpath('/vereine/admin/privacy.php', 1);
+	$head[$h][1] = $langs->trans('VereineSetupTabPrivacy');
+	$head[$h][2] = 'privacy';
+	$h++;
+
 	$head[$h][0] = dol_buildpath('/vereine/admin/application.php', 1);
 	$head[$h][1] = $langs->trans('VereineSetupTabApplication');
 	$head[$h][2] = 'application';

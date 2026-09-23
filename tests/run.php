@@ -72,6 +72,10 @@ require_once $root.'/class/vereineoverpaymentrules.class.php';
 require_once $root.'/class/vereinedonationrules.class.php';
 require_once $root.'/class/vereinesetupguiderules.class.php';
 require_once $root.'/class/vereinearchiverules.class.php';
+require_once $root.'/class/vereinedisclosurerules.class.php';
+require_once $root.'/class/vereinedisclosure.class.php';
+require_once $root.'/class/vereineerasurerules.class.php';
+require_once $root.'/class/vereinearrearrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1800,7 +1804,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1832,6 +1836,17 @@ $prefixes = array(
 	'VereineApplicationKind_' => VereineApplicationFormRules::KINDS,
 	'VereineArchiveKind_' => VereineArchiveRules::KINDS,
 	'VereineArchiveFile_' => VereineArchiveRules::FILES,
+	'VereineDisclosureSection_' => VereineDisclosureRules::SECTIONS,
+	'VereineDisclosureCheck_' => VereineDisclosureRules::CHECKS,
+	'VereineDisclosureField_' => array_keys(VereineDisclosure::fieldWords()),
+	'VereineErasureKind_' => array_keys(VereineErasureRules::CATEGORIES),
+	'VereineErasureWhat_' => array_keys(VereineErasureRules::CATEGORIES),
+	'VereineErasureWhy_' => array_keys(VereineErasureRules::CATEGORIES),
+	'VereineErasureStart_' => array(VereineErasureRules::START_EXIT, VereineErasureRules::START_YEAR, VereineErasureRules::START_ENTRY),
+	'VereineErasureAction_' => array(VereineErasureRules::ACTION_BLANK, VereineErasureRules::ACTION_DELETE, VereineErasureRules::ACTION_ANONYMIZE, VereineErasureRules::ACTION_KEEP),
+	'VereineErasureState_' => array('due', 'waiting', 'kept', 'held', 'none', 'member'),
+	'VereineArrearState_' => VereineArrearRules::STATES,
+	'VereineErasureReason_' => array('keep_bookkeeping', 'keep_records', 'member', 'hold', 'open_invoices', 'functions', 'name'),
 	'VereineSetupStep_' => VereineSetupGuideRules::STEPS,
 	'VereineSetupStepHelp_' => VereineSetupGuideRules::STEPS,
 	'VereineSetupModule_' => array('banque', 'facture', 'prelevement', 'agenda', 'mailing', 'don', 'api', 'webportal'),
@@ -2793,6 +2808,79 @@ $archiveEntries = array(array('day' => '2025-03-01', 'label' => 'Protokoll', 'ti
 same("Datum;Art;Titel;Kennung;Datei;SHA-256\r\n2025-03-01;Protokoll;\"Sitzung; \"\"März\"\"\";ABCDE-23456;a.pdf;".str_repeat('a', 64)."\r\n",
 	VereineArchiveRules::index($archiveEntries), 'the table of contents, quoted where needed');
 same(str_repeat('a', 64)."  a.pdf\n", VereineArchiveRules::sums($archiveEntries), 'checksums as sha256sum reads them');
+
+// ------------------------------------------------------------- access to one's own data (#10)
+
+$asked = VereineDisclosureRules::request(array('requested_on' => '2026-09-20', 'check' => 'id_document', 'note' => ''), '2026-09-24');
+same(array(), $asked['errors'], 'a request with its day and how the person was checked');
+same(array('VereineDisclosureErrorDay', 'VereineDisclosureErrorCheck'), VereineDisclosureRules::request(array('requested_on' => '2026-09-30', 'check' => 'guess'), '2026-09-24')['errors'],
+	'a request from the future and without a check is refused');
+same(array('VereineDisclosureErrorNote'), VereineDisclosureRules::request(array('requested_on' => '2026-09-20', 'check' => 'other'), '2026-09-24')['errors'],
+	'another way of checking needs a word how');
+same('2026-10-20', VereineDisclosureRules::deadline('2026-09-20'), 'one month to answer');
+same('2026-02-28', VereineDisclosureRules::deadline('2026-01-31'), 'the end of a shorter month');
+same('2027-01-15', VereineDisclosureRules::deadline('2026-12-15'), 'into the next year');
+$disclosed = json_decode(VereineDisclosureRules::json(array('member' => 'Anna Muster'), array('consents' => array(array('code' => 'fotos')))), true);
+same(VereineDisclosureRules::SECTIONS, array_keys($disclosed['sections']), 'every section in its order, empty ones too, so nothing looks forgotten');
+same('vereine-auskunft-1', $disclosed['format'], 'the copy names its format');
+same('Kürzel: fotos · eingewilligt: ja', VereineDisclosureRules::line(array('code' => 'fotos', 'note' => '', 'given' => true), array('code' => 'Kürzel', 'given' => 'eingewilligt', '_yes' => 'ja')),
+	'a row to read, empty fields left out');
+expect(count(VereineDisclosure::fieldWords()) > 60, 'every field of the copy has its word');
+
+// ------------------------------------------------------------- erasing a former member's data (#10)
+
+$periods = VereineErasureRules::periods(array('consents' => '5', 'volunteer' => '2', 'tasks' => 'x'));
+same(array(5, 7, 1), array($periods['consents'], $periods['volunteer'], $periods['tasks']), 'a chosen period counts only where the association may choose, and only as a number');
+same(null, $periods['records'], 'club records are kept without limit');
+same(array('consents', 'log'), VereineErasureRules::checkPeriods(array('consents' => '31', 'log' => '', 'contact' => '0', 'tasks' => '1', 'invitations' => '1', 'applications' => '3', 'arrears' => '3', 'disclosures' => '3'))['errors'],
+	'more than thirty years or nothing is refused');
+same('2033-12-31', VereineErasureRules::until(VereineErasureRules::START_YEAR, '2026-03-01', 7), 'bookkeeping: seven years from the end of the year');
+same('2029-03-01', VereineErasureRules::until(VereineErasureRules::START_EXIT, '2028-02-29', 1), 'a leap day ends a day later in a year without one');
+same('', VereineErasureRules::until(VereineErasureRules::START_EXIT, '2026-01-01', null), 'never has no day');
+$none = array('count' => 0, 'last' => '', 'due' => 0);
+$found = array_fill_keys(array_keys(VereineErasureRules::CATEGORIES), $none);
+$found['contact'] = array('count' => 4, 'last' => '', 'due' => 0);
+$found['identities'] = array('count' => 1, 'last' => '', 'due' => 0);
+$found['consents'] = array('count' => 2, 'last' => '', 'due' => 0);
+$found['invitations'] = array('count' => 3, 'last' => '2026-05-01', 'due' => 1);
+$found['bookkeeping'] = array('count' => 5, 'last' => '2025-11-30', 'due' => 0);
+$found['name'] = array('count' => 1, 'last' => '', 'due' => 0);
+$periods = VereineErasureRules::periods(array());
+$plan = VereineErasureRules::plan($found, '2026-06-30', '2026-09-24', $periods, array());
+same(array('identities', 'contact', 'invitations'), VereineErasureRules::due($plan), 'after the exit: bindings and contact data at once, invitations whose year is over');
+same(1, $plan['invitations']['count'], 'only the invitations whose own year is over are counted as due');
+same(array('waiting', '2029-06-30'), array($plan['consents']['state'], $plan['consents']['until']), 'proofs of consent wait three years from the exit');
+same(array('kept', '2032-12-31'), array($plan['bookkeeping']['state'], $plan['bookkeeping']['until']), 'bookkeeping stays seven years from the end of its year');
+same(array('waiting', '2032-12-31', 'name'), array($plan['name']['state'], $plan['name']['until'], $plan['name']['reason']), 'the name stays as long as bookkeeping needs it');
+same('none', $plan['tasks']['state'], 'nothing there, nothing to do');
+same(array(), VereineErasureRules::due(VereineErasureRules::plan($found, '', '2026-09-24', $periods, array())), 'nothing while somebody is a member');
+$held = VereineErasureRules::plan($found, '2026-06-30', '2026-09-24', $periods, array('open_invoices' => true));
+same(array('identities'), VereineErasureRules::due($held), 'with unpaid invoices only the bindings go');
+same(array(), VereineErasureRules::due(VereineErasureRules::plan($found, '2026-06-30', '2026-09-24', $periods, array('hold' => true))), 'on hold nothing goes');
+$found['bookkeeping'] = $none;
+same('due', VereineErasureRules::plan($found, '2019-06-30', '2026-09-24', $periods, array())['name']['state'], 'the name goes when nothing kept needs it');
+same(array('kept', 'functions'), array_values(array_intersect_key(VereineErasureRules::plan($found, '2019-06-30', '2026-09-24', $periods, array('functions' => true))['name'], array('state' => 1, 'reason' => 1))),
+	'whoever held a function keeps the name');
+
+// ------------------------------------------------------------- fee arrears from the Mahnwesen module (#17)
+
+$fee = array('fee' => true, 'final_step' => 'membership_review', 'paid' => false, 'case_status' => 'open', 'paused' => false);
+$final = array('type' => 'MAHNWESEN_CASE_FINAL_STAGE', 'revision' => 4);
+same(array('do' => 'create', 'state' => 'open', 'why' => 'final_stage'), VereineArrearRules::decide(null, $final, $fee), 'a fee at the last step becomes one proposal');
+same('not_a_fee', VereineArrearRules::decide(null, $final, array('fee' => false) + $fee)['why'], 'a sale to a member is no fee');
+same('other_final_step', VereineArrearRules::decide(null, $final, array('final_step' => 'collection') + $fee)['why'], 'a profile that ends in collection is no matter of membership');
+same('paid', VereineArrearRules::decide(null, $final, array('paid' => true) + $fee)['why'], 'paid before the event arrived: nothing for the board');
+same('paused', VereineArrearRules::decide(null, $final, array('paused' => true) + $fee)['state'], 'a paused case waits');
+$kept = array('state' => 'open', 'revision' => 4);
+same('stale', VereineArrearRules::decide($kept, $final, $fee)['why'], 'the same event again changes nothing');
+same('stale', VereineArrearRules::decide($kept, array('type' => 'MAHNWESEN_CASE_CLOSED', 'revision' => 3), $fee)['why'], 'a late event is left alone');
+same('settled', VereineArrearRules::decide($kept, array('type' => 'MAHNWESEN_CASE_CLOSED', 'revision' => 5), $fee)['state'], 'closing settles the proposal');
+same('paused', VereineArrearRules::decide($kept, array('type' => 'MAHNWESEN_CASE_PAUSED', 'revision' => 5), $fee)['state'], 'a pause holds it');
+same('open', VereineArrearRules::decide(array('state' => 'paused', 'revision' => 5), array('type' => 'MAHNWESEN_CASE_RESUMED', 'revision' => 6), $fee)['state'], 'resumed, it waits again');
+same('settled', VereineArrearRules::decide(array('state' => 'settled', 'revision' => 5), array('type' => 'MAHNWESEN_CASE_REOPENED', 'revision' => 6), $fee)['state'],
+	'reopened, the board hears of it only when the last step comes again');
+same('no_arrear', VereineArrearRules::decide(null, array('type' => 'MAHNWESEN_CASE_CLOSED', 'revision' => 1), $fee)['why'], 'closing a case the board never had changes nothing');
+same('other_event', VereineArrearRules::decide(null, array('type' => 'MAHNWESEN_NOTICE_SENT', 'revision' => 1), $fee)['why'], 'a notice sent is no matter for the board');
 
 // ------------------------------------------------------------------- result
 

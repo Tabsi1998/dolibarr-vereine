@@ -1519,4 +1519,188 @@ if ($stage === 'apiclient') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore or reset');
+// A former member for erasing (#10): contact data, a binding, a consent with its scan, an invitation of two years ago,
+// an access request and a fee of four years ago, an exit carried out four years ago.
+if ($stage === 'erasuremember') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+	dol_include_once('/vereine/class/vereinelog.class.php');
+	$fourYears = dol_time_plus_duree(dol_now(), -4, 'y');
+	$twoYears = dol_time_plus_duree(dol_now(), -2, 'y');
+	$member = new Adherent($db);
+	$member->typeid = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."adherent_type WHERE libelle = 'Beitragspflichtig'");
+	$member->morphy = 'phy';
+	$member->firstname = 'Emil';
+	$member->lastname = 'Vergessen';
+	$member->email = 'emil.vergessen@runtime-verein.test';
+	$member->address = 'Löschgasse 3';
+	$member->zip = '6020';
+	$member->town = 'Innsbruck';
+	$member->phone = '+43 512 000000';
+	$member->birth = dol_mktime(12, 0, 0, 5, 17, 1980);
+	$member->country_id = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+	$member->public = 0;
+	if ($member->create($admin) <= 0 || $member->validate($admin) <= 0) {
+		rt_fail('member Emil: '.$member->error.' '.implode(' | ', (array) $member->errors));
+	}
+	if ($member->subscription($fourYears, 30, 0, '', 'Beitrag', '', '', '', dol_time_plus_duree($fourYears, 1, 'y') - 86400) <= 0 || $member->resiliate($admin) <= 0) {
+		rt_fail('fee or exit of Emil: '.$member->error.' '.implode(' | ', (array) $member->errors));
+	}
+	$id = (int) $member->id;
+	$day = dol_print_date($fourYears, '%Y-%m-%d');
+	$p = MAIN_DB_PREFIX;
+	foreach (array(
+		"INSERT INTO ".$p."vereine_member_exit (entity, fk_adherent, reason, notice_day, last_day, status, datec, date_done) VALUES (1, ".$id.", 'resignation', '".$day."', '".$day."', 'done', '".$db->idate($fourYears)."', '".$db->idate($fourYears)."')",
+		"INSERT INTO ".$p."vereine_identity (entity, client, subject, fk_adherent, proof, capabilities, linked_at, datec) VALUES (1, 'rt-erase', 'erase-subject-1', ".$id.", 'known', 'profile', '".$db->idate($fourYears)."', '".$db->idate($fourYears)."')",
+		"INSERT INTO ".$p."vereine_consent (entity, fk_adherent, code, version, given, source, date_event, scan_name) VALUES (1, ".$id.", 'fotos', 1, 1, 'paper', '".$db->idate($fourYears)."', 'einwilligung-9999.pdf')",
+		"INSERT INTO ".$p."vereine_disclosure (entity, fk_adherent, requested_on, identity_check, delivered_at, sha256, fk_user, datec) VALUES (1, ".$id.", '".$day."', 'known', '".$db->idate($fourYears)."', '".str_repeat('a', 64)."', ".((int) $admin->id).", '".$db->idate($fourYears)."')",
+		"INSERT INTO ".$p."vereine_meeting (entity, kind, title, meeting_day, meeting_time, format, status, datec) VALUES (1, 'board', 'Vorstandssitzung vor zwei Jahren', '".dol_print_date($twoYears, '%Y-%m-%d')."', '19:00', 'physical', 'held', '".$db->idate($twoYears)."')",
+	) as $sql) {
+		if (!$db->query($sql)) {
+			rt_fail('erasure fixture: '.$db->lasterror());
+		}
+	}
+	$meeting = (int) $db->last_insert_id($p.'vereine_meeting');
+	if (!$db->query("INSERT INTO ".$p."vereine_meeting_invitation (entity, fk_meeting, fk_adherent, name, email, channel, voting, sent_at, datec) VALUES (1, ".$meeting.", ".$id
+		.", 'Emil Vergessen', 'emil.vergessen@runtime-verein.test', 'email', 1, '".$db->idate($twoYears)."', '".$db->idate($twoYears)."')")) {
+		rt_fail('erasure fixture: '.$db->lasterror());
+	}
+	VereineLog::add($db, $admin, VereineLog::CONSENT_GIVEN, $id, 0, 'fotos v1');
+	$folder = $conf->adherent->dir_output.'/'.dol_sanitizeFileName($member->ref);
+	if (dol_mkdir($folder) < 0 || file_put_contents($folder.'/einwilligung-9999.pdf', "%PDF-1.4\n% Scan\n") === false) {
+		rt_fail('erasure fixture: cannot write the scan into '.$folder);
+	}
+	print json_encode(array('member' => $id, 'scan' => $folder.'/einwilligung-9999.pdf', 'exit' => $day))."\n";
+	exit(0);
+}
+
+// The published Mahnwesen module switched on, with its profile for membership fees active (#17).
+if ($stage === 'mahnwesen') {
+	$result = activateModule('modMahnwesen');
+	if (!empty($result['errors'])) {
+		rt_fail('activating modMahnwesen failed: '.implode(' | ', (array) $result['errors']));
+	}
+	dol_include_once('/mahnwesen/class/dunningmanager.class.php');
+	$manager = new DunningManager($db);
+	$profile = (int) $manager->createProfile('', $admin, 'membership');
+	$profiles = $profile > 0 ? $manager->getProfiles(true) : array();
+	if ($profile <= 0 || $manager->saveProfile($profile, $profiles[$profile]['label'], 1, 0, 'membership_review', array(), array(), '', $admin, 'none', 0.0, 1) === false) {
+		rt_fail('membership profile of the Mahnwesen module: '.$manager->error);
+	}
+	print json_encode(array('profile' => $profile))."\n";
+	exit(0);
+}
+
+// Two members with a fee invoice two months overdue, linked to its subscription as Dolibarr links them, and a sale to one of
+// them; the Mahnwesen module opens its cases (#17).
+if ($stage === 'arrearmembers') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+	dol_include_once('/mahnwesen/class/dunningmanager.class.php');
+	$due = dol_time_plus_duree(dol_now(), -60, 'd');
+	$invoiceFor = function ($socid, $label, $amount) use ($db, $admin, $due) {
+		$invoice = new Facture($db);
+		$invoice->socid = (int) $socid;
+		$invoice->type = Facture::TYPE_STANDARD;
+		$invoice->date = $due;
+		$invoice->date_lim_reglement = dol_time_plus_duree($due, 14, 'd');
+		if ($invoice->create($admin) <= 0 || $invoice->addline($label, $amount, 1, 0) <= 0 || $invoice->validate($admin) <= 0) {
+			rt_fail('invoice '.$label.': '.$invoice->error.' '.implode(' | ', (array) $invoice->errors));
+		}
+		$invoice->fetch($invoice->id);
+		return $invoice;
+	};
+	$out = array();
+	foreach (array('moritz' => 'Moritz', 'nina' => 'Nina') as $key => $firstname) {
+		$member = new Adherent($db);
+		$member->typeid = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."adherent_type WHERE libelle = 'Beitragspflichtig'");
+		$member->morphy = 'phy';
+		$member->firstname = $firstname;
+		$member->lastname = 'Rückstand';
+		$member->email = $key.'.rueckstand@runtime-verein.test';
+		$member->country_id = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+		$member->public = 0;
+		if ($member->create($admin) <= 0 || $member->validate($admin) <= 0) {
+			rt_fail('member '.$firstname.': '.$member->error.' '.implode(' | ', (array) $member->errors));
+		}
+		$member->fetch($member->id);
+		if ((int) $member->fk_soc <= 0) {
+			$company = new Societe($db);
+			if ($company->create_from_member($member) <= 0) {
+				rt_fail('third party of '.$firstname.': '.$company->error);
+			}
+			$member->fetch($member->id);
+		}
+		$subscription = $member->subscription($due, 30, 0, '', 'Mitgliedsbeitrag', '', '', '', dol_time_plus_duree($due, 1, 'y') - 86400);
+		$invoice = $invoiceFor($member->fk_soc, 'Mitgliedsbeitrag', 30);
+		if ($subscription <= 0 || $invoice->add_object_linked('subscription', $subscription) <= 0) {
+			rt_fail('fee of '.$firstname.': '.$member->error.' '.$invoice->error);
+		}
+		$out[$key] = array('member' => (int) $member->id, 'invoice' => (int) $invoice->id, 'ref' => (string) $invoice->ref, 'name' => $firstname.' Rückstand');
+		if ($key === 'moritz') {
+			$sale = $invoiceFor($member->fk_soc, 'Vereinsshirt', 25);
+			$out['sale'] = array('invoice' => (int) $sale->id);
+		}
+	}
+	$manager = new DunningManager($db);
+	$sync = $manager->syncCases($admin);
+	foreach (array($out['moritz']['invoice'], $out['nina']['invoice'], $out['sale']['invoice']) as $invoiceId) {
+		if (!$manager->getCaseByInvoice($invoiceId)) {
+			rt_fail('the Mahnwesen module opened no case for invoice '.$invoiceId.': '.json_encode($sync).' '.$manager->error);
+		}
+	}
+	print json_encode($out)."\n";
+	exit(0);
+}
+
+// One event of a dunning case as the Mahnwesen module notes and delivers it (#17). RT_PAY=before pays the invoice before the
+// event; RT_PAY=close pays it and lets the module close the case by itself.
+if ($stage === 'arrearevent') {
+	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+	dol_include_once('/mahnwesen/class/dunningmanager.class.php');
+	$manager = new DunningManager($db);
+	$invoiceId = (int) rt_env('RT_INVOICE_ID');
+	$pay = (string) getenv('RT_PAY');
+	if ($pay !== '') {
+		$invoice = new Facture($db);
+		if ($invoice->fetch($invoiceId) <= 0 || $invoice->setPaid($admin) < 0) {
+			rt_fail('pay invoice '.$invoiceId.': '.$invoice->error);
+		}
+	}
+	if ($pay === 'close') {
+		$manager->syncCases($admin);
+	} else {
+		$case = $manager->getCaseByInvoice($invoiceId);
+		if (!$case || !$manager->recordEvent((int) $conf->entity, (int) $case['id'], $invoiceId, rt_env('RT_TYPE'), 3, $admin)) {
+			rt_fail('event for invoice '.$invoiceId.': '.$manager->error);
+		}
+	}
+	$delivered = $manager->dispatchEvents($admin);
+	if ($delivered === false || !empty($manager->errors)) {
+		rt_fail('delivering the events: '.$manager->error.' '.implode(' | ', (array) $manager->errors));
+	}
+	print json_encode(array('delivered' => (int) $delivered))."\n";
+	exit(0);
+}
+
+// A late delivery: a case closed with a revision the arrear went past already (#17).
+if ($stage === 'arrearstale') {
+	dol_include_once('/vereine/class/vereinearrears.class.php');
+	$event = new stdClass();
+	$event->element = 'mahnwesen_event';
+	$event->entity = (int) $conf->entity;
+	$event->event_id = 'mw-late';
+	$event->event_type = 'MAHNWESEN_CASE_CLOSED';
+	$event->contract_version = '1';
+	$event->case_id = (int) rt_env('RT_CASE_ID');
+	$event->invoice_id = (int) rt_env('RT_INVOICE_ID');
+	$event->level = 3;
+	$event->profile_code = 'membership';
+	$event->case_revision = 1;
+	$event->occurred_at = '';
+	print json_encode(array('result' => (new VereineArrears($db))->onEvent($event, $admin)))."\n";
+	exit(0);
+}
+
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale or reset');

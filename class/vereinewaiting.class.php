@@ -109,6 +109,13 @@ class VereineWaiting
 				dol_buildpath('/vereine/duties.php', 1).'?year='.((int) $entry['fiscal_year']));
 		}
 
+		// Fee arrears at the last dunning step wait for the board; the list names nobody (#17).
+		require_once __DIR__.'/vereinearrears.class.php';
+		$arrearCount = count((new VereineArrears($this->db))->waiting());
+		if ($arrearCount > 0) {
+			$add('arrear', '', $langs->transnoentities('VereineTodoArrears', $arrearCount), dol_buildpath('/vereine/meetings.php', 1).'?template=board#vereinemeetingnew');
+		}
+
 		// Functions without a holder and terms of office that are over: an election is due.
 		require_once __DIR__.'/vereinefunctionrules.class.php';
 		$store = new VereineFunctions($this->db);

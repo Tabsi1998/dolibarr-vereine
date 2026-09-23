@@ -70,6 +70,9 @@ require_once __DIR__.'/class/vereineexits.class.php';
 require_once __DIR__.'/class/vereineconsents.class.php';
 require_once __DIR__.'/class/vereinefunctions.class.php';
 require_once __DIR__.'/class/vereineresolutions.class.php';
+require_once __DIR__.'/class/vereinedisclosure.class.php';
+require_once __DIR__.'/class/vereineerasure.class.php';
+require_once __DIR__.'/class/vereinearrears.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('companies', 'members', 'bills', 'categories', 'vereine@vereine'));
@@ -224,6 +227,43 @@ if ($action === 'consentscanget') {
 	header('Content-Length: '.filesize($file));
 	readfile($file);
 	exit;
+}
+// A copy of the member's own data (Art. 15 GDPR, #10): handed out as ZIP, not kept; the request is.
+if ($action === 'disclose' && $canExit) {
+	$disclosure = new VereineDisclosure($db);
+	$zip = $disclosure->make($object, array('requested_on' => GETPOST('requested_on', 'alphanohtml'), 'check' => GETPOST('check', 'aZ09'),
+		'note' => GETPOST('note', 'alphanohtml')), $today, $user, $langs);
+	if ($zip !== '' && is_file($zip)) {
+		header('Content-Type: application/zip');
+		header('Content-Disposition: attachment; filename="auskunft-'.dol_sanitizeFileName($object->lastname).'-'.$today.'.zip"');
+		header('Content-Length: '.filesize($zip));
+		readfile($zip);
+		dol_delete_file($zip);
+		exit;
+	}
+	setEventMessages($disclosure->errors ? null : $disclosure->error, array_map(array($langs, 'trans'), $disclosure->errors), 'errors');
+}
+// Erasing a former member's data (#10): only what the preview shows as due, after a confirmation.
+$canErase = $user->hasRight('adherent', 'supprimer');
+if ($action === 'confirm_erase' && GETPOST('confirm', 'alpha') === 'yes' && $canErase) {
+	$erasure = new VereineErasure($db);
+	$erased = $erasure->carryOut($object, $today, $user);
+	if ($erased === null) {
+		setEventMessages($erasure->error, null, 'errors');
+	} else {
+		setEventMessages($langs->trans($erased ? 'VereineErasureDone' : 'VereineErasureNothingDue', array_sum($erased)), null, $erased ? 'mesgs' : 'warnings');
+	}
+	header('Location: '.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereineerasure');
+	exit;
+}
+if (($action === 'erasurehold' || $action === 'erasurerelease') && $canErase) {
+	$erasure = new VereineErasure($db);
+	$result = $erasure->setHold((int) $object->id, $action === 'erasurehold', GETPOST('hold_note', 'alphanohtml'), $user);
+	if ($result > 0) {
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereineerasure');
+		exit;
+	}
+	setEventMessages($result < 0 ? $erasure->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $erasure->errors), 'errors');
 }
 if (($action === 'cancelexit' || $action === 'carryoutexit') && $canExit) {
 	foreach ($exits->planned(array((int) $object->id)) as $exit) {
@@ -568,6 +608,123 @@ foreach ($memberResolutions as $entry) {
 	print '<td>'.$langs->trans($entry['passed'] ? 'VereineResolutionPassed' : 'VereineResolutionRejected').'</td></tr>';
 }
 print '</table></div><br>';
+
+// Fee arrears the Mahnwesen module reported (#17): what the board has to look at, never a decision.
+$memberArrears = (new VereineArrears($db))->forMember((int) $object->id);
+if ($memberArrears) {
+	print load_fiche_titre($langs->trans('VereineArrearTitle'), '', '', 0, 'vereinearrears');
+	print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineArrearHowTo').'</div>';
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+	print '<tr class="liste_titre"><td>'.$langs->trans('VereineArrearInvoice').'</td><td class="right">'.$langs->trans('VereineArrearLevel').'</td>';
+	print '<td>'.$langs->trans('VereineArrearState').'</td><td>'.$langs->trans('VereineArrearMeeting').'</td></tr>';
+	foreach ($memberArrears as $arrear) {
+		print '<tr class="oddeven" data-arrear-state="'.dol_escape_htmltag($arrear['state']).'">';
+		print '<td><a href="'.DOL_URL_ROOT.'/compta/facture/card.php?facid='.((int) $arrear['invoice_id']).'">'.dol_escape_htmltag($arrear['invoice_ref']).'</a></td>';
+		print '<td class="right">'.((int) $arrear['level']).'</td>';
+		print '<td>'.$langs->trans('VereineArrearState_'.$arrear['state']).' <span class="opacitymedium small">'.$langs->trans('VereineArrearSince', dol_print_date($arrear['since'], 'day')).'</span></td>';
+		print '<td>'.($arrear['meeting_id'] > 0 ? '<a href="'.dol_buildpath('/vereine/meetings.php', 1).'?id='.((int) $arrear['meeting_id']).'">'.dol_escape_htmltag($arrear['meeting']).'</a> '
+			.vereineFormatDay($arrear['meeting_day']) : '<span class="opacitymedium">–</span>').'</td></tr>';
+	}
+	print '</table></div><br>';
+}
+
+// Access to one's own data (Art. 15 GDPR, #10).
+print load_fiche_titre($langs->trans('VereineDisclosureTitle'), '', '', 0, 'vereinedisclosure');
+print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineDisclosureHowTo').'</div>';
+$requests = (new VereineDisclosure($db))->requests((int) $object->id);
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-disclosures="'.count($requests).'">';
+print '<tr class="liste_titre"><td>'.$langs->trans('VereineDisclosureRequested').'</td><td>'.$langs->trans('VereineDisclosureDeadline').'</td>';
+print '<td>'.$langs->trans('VereineDisclosureCheck').'</td><td>'.$langs->trans('VereineDisclosureDelivered').'</td><td>SHA-256</td></tr>';
+foreach ($requests as $request) {
+	print '<tr class="oddeven" data-disclosure-check="'.dol_escape_htmltag($request['check']).'"><td class="nowraponall">'.vereineFormatDay($request['requested_on']).'</td>';
+	print '<td class="nowraponall">'.vereineFormatDay(VereineDisclosureRules::deadline($request['requested_on'])).'</td>';
+	print '<td>'.$langs->trans('VereineDisclosureCheck_'.$request['check']).($request['note'] !== '' ? ' <span class="opacitymedium">('.dol_escape_htmltag($request['note']).')</span>' : '').'</td>';
+	print '<td class="nowraponall">'.dol_print_date($request['delivered_at'], 'dayhour').($request['user'] !== '' ? ' · '.dol_escape_htmltag($request['user']) : '').'</td>';
+	print '<td><span class="small opacitymedium">'.dol_escape_htmltag(substr($request['sha256'], 0, 16)).'…</span></td></tr>';
+}
+if (!$requests) {
+	print '<tr class="oddeven"><td colspan="5"><span class="opacitymedium">'.$langs->trans('VereineDisclosureNone').'</span></td></tr>';
+}
+print '</table></div>';
+if ($canExit) {
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereinedisclosure" name="vereinedisclosure" class="paddingtop">';
+	print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="disclose">';
+	print $langs->trans('VereineDisclosureRequested').' <input type="date" name="requested_on" value="'.dol_escape_htmltag($today).'"> ';
+	print $langs->trans('VereineDisclosureCheck').' <select name="check" class="flat"><option value=""></option>';
+	foreach (VereineDisclosureRules::CHECKS as $check) {
+		print '<option value="'.$check.'">'.$langs->trans('VereineDisclosureCheck_'.$check).'</option>';
+	}
+	print '</select> <input type="text" name="note" size="30" maxlength="255" placeholder="'.dol_escape_htmltag($langs->trans('VereineDisclosureNotePlaceholder')).'"> ';
+	print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineDisclosureMake')).'"></form>';
+}
+print '<br>';
+
+// Erasure after the exit (#10): what is still kept, kind by kind, and when it is due.
+$erasure = new VereineErasure($db);
+$erasurePreview = $erasure->preview($object, $today);
+$erasureDue = VereineErasureRules::due($erasurePreview['plan']);
+print load_fiche_titre($langs->trans('VereineErasureTitle'), '', '', 0, 'vereineerasure');
+if ($action === 'erase' && $canErase && $erasureDue) {
+	print (new Form($db))->formconfirm($_SERVER['PHP_SELF'].'?id='.((int) $object->id), $langs->trans('VereineErasureRun'),
+		$langs->trans('VereineErasureConfirmQuestion', count($erasureDue)), 'confirm_erase', '', 0, 1);
+}
+print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineErasureHowTo').'</div>';
+if ($erasurePreview['exit'] === '') {
+	print '<span class="opacitymedium" data-erasure="member">'.$langs->trans('VereineErasureStillMember').'</span>';
+} else {
+	if ($erasurePreview['hold']['on']) {
+		print '<div class="warning" data-erasure="held">'.dol_escape_htmltag($langs->transnoentities('VereineErasureHeldNote', $erasurePreview['hold']['note'])).'</div>';
+	}
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-erasure-exit="'.dol_escape_htmltag($erasurePreview['exit']).'" data-erasure-due="'.count($erasureDue).'">';
+	print '<tr class="liste_titre"><td>'.$langs->trans('VereineErasureKind').'</td><td class="right">'.$langs->trans('VereineErasureCount').'</td>';
+	print '<td>'.$langs->trans('VereineErasureThen').'</td><td>'.$langs->trans('VereineErasureState').'</td></tr>';
+	foreach ($erasurePreview['plan'] as $kind => $step) {
+		$state = $langs->trans('VereineErasureState_'.$step['state']).($step['until'] !== '' ? ' '.$langs->trans('VereineErasureUntil', vereineFormatDay($step['until'])) : '');
+		print '<tr class="oddeven" data-erasure-kind="'.$kind.'" data-erasure-state="'.$step['state'].'">';
+		print '<td>'.$langs->trans('VereineErasureKind_'.$kind).'<br><span class="small opacitymedium">'.$langs->trans('VereineErasureWhat_'.$kind).'</span></td>';
+		print '<td class="right">'.((int) $step['count']).'</td><td>'.$langs->trans('VereineErasureAction_'.$step['action']).'</td>';
+		print '<td>'.($step['state'] === 'due' ? '<strong>'.$state.'</strong>' : $state);
+		print ($step['reason'] !== '' ? '<br><span class="small opacitymedium">'.$langs->trans('VereineErasureReason_'.$step['reason']).'</span>' : '').'</td></tr>';
+	}
+	print '</table></div>';
+	if ($erasurePreview['hints']['files'] > 0) {
+		print '<div class="opacitymedium small" data-erasure-hint="files">'.$langs->trans('VereineErasureHintFiles', $erasurePreview['hints']['files']).'</div>';
+	}
+	if ($erasurePreview['hints']['user'] > 0) {
+		print '<div class="opacitymedium small" data-erasure-hint="user">'.$langs->trans('VereineErasureHintUser').'</div>';
+	}
+	if ($erasurePreview['hints']['thirdparty'] > 0) {
+		print '<div class="opacitymedium small" data-erasure-hint="thirdparty">'.$langs->trans('VereineErasureHintThirdparty').'</div>';
+	}
+	if ($canErase) {
+		print '<div class="tabsAction">';
+		if ($erasureDue) {
+			print '<a class="butActionDelete" href="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'&action=erase&token='.newToken().'#vereineerasure">'.$langs->trans('VereineErasureRun').'</a>';
+		}
+		print '</div>';
+		$holdAction = $erasurePreview['hold']['on'] ? 'erasurerelease' : 'erasurehold';
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereineerasure" name="vereine'.$holdAction.'">';
+		print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="'.$holdAction.'">';
+		if (!$erasurePreview['hold']['on']) {
+			print '<input type="text" name="hold_note" size="40" maxlength="255" placeholder="'.dol_escape_htmltag($langs->trans('VereineErasureHoldNote')).'"> ';
+		}
+		print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans($erasurePreview['hold']['on'] ? 'VereineErasureRelease' : 'VereineErasureHold')).'"></form>';
+	}
+	foreach ($erasure->history((int) $object->id) as $entry) {
+		$when = dol_print_date($entry['at'], 'dayhour').($entry['user'] !== '' ? ' · '.$entry['user'] : '');
+		if ($entry['kind'] === 'run') {
+			$kinds = array();
+			foreach ($entry['done'] as $kind => $rows) {
+				$kinds[] = $langs->transnoentities('VereineErasureKind_'.$kind).' '.((int) $rows);
+			}
+			$line = $langs->transnoentities('VereineErasureHistoryRun', $when, implode(', ', $kinds));
+		} else {
+			$line = $entry['kind'] === 'hold' ? $langs->transnoentities('VereineErasureHistoryHold', $when, $entry['note']) : $langs->transnoentities('VereineErasureHistoryRelease', $when);
+		}
+		print '<div class="opacitymedium small" data-erasure-history="'.dol_escape_htmltag($entry['kind']).'">'.dol_escape_htmltag($line).'</div>';
+	}
+}
+print '<br>';
 
 vereinePrintLog($db, (int) $object->id, $partner ? (int) $partner->id : 0);
 

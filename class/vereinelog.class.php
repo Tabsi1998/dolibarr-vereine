@@ -127,6 +127,11 @@ class VereineLog
 	const SETUP_GUIDE = 'setup_guide';
 	const APPLICATION_FIELD = 'application_field';
 	const ARCHIVE = 'archive';
+	const DISCLOSURE = 'disclosure';
+	const ERASURE = 'erasure';
+	const ERASURE_HOLD = 'erasure_hold';
+	const ERASURE_SETUP = 'erasure_setup';
+	const ARREAR = 'arrear';
 
 	/**
 	 * Append one entry.
