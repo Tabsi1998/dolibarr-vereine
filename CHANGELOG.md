@@ -60,6 +60,10 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Mahnwesen ändern den Stand, doppelte und verspätete Meldungen werden erkannt, und eine vor der
   Meldung bezahlte Rechnung kommt gar nicht erst zum Vorstand. Niemand wird automatisch
   ausgeschlossen; *Zu erledigen* zählt die Rückstände ohne Namen. Ohne Mahnwesen ändert sich nichts.
+- **Handbuch** (#10): [docs/HANDBUCH.md](docs/HANDBUCH.md) erklärt, wer im Verein welche Rechte
+  braucht, wie das Vereinsjahr im Modul abläuft, und bringt einen Textbaustein für das Verzeichnis der
+  Verarbeitungstätigkeiten, dazu Auskunft, Löschen, externe Anwendungen und was nach einer
+  Wiederherstellung aus der Sicherung zu tun ist.
 
 ## [0.9.0-beta] - 2026-09-23
 
