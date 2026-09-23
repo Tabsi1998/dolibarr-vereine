@@ -3296,11 +3296,18 @@ def application(stack: Stack) -> str:
 
     page = page_ok(browser.get(base), "the applications after the texts")
     expect('data-application-texts="0"' not in page.text, "the page still misses the texts of the association")
+    # What the member type includes is written at the member type in Dolibarr and belongs on the form (#204).
+    stack.sql(f"UPDATE llx_adherent_type SET note = 'Trainingszeiten, Vereinstrikot und Turnierstartgelder' WHERE rowid = {type_id}")
     page_ok(browser.submit(page.form(name=f"vereineapplication{type_id}")), "build the blank application")
     blank = pdf_text(stack, "vereine/application")
-    for word in ("Mitgliedsantrag", "Statuten", "Vereinsheim", "Datenschutz", "Fotos", "ZVR"):
+    for word in ("Mitgliedsantrag", "Statuten", "Vereinsheim", "Datenschutz", "Fotos", "ZVR", "pro Jahr", "ndigung",
+                 "Aus den Statuten", "Zweck des Vereins", "verpflichtet"):
         expect(word in blank, f"the blank application lacks {word!r}")
+    # Only to print: the brackets to tick, and every consent asks once (#203).
+    expect(blank.count("Ich willige ein") == blank.count("Ja [") - 1, f"the print form does not ask every consent exactly once: "
+           + f"{blank.count('Ich willige ein')} consents, {blank.count('Ja [')} pairs of brackets")
     expect("Bezahlt" not in blank, "the blank application carries the data of a member")
+    expect("Vereinstrikot" in blank, "what the member type includes is missing on the form")
 
     # Dolibarr's member card offers the template and fills it in.
     card = page_ok(browser.get(f"/adherents/card.php?id={member}"), "member card")
@@ -3351,6 +3358,8 @@ def application(stack: Stack) -> str:
     page_ok(browser.submit(page_ok(browser.get(f"{forms}?member={member}"), "the declaration again").form(name="vereineconsentform")), "build it with fields")
     filled_form = base64.b64decode(stack.shell("base64 $(ls -t $(find /var/www/documents/vereine/consent -name '*.pdf') | head -1)").stdout)
     expect(b"/Widget" in filled_form and b"consent_1_fotos_ja" in filled_form, "the declaration carries no fields to fill in")
+    # With boxes to tick, the brackets of the print form must be gone (#203).
+    expect("Ja [" not in pdf_bytes_text(filled_form), "the declaration shows the brackets although it has boxes to tick")
     again = page_ok(browser.get(base), "applications once more")
     listed = re.findall(r'data-application-type="(\d+)"', again.text)
     actions = [form.value("action") for form in again.forms()]

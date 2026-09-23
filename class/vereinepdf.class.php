@@ -177,14 +177,18 @@ class VereinePdf
 		if ($fillable) {
 			$pdf->TextField($name, $width, $height, array('lineWidth' => 0.1, 'borderStyle' => 'solid', 'strokeColor' => array(190, 190, 190)), array(), $x, $y);
 		} else {
-			$pdf->MultiCell($width, $height, str_repeat('_', max(4, (int) round($width / 1.9))), 0, 'L', false, 0);
+			// A thin line to write on reads better than a row of underscores.
+			$pdf->SetDrawColor(150, 150, 150);
+			$pdf->SetLineWidth(0.2);
+			$pdf->Line($x, $y + $height - 1.5, $x + $width, $y + $height - 1.5);
 		}
 		$pdf->SetXY($x + $width, $y);
 		$pdf->Ln($height);
 	}
 
 	/**
-	 * A yes or no to tick: two boxes, or two brackets when the document is only printed.
+	 * A yes or no to tick: two boxes to tick, or two brackets when the document is only printed. The
+	 * label never carries the brackets itself, so a fillable form does not show them twice (#203).
 	 *
 	 * @param TCPDF     $pdf         Document
 	 * @param Translate $outputlangs Language of the document

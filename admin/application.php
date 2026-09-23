@@ -125,7 +125,12 @@ print '<td><textarea id="intro" name="intro" rows="3" class="centpercent">'.dol_
 
 print '<tr class="oddeven"><td><label for="privacy">'.$langs->trans('VereineApplicationPrivacyText').'</label>';
 print '<div class="opacitymedium small">'.$langs->trans('VereineApplicationPrivacyHelp').'</div></td>';
-print '<td><textarea id="privacy" name="privacy" rows="4" class="centpercent">'.dol_escape_htmltag($settings['privacy'], 0, 1).'</textarea></td></tr>';
+print '<td><textarea id="privacy" name="privacy" rows="4" class="centpercent" placeholder="'.dol_escape_htmltag($langs->trans('VereineApplicationPrivacySuggestion')).'">';
+print dol_escape_htmltag($settings['privacy'], 0, 1).'</textarea>';
+if ($settings['privacy'] === '') {
+	print '<div class="opacitymedium small">'.$langs->trans('VereineApplicationPrivacyMissing').'</div>';
+}
+print '</td></tr>';
 
 print '<tr class="oddeven"><td><label for="privacy_url">'.$langs->trans('VereineApplicationPrivacyUrl').'</label></td>';
 print '<td><input type="text" id="privacy_url" name="privacy_url" class="minwidth300" value="'.dol_escape_htmltag($settings['privacy_url']).'" placeholder="https://"></td></tr>';

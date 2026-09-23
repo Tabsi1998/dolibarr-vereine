@@ -7,6 +7,29 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Neu
+
+- **Der Mitgliedsantrag holt sich mehr aus Dolibarr** (#204): Was die Mitgliedschaft umfasst
+  (etwa Trikot, Trainingszeiten, Startgelder), steht an der Mitgliedsart in Dolibarr und
+  erscheint als „Enthalten in der Mitgliedschaft“. Dazu ein Abschnitt „Aus den Statuten“ mit
+  Vereinszweck, den Pflichten der Mitglieder im Wortlaut der Statuten und der geltenden
+  Fassung („Es gilt die Fassung 3 der Statuten, gültig ab …“). Nichts davon muss doppelt
+  gepflegt werden.
+
+### Behoben
+
+- **Mitgliedsantrag und Einwilligungserklärung sehen besser aus** (#203): Bei ausfüllbaren
+  Formularen stand je Einwilligung zweimal Ja/Nein – einmal in Klammern, einmal als
+  Ankreuzfeld. Jetzt gibt es genau eines: Klammern beim reinen Drucken, Ankreuzfelder beim
+  Ausfüllen am Bildschirm.
+- Der Beitrag steht in klarem Deutsch da („75,00 € pro Jahr“ statt „je 1 Jahr(e)“), die
+  Kündigungsfrist ist beschriftet („Kündigung: 1 Monat zum Monatsende“).
+- Eine Einwilligung wird nicht mehr mitten im Text umgebrochen: Titel, Text und Ankreuzfeld
+  bleiben zusammen auf einer Seite.
+- Zum Ausfüllen gibt es feine graue Linien statt Unterstrich-Reihen.
+- Fehlt der Datenschutz-Text, sagt die Einrichtung es deutlich und schlägt einen Text vor,
+  den der Verein übernehmen oder anpassen kann.
+
 ## [0.7.0-beta] - 2026-09-23
 
 Mitglieder: Antrag, Einwilligungen und eigene Dokumente. Der Meilenstein v0.7 ist komplett –

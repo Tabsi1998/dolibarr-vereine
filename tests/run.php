@@ -1842,6 +1842,7 @@ $prefixes = array(
 	'VereineBankLabel_' => array('DefaultCashPOSLabel'),
 	'VereineApplicationField_' => VereineMemberForm::FIELDS,
 	'VereineApplicationPeriod_' => array('y', 'm', 'w', 'd'),
+	'VereineApplicationPeriodOne_' => array('y', 'm', 'w', 'd'),
 	'VereineApplicationProration_' => array('month', 'quarter', 'half_year'),
 	'VereineApplicationFillable_' => VereinePdf::FILLABLE_KINDS,
 	'VereineApplicationStatus_' => VereineApplicationRules::STATUSES,

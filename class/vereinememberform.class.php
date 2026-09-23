@@ -31,6 +31,8 @@ require_once __DIR__.'/vereinefeemodel.class.php';
 require_once __DIR__.'/vereinefeerules.class.php';
 require_once __DIR__.'/vereineconsents.class.php';
 require_once __DIR__.'/vereineexits.class.php';
+require_once __DIR__.'/vereinestatutes.class.php';
+require_once __DIR__.'/vereinestatutetext.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 
 /**
@@ -228,20 +230,42 @@ class VereineMemberForm
 		foreach ($this->feeLines($type, $outputlangs) as $line) {
 			$text($line);
 		}
-		$text(vereineExitRuleText((new VereineExits($this->db))->rule()));
+		$text($outputlangs->transnoentities('VereineApplicationNotice', vereineExitRuleText((new VereineExits($this->db))->rule())));
+		// What the member type includes, as the association wrote it at the member type in Dolibarr.
+		if ($type !== null && trim((string) $type['note']) !== '') {
+			$text($outputlangs->transnoentitiesnoconv('VereineApplicationIncluded'), 'B', 9);
+			$text(dol_string_nohtmltag((string) $type['note'], 0), '', 9);
+		}
 		$pdf->Ln(1);
+
+		// Everything here comes from the statutes of the association, nothing is written twice.
+		$statutes = $this->statuteFacts($outputlangs);
+		if ($statutes) {
+			VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineApplicationStatutesTitle'));
+			foreach ($statutes as $line) {
+				$text($line, '', 9);
+			}
+			$pdf->Ln(1);
+		}
 		$yesNo('statuten', $outputlangs->transnoentitiesnoconv('VereineApplicationStatutes'));
 
 		$consents = (new VereineConsents($this->db))->currentTexts();
 		if ($consents) {
 			VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineApplicationConsents'));
 			foreach ($consents as $consent) {
+				$body = $consent['text'] !== '' ? dol_string_nohtmltag($consent['text'], 0) : '';
+				$pdf->SetFont($font, '', 9);
+				// Title, text and the box to tick belong together on one page (#203).
+				$needed = 6 + ($body !== '' ? $pdf->getStringHeight(170, $body) : 0) + 10;
+				if ($pdf->GetY() + $needed > $pdf->getPageHeight() - VereinePdf::BOTTOM - 5) {
+					$pdf->AddPage();
+				}
 				$text($consent['label'].' (v'.((int) $consent['version']).')', 'B');
-				if ($consent['text'] !== '') {
-					$text(dol_string_nohtmltag($consent['text'], 0), '', 9);
+				if ($body !== '') {
+					$text($body, '', 9);
 				}
 				$yesNo('einwilligung_'.$consent['code'], $outputlangs->transnoentitiesnoconv('VereineApplicationConsentYesNo'));
-				$pdf->Ln(1);
+				$pdf->Ln(2);
 			}
 		}
 
@@ -269,6 +293,46 @@ class VereineMemberForm
 		}
 		dolChmod($file);
 		return $file;
+	}
+
+	/**
+	 * What the statutes say and the applicant should know: the purpose, the duties of a member and the
+	 * version of the statutes that is in force (#204). Empty when the association has no statutes yet.
+	 *
+	 * @param Translate $outputlangs Language
+	 * @return string[] Lines for the form
+	 */
+	private function statuteFacts($outputlangs)
+	{
+		global $mysoc;
+
+		$organization = VereineOrganization::load($mysoc);
+		$lines = array();
+		if (trim((string) $organization['purpose']) !== '') {
+			$lines[] = $outputlangs->transnoentities('VereineApplicationPurpose', trim((string) $organization['purpose']));
+		}
+		$store = new VereineStatutes($this->db);
+		$rules = $store->rules();
+		$text = VereineStatuteText::normalize(json_decode((string) getDolGlobalString(VereineStatutes::CONST_TEXT), true));
+		$duties = '';
+		foreach (VereineStatuteText::sections($rules, $text, $store->context($rules)) as $section) {
+			if (strpos((string) $section['title'], 'Pflichten') === false) {
+				continue;
+			}
+			foreach ($section['paragraphs'] as $paragraph) {
+				if (strpos($paragraph, 'verpflichtet') !== false) {
+					$duties = $paragraph;
+				}
+			}
+		}
+		if ($duties !== '') {
+			$lines[] = $duties;
+		}
+		$version = $store->current(dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+		$lines[] = $version !== null
+			? $outputlangs->transnoentities('VereineApplicationStatutesVersion', (int) $version['version'], vereineFormatDay($version['valid_from']))
+			: $outputlangs->transnoentitiesnoconv('VereineApplicationStatutesCurrent');
+		return $lines;
 	}
 
 	/**
@@ -321,7 +385,10 @@ class VereineMemberForm
 			return array($outputlangs->transnoentitiesnoconv('VereineApplicationNoFee'));
 		}
 		$model = $type['model'];
-		$period = $outputlangs->transnoentities('VereineApplicationPeriod_'.$model['duration_unit'], (int) $model['duration_value']);
+		// "pro Jahr" for a single period, "alle 2 Jahre" for more.
+		$value = (int) $model['duration_value'];
+		$period = $value === 1 ? $outputlangs->transnoentitiesnoconv('VereineApplicationPeriodOne_'.$model['duration_unit'])
+			: $outputlangs->transnoentities('VereineApplicationPeriod_'.$model['duration_unit'], $value);
 		// A member type without a fixed amount: the board fills it in.
 		$lines = array($model['amount'] === null ? $outputlangs->transnoentities('VereineApplicationFeeOpen', $period)
 			: $outputlangs->transnoentities('VereineApplicationFee', price($model['amount'], 0, $outputlangs, 1, -1, 2).' €', $period));
