@@ -7,6 +7,18 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.8.0-beta] - 2026-09-23
+
+Veranstaltungen & Aufgaben: Fristenkalender des Vereins, Veranstaltungen aus Vorlagen mit
+Helferdiensten, die Generalversammlung Schritt für Schritt – und die Grundlage für Apps und
+Websites: Änderungsfeed, signierte Webhooks und persönlicher Zugriff über verifizierte
+Identitäten. Dazu ein Mitgliedsantrag, der für PDF und Web dieselben Felder verlangt
+(#23, #24, #127, #153, #154, #155, #216).
+
+**Nach dem Update** das Modul unter *Einrichtung > Module* einmal aus- und wieder einschalten,
+damit die neuen Tabellen, Menüpunkte, Rechte und die geplante Aufgabe für die Webhooks
+angelegt werden.
+
 ### Neu
 
 - **Mitgliedsantrag: eine Liste für PDF und Web** (#216): Was der gedruckte Antrag als Pflicht
@@ -1798,7 +1810,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.7.1-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.8.0-beta...HEAD
+[0.8.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.8.0-beta
 [0.7.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.7.1-beta
 [0.7.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.7.0-beta
 [0.6.2-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.6.2-beta
