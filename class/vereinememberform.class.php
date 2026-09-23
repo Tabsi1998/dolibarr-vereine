@@ -420,15 +420,15 @@ class VereineMemberForm
 				$pdf->SetFont($font, '', 9);
 				$pdf->MultiCell(28, 7, $label.($mustHave ? ' *' : ''), 0, 'L', false, 0, '', '', true, 0, false, true, 7, 'B');
 				$pdf->SetFont($font, '', 10);
-				foreach ($spec['options'] as $option => $text) {
-					$text = $outputlangs->transnoentitiesnoconv($text);
-					$width = $pdf->GetStringWidth($text) + 10;
+				foreach ($spec['options'] as $option => $optionLabel) {
+					$optionLabel = $outputlangs->transnoentitiesnoconv($optionLabel);
+					$width = $pdf->GetStringWidth($optionLabel) + 10;
 					if ($pdf->GetX() + $width > $pdf->getPageWidth() - VereinePdf::SIDE) {
 						$pdf->Ln(7);
 						$pdf->SetX(VereinePdf::SIDE + 28);
 					}
 					VereinePdf::box($pdf, 'antrag_extra_'.$code.'_'.$option, $fillable, $option);
-					$pdf->Cell($width - 6, 7, $text, 0, 0, 'L');
+					$pdf->Cell($width - 6, 7, $optionLabel, 0, 0, 'L');
 				}
 				$pdf->Ln(7);
 			}
