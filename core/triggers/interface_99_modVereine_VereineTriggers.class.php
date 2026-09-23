@@ -84,6 +84,20 @@ class InterfaceVereineTriggers extends DolibarrTriggers
 				$result = 0;
 			}
 		}
+		// Note in the change feed which member changed, so a client can catch up after a break (#154).
+		if (preg_match('/^(MEMBER_|BILL_|PAYMENT_CUSTOMER_)/', $action)) {
+			dol_include_once('/vereine/class/vereinewebsiteevents.class.php');
+			dol_include_once('/vereine/class/vereinechanges.class.php');
+			$feed = new VereineWebsiteEvents($this->db);
+			if (VereineWebsiteEvents::handles($action)) {
+				$kind = $action === 'MEMBER_DELETE' ? VereineChangeRules::KIND_DELETED
+					: ($action === 'MEMBER_CREATE' ? VereineChangeRules::KIND_CREATED : VereineChangeRules::KIND_UPDATED);
+				$type = strpos($action, 'MEMBER_') === 0 && !in_array($action, VereineWebsiteEvents::SUBSCRIPTION_EVENTS, true)
+					? VereineChangeRules::TYPE_MEMBERSHIP : VereineChangeRules::TYPE_FEE;
+				VereineChanges::recordMany($this->db, $type, $feed->memberIds($action, $object), $kind, $user);
+			}
+		}
+
 		// Tell webhooks that a member's summary may have changed, after the module's own work.
 		if (isModEnabled('webhook') && preg_match('/^(MEMBER_|BILL_|PAYMENT_CUSTOMER_)/', $action)) {
 			dol_include_once('/vereine/class/vereinewebsiteevents.class.php');

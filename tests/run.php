@@ -63,6 +63,7 @@ require_once $root.'/class/vereinedutyrules.class.php';
 require_once $root.'/class/vereineeventrules.class.php';
 require_once $root.'/class/vereineshiftrules.class.php';
 require_once $root.'/class/vereineassemblyrules.class.php';
+require_once $root.'/class/vereinechangerules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -2253,6 +2254,61 @@ foreach (VereineAssemblyRules::check($assemblyFacts, '2026-10-16') as $step) {
 	$phases[$step['phase']] = true;
 }
 same(VereineAssemblyRules::PHASES, array_keys($phases), 'the steps come in the order of the phases');
+
+// ------------------------------------------------------------- the change feed (#154)
+
+// The name of a change is the same however often it is written, and different for another change.
+$eventOne = VereineChangeRules::eventId(1, 'membership', 42, 'updated', '2026-09-23 14:05:11');
+same($eventOne, VereineChangeRules::eventId(1, 'membership', 42, 'updated', '2026-09-23 14:05:11'),
+	'the same change keeps the same name');
+expect($eventOne !== VereineChangeRules::eventId(1, 'membership', 42, 'updated', '2026-09-23 14:05:12'),
+	'the same object changing again is a change of its own');
+expect($eventOne !== VereineChangeRules::eventId(2, 'membership', 42, 'updated', '2026-09-23 14:05:11'),
+	'another entity is another change');
+expect($eventOne !== VereineChangeRules::eventId(1, 'fee', 42, 'updated', '2026-09-23 14:05:11'),
+	'another kind of object is another change');
+same(40, strlen($eventOne), 'the name of a change has a fixed length');
+
+// Only what the feed knows gets in.
+expect(VereineChangeRules::known('membership', 'updated'), 'a membership that changed is known');
+expect(!VereineChangeRules::known('bankverbindung', 'updated'), 'the feed does not carry bank data');
+expect(!VereineChangeRules::known('membership', 'geaendert'), 'a kind of change nobody defined is refused');
+
+// The cursor is opaque but comes back exactly as it went in.
+$cursor = VereineChangeRules::cursor('2026-09-23 14:05:11', 17);
+expect(strpos($cursor, '2026') === false, 'the cursor does not show its moment');
+same(array('written_at' => '2026-09-23 14:05:11', 'row' => 17), VereineChangeRules::readCursor($cursor),
+	'the cursor reads back as it was written');
+same(null, VereineChangeRules::readCursor('irgendwas'), 'a cursor nobody wrote here is refused');
+same(null, VereineChangeRules::readCursor(''), 'an empty cursor is no cursor');
+same(null, VereineChangeRules::readCursor(bin2hex('v1|nicht ein zeitpunkt|3')), 'a cursor with a broken moment is refused');
+
+// The safety margin keeps a reader behind the newest entries.
+same('2026-09-23 14:05:06', VereineChangeRules::horizon('2026-09-23 14:05:11'), 'the reader stays five seconds behind');
+same('2026-06-25 14:05:11', VereineChangeRules::oldestKept('2026-09-23 14:05:11'), 'ninety days are kept');
+
+// When a reader has to start over.
+$fresh = VereineChangeRules::readCursor(VereineChangeRules::cursor('2026-09-01 10:00:00', 5));
+$stale = VereineChangeRules::readCursor(VereineChangeRules::cursor('2026-01-01 10:00:00', 5));
+expect(!VereineChangeRules::resyncRequired(null, '2026-08-01 00:00:00', '2026-09-23 14:05:11'),
+	'a reader that has taken nothing yet simply starts');
+expect(!VereineChangeRules::resyncRequired($fresh, '2026-08-01 00:00:00', '2026-09-23 14:05:11'),
+	'a cursor inside what is kept continues');
+expect(VereineChangeRules::resyncRequired($stale, '2026-08-01 00:00:00', '2026-09-23 14:05:11'),
+	'a cursor older than the retention has to start over');
+expect(VereineChangeRules::resyncRequired($fresh, '2026-09-10 00:00:00', '2026-09-23 14:05:11'),
+	'a cursor before the oldest entry that is left has to start over');
+expect(!VereineChangeRules::resyncRequired($fresh, '', '2026-09-23 14:05:11'),
+	'an empty feed is no reason to start over');
+
+// Pages and what a reader asks for.
+same(100, VereineChangeRules::pageSize(0), 'without a wish a page holds a hundred');
+same(500, VereineChangeRules::pageSize(5000), 'a page never grows past five hundred');
+same(7, VereineChangeRules::pageSize(7), 'a sensible wish is followed');
+same(array('membership', 'fee'), VereineChangeRules::wantedTypes('membership, fee'), 'the kinds asked for are taken');
+same(VereineChangeRules::TYPES, VereineChangeRules::wantedTypes(''), 'without a wish every kind comes');
+same(VereineChangeRules::TYPES, VereineChangeRules::wantedTypes('bankverbindung'), 'a kind nobody knows is ignored');
+same(array('membership'), VereineChangeRules::wantedTypes('membership,membership'), 'a kind named twice comes once');
 
 // ------------------------------------------------------------------- result
 

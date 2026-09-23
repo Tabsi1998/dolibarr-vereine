@@ -916,6 +916,154 @@
           ]
         ]
       }
+    },
+    "/vereine/changes": {
+      "get": {
+        "operationId": "getChanges",
+        "summary": "Änderungen seit einem Cursor, als Änderungsnachweis",
+        "description": "Sagt nur, dass sich etwas geändert hat, nie was: Objektart, ID, Revision, Änderungsart und Zeitpunkt. Keine Namen, Beträge, Rechnungsinhalte, Unterschriften oder Stimmen. Die aktuellen Daten liest der Client über die fachlichen Endpunkte, die selbst entscheiden, was er sehen darf. Einträge der letzten Sekunden werden zurückgehalten, damit eine noch offene Transaktion nicht hinter einen bestätigten Cursor rutscht. Liegt der Cursor vor der Aufbewahrung, antwortet der Feed mit resync_required und ohne Ereignisse.",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Stand des Lesers; leer beginnt am Anfang",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Ereignisse je Seite, 100 ohne Angabe",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "required": false,
+            "description": "Objektarten mit Komma getrennt; leer für alle",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Eine Seite des Änderungsfeeds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeFeed"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:sync:read"
+          ]
+        ]
+      }
+    },
+    "/vereine/changes/snapshot": {
+      "get": {
+        "operationId": "getChangesSnapshot",
+        "summary": "Welche Objekte es gerade gibt, für den Vollabgleich",
+        "description": "Eine Seite führt die IDs einer Objektart auf, sonst nichts. Erst die letzte Seite setzt complete auf true; nur dann darf ein Client aus fehlenden IDs schließen, dass es die Objekte nicht mehr gibt. Ein abgebrochener Abgleich ist kein Beweis für Löschungen. Der mitgelieferte Cursor ist der Stand zu Beginn des Abgleichs, damit der Client danach lückenlos im Feed weiterliest.",
+        "parameters": [
+          {
+            "name": "object_type",
+            "in": "query",
+            "required": false,
+            "description": "Objektart: membership, function, fee, application oder consent",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "membership",
+                "function",
+                "fee",
+                "application",
+                "consent"
+              ]
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "description": "Weiter nach dieser ID, 0 zum Beginnen",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Objekte je Seite, 100 ohne Angabe",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Eine Seite des Vollabgleichs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeSnapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:sync:read"
+          ]
+        ]
+      }
     }
   },
   "components": {
@@ -2195,6 +2343,133 @@
           "changed": {
             "type": "boolean",
             "description": "False, wenn der Antrag schon zurückgezogen war"
+          }
+        }
+      },
+      "ChangeEvent": {
+        "type": "object",
+        "description": "Ein Änderungsvermerk. Er nennt nie den Inhalt der Änderung.",
+        "required": [
+          "event_id",
+          "object_type",
+          "object_id",
+          "revision",
+          "change",
+          "occurred_at"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "description": "Bleibt bei Wiederholung derselben Änderung gleich"
+          },
+          "object_type": {
+            "type": "string",
+            "enum": [
+              "membership",
+              "function",
+              "fee",
+              "application",
+              "consent"
+            ]
+          },
+          "object_id": {
+            "type": "integer"
+          },
+          "revision": {
+            "type": "integer",
+            "description": "Wievielte Änderung dieses Objekts"
+          },
+          "change": {
+            "type": "string",
+            "enum": [
+              "created",
+              "updated",
+              "deleted",
+              "unlinked",
+              "revoked"
+            ]
+          },
+          "occurred_at": {
+            "$ref": "#/components/schemas/Moment"
+          }
+        }
+      },
+      "ChangeFeed": {
+        "type": "object",
+        "required": [
+          "events",
+          "next_cursor",
+          "resync_required",
+          "has_more",
+          "retention_days"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChangeEvent"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "description": "Undurchsichtig; unverändert zurückgeben"
+          },
+          "resync_required": {
+            "type": "boolean",
+            "description": "true: Cursor zu alt oder unbekannt, Vollabgleich nötig"
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Es warten weitere Seiten"
+          },
+          "retention_days": {
+            "type": "integer",
+            "description": "So lange wird ein Eintrag aufbewahrt"
+          }
+        }
+      },
+      "ChangeSnapshot": {
+        "type": "object",
+        "required": [
+          "object_type",
+          "objects",
+          "next_after",
+          "complete",
+          "cursor"
+        ],
+        "properties": {
+          "object_type": {
+            "type": "string"
+          },
+          "objects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "object_type",
+                "object_id"
+              ],
+              "properties": {
+                "object_type": {
+                  "type": "string"
+                },
+                "object_id": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "next_after": {
+            "type": "integer",
+            "description": "Nächster Aufruf mit after = diesem Wert"
+          },
+          "complete": {
+            "type": "boolean",
+            "description": "true nur auf der letzten Seite; vorher nichts löschen"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Stand zu Beginn des Abgleichs, für das Weiterlesen im Feed"
           }
         }
       }

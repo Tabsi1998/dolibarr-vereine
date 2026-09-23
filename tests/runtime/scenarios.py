@@ -198,6 +198,10 @@ def vereine_day(day: str) -> str:
     return datetime.date.fromisoformat(day).strftime("%d.%m.%Y")
 
 
+# A cursor of the change feed is hex and nothing else (#154).
+VEREINE_HEX = re.compile(r"^[0-9a-f]+$")
+
+
 def module_link(page: Page, action: str) -> str:
     """The enable or disable link of the module in Dolibarr's module list."""
     for href in re.findall(r'href="([^"]*modules\.php\?[^"]*)"', page.text):
@@ -370,7 +374,7 @@ def enable(stack: Stack) -> str:
            "enabling left the country profile of earlier versions in place")
     rights = stack.sql("SELECT id, perms, subperms FROM llx_rights_def WHERE module = 'vereine' AND entity = 1 ORDER BY id")
     expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"], ["49210003", "website", "read"],
-                      ["49210004", "application", "write"]], f"rights after enabling: {rights}")
+                      ["49210004", "application", "write"], ["49210005", "sync", "read"]], f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_account", "/vereine/account.php"],
                     ["members", "vereine_application", "/vereine/application.php"],
@@ -2488,6 +2492,109 @@ def assembly(stack: Stack) -> str:
             f"assembly the notice to the authority ({reports} open) and the minutes are what follows")
 
 
+def changes(stack: Stack) -> str:
+    """The change feed: a note per change, a cursor that loses nothing, resync instead of a silent gap (#154)."""
+    key = stack.notes["website"]["key"]
+
+    # The feed has a right of its own: the website key may read summaries but must not follow changes.
+    status, refused = stack.api("vereine/changes", key)
+    expect(status == 403, f"the website key follows the change feed although it may not: HTTP {status}")
+    # Enabling the module registered the right; the service that synchronises simply gets it.
+    sync_user = int(stack.value("SELECT rowid FROM llx_user WHERE login = 'rtwebsite'"))
+    right = int(stack.value("SELECT id FROM llx_rights_def WHERE module = 'vereine' AND perms = 'sync'"
+                            " AND subperms = 'read' AND entity = 1") or 0)
+    expect(right > 0, "enabling the module did not register the right to follow the change feed")
+    stack.sql(f"INSERT INTO llx_user_rights (entity, fk_user, fk_id) SELECT 1, {sync_user}, {right}"
+              f" WHERE NOT EXISTS (SELECT 1 FROM llx_user_rights WHERE fk_user = {sync_user} AND fk_id = {right})")
+    status, feed = stack.api("vereine/changes", key)
+    expect(status == 200 and "events" in feed, f"the feed answered HTTP {status}: {str(feed)[:160]}")
+    expect(feed["resync_required"] is False and feed["retention_days"] == 90,
+           f"a first read should simply start: {feed['resync_required']}, {feed['retention_days']} days")
+
+    # Everything the module noted so far, read to the end; that is where the reader stands.
+    cursor = ""
+    seen = []
+    for _ in range(50):
+        status, page = stack.api(f"vereine/changes?cursor={cursor}&limit=100", key)
+        expect(status == 200, f"the feed answered HTTP {status}")
+        seen.extend(page["events"])
+        cursor = page["next_cursor"]
+        if not page["has_more"]:
+            break
+    expect(seen, "the feed holds nothing although members and invoices were changed")
+    kinds = {event["object_type"] for event in seen}
+    expect(kinds <= {"membership", "function", "fee", "application", "consent"}, f"kinds in the feed: {sorted(kinds)}")
+    body = json.dumps(seen)
+    for forbidden in ("firstname", "lastname", "iban", "amount", "email"):
+        expect(forbidden not in body, f"the feed carries {forbidden}, which is content and does not belong in it")
+    ids = [event["event_id"] for event in seen]
+    expect(len(ids) == len(set(ids)), "the feed delivered the same event twice")
+
+    # A change of a member appears once, with a revision of its own; reading again brings nothing new.
+    member = int(stack.value("SELECT rowid FROM llx_adherent WHERE statut = 1 ORDER BY rowid LIMIT 1"))
+    before = int(stack.value(f"SELECT COUNT(*) FROM llx_vereine_change WHERE object_type = 'membership' AND object_id = {member}") or 0)
+    browser = stack.browser()
+    card = page_ok(browser.get(f"/adherents/card.php?id={member}&action=edit"), "the member card to change something")
+    page_ok(browser.submit(card.form(action_part="card.php"), {"note_public": "Feed-Test " + stack.today()}), "change the member")
+    after = int(stack.value(f"SELECT COUNT(*) FROM llx_vereine_change WHERE object_type = 'membership' AND object_id = {member}") or 0)
+    expect(after > before, f"changing the member wrote no entry: {before} -> {after}")
+    revisions = [int(row[0]) for row in stack.sql("SELECT revision FROM llx_vereine_change WHERE object_type = 'membership'"
+                                                  f" AND object_id = {member} ORDER BY revision")]
+    expect(revisions == list(range(1, len(revisions) + 1)), f"the revisions of the member count up: {revisions}")
+
+    # The entry only shows up once the safety margin has passed, and then exactly once.
+    fresh = []
+    for _ in range(20):
+        status, page = stack.api(f"vereine/changes?cursor={cursor}&limit=100", key)
+        expect(status == 200, f"the feed answered HTTP {status}")
+        fresh.extend(page["events"])
+        cursor = page["next_cursor"]
+        if not page["has_more"] and fresh:
+            break
+        time.sleep(1)
+    expect(any(event["object_type"] == "membership" and event["object_id"] == member for event in fresh),
+           f"the change of member {member} never reached the feed: {fresh[:3]}")
+    status, again = stack.api(f"vereine/changes?cursor={cursor}&limit=100", key)
+    expect(status == 200 and again["events"] == [], f"reading again brought events a second time: {again['events'][:2]}")
+
+    # A cursor from before the retention, and one nobody wrote here.
+    old_cursor = stack.shell("php -r \"echo bin2hex('v1|2020-01-01 00:00:00|1');\"").stdout.strip()
+    status, stale = stack.api(f"vereine/changes?cursor={old_cursor}", key)
+    expect(status == 200 and stale["resync_required"] is True and stale["events"] == [],
+           f"an old cursor has to ask for a full reconciliation: {stale}")
+    status, bogus = stack.api("vereine/changes?cursor=keincursor", key)
+    expect(status == 200 and bogus["resync_required"] is True, f"a cursor nobody wrote here is taken: {bogus}")
+
+    # Only what a kind of object asks for.
+    status, only = stack.api("vereine/changes?types=membership&limit=500", key)
+    expect(status == 200 and all(event["object_type"] == "membership" for event in only["events"]),
+           "the feed answers with kinds nobody asked for")
+
+    # The full reconciliation: ids only, and a mark that says it is complete.
+    members = int(stack.value("SELECT COUNT(*) FROM llx_adherent WHERE entity = 1") or 0)
+    status, first = stack.api("vereine/changes/snapshot?object_type=membership&limit=2", key)
+    expect(status == 200 and len(first["objects"]) == 2 and first["complete"] is False,
+           f"a page that is not the last one must not say complete: {first}")
+    expect(set(first["objects"][0].keys()) == {"object_type", "object_id"},
+           f"the reconciliation carries more than ids: {first['objects'][0]}")
+    collected = list(first["objects"])
+    after_id = first["next_after"]
+    for _ in range(200):
+        status, page = stack.api(f"vereine/changes/snapshot?object_type=membership&after={after_id}&limit=50", key)
+        expect(status == 200, f"the reconciliation answered HTTP {status}")
+        collected.extend(page["objects"])
+        after_id = page["next_after"]
+        if page["complete"]:
+            break
+    expect(len(collected) == members, f"the reconciliation counted {len(collected)} of {members} members")
+    expect(first["cursor"] == "" or VEREINE_HEX.match(first["cursor"]), f"the reconciliation carries no usable cursor: {first['cursor']}")
+    status, wrong = stack.api("vereine/changes/snapshot?object_type=bankverbindung", key)
+    expect(wrong is not None and status == 400, f"a kind of object nobody knows answered HTTP {status}")
+    return (f"the feed needs its own right, holds {len(seen)} notes without a single name or amount, gives every change of a member "
+            "its own revision and delivers it once; an old cursor and one nobody wrote here both ask for a full reconciliation; the "
+            f"reconciliation lists {members} members as bare ids and only the last page says complete")
+
+
 def board(stack: Stack) -> str:
     """A website reads the board: names only with consent, or for the board always when it must be disclosed."""
     site = stack.notes["website"]
@@ -4601,6 +4708,7 @@ SCENARIOS = (
     ("events", "Events from templates: a project of Dolibarr with its tasks, the checklist, a template that changes later", events, ("duties",)),
     ("shifts", "Helper shifts: places, overlapping times, confirmed duties, and the short report as PDF", shifts, ("events",)),
     ("assembly", "The way through a general assembly: deadlines before, the day itself, and what follows from it", assembly, ("shifts", "minutes")),
+    ("changes", "The change feed: notes without content, a cursor that loses nothing, resync instead of a silent gap", changes, ("assembly",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
