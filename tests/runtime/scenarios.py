@@ -1041,7 +1041,8 @@ def website(stack: Stack) -> str:
            == (members["paid"], refs["paid"], "Paula", "Bezahlt", "", "Beitragspflichtig", "active"), f"paid member: {paid}")
     expect(paid["member_since"] == dates["paid_since"] and paid["paid_until"] == dates["paid_until"] and paid["currency"] == "EUR",
            f"paid member since {paid['member_since']} until {paid['paid_until']}, expected {dates['paid_since']} to {dates['paid_until']}")
-    expect(paid["fee"] == {"required": True, "status": "paid", "next_due": day_after(dates["paid_until"]), "amount": 50, "discount": {"kind": "none", "label": ""}, "payer": "self", "payment_url": ""},
+    expect(paid["fee"] == {"required": True, "status": "paid", "next_due": day_after(dates["paid_until"]), "amount": 50, "discount": {"kind": "none", "label": ""},
+                           "payer": "self", "payment_url": "", "mandate": {"status": "off", "signed_on": ""}},
            f"fee of the paid member: {paid['fee']}")
     expect(paid["open_invoices"] == [{"id": invoices["open"]["id"], "ref": invoices["open"]["ref"], "type": "standard",
                                       "date": dates["open_invoice"], "due_date": dates["open_invoice"], "total": 60, "remaining": 50,
@@ -1054,11 +1055,13 @@ def website(stack: Stack) -> str:
            f"expired member: {expired}")
     unpaid = answers["unpaid"]
     expect(unpaid["paid_until"] == "" and unpaid["member_since"] == dates["today"]
-           and unpaid["fee"] == {"required": True, "status": "due", "next_due": dates["today"], "amount": 50, "discount": {"kind": "none", "label": ""}, "payer": "self", "payment_url": ""},
+           and unpaid["fee"] == {"required": True, "status": "due", "next_due": dates["today"], "amount": 50, "discount": {"kind": "none", "label": ""},
+                                 "payer": "self", "payment_url": "", "mandate": {"status": "off", "signed_on": ""}},
            f"member who never paid: {unpaid}")
     free = answers["free"]
     expect(free["type"]["label"] == "Ordentliches Mitglied"
-           and free["fee"] == {"required": False, "status": "not_required", "next_due": "", "amount": None, "discount": {"kind": "none", "label": ""}, "payer": "self", "payment_url": ""},
+           and free["fee"] == {"required": False, "status": "not_required", "next_due": "", "amount": None, "discount": {"kind": "none", "label": ""},
+                               "payer": "self", "payment_url": "", "mandate": {"status": "off", "signed_on": ""}},
            f"member type without fee: {free}")
     terminated = answers["terminated"]
     expect(terminated["status"] == "terminated" and terminated["fee"]["status"] == "inactive" and terminated["fee"]["next_due"] == "",
@@ -3386,6 +3389,61 @@ def application(stack: Stack) -> str:
             "missing one and one page for a single member; fields to fill in only on the document switched on")
 
 
+def sepaonline(stack: Stack) -> str:
+    """The SEPA mandate at the member: its state from Dolibarr's data, Dolibarr's own online signature, the invitation (#125)."""
+    browser = stack.browser()
+    member = int(stack.value("SELECT fk_adherent FROM llx_vereine_application ORDER BY rowid LIMIT 1") or 0)
+    member = member or int(stack.value("SELECT rowid FROM llx_adherent WHERE statut = 1 ORDER BY rowid LIMIT 1"))
+    payer = stack.value(f"SELECT fk_soc FROM llx_adherent WHERE rowid = {member}")
+    mandate = stack.sql(f"SELECT rowid, rum FROM llx_societe_rib WHERE fk_soc = {payer} AND type = 'ban' AND default_rib = 1")
+    if not mandate:
+        member = int(stack.value("SELECT a.rowid FROM llx_adherent as a INNER JOIN llx_societe_rib as r ON r.fk_soc = a.fk_soc"
+                                 " WHERE r.type = 'ban' AND r.default_rib = 1 ORDER BY a.rowid LIMIT 1"))
+        payer = stack.value(f"SELECT fk_soc FROM llx_adherent WHERE rowid = {member}")
+    tab = f"/custom/vereine/member_association.php?id={member}"
+
+    # Dolibarr's online signature for bank accounts is off at first: the tab says how to switch it on.
+    stack.sql("DELETE FROM llx_const WHERE name = 'SOCIETE_RIB_ALLOW_ONLINESIGN'")
+    page = page_ok(browser.get(tab), "association tab without the online signature")
+    state = re.search(r'data-sepa="([a-z]+)" data-sepa-signed="(\d)"', page.text)
+    expect(state is not None and 'data-sepa-online="off"' in page.text,
+           f"the tab does not say how the mandate stands: {state.groups() if state else None}")
+    expect('name="vereinesepainvite"' not in page.text, "the invitation is offered although Dolibarr's online signature is off")
+
+    # Switched on, Dolibarr's own signature page is offered; the module builds none of its own.
+    stack.sql("INSERT INTO llx_const (name, entity, value, type, visible) VALUES ('SOCIETE_RIB_ALLOW_ONLINESIGN', 1, '1', 'chaine', 0)")
+    stack.sql("INSERT INTO llx_const (name, entity, value, type, visible) VALUES ('SOCIETE_RIB_ONLINE_SIGNATURE_SECURITY_TOKEN', 1, 'rt-token', 'chaine', 0)")
+    page = page_ok(browser.get(tab), "association tab with the online signature")
+    link = re.search(r'value="(https?://[^"]*newonlinesign[^"]*)"', page.text)
+    expect(link is not None and "source=societe_rib" in link.group(1) and "securekey=" in link.group(1),
+           f"no link to Dolibarr's signature page: {link.group(1) if link else None}")
+    expect('name="vereinesepainvite"' in page.text, "the invitation is not offered although Dolibarr's online signature is on")
+
+    # Nothing is sent by opening the tab; only the button sends, and it is noted.
+    sent_before = stack.value("SELECT COUNT(*) FROM llx_vereine_log WHERE action = 'sepa_invite'")
+    page_ok(browser.get(tab), "association tab opened again")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_log WHERE action = 'sepa_invite'") == sent_before,
+           "opening the tab sent the invitation")
+    stack.sql(f"UPDATE llx_societe SET email = 'zahler@runtime-verein.test' WHERE rowid = {payer}")
+    mail = stack.mailpit()
+    mail.clear()
+    page = page_ok(browser.get(tab), "association tab before the invitation")
+    page_ok(browser.submit(page.form(name="vereinesepainvite")), "send the link to the payer")
+    logged = stack.sql("SELECT message FROM llx_vereine_log WHERE action = 'sepa_invite' ORDER BY rowid DESC LIMIT 1")
+    messages = mail.messages()
+    body = " ".join((mail.message(messages[0]["ID"]).get("Text") or "").split()) if messages else ""
+    expect(logged and logged[0][0] == "zahler@runtime-verein.test" and "newonlinesign" in body,
+           f"the invitation was not sent or not noted: {logged}, mail {body[:160]!r}")
+
+    status, summary = stack.api(f"vereine/members/{member}/summary", stack.notes["website"]["key"])
+    mandate_state = summary.get("fee", {}).get("mandate", {}) if status == 200 else {}
+    expect(status == 200 and mandate_state.get("status") in ("none", "valid", "expired", "off") and "iban" not in json.dumps(summary).lower(),
+           f"the summary does not say how the fee is collected, or carries bank data: {mandate_state}")
+    return (f"member {member}: mandate state from Dolibarr's own data, the tab explains how to switch the online signature on; "
+            "switched on it offers Dolibarr's signature page with its secure key; opening the tab sends nothing, the button sends the "
+            "link to the payer and notes it; the summary names the state of the mandate without any bank data")
+
+
 def minutestexts(stack: Stack) -> str:
     """Agenda templates with required items, a new meeting from a template, texts per item with the real numbers, texts follow a reordered agenda."""
     browser = stack.browser()
@@ -4098,6 +4156,7 @@ SCENARIOS = (
     ("authority", "Report of new representatives to the association authority: deadline, agenda, letter, noted as reported", authority, ("functions",)),
     ("history", "History of a member in Dolibarr's events: new entries and earlier ones exactly once", history, ("authority",)),
     ("application", "Application for membership and declaration of consent as PDF, with fields to fill in", application, ("history",)),
+    ("sepaonline", "SEPA mandate at the member: state, Dolibarr's own online signature, invitation", sepaonline, ("application",)),
     ("board", "Board for a website: names with consent or disclosure, functions in the summary", board, ("authority",)),
     ("groups", "User groups through functions, changed only after an administrator confirms", groups, ("board",)),
     ("mailing", "E-mail campaign recipients by function, consent and guardians of minors", mailing, ("groups",)),

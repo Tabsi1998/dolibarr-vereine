@@ -339,6 +339,7 @@ Antwort:
 | `type_id` | Pflicht, eine aktive Mitgliedsart aus [`GET /vereine/membershipfees`](#get-vereinemembershipfees), offen für diese Art von Person |
 | `birth` | `JJJJ-MM-TT`, freiwillig; Ermäßigungen nach Alter brauchen es. Pflicht, solange die Statuten ein Mindestalter festlegen (Einrichtungsreiter *Statuten*): Jüngere werden mit 400 abgelehnt |
 | `note` | Nachricht der antragstellenden Person, gespeichert als private Notiz am Mitglied |
+| `fee.mandate` | Stand des SEPA-Mandats des Zahlers: `off` (Dolibarrs Lastschrift-Modul aus), `none`, `valid` oder `expired`, dazu der Tag der Unterschrift. **Nie Kontodaten.** Unterschrieben wird über Dolibarrs eigene Online-Unterschrift, angestoßen am Mitglied in Dolibarr |
 | `consents` | Die erteilten Einwilligungen, jede mit der gezeigten Version; nicht angekreuzte Zwecke fehlen. Je Einwilligung dürfen `granted_at` (Zeitpunkt der Zustimmung, ISO 8601), `form` (Formular oder Seite) und `reference` (Kennung des Vorgangs) mitkommen – der Nachweis nach Art. 7 Abs. 1 DSGVO. Keine IP-Adresse |
 | `signature` | Freiwillig: die am Bildschirm gezeichnete Unterschrift als PNG, base64 kodiert, höchstens 200000 Bytes. Sie steht dann im Antrags-PDF. Das ist eine einfache elektronische Signatur (Art. 25 eIDAS), keine qualifizierte |
 

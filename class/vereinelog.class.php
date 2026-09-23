@@ -78,6 +78,7 @@ class VereineLog
 	const CONSENT_FORM = 'consent_form';
 	const CONSENT_SCAN = 'consent_scan';
 	const APPLICATION_DECIDED = 'application_decided';
+	const SEPA_INVITE = 'sepa_invite';
 	const SIGNATURE_STARTED = 'signature_started';
 	const SIGNATURE_SIGNED = 'signature_signed';
 	const SIGNATURE_DONE = 'signature_done';

@@ -94,6 +94,66 @@ class VereineSepaStore
 	}
 
 	/**
+	 * Whether Dolibarr offers its own online signature for bank accounts (#125).
+	 *
+	 * @return bool
+	 */
+	public static function signatureOffered()
+	{
+		return self::enabled() && getDolGlobalInt('SOCIETE_RIB_ALLOW_ONLINESIGN') > 0;
+	}
+
+	/**
+	 * The address of Dolibarr's own signature page for a mandate; the module builds no page of its own.
+	 *
+	 * @param int $ribId Bank account of the third party (llx_societe_rib)
+	 * @return string Empty when Dolibarr does not offer it or the mandate is unknown
+	 */
+	public function signatureUrl($ribId)
+	{
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/signature.lib.php';
+		require_once DOL_DOCUMENT_ROOT.'/societe/class/companybankaccount.class.php';
+
+		if (!self::signatureOffered() || (int) $ribId <= 0) {
+			return '';
+		}
+		$account = new CompanyBankAccount($this->db);
+		if ($account->fetch((int) $ribId) <= 0) {
+			return '';
+		}
+		$url = getOnlineSignatureUrl(0, 'societe_rib', (string) ((int) $ribId), 1, $account);
+		// Dolibarr answers with a text of its own when the feature is switched off.
+		return strpos($url, 'http') === 0 ? $url : '';
+	}
+
+	/**
+	 * The signed mandate Dolibarr keeps at the third party after an online signature.
+	 *
+	 * @param int    $socid     Third party
+	 * @param string $reference Mandate reference (RUM)
+	 * @return array{name:string,moment:int}|null
+	 */
+	public function signedDocument($socid, $reference)
+	{
+		global $conf;
+
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+
+		if ((int) $socid <= 0 || (string) $reference === '') {
+			return null;
+		}
+		$dir = $conf->societe->multidir_output[$conf->entity].'/'.((int) $socid);
+		$found = null;
+		foreach (dol_dir_list($dir, 'files', 0, '', '', 'date', SORT_DESC) as $file) {
+			if (strpos($file['name'], (string) $reference) !== false && strpos($file['name'], '_signed') !== false) {
+				$found = array('name' => (string) $file['name'], 'moment' => (int) $file['date']);
+				break;
+			}
+		}
+		return $found;
+	}
+
+	/**
 	 * Mandates of third parties: their default bank account for direct debits.
 	 *
 	 * @param int[]  $socids Third parties

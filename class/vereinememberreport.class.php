@@ -126,7 +126,8 @@ class VereineMemberReport
 		$online = $this->onlinePayment();
 		// A payer gets the fee invoices; paying the member's fee online would bypass them.
 		$familyStore = new VereineFeeFamilyStore($this->db);
-		$paidByOther = VereineFeeFamilies::paidByOther((int) $row->fk_soc, $familyStore->payerOfMember((int) $row->rowid));
+		$payerSocid = (int) $familyStore->payerOfMember((int) $row->rowid);
+		$paidByOther = VereineFeeFamilies::paidByOther((int) $row->fk_soc, $payerSocid);
 		$functionStore = new VereineFunctions($this->db);
 		$exitStore = new VereineExits($this->db);
 		$membershipEnds = '';
@@ -159,10 +160,35 @@ class VereineMemberReport
 				'payer' => $paidByOther ? 'other' : 'self',
 				'payment_url' => ($online && !$paidByOther && $fee['status'] === VereineMemberSummary::FEE_DUE && (string) $row->ref !== '' && $amount !== 0.0)
 					? getOnlinePaymentUrl(0, 'member', (string) $row->ref, $amount === null ? 0 : $amount) : '',
+				// How the fee is collected: the state of the mandate, never bank data (#125).
+				'mandate' => $this->mandate((int) ($paidByOther ? $payerSocid : $row->fk_soc), $today),
 			),
 			'open_invoices' => (int) $row->fk_soc > 0 ? $this->invoices((int) $row->fk_soc, $today, $online, true, self::MAX_OPEN_INVOICES, 0) : array(),
 			'updated_at' => VereineMemberSummary::isoMoment(current($this->changes((int) $row->rowid))),
 		);
+	}
+
+	/**
+	 * The state of the SEPA mandate of the payer: enough for a website to say how the fee is collected,
+	 * and nothing more - no IBAN, no name of the bank (#125).
+	 *
+	 * @param int    $socid Third party that pays
+	 * @param string $today Today, YYYY-MM-DD
+	 * @return array{status:string,signed_on:string}
+	 */
+	private function mandate($socid, $today)
+	{
+		require_once __DIR__.'/vereinesepastore.class.php';
+
+		if ($socid <= 0 || !VereineSepaStore::enabled()) {
+			return array('status' => 'off', 'signed_on' => '');
+		}
+		$store = new VereineSepaStore($this->db);
+		$mandates = $store->mandates(array($socid), $today);
+		if (!isset($mandates[$socid])) {
+			return array('status' => VereineSepa::MANDATE_NONE, 'signed_on' => '');
+		}
+		return array('status' => $mandates[$socid]['status'], 'signed_on' => $mandates[$socid]['signed_on']);
 	}
 
 	/**

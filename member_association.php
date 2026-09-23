@@ -177,6 +177,31 @@ if (($action === 'recordconsent' || $action === 'withdrawconsent') && $canExit) 
 	header('Location: '.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereineconsents');
 	exit;
 }
+if ($action === 'sepainvite' && $canExit) {
+	// The link to Dolibarr's own signature page, sent to the payer; nothing is sent by just opening the tab (#125).
+	dol_include_once('/vereine/class/vereinesepastore.class.php');
+	dol_include_once('/vereine/class/vereinemail.class.php');
+	$sepaStore = new VereineSepaStore($db);
+	$payerId = GETPOSTINT('payer');
+	$mandate = $sepaStore->mandates(array($payerId), dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+	$link = isset($mandate[$payerId]) ? $sepaStore->signatureUrl($mandate[$payerId]['rib_id']) : '';
+	$payer = new Societe($db);
+	$hasPayer = $payerId > 0 && $payer->fetch($payerId) > 0;
+	if ($link === '' || !$hasPayer || (string) $payer->email === '') {
+		setEventMessages($langs->trans($link === '' ? 'VereineSepaErrorNoLink' : 'VereineSepaErrorNoEmail'), null, 'errors');
+	} else {
+		$mail = new VereineMail($db);
+		$body = $langs->transnoentities('VereineSepaInviteBody', $payer->name, $link);
+		if ($mail->send($langs->transnoentities('VereineSepaInviteSubject'), $payer->email, $body, 'vereinesepa'.((int) $object->id)) > 0) {
+			VereineLog::add($db, $user, VereineLog::SEPA_INVITE, (int) $object->id, $payerId, $payer->email);
+			setEventMessages($langs->trans('VereineSepaInviteSent', $payer->email), null, 'mesgs');
+		} else {
+			setEventMessages($mail->error, null, 'errors');
+		}
+	}
+	header('Location: '.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereinesepa');
+	exit;
+}
 if ($action === 'consentscan' && $canExit) {
 	// The signed declaration on paper: Dolibarr keeps it with the documents of the member (#109).
 	$upload = isset($_FILES['scan_file']) && is_array($_FILES['scan_file']) ? $_FILES['scan_file'] : array();
@@ -393,6 +418,51 @@ if ($canExit && (int) $object->statut === 1) {
 	print ' <input type="text" name="function_note" class="minwidth200" maxlength="255" placeholder="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineFunctionNoteHelp')).'">';
 	print ' <input type="submit" class="button small" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineFunctionAdd')).'">';
 	print '</form>';
+}
+print '<br>';
+
+// SEPA: the mandate of the payer, its state from Dolibarr's own data, and Dolibarr's signature page (#125).
+dol_include_once('/vereine/class/vereinesepastore.class.php');
+$sepaStore = new VereineSepaStore($db);
+$payerId = !empty($object->array_options['options_vereine_fee_payer']) ? (int) $object->array_options['options_vereine_fee_payer'] : (int) $object->fk_soc;
+$mandates = VereineSepaStore::enabled() ? $sepaStore->mandates(array($payerId), dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver')) : array();
+$mandate = isset($mandates[$payerId]) ? $mandates[$payerId] : null;
+print load_fiche_titre($langs->trans('VereineSepaMandateTitle'), '', '', 0, 'vereinesepa');
+if (!VereineSepaStore::enabled()) {
+	print '<div class="opacitymedium" data-sepa="off">'.$langs->trans('VereineSepaOff').'</div>';
+} else {
+	$status = $mandate !== null ? $mandate['status'] : VereineSepa::MANDATE_NONE;
+	$signed = $mandate !== null ? $sepaStore->signedDocument($payerId, $mandate['reference']) : null;
+	print '<div data-sepa="'.$status.'" data-sepa-signed="'.($signed !== null ? 1 : 0).'">';
+	print '<strong>'.$langs->trans('VereineSepaStatus_'.$status).'</strong>';
+	if ($mandate !== null && $mandate['reference'] !== '') {
+		print ' <span class="opacitymedium">'.$langs->trans('VereineSepaReference', dol_escape_htmltag($mandate['reference'])).'</span>';
+	}
+	if ($mandate !== null && $mandate['signed_on'] !== '') {
+		print '<div class="opacitymedium small">'.$langs->trans('VereineSepaSignedOn', vereineFormatDay($mandate['signed_on'])).'</div>';
+	}
+	if ($signed !== null) {
+		print '<div class="small" data-sepa-document="1">'.img_picto('', 'pdf').' '.$langs->trans('VereineSepaSignedDocument', dol_print_date($signed['moment'], 'day'));
+		print ' <span class="opacitymedium">'.dol_escape_htmltag($signed['name']).'</span></div>';
+	}
+	print '</div>';
+	$link = $mandate !== null ? $sepaStore->signatureUrl($mandate['rib_id']) : '';
+	if (!VereineSepaStore::signatureOffered()) {
+		print '<div class="opacitymedium small" data-sepa-online="off">'.$langs->trans('VereineSepaOnlineOff').'</div>';
+	} elseif ($link !== '') {
+		print '<div class="paddingtop" data-sepa-online="on"><input type="text" class="minwidth300" readonly value="'.dol_escape_htmltag($link).'"> ';
+		print '<a href="'.$link.'" target="_blank" rel="noopener noreferrer">'.$langs->trans('VereineSepaOnlineOpen').'</a></div>';
+		if ($canExit) {
+			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereinesepa" name="vereinesepainvite" class="paddingtop">';
+			print '<input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="sepainvite">';
+			print '<input type="hidden" name="payer" value="'.$payerId.'">';
+			print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineSepaInvite')).'">';
+			print ' <span class="opacitymedium small">'.$langs->trans('VereineSepaInviteHelp').'</span></form>';
+		}
+	} elseif ($mandate === null) {
+		print '<div class="opacitymedium small">'.$langs->trans('VereineSepaNoMandate').'</div>';
+	}
 }
 print '<br>';
 
