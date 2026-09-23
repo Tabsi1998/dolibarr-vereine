@@ -26,6 +26,7 @@ was ein Verein einstellen sollte. Die Seite erkennt an den Daten, was schon erle
 | Unterschriften | wer welches Dokument unterschreibt; ID Austria, siehe [ID-AUSTRIA.md](ID-AUSTRIA.md) |
 | Einwilligungen | Zwecke und Texte, zum Beispiel für Fotos |
 | Mitgliedsantrag | welche Felder der Antrag hat, auch eigene Felder |
+| Kanäle und Konten | Discord, Twitch, YouTube & Co. des Vereins für die Website; welche Konten der Antrag und die App abfragen |
 | Spendenmeldung | Art der Einrichtung, Finanzamtsnummern, Zugang zum Stammzahlenregister |
 | Externe Identitäten, API, Webhooks | Website und Apps, siehe [Externe Anwendungen](#externe-anwendungen) |
 | Datenschutz | was über ehemalige Mitglieder wie lange bleibt, siehe [Löschen nach dem Austritt](#löschen-nach-dem-austritt) |

@@ -134,6 +134,14 @@ class VereineDisclosure
 		$sections['exits'] = $this->rows("SELECT reason, notice_day, last_day, status, date_done as done FROM ".MAIN_DB_PREFIX."vereine_member_exit WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY rowid");
 		// Bindings of apps and websites: who, what for and since when; never a secret.
 		$sections['identities'] = $this->rows("SELECT client, capabilities, linked_at, revoked_at FROM ".MAIN_DB_PREFIX."vereine_identity WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY rowid");
+		// Accounts at Discord, Twitch and the like, with the confirmation of an application (#233).
+		require_once __DIR__.'/vereinesocial.class.php';
+		$sections['accounts'] = array();
+		foreach ((new VereineSocial($this->db))->accounts($member) as $account) {
+			if ($account['handle'] !== '') {
+				$sections['accounts'][] = array('network' => $account['label'], 'handle' => $account['handle'], 'confirmed_at' => $account['confirmed_at'], 'client' => $account['client']);
+			}
+		}
 		$sections['invitations'] = $this->rows("SELECT m.title as meeting, m.meeting_day as day, i.channel, i.voting, i.sent_at FROM ".MAIN_DB_PREFIX."vereine_meeting_invitation as i INNER JOIN ".MAIN_DB_PREFIX."vereine_meeting as m ON m.rowid = i.fk_meeting WHERE i.entity = ".$entity." AND i.fk_adherent = ".$id." ORDER BY m.meeting_day");
 		$sections['attendance'] = $this->rows("SELECT m.title as meeting, m.meeting_day as day, a.state FROM ".MAIN_DB_PREFIX."vereine_meeting_attendance as a INNER JOIN ".MAIN_DB_PREFIX."vereine_meeting as m ON m.rowid = a.fk_meeting WHERE a.entity = ".$entity." AND a.fk_adherent = ".$id." ORDER BY m.meeting_day");
 		// Only the member's own votes of circular resolutions, which are not secret.
@@ -306,6 +314,6 @@ class VereineDisclosure
 			'given', 'source', 'proof_at', 'external_id', 'received', 'decided_on', 'reason', 'function', 'notice_day', 'last_day', 'done', 'client',
 			'capabilities', 'linked_at', 'revoked_at', 'meeting', 'channel', 'voting', 'sent_at', 'state', 'resolution', 'choice', 'voted_at', 'document',
 			'signed_at', 'way', 'task', 'deadline', 'done_at', 'duty', 'year', 'due_on', 'done_on', 'shift', 'hours', 'activity', 'kind', 'paid_on', 'refnr',
-			'vbpk', 'action', 'invoice', 'level'), true);
+			'vbpk', 'action', 'invoice', 'level', 'network', 'handle', 'confirmed_at'), true);
 	}
 }

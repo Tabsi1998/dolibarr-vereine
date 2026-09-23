@@ -54,7 +54,7 @@ class VereineOrganization
 	 * @param array<string,string> $company  Dolibarr company data: name, address, zip, town, country_code, email, phone, url, fiscal_month_start
 	 * @return array<string,mixed>
 	 */
-	public static function build(array $settings, array $company)
+	public static function build(array $settings, array $company, array $channels = array())
 	{
 		$value = static function (array $source, $key) {
 			return isset($source[$key]) ? trim((string) $source[$key]) : '';
@@ -86,6 +86,11 @@ class VereineOrganization
 			'nonprofit' => $value($settings, 'VEREINE_NONPROFIT') === '1',
 			'purpose' => $value($settings, 'VEREINE_PURPOSE'),
 			'fiscal_year_start_month' => ($fiscalMonth >= 1 && $fiscalMonth <= 12) ? $fiscalMonth : 1,
+			// Discord, Twitch, YouTube and the like where the association appears, in its order (#233).
+			'channels' => array_values(array_map(function ($channel) {
+				return array('network' => (string) $channel['network'], 'network_label' => (string) $channel['network_label'], 'label' => (string) $channel['label'],
+					'target' => (string) $channel['target'], 'url' => (string) $channel['url'], 'stream' => (bool) $channel['stream'], 'live_url' => (string) $channel['live_url']);
+			}, $channels)),
 		);
 	}
 
@@ -157,6 +162,10 @@ class VereineOrganization
 	 */
 	public static function load($mysoc)
 	{
+		global $db;
+
+		require_once __DIR__.'/vereinesocial.class.php';
+
 		$settings = array();
 		foreach (self::SETTINGS as $name) {
 			$settings[$name] = getDolGlobalString($name);
@@ -172,6 +181,6 @@ class VereineOrganization
 			'url' => (string) $mysoc->url,
 			'fiscal_month_start' => getDolGlobalString('SOCIETE_FISCAL_MONTH_START'),
 		);
-		return self::build($settings, $company);
+		return self::build($settings, $company, (new VereineSocial($db))->channels(true));
 	}
 }

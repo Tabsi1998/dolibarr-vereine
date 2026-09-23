@@ -1328,6 +1328,218 @@
           ]
         ]
       }
+    },
+    "/vereine/me/accounts": {
+      "get": {
+        "operationId": "getMyAccounts",
+        "summary": "Eigene Konten der gebundenen Person bei Discord, Twitch & Co.",
+        "description": "Die Netzwerke, die der Verein abfragt, und jedes weitere, bei dem die Person einen Namen hat. Braucht die Fähigkeit accounts.",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Konten der Person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MyAccount"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      }
+    },
+    "/vereine/me/accounts/{network}": {
+      "put": {
+        "operationId": "putMyAccount",
+        "summary": "Konto der gebundenen Person setzen und bestätigen",
+        "description": "Setzt den Namen bei einem Netzwerk. Mit confirmed true sagt die Anwendung, dass sie das Konto beim Netzwerk geprüft hat, etwa nach dem Login mit Discord. Braucht die Fähigkeit accounts.",
+        "parameters": [
+          {
+            "name": "network",
+            "in": "path",
+            "required": true,
+            "description": "Kürzel des Netzwerks, wie GET /vereine/me/accounts es nennt",
+            "schema": {
+              "type": "string",
+              "maxLength": 32
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "handle"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "confirmed": {
+                    "type": "boolean"
+                  },
+                  "external_id": {
+                    "type": "string",
+                    "maxLength": 128
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Konten der Person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MyAccount"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      },
+      "delete": {
+        "operationId": "deleteMyAccount",
+        "summary": "Konto der gebundenen Person lösen",
+        "description": "Entfernt den Namen und seine Bestätigung. Braucht die Fähigkeit accounts.",
+        "parameters": [
+          {
+            "name": "network",
+            "in": "path",
+            "required": true,
+            "description": "Kürzel des Netzwerks, wie GET /vereine/me/accounts es nennt",
+            "schema": {
+              "type": "string",
+              "maxLength": 32
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Konten der Person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MyAccount"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      }
     }
   },
   "components": {
@@ -1438,7 +1650,8 @@
           "founded",
           "nonprofit",
           "purpose",
-          "fiscal_year_start_month"
+          "fiscal_year_start_month",
+          "channels"
         ],
         "properties": {
           "country_profile": {
@@ -1539,6 +1752,13 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 12
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Channel"
+            },
+            "description": "Öffentliche Kanäle des Vereins in seiner Reihenfolge; mehrere je Netzwerk möglich"
           }
         }
       },
@@ -2773,7 +2993,8 @@
                 "consents",
                 "applications",
                 "documents",
-                "votes"
+                "votes",
+                "accounts"
               ]
             }
           },
@@ -2816,7 +3037,8 @@
         "type": "object",
         "required": [
           "required",
-          "fields"
+          "fields",
+          "accounts"
         ],
         "properties": {
           "required": {
@@ -2894,6 +3116,125 @@
                 }
               }
             }
+          },
+          "accounts": {
+            "type": "array",
+            "description": "Konten, die der Antrag abfragt; senden als accounts: {netzwerk: name}",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "network",
+                "label",
+                "required"
+              ],
+              "properties": {
+                "network": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Channel": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "network",
+          "network_label",
+          "label",
+          "target",
+          "url",
+          "stream",
+          "live_url"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "description": "Kürzel aus Dolibarrs Wörterbuch Soziale Netzwerke, z. B. twitch, youtube, discord"
+          },
+          "network_label": {
+            "type": "string",
+            "description": "Name des Netzwerks"
+          },
+          "label": {
+            "type": "string",
+            "description": "Bezeichnung des Vereins, z. B. Hauptstream"
+          },
+          "target": {
+            "type": "string",
+            "description": "Adresse oder Name, wie der Verein ihn eingetragen hat"
+          },
+          "url": {
+            "type": "string",
+            "description": "Adresse des Kanals; leer, wenn aus einem Namen keine zu bauen ist"
+          },
+          "stream": {
+            "type": "boolean",
+            "description": "Auf diesem Kanal wird gestreamt"
+          },
+          "live_url": {
+            "type": "string",
+            "description": "Seite des Livestreams (Twitch, YouTube, Kick); sonst leer"
+          }
+        }
+      },
+      "MyAccount": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "network",
+          "label",
+          "asked",
+          "handle",
+          "url",
+          "confirmed",
+          "confirmed_at",
+          "client"
+        ],
+        "properties": {
+          "network": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "Name des Netzwerks"
+          },
+          "asked": {
+            "type": "string",
+            "enum": [
+              "",
+              "optional",
+              "required"
+            ],
+            "description": "Ob der Verein dieses Konto abfragt"
+          },
+          "handle": {
+            "type": "string",
+            "description": "Name bei diesem Netzwerk; leer, wenn keiner angegeben ist"
+          },
+          "url": {
+            "type": "string",
+            "description": "Adresse des Kontos; leer, wenn keine zu bauen ist"
+          },
+          "confirmed": {
+            "type": "boolean",
+            "description": "Eine Anwendung hat genau diesen Namen beim Netzwerk bestätigt"
+          },
+          "confirmed_at": {
+            "type": "string",
+            "description": "Zeitpunkt der Bestätigung (RFC 3339); leer ohne Bestätigung"
+          },
+          "client": {
+            "type": "string",
+            "description": "Anwendung, die bestätigt hat; leer ohne Bestätigung"
           }
         }
       }

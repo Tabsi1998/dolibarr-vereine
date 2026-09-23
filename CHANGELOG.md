@@ -60,6 +60,16 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Mahnwesen ändern den Stand, doppelte und verspätete Meldungen werden erkannt, und eine vor der
   Meldung bezahlte Rechnung kommt gar nicht erst zum Vorstand. Niemand wird automatisch
   ausgeschlossen; *Zu erledigen* zählt die Rückstände ohne Namen. Ohne Mahnwesen ändert sich nichts.
+- **Kanäle und Konten** (#233): Unter *Einrichtung > Vereine > Kanäle und Konten* trägt der Verein
+  seine Kanäle ein, also Discord, Twitch, YouTube und alles andere, auch mehrere je Netzwerk (etwa
+  zwei Streams), in eigener Reihenfolge. Bei Twitch, YouTube und Kick baut das Modul die Adresse und
+  den Link zum Livestream selbst. Die öffentlichen Kanäle stehen in der Übersicht und in
+  `GET /vereine/organization`. Für Mitglieder wählt der Verein, welche Konten der Antrag (Web und PDF)
+  abfragt, optional oder als Pflicht. Die Netzwerke kommen aus Dolibarrs Wörterbuch; was fehlt, etwa
+  Steam oder eine Riot ID, legt er dazu an. Die Namen landen auf der Mitgliedskarte. Eine angebundene
+  App verknüpft Konten über `me/accounts` und bestätigt sie nach dem Login beim Netzwerk. Der Reiter
+  *Verein* zeigt „bestätigt“, bis jemand den Namen ändert. Auskunft und Löschen berücksichtigen die
+  Konten.
 - **Handbuch** (#10): [docs/HANDBUCH.md](docs/HANDBUCH.md) erklärt, wer im Verein welche Rechte
   braucht, wie das Vereinsjahr im Modul abläuft, und bringt einen Textbaustein für das Verzeichnis der
   Verarbeitungstätigkeiten, dazu Auskunft, Löschen, externe Anwendungen und was nach einer

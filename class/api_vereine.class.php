@@ -302,8 +302,12 @@ class Vereine extends DolibarrApi
 		$form = VereineMemberForm::settings(array_keys($specs));
 		$fields = VereineApplicationFormRules::checkWeb($checked['application'], $form['required'], $form['extra'],
 			isset($request_data['fields']) ? $request_data['fields'] : array(), $specs);
-		$checked['errors'] = array_values(array_unique(array_merge($checked['errors'], $fields['errors'])));
+		// Accounts at Discord, Twitch and the like the form asks for (#233).
+		dol_include_once('/vereine/class/vereinesocial.class.php');
+		$accounts = VereineSocialRules::fromApplication(isset($request_data['accounts']) ? $request_data['accounts'] : null, (new VereineSocial($this->db))->asked());
+		$checked['errors'] = array_values(array_unique(array_merge($checked['errors'], $fields['errors'], $accounts['errors'])));
 		$checked['application']['fields'] = $fields['fields'];
+		$checked['application']['accounts'] = $accounts['accounts'];
 		if ($checked['errors']) {
 			throw new RestException(400, implode('; ', $checked['errors']));
 		}
@@ -803,7 +807,90 @@ class Vereine extends DolibarrApi
 				$required[] = $field;
 			}
 		}
-		return array('required' => $required, 'fields' => $fields);
+		// The accounts the form asks for, each with its network's name (#233).
+		dol_include_once('/vereine/class/vereinesocial.class.php');
+		$social = new VereineSocial($this->db);
+		$networks = $social->networks();
+		$accounts = array();
+		foreach ($social->asked() as $network => $how) {
+			$accounts[] = array('network' => $network, 'label' => $networks[$network]['label'], 'required' => $how === VereineSocialRules::REQUIRED);
+		}
+		return array('required' => $required, 'fields' => $fields, 'accounts' => $accounts);
+	}
+
+	/**
+	 * The accounts of the person the caller acts for
+	 *
+	 * The networks the association asks for and every other the member has, each with the name, where it
+	 * leads and whether an application confirmed it. Only with the ability accounts for this binding.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET me/accounts
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyAccounts($subject = '')
+	{
+		$this->checkAccess();
+		$member = $this->boundMember((string) $subject);
+		return (new VereineSocial($this->db))->accounts($member);
+	}
+
+	/**
+	 * Link an account of the person the caller acts for
+	 *
+	 * Sets the person's name at one network. With confirmed true the application says it checked the
+	 * account at the network, for example after the person signed in with Discord or Twitch; the
+	 * association sees it as confirmed until the name changes. Without, an older confirmation is gone.
+	 *
+	 * @param string $network      Network, as GET me/accounts names it
+	 * @param string $subject      How the application calls the person
+	 * @param array  $request_data handle, confirmed and external_id as documented in docs/API.md
+	 * @return array The person's accounts afterwards
+	 *
+	 * @url PUT me/accounts/{network}
+	 *
+	 * @throws RestException 400 subject missing, unknown network or no name of an account
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 500 The account could not be saved
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function putMyAccount($network, $subject = '', $request_data = null)
+	{
+		$this->checkAccess();
+		$member = $this->boundMember((string) $subject);
+		$data = is_array($request_data) ? $request_data : array();
+		if (!isset($data['handle']) || (string) $data['handle'] === '') {
+			throw new RestException(400, 'handle is needed; to take an account away, use DELETE');
+		}
+		return $this->setAccount($member, (string) $network, $data['handle'], !empty($data['confirmed']), isset($data['external_id']) ? (string) $data['external_id'] : '');
+	}
+
+	/**
+	 * Take an account of the person the caller acts for away
+	 *
+	 * Removes the name and its confirmation, for example when the person unlinked it in the application.
+	 *
+	 * @param string $network Network, as GET me/accounts names it
+	 * @param string $subject How the application calls the person
+	 * @return array The person's accounts afterwards
+	 *
+	 * @url DELETE me/accounts/{network}
+	 *
+	 * @throws RestException 400 subject missing or unknown network
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 500 The account could not be removed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function deleteMyAccount($network, $subject = '')
+	{
+		$this->checkAccess();
+		$member = $this->boundMember((string) $subject);
+		return $this->setAccount($member, (string) $network, '', false, '');
 	}
 
 	/**
@@ -999,6 +1086,55 @@ class Vereine extends DolibarrApi
 			throw new RestException(403, 'Not allowed: '.$result['reason']);
 		}
 		return $result['identity'];
+	}
+
+	/**
+	 * The member the caller acts for, when the binding may handle the person's accounts.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return Adherent
+	 *
+	 * @throws RestException
+	 */
+	private function boundMember($subject)
+	{
+		$this->checkIdentityRight();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		dol_include_once('/vereine/class/vereinesocial.class.php');
+		require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_ACCOUNTS, 'member');
+		$member = new Adherent($this->db);
+		if ($member->fetch((int) $identity['member_id']) <= 0) {
+			throw new RestException(403, 'Not allowed: the binding has no member');
+		}
+		return $member;
+	}
+
+	/**
+	 * Set or remove an account of a bound member and answer with the accounts afterwards.
+	 *
+	 * @param Adherent $member     Member
+	 * @param string   $network    Network
+	 * @param mixed    $handle     Name, empty to remove
+	 * @param bool     $confirmed  Whether the application checked it at the network
+	 * @param string   $externalId The network's own id of the account
+	 * @return array
+	 *
+	 * @throws RestException
+	 */
+	private function setAccount($member, $network, $handle, $confirmed, $externalId)
+	{
+		$social = new VereineSocial($this->db);
+		$result = $social->setAccount($member, $network, is_scalar($handle) ? (string) $handle : "\x00", $confirmed, $externalId,
+			(string) DolibarrApiAccess::$user->login, DolibarrApiAccess::$user);
+		if ($result === 0) {
+			throw new RestException(400, implode('; ', $social->errors));
+		}
+		if ($result < 0) {
+			dol_syslog(__METHOD__.' '.$social->error, LOG_ERR);
+			throw new RestException(500, 'The account could not be saved');
+		}
+		return $social->accounts($member);
 	}
 
 	/**

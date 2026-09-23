@@ -132,6 +132,10 @@ class VereineLog
 	const ERASURE_HOLD = 'erasure_hold';
 	const ERASURE_SETUP = 'erasure_setup';
 	const ARREAR = 'arrear';
+	const CHANNEL = 'channel';
+	const SOCIAL_SETUP = 'social_setup';
+	const SOCIAL_LINKED = 'social_linked';
+	const SOCIAL_UNLINKED = 'social_unlinked';
 
 	/**
 	 * Append one entry.

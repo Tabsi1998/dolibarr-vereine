@@ -390,6 +390,11 @@ function vereineAdminPrepareHead()
 	$head[$h][2] = 'application';
 	$h++;
 
+	$head[$h][0] = dol_buildpath('/vereine/admin/social.php', 1);
+	$head[$h][1] = $langs->trans('VereineSetupTabSocial');
+	$head[$h][2] = 'social';
+	$h++;
+
 	$head[$h][0] = dol_buildpath('/vereine/admin/donations.php', 1);
 	$head[$h][1] = $langs->trans('VereineSetupTabDonations');
 	$head[$h][2] = 'donations';
