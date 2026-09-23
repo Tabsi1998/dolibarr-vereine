@@ -108,7 +108,7 @@ class VereineVolunteers
 	{
 		global $conf;
 
-		$sql = "SELECT v.rowid, v.fk_adherent, v.duty_day, v.activity, v.kind, v.amount, v.hours, v.fk_shift_entry, v.paid_on, v.note,";
+		$sql = "SELECT v.rowid, v.fk_adherent, v.duty_day, v.activity, v.kind, v.amount, v.hours, v.fk_shift_entry, v.fk_payout, v.paid_on, v.note,";
 		$sql .= " d.firstname, d.lastname FROM ".MAIN_DB_PREFIX."vereine_volunteer as v";
 		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."adherent as d ON d.rowid = v.fk_adherent";
 		$sql .= " WHERE v.entity = ".((int) $conf->entity)." AND v.duty_day >= '".sprintf('%04d', (int) $year)."-01-01'";
@@ -129,6 +129,7 @@ class VereineVolunteers
 				'name' => trim((string) $obj->firstname.' '.(string) $obj->lastname), 'day' => substr((string) $obj->duty_day, 0, 10),
 				'activity' => (string) $obj->activity, 'kind' => (string) $obj->kind, 'amount' => round((float) $obj->amount, 2),
 				'hours' => $obj->hours === null ? 0.0 : (float) $obj->hours, 'shift_entry_id' => (int) $obj->fk_shift_entry,
+				'payout_id' => (int) $obj->fk_payout,
 				'paid_on' => $obj->paid_on ? substr((string) $obj->paid_on, 0, 10) : '', 'note' => (string) $obj->note);
 		}
 		$this->db->free($resql);
@@ -201,7 +202,7 @@ class VereineVolunteers
 	{
 		global $conf;
 
-		$sql = "SELECT fk_adherent, duty_day, paid_on FROM ".MAIN_DB_PREFIX."vereine_volunteer WHERE rowid = ".((int) $id);
+		$sql = "SELECT fk_adherent, duty_day, paid_on, fk_payout FROM ".MAIN_DB_PREFIX."vereine_volunteer WHERE rowid = ".((int) $id);
 		$sql .= " AND entity = ".((int) $conf->entity);
 		$resql = $this->db->query($sql);
 		$obj = $resql ? $this->db->fetch_object($resql) : null;
@@ -211,6 +212,11 @@ class VereineVolunteers
 		}
 		if ($obj->paid_on) {
 			$this->errors[] = 'VereineVolunteerErrorPaid';
+			return 0;
+		}
+		// An entry on a list that is being signed stays; take the list back first.
+		if ((int) $obj->fk_payout > 0) {
+			$this->errors[] = 'VereineVolunteerErrorOnPayout';
 			return 0;
 		}
 		if (!$this->db->query("DELETE FROM ".MAIN_DB_PREFIX."vereine_volunteer WHERE rowid = ".((int) $id)." AND entity = ".((int) $conf->entity))) {

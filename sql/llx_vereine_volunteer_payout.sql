@@ -13,24 +13,17 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- One day of voluntary work with its allowance (#7): who, when, what, which kind of allowance and how
--- much. What goes over a limit is kept like everything else; the rules mark it, they do not refuse it.
-CREATE TABLE llx_vereine_volunteer(
+-- A payout of volunteer allowances (#7): the list that is signed first and paid afterwards. It is paid
+-- through Dolibarr's various payments, one per person, so the bank and the books know it as usual.
+CREATE TABLE llx_vereine_volunteer_payout(
 	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
 	entity INTEGER DEFAULT 1 NOT NULL,
-	fk_adherent INTEGER NOT NULL,
-	duty_day DATE NOT NULL,
-	activity VARCHAR(255) NOT NULL,
-	kind VARCHAR(16) NOT NULL,
-	amount DOUBLE(24,8) NOT NULL,
-	hours DECIMAL(6,2),
-	-- The confirmed helper shift it comes from (#23), so one shift is paid once.
-	fk_shift_entry INTEGER,
-	-- The payout it went out with, and Dolibarr's various payment that booked it (#7).
-	fk_payout INTEGER,
-	fk_payment INTEGER,
+	label VARCHAR(128) NOT NULL,
+	total DOUBLE(24,8) DEFAULT 0 NOT NULL,
+	status VARCHAR(16) DEFAULT 'draft' NOT NULL,
+	fk_bank_account INTEGER,
+	fk_payment_mode INTEGER,
 	paid_on DATE,
-	note TEXT,
 	datec DATETIME NOT NULL,
 	tms TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 	fk_user_modif INTEGER

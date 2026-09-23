@@ -187,6 +187,48 @@ class VereineVolunteerRules
 	}
 
 	/**
+	 * What each person of a payout gets: one line per person, the days added up.
+	 *
+	 * @param array<int,array<string,mixed>> $entries Entries, keys member_id, name, amount
+	 * @return array<int,array{member_id:int,name:string,amount:float}> By name
+	 */
+	public static function payoutLines(array $entries)
+	{
+		$lines = array();
+		foreach ($entries as $entry) {
+			$id = (int) $entry['member_id'];
+			if (!isset($lines[$id])) {
+				$lines[$id] = array('member_id' => $id, 'name' => (string) $entry['name'], 'amount' => 0.0);
+			}
+			$lines[$id]['amount'] += (float) $entry['amount'];
+		}
+		foreach ($lines as $id => $line) {
+			$lines[$id]['amount'] = round($line['amount'], 2);
+		}
+		usort($lines, function ($left, $right) {
+			return strcmp($left['name'], $right['name']);
+		});
+		return $lines;
+	}
+
+	/**
+	 * Whether a payout may go out: the association does not want money matters signed, or everybody
+	 * who has to sign did, on the very list that is paid.
+	 *
+	 * @param bool   $wanted  Whether money matters are signed at all
+	 * @param string $status  State of the signature run, empty when there is none
+	 * @param bool   $changed Whether the list changed after it was signed
+	 * @return bool
+	 */
+	public static function payable($wanted, $status, $changed)
+	{
+		if (!$wanted) {
+			return true;
+		}
+		return (string) $status === 'done' && !$changed;
+	}
+
+	/**
 	 * The calendar year per person: what was paid of each kind, on how many days, and what went over.
 	 *
 	 * This is what the reports at the end of February are prepared from.

@@ -68,6 +68,7 @@ if (!$res) {
  */
 
 require_once __DIR__.'/class/vereinevolunteers.class.php';
+require_once __DIR__.'/class/vereinevolunteerpayouts.class.php';
 require_once __DIR__.'/class/vereineduties.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
@@ -84,6 +85,8 @@ if (!$user->hasRight('vereine', 'association', 'read')) {
 }
 
 $volunteers = new VereineVolunteers($db);
+$payouts = new VereineVolunteerPayouts($db);
+$signatures = new VereineSignatures($db);
 $action = GETPOST('action', 'aZ09');
 $today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
 $thisYear = (int) substr($today, 0, 4);
@@ -126,6 +129,73 @@ if ($action === 'record' && $mayRecord) {
 		exit;
 	}
 	setEventMessages($result < 0 ? $volunteers->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $volunteers->errors), 'errors');
+} elseif ($action === 'payout' && $mayRecord) {
+	// A list of what goes out; it is signed before anything is paid.
+	$created = $payouts->create(GETPOST('entries', 'array'), $year, $user, $langs);
+	if ($created > 0) {
+		setEventMessages($langs->trans('VereineVolunteerPayoutCreated'), null, 'mesgs');
+		header('Location: '.$self.'#vereinevolunteerpayouts');
+		exit;
+	}
+	setEventMessages($created < 0 ? $payouts->error : null, $created < 0 ? null : array_map(array($langs, 'trans'), $payouts->errors), 'errors');
+} elseif ($action === 'paypayout' && $mayRecord) {
+	$made = $payouts->pay(GETPOSTINT('payout'), GETPOSTINT('bank_account'), GETPOSTINT('payment_mode'), GETPOST('pay_day', 'alphanohtml'), $user);
+	if ($made > 0) {
+		setEventMessages($langs->trans('VereineVolunteerPayoutPaid', $made), null, 'mesgs');
+		header('Location: '.$self.'#vereinevolunteerpayouts');
+		exit;
+	}
+	setEventMessages($made < 0 ? $payouts->error : null, $made < 0 ? null : array_map(array($langs, 'trans'), $payouts->errors), 'errors');
+} elseif ($action === 'cancelpayout' && $mayRecord) {
+	$result = $payouts->cancel(GETPOSTINT('payout'), $user);
+	if ($result > 0) {
+		header('Location: '.$self.'#vereinevolunteerpayouts');
+		exit;
+	}
+	setEventMessages($result < 0 ? $payouts->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $payouts->errors), 'errors');
+} elseif ($action === 'startsign' && $mayRecord) {
+	$objectId = GETPOSTINT('object');
+	$result = $payouts->fetch($objectId) !== null ? $signatures->start(VereineSignatureRules::KIND_MONEY, $objectId,
+		VereineVolunteerPayouts::path($objectId), $today, $user) : 0;
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineSignatureStarted'), null, 'mesgs');
+		header('Location: '.$self.'#vereinevolunteerpayouts');
+		exit;
+	}
+	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $signatures->errors), 'errors');
+} elseif ($action === 'sign' || $action === 'signscan') {
+	// Who may sign is the signature run's business: it knows who is asked to sign this list.
+	$run = $signatures->fetch(GETPOSTINT('signature'));
+	$ok = $run !== null && $run['kind'] === VereineSignatureRules::KIND_MONEY && $payouts->fetch($run['object_id']) !== null;
+	if ($action === 'sign') {
+		$result = $ok ? $signatures->sign($run['id'], GETPOST('password', 'password'), VereineVolunteerPayouts::path($run['object_id']), $user, $langs) : 0;
+	} else {
+		$upload = isset($_FILES['scan_file']) && is_array($_FILES['scan_file']) ? $_FILES['scan_file'] : array();
+		$result = $ok && $mayRecord ? $signatures->uploadScan($run['id'], $upload, $user, $langs) : 0;
+	}
+	if ($result > 0) {
+		setEventMessages($langs->trans($action === 'sign' ? 'VereineSignatureSigned' : 'VereineSignatureScanStored'), null, 'mesgs');
+		header('Location: '.$self.'#vereinevolunteerpayouts');
+		exit;
+	}
+	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null
+		: array_map(array($langs, 'trans'), $ok ? $signatures->errors : array('VereineSignatureErrorNotOpen')), 'errors');
+} elseif (in_array($action, array('payoutpdf', 'sheet', 'signed'), true)) {
+	if ($action === 'payoutpdf') {
+		$file = $payouts->fetch(GETPOSTINT('payout')) !== null ? VereineVolunteerPayouts::path(GETPOSTINT('payout')) : '';
+	} else {
+		$run = $signatures->fetch(GETPOSTINT('signature'));
+		$money = $run !== null && $run['kind'] === VereineSignatureRules::KIND_MONEY && $payouts->fetch($run['object_id']) !== null;
+		$file = !$money ? '' : ($action === 'sheet' ? VereineSignatures::sheetPath($run['id']) : VereineSignatures::scanPath($run));
+	}
+	if ($file === '' || !is_file($file)) {
+		accessforbidden();
+	}
+	header('Content-Type: application/pdf');
+	header('Content-Disposition: attachment; filename="'.basename($file).'"');
+	header('Content-Length: '.filesize($file));
+	readfile($file);
+	exit;
 } elseif ($action === 'csv') {
 	header('Content-Type: text/csv; charset=utf-8');
 	header('Content-Disposition: attachment; filename="freiwilligenpauschale-'.$year.'.csv"');
@@ -230,7 +300,11 @@ foreach ($entries as $entry) {
 		print '<span class="badge badge-status badge-status8">'.$langs->trans('VereineVolunteerFinding_'.$finding).'</span> ';
 	}
 	print '</td><td class="right">';
-	if ($mayRecord && $entry['paid_on'] === '') {
+	if ($entry['paid_on'] !== '') {
+		print '<span class="badge badge-status badge-status6" data-volunteer-paid="'.((int) $entry['id']).'">'.$langs->trans('VereineVolunteerPaidOn', vereineFormatDay($entry['paid_on'])).'</span>';
+	} elseif ($entry['payout_id'] > 0) {
+		print '<span class="opacitymedium small">'.$langs->trans('VereineVolunteerOnPayout').'</span>';
+	} elseif ($mayRecord) {
 		print '<form method="POST" action="'.$self.'" class="inline-block"><input type="hidden" name="token" value="'.newToken().'">';
 		print '<input type="hidden" name="action" value="remove"><input type="hidden" name="entry" value="'.((int) $entry['id']).'">';
 		print '<input type="submit" class="button small butActionDelete" value="'.dol_escape_htmltag($langs->trans('Delete')).'"></form>';
@@ -239,6 +313,67 @@ foreach ($entries as $entry) {
 }
 if (!$entries) {
 	print '<tr class="oddeven"><td colspan="7"><span class="opacitymedium">'.$langs->trans('VereineVolunteerNone').'</span></td></tr>';
+}
+print '</table></div>';
+
+// Paying: a list, signed like every money matter, then paid through Dolibarr (#7).
+$openIds = $payouts->openEntryIds($year);
+$allPayouts = $payouts->all();
+print load_fiche_titre($langs->trans('VereineVolunteerPayouts'), '', 'fa-money-bill-wave', 0, 'vereinevolunteerpayouts');
+print '<div class="info" data-volunteer-payout-howto="1">'.$langs->trans('VereineVolunteerPayoutHowTo').'</div>';
+if ($mayRecord && $openIds) {
+	print '<form method="POST" name="vereinevolunteerpayout" action="'.$self.'#vereinevolunteerpayouts">';
+	print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="payout">';
+	print '<div class="paddingbottom" data-volunteer-payable="'.count($openIds).'">';
+	foreach ($entries as $entry) {
+		if (in_array($entry['id'], $openIds, true)) {
+			print '<label class="paddingright"><input type="checkbox" name="entries[]" value="'.((int) $entry['id']).'" checked> ';
+			print dol_escape_htmltag($entry['name']).' · '.vereineFormatDay($entry['day']).' · '.$money($entry['amount']).'</label><br>';
+		}
+	}
+	print '</div><input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineVolunteerPayoutCreate')).'"></form>';
+}
+$choices = $payouts->bankChoices();
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-volunteer-payouts="'.count($allPayouts).'">';
+foreach ($allPayouts as $payout) {
+	$payable = $payout['status'] === VereineVolunteerPayouts::STATUS_DRAFT && $payouts->payable($payout['id']);
+	print '<tr class="oddeven" data-volunteer-payout="'.((int) $payout['id']).'" data-volunteer-payout-status="'.$payout['status'].'"';
+	print ' data-volunteer-payout-payable="'.($payable ? 1 : 0).'"><td>';
+	print '<strong>'.dol_escape_htmltag($payout['label']).'</strong> · '.$money($payout['total']);
+	if (is_file(VereineVolunteerPayouts::path($payout['id']))) {
+		print ' · <a href="'.$self.'&amp;action=payoutpdf&amp;payout='.((int) $payout['id']).'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineVolunteerPayoutPdf').'</a>';
+	}
+	print '<br><span class="badge badge-status '.($payout['status'] === VereineVolunteerPayouts::STATUS_PAID ? 'badge-status6' : 'badge-status1').'">';
+	print $langs->trans('VereineVolunteerPayoutStatus_'.$payout['status']).($payout['paid_on'] !== '' ? ' '.vereineFormatDay($payout['paid_on']) : '').'</span>';
+	print '</td><td>';
+	vereineSignatureBlock($signatures, VereineSignatureRules::KIND_MONEY, $payout['id'], VereineVolunteerPayouts::path($payout['id']), $mayRecord, 'vereinevolunteerpayouts');
+	print '</td><td class="right">';
+	if ($mayRecord && $payable) {
+		print '<form method="POST" name="vereinevolunteerpay'.((int) $payout['id']).'" action="'.$self.'#vereinevolunteerpayouts">';
+		print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="paypayout">';
+		print '<input type="hidden" name="payout" value="'.((int) $payout['id']).'">';
+		print '<select name="bank_account" class="flat">';
+		foreach ($choices['accounts'] as $accountId => $label) {
+			print '<option value="'.$accountId.'">'.dol_escape_htmltag($label).'</option>';
+		}
+		print '</select> <select name="payment_mode" class="flat">';
+		foreach ($choices['modes'] as $modeId => $label) {
+			print '<option value="'.$modeId.'">'.dol_escape_htmltag($label).'</option>';
+		}
+		print '</select> <input type="date" name="pay_day" value="'.dol_escape_htmltag($today).'">';
+		print ' <input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineVolunteerPayoutPay')).'"></form>';
+	} elseif ($payout['status'] === VereineVolunteerPayouts::STATUS_DRAFT) {
+		print '<span class="opacitymedium small" data-volunteer-waits-signature="1">'.$langs->trans('VereineVolunteerPayoutWaits').'</span>';
+	}
+	if ($mayRecord && $payout['status'] === VereineVolunteerPayouts::STATUS_DRAFT) {
+		print '<form method="POST" action="'.$self.'#vereinevolunteerpayouts" class="inline-block paddingtop"><input type="hidden" name="token" value="'.newToken().'">';
+		print '<input type="hidden" name="action" value="cancelpayout"><input type="hidden" name="payout" value="'.((int) $payout['id']).'">';
+		print '<input type="submit" class="button small butActionDelete" value="'.dol_escape_htmltag($langs->trans('VereineVolunteerPayoutCancel')).'"></form>';
+	}
+	print '</td></tr>';
+}
+if (!$allPayouts) {
+	print '<tr class="oddeven"><td colspan="3"><span class="opacitymedium">'.$langs->trans('VereineVolunteerPayoutNone').'</span></td></tr>';
 }
 print '</table></div>';
 
