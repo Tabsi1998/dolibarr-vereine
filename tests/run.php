@@ -1847,6 +1847,7 @@ $prefixes = array(
 	'VereineApplicationFillable_' => VereinePdf::FILLABLE_KINDS,
 	'VereineApplicationStatus_' => VereineApplicationRules::STATUSES,
 	'VereineSepaStatus_' => array(VereineSepa::MANDATE_VALID, VereineSepa::MANDATE_EXPIRED, VereineSepa::MANDATE_NONE),
+	'VereineTodoState_' => array('overdue', 'due', 'open'),
 	'VereinePh_' => array_map(function ($key) {
 		return substr(VereinePlaceholders::describedBy($key), strlen('VereinePh_'));
 	}, array_merge(VereinePlaceholders::KEYS['association'], VereinePlaceholders::KEYS['member'], VereinePlaceholders::KEYS['meeting'], VereinePlaceholders::KEYS['circular'])),

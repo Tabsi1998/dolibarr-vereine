@@ -222,5 +222,40 @@ print '<div class="opacitymedium small">'.$langs->trans('VereineNoTaxAdvice').'<
 
 print '</div></div>';
 
+
+// What is to do: deadlines, elections, applications and what waits for the person looking (#124).
+dol_include_once('/vereine/class/vereinewaiting.class.php');
+$waiting = new VereineWaiting($db);
+$todoToday = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
+$todo = $waiting->forAssociation($todoToday);
+$mine = (int) $user->fk_member > 0 ? $waiting->forMember((int) $user->fk_member) : array('votes' => array(), 'signatures' => array(), 'tasks' => array());
+print '<br>'.load_fiche_titre($langs->trans('VereineTodoTitle'), '', 'fa-tasks', 0, 'vereinetodo');
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-todo="'.(count($todo) + count($mine['votes']) + count($mine['signatures']) + count($mine['tasks'])).'">';
+foreach ($mine['signatures'] as $entry) {
+	print '<tr class="oddeven" data-todo-kind="signature" data-todo-state="mine"><td class="nowraponall">'.img_picto('', 'fa-pen-nib').' '.$langs->trans('VereineTodoSignature').'</td>';
+	print '<td><a href="'.$entry['url'].'">'.dol_escape_htmltag($entry['title']).'</a></td><td class="right"></td></tr>';
+}
+foreach ($mine['votes'] as $entry) {
+	print '<tr class="oddeven" data-todo-kind="vote" data-todo-state="mine"><td class="nowraponall">'.img_picto('', 'fa-vote-yea').' '.$langs->trans('VereineTodoVote').'</td>';
+	print '<td><a href="'.$entry['url'].'">'.dol_escape_htmltag($entry['title']).'</a></td>';
+	print '<td class="right nowraponall">'.($entry['deadline'] !== '' ? vereineFormatDay($entry['deadline']) : '').'</td></tr>';
+}
+foreach ($mine['tasks'] as $entry) {
+	print '<tr class="oddeven" data-todo-kind="task" data-todo-state="mine"><td class="nowraponall">'.img_picto('', 'fa-check').' '.$langs->trans('VereineTodoTask').'</td>';
+	print '<td><a href="'.$entry['url'].'">'.dol_escape_htmltag($entry['title']).'</a></td>';
+	print '<td class="right nowraponall">'.($entry['deadline'] !== '' ? vereineFormatDay($entry['deadline']) : '').'</td></tr>';
+}
+foreach ($todo as $entry) {
+	$badge = $entry['state'] === 'overdue' ? 'badge-status8' : ($entry['state'] === 'due' ? 'badge-status1' : 'badge-status4');
+	print '<tr class="oddeven" data-todo-kind="'.$entry['kind'].'" data-todo-state="'.$entry['state'].'">';
+	print '<td class="nowraponall"><span class="badge badge-status '.$badge.'">'.$langs->trans('VereineTodoState_'.$entry['state']).'</span></td>';
+	print '<td><a href="'.$entry['url'].'">'.dol_escape_htmltag($entry['title']).'</a></td>';
+	print '<td class="right nowraponall">'.($entry['deadline'] !== '' ? vereineFormatDay($entry['deadline']) : '').'</td></tr>';
+}
+if (!$todo && !$mine['votes'] && !$mine['signatures'] && !$mine['tasks']) {
+	print '<tr class="oddeven"><td colspan="3"><span class="opacitymedium" data-todo-none="1">'.$langs->trans('VereineTodoNone').'</span></td></tr>';
+}
+print '</table></div>';
+
 llxFooter();
 $db->close();

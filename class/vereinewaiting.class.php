@@ -25,6 +25,8 @@
  * Dolibarr user is linked to.
  */
 
+require_once __DIR__.'/vereineaccountrules.class.php';
+
 /**
  * The open things of one member.
  */
@@ -47,6 +49,103 @@ class VereineWaiting
 
 	/**
 	 * What waits for a member, each with a text and a link.
+	 *
+	 * @param int $memberId Member the Dolibarr user is linked to
+	 * @return array{votes:array<int,array<string,mixed>>,signatures:array<int,array<string,mixed>>,tasks:array<int,array<string,mixed>>}
+	 */
+	/**
+	 * What the association has to do, whoever looks: deadlines, elections and applications that wait
+	 * for a decision (#124). Everything comes from data the module already keeps.
+	 *
+	 * @param string $today Today, YYYY-MM-DD
+	 * @return array<int,array{kind:string,state:string,title:string,deadline:string,url:string}> Most urgent first
+	 */
+	public function forAssociation($today)
+	{
+		global $conf, $langs;
+
+		require_once __DIR__.'/vereinefunctions.class.php';
+		require_once __DIR__.'/vereineauditrules.class.php';
+		require_once __DIR__.'/vereineaccount.class.php';
+		require_once __DIR__.'/vereineapplicationrules.class.php';
+		require_once __DIR__.'/vereinestatutes.class.php';
+		require_once dirname(__DIR__).'/lib/vereine.lib.php';
+
+		$langs->load('vereine@vereine');
+		$entity = (int) $conf->entity;
+		$open = array();
+		$add = function ($kind, $deadline, $title, $url) use (&$open, $today) {
+			$open[] = array('kind' => $kind, 'state' => $deadline !== '' && $deadline < $today ? 'overdue' : ($deadline !== '' ? 'due' : 'open'),
+				'title' => $title, 'deadline' => $deadline, 'url' => $url);
+		};
+
+		// Reports of new representatives to the authority (§ 14 (2) VerG).
+		$sql = "SELECT r.rowid, r.deadline, d.firstname, d.lastname FROM ".MAIN_DB_PREFIX."vereine_function_report as r";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."vereine_function_term as t ON t.rowid = r.fk_term";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."adherent as d ON d.rowid = t.fk_adherent";
+		$sql .= " WHERE r.entity = ".$entity." AND r.reported_on IS NULL ORDER BY r.deadline";
+		$resql = $this->db->query($sql);
+		while ($resql && ($obj = $this->db->fetch_object($resql))) {
+			$add('report', substr((string) $obj->deadline, 0, 10), $langs->transnoentities('VereineTodoReport', trim($obj->firstname.' '.$obj->lastname)),
+				dol_buildpath('/vereine/functions.php', 1));
+		}
+
+		// The income and expenditure account of the last year that ended, and its audit.
+		$year = VereineAuditRules::lastEnded($today, getDolGlobalInt('SOCIETE_FISCAL_MONTH_START', 1));
+		$period = VereineAccount::period($year);
+		$account = $this->db->query("SELECT made_on FROM ".MAIN_DB_PREFIX."vereine_account WHERE entity = ".$entity." AND fiscal_year = ".((int) $year));
+		$made = $account ? $this->db->fetch_object($account) : null;
+		$madeOn = $made && $made->made_on ? substr((string) $made->made_on, 0, 10) : '';
+		if ($madeOn === '') {
+			$add('account', VereineAccountRules::deadline($period['end']), $langs->transnoentities('VereineTodoAccount', $period['label']),
+				dol_buildpath('/vereine/account.php', 1).'?year='.((int) $year));
+		} else {
+			$audit = $this->db->query("SELECT audit_day FROM ".MAIN_DB_PREFIX."vereine_audit WHERE entity = ".$entity." AND fiscal_year = ".((int) $year));
+			$done = $audit ? $this->db->fetch_object($audit) : null;
+			if (!$done || !$done->audit_day) {
+				$add('audit', VereineAuditRules::deadline($madeOn), $langs->transnoentities('VereineTodoAudit', $period['label']),
+					dol_buildpath('/vereine/audit.php', 1).'?year='.((int) $year));
+			}
+		}
+
+		// Functions without a holder and terms of office that are over: an election is due.
+		require_once __DIR__.'/vereinefunctionrules.class.php';
+		$store = new VereineFunctions($this->db);
+		$functions = $store->fetchAll(true);
+		$labels = array();
+		foreach ($functions as $function) {
+			$labels[(int) $function['id']] = (string) $function['label'];
+		}
+		foreach (VereineFunctionRules::check($functions, $store->terms(), $today)['problems'] as $problem) {
+			if (!in_array($problem['kind'], array(VereineFunctionRules::PROBLEM_MISSING, VereineFunctionRules::PROBLEM_ELECTION_DUE), true)) {
+				continue;
+			}
+			$label = isset($labels[(int) $problem['function_id']]) ? $labels[(int) $problem['function_id']] : '';
+			$add('election', '', $langs->transnoentities($problem['kind'] === VereineFunctionRules::PROBLEM_MISSING
+				? 'VereineTodoFunctionMissing' : 'VereineTodoElection', $label), dol_buildpath('/vereine/functions.php', 1));
+		}
+
+		// Applications that wait for a decision of the association.
+		$sql = "SELECT COUNT(*) as waiting FROM ".MAIN_DB_PREFIX."vereine_application WHERE entity = ".$entity;
+		$sql .= " AND status IN ('".VereineApplicationRules::RECEIVED."', '".VereineApplicationRules::IN_REVIEW."')";
+		$resql = $this->db->query($sql);
+		$obj = $resql ? $this->db->fetch_object($resql) : null;
+		if ($obj && (int) $obj->waiting > 0) {
+			$add('application', '', $langs->transnoentities('VereineTodoApplications', (int) $obj->waiting), dol_buildpath('/vereine/applications.php', 1));
+		}
+
+		usort($open, function ($left, $right) {
+			$order = array('overdue' => 0, 'due' => 1, 'open' => 2);
+			if ($order[$left['state']] !== $order[$right['state']]) {
+				return $order[$left['state']] - $order[$right['state']];
+			}
+			return strcmp($left['deadline'] !== '' ? $left['deadline'] : '9999', $right['deadline'] !== '' ? $right['deadline'] : '9999');
+		});
+		return $open;
+	}
+
+	/**
+	 * What waits for one member: votes in circular resolutions, signatures and tasks.
 	 *
 	 * @param int $memberId Member the Dolibarr user is linked to
 	 * @return array{votes:array<int,array<string,mixed>>,signatures:array<int,array<string,mixed>>,tasks:array<int,array<string,mixed>>}

@@ -7,6 +7,15 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Neu
+
+- **„Was ist zu tun?“** (#124): Die Vereinsübersicht und die Startseiten-Box zeigen jetzt
+  auf einen Blick, was offen ist – Dokumente, die du unterschreiben musst, offene
+  Umlaufbeschlüsse und Aufgaben, dazu die Fristen des Vereins: Behördenmeldung nach einer
+  Bestellung, Einnahmen-Ausgaben-Rechnung, Rechnungsprüfung, nicht besetzte Funktionen,
+  abgelaufene Funktionsperioden und Beitrittsanträge, die auf eine Entscheidung warten.
+  Überfälliges steht oben und rot, jeder Punkt führt direkt zur richtigen Stelle.
+
 ## [0.7.1-beta] - 2026-09-23
 
 Mitgliedsantrag und Einwilligungserklärung: aufgeräumtes Layout, ein Ja/Nein statt zwei, und
