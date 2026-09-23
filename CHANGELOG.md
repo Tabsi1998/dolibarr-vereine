@@ -9,6 +9,19 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **Generalversammlung Schritt für Schritt** (#127): Ein neuer Menüpunkt *Mitglieder > Verein >
+  Generalversammlung* zeigt den ganzen Ablauf einer Versammlung, rückwärts vom Termin gerechnet.
+  17 Schritte in drei Phasen – vorher, in der Sitzung, nachher – jeder mit Stand und Frist.
+- **Vorher**: Einnahmen-Ausgaben-Rechnung (§ 21 Abs. 1 VerG), Rechnungsprüfung (Abs. 2),
+  unterschriebener Prüfbericht, fällige Wahlen aus den Funktionsperioden, vollständige
+  Tagesordnung, fristgerechte Einladung laut Statuten, Frist für Anträge, Wahlnachweise.
+- **Nachher**: Protokoll und Unterschriften, Beschlüsse als PDF, Meldung neuer
+  vertretungsbefugter Personen binnen vier Wochen (§ 14 Abs. 2 VerG), Anzeige einer
+  Statutenänderung, Benutzergruppen der neuen Funktionen, Protokoll an die Mitglieder.
+- **Nichts wird doppelt geführt**: Jeder Schritt liest nur, was das Modul ohnehin weiß, und
+  verlinkt auf die Seite, wo er erledigt wird. Eine zu spät versandte Einladung bleibt ein
+  Mangel dieser Versammlung – das Modul redet sie nicht schön.
+- Was offen ist, steht auch in **„Was ist zu tun?"** auf der Vereinsübersicht.
 - **Helferdienste je Veranstaltung** (#23): Schichten mit Tag, Uhrzeit, Anzahl der Plätze und
   zuständiger Funktion. Mitglieder fragen selbst an, der Vorstand teilt ein – und nach der
   Veranstaltung wird bestätigt, wer wirklich da war, samt Stunden. **Erst das ist eine

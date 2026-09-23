@@ -62,6 +62,7 @@ require_once $root.'/class/vereineauditrules.class.php';
 require_once $root.'/class/vereinedutyrules.class.php';
 require_once $root.'/class/vereineeventrules.class.php';
 require_once $root.'/class/vereineshiftrules.class.php';
+require_once $root.'/class/vereineassemblyrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1797,6 +1798,10 @@ $prefixes = array(
 	'VereineEventRegistration_' => VereineEventRules::REGISTRATIONS,
 	'VereineShiftStatus_' => VereineShiftRules::STATUSES,
 	'VereineShiftTo_' => array('confirmed', 'done', 'cancelled'),
+	'VereineAssemblyPhase_' => VereineAssemblyRules::PHASES,
+	'VereineAssemblyState_' => array('done', 'overdue', 'now', 'later', 'none'),
+	'VereineAssemblyStep_' => array_keys(VereineAssemblyRules::STEPS),
+	'VereineAssemblyHelp_' => array_keys(VereineAssemblyRules::STEPS),
 	'VereineDutyBasis_' => VereineDutyRules::BASES,
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
@@ -2172,6 +2177,82 @@ same('VereineShiftErrorStatus', VereineShiftRules::refuse($shift, $entries, arra
 same(4.0, VereineShiftRules::hours($shift), 'ten to two is four hours');
 same(1.5, VereineShiftRules::hours(array('start_time' => '18:00', 'end_time' => '19:30')), 'half hours are counted');
 same(0.0, VereineShiftRules::hours(array('start_time' => '', 'end_time' => '')), 'without times there are no hours');
+
+// ------------------------------------------------------------- the way through a general assembly (#127)
+
+$assemblyFacts = array(
+	'day' => '2026-11-15', 'held' => false,
+	'account_made' => '', 'account_deadline' => '2026-05-31',
+	'audit_day' => '', 'audit_deadline' => '', 'audit_report_signed' => false,
+	'elections_due' => 2, 'agenda_missing' => 1,
+	'invited_on' => '', 'invite_deadline' => '2026-11-01', 'motions_deadline' => '2026-11-08',
+	'sheets' => 0, 'elections_on_agenda' => 1, 'attendance' => 0, 'votes' => 0,
+	'minutes_final' => false, 'minutes_signed' => false, 'minutes_sent' => false,
+	'resolutions' => 0, 'resolution_pdfs' => 0,
+	'authority_open' => 0, 'authority_deadline' => '',
+	'statute_change' => false, 'statute_letter' => false, 'group_changes' => 0,
+);
+$byCode = function (array $steps) {
+	$map = array();
+	foreach ($steps as $step) {
+		$map[$step['code']] = $step;
+	}
+	return $map;
+};
+
+// Thirty days before the day: the invitation still has time, the account is late, a vote is due.
+$steps = $byCode(VereineAssemblyRules::check($assemblyFacts, '2026-10-16'));
+same(17, count($steps), 'every step of the way appears exactly once');
+same('overdue', $steps['account']['state'], 'the account was due end of May and is not made');
+same('2026-11-01', $steps['invitation']['deadline'], 'the invitation deadline comes from the statutes');
+same('now', $steps['invitation']['state'], 'two weeks before the deadline the invitation is what to do now');
+same('now', $steps['elections']['state'], 'two functions have to be elected');
+same('now', $steps['agenda']['state'], 'a required item is missing from the agenda');
+same('later', $steps['attendance']['state'], 'the attendance is nothing to do before the day');
+same('later', $steps['minutes']['state'], 'the minutes wait for the assembly');
+same('none', $steps['statutes']['state'], 'without a change of the statutes there is nothing to report');
+same('none', $steps['resolutions']['state'], 'without resolutions there is nothing to put into a PDF');
+
+// The day the invitation deadline has passed and nothing went out.
+$steps = $byCode(VereineAssemblyRules::check($assemblyFacts, '2026-11-02'));
+same('overdue', $steps['invitation']['state'], 'the invitation deadline passed without an invitation');
+$late = array('invited_on' => '2026-11-03') + $assemblyFacts;
+same('overdue', $byCode(VereineAssemblyRules::check($late, '2026-11-04'))['invitation']['state'],
+	'an invitation sent too late stays a fault of this assembly');
+$intime = array('invited_on' => '2026-10-20') + $assemblyFacts;
+same('done', $byCode(VereineAssemblyRules::check($intime, '2026-11-02'))['invitation']['state'], 'an invitation in time is done');
+
+// After the assembly: the election reached the register, the authority has to hear of it.
+$after = array(
+	'held' => true, 'account_made' => '2026-05-20', 'audit_day' => '2026-06-10', 'audit_report_signed' => true,
+	'elections_due' => 0, 'agenda_missing' => 0, 'invited_on' => '2026-10-20',
+	'sheets' => 1, 'attendance' => 13, 'votes' => 4, 'minutes_final' => true, 'minutes_signed' => false,
+	'resolutions' => 4, 'resolution_pdfs' => 2, 'authority_open' => 1, 'authority_deadline' => '2026-12-13',
+	'statute_change' => true, 'statute_letter' => false, 'group_changes' => 2,
+) + $assemblyFacts;
+$steps = $byCode(VereineAssemblyRules::check($after, '2026-11-16'));
+same('done', $steps['account']['state'], 'the account is made');
+same('now', $steps['authority']['state'], 'the new representatives have to reach the authority');
+same('2026-12-13', $steps['authority']['deadline'], 'the four weeks of the report are the deadline');
+same('now', $steps['statutes']['state'], 'a change of the statutes has to be reported');
+same('now', $steps['resolutions']['state'], 'two of four resolutions still lack their PDF');
+same('2/4', $steps['resolutions']['detail'], 'the step says how many PDFs are there');
+same('overdue', $byCode(VereineAssemblyRules::check($after, '2026-12-14'))['authority']['state'],
+	'after four weeks the report to the authority is late');
+
+// How far the assembly has come, and what is open.
+$progress = VereineAssemblyRules::progress(VereineAssemblyRules::check($after, '2026-11-16'));
+expect($progress['total'] === 17 && $progress['done'] === 11 && $progress['percent'] === 65,
+	'eleven of seventeen steps done: '.$progress['done'].'/'.$progress['total'].', '.$progress['percent'].' %');
+$open = VereineAssemblyRules::open(VereineAssemblyRules::check($after, '2026-12-14'));
+expect($open && $open[0]['code'] === 'authority', 'what is late stands first: '.($open ? $open[0]['code'] : 'nothing'));
+
+// Every step belongs to a phase, and the phases come in their order.
+$phases = array();
+foreach (VereineAssemblyRules::check($assemblyFacts, '2026-10-16') as $step) {
+	$phases[$step['phase']] = true;
+}
+same(VereineAssemblyRules::PHASES, array_keys($phases), 'the steps come in the order of the phases');
 
 // ------------------------------------------------------------------- result
 

@@ -126,6 +126,19 @@ class VereineWaiting
 				? 'VereineTodoFunctionMissing' : 'VereineTodoElection', $label), dol_buildpath('/vereine/functions.php', 1));
 		}
 
+		// What the next general assembly still needs, in the order of its way (#127).
+		require_once __DIR__.'/vereineassembly.class.php';
+		$assembly = new VereineAssembly($this->db);
+		$next = $assembly->current($today);
+		if ($next !== null) {
+			$steps = $assembly->steps($next, $today);
+			foreach (VereineAssemblyRules::open($steps['steps']) as $step) {
+				$add('assembly', $step['deadline'], $langs->transnoentities('VereineTodoAssembly',
+					$langs->transnoentitiesnoconv('VereineAssemblyStep_'.$step['code']), vereineFormatDay($next['day'])),
+					dol_buildpath('/vereine/assembly.php', 1).'?id='.((int) $next['id']));
+			}
+		}
+
 		// Applications that wait for a decision of the association.
 		$sql = "SELECT COUNT(*) as waiting FROM ".MAIN_DB_PREFIX."vereine_application WHERE entity = ".$entity;
 		$sql .= " AND status IN ('".VereineApplicationRules::RECEIVED."', '".VereineApplicationRules::IN_REVIEW."')";
