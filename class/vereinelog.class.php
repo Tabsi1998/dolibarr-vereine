@@ -99,6 +99,11 @@ class VereineLog
 	const DUTY_PLANNED = 'duty_planned';
 	const DUTY_HANDOVER = 'duty_handover';
 	const DUTY_DONE = 'duty_done';
+	const EVENT_TEMPLATE = 'event_template';
+	const EVENT_CREATED = 'event_created';
+	const EVENT_TASK = 'event_task';
+	const EVENT_TASK_DONE = 'event_task_done';
+	const EVENT_STATUS = 'event_status';
 
 	/**
 	 * Append one entry.

@@ -60,6 +60,7 @@ require_once $root.'/class/vereinemailtemplates.class.php';
 require_once $root.'/class/vereinetaxcheckrules.class.php';
 require_once $root.'/class/vereineauditrules.class.php';
 require_once $root.'/class/vereinedutyrules.class.php';
+require_once $root.'/class/vereineeventrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1787,8 +1788,12 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
+	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
+	'VereineEventPhase_' => VereineEventRules::PHASES,
+	'VereineEventStatus_' => VereineEventRules::STATUSES,
+	'VereineEventRegistration_' => VereineEventRules::REGISTRATIONS,
 	'VereineDutyBasis_' => VereineDutyRules::BASES,
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
@@ -2051,6 +2056,73 @@ same(array('VereineDutyErrorDay'), VereineDutyRules::validate(array('code' => 'b
 	'a thirteenth month is refused');
 same(array('VereineDutyErrorLabel', 'VereineDutyErrorEveryYears'), VereineDutyRules::validate(array('code' => 'bericht', 'label' => '',
 	'basis' => VereineDutyRules::BASIS_EVENT, 'every_years' => '0', 'lead_days' => '30')), 'everything wrong is named at once');
+
+// ------------------------------------------------------------- events from templates (#23)
+
+$eventTemplates = array();
+foreach (VereineEventRules::standard() as $template) {
+	$eventTemplates[$template['code']] = $template;
+}
+expect(isset($eventTemplates['turnier'], $eventTemplates['vereinsfest']), 'a tournament and a club festival are suggested');
+$phases = array();
+foreach ($eventTemplates['turnier']['tasks'] as $point) {
+	$phases[$point['phase']] = true;
+}
+same(array('before', 'during', 'after'), array_keys($phases), 'the tournament has points in every phase, in their order');
+$announce = array();
+foreach ($eventTemplates['vereinsfest']['tasks'] as $point) {
+	if (strpos($point['label'], 'Gemeinde anzeigen') !== false) {
+		$announce = $point;
+	}
+}
+expect($announce && $announce['offset_days'] === -56 && $announce['source'] !== '',
+	'the notice to the municipality is due eight weeks ahead and names where it comes from');
+
+// The day of a point follows the day of the event.
+same('2026-11-07', VereineEventRules::due('2026-12-05', -28), 'four weeks before 5 December is 7 November');
+same('2026-12-05', VereineEventRules::due('2026-12-05', 0), 'a point of the day itself falls on the day');
+same('2026-12-19', VereineEventRules::due('2026-12-05', 14), 'two weeks afterwards crosses no year');
+same('2027-01-02', VereineEventRules::due('2026-12-19', 14), 'two weeks afterwards may cross the year');
+same('', VereineEventRules::due('nicht ein tag', -7), 'without a day there is no deadline');
+
+// How a point stands.
+same('overdue', VereineEventRules::state('2026-11-07', '2026-11-08', false), 'a day that passed is overdue');
+same('due', VereineEventRules::state('2026-11-07', '2026-11-01', false), 'within a fortnight the deadline runs');
+same('ahead', VereineEventRules::state('2026-11-07', '2026-10-01', false), 'far ahead there is still time');
+same('done', VereineEventRules::state('2026-11-07', '2026-11-08', true), 'what is done is done, however late');
+
+// How far an event has come.
+$points = array(
+	array('due_on' => '2026-11-01', 'done_on' => '2026-10-30'),
+	array('due_on' => '2026-11-07', 'done_on' => ''),
+	array('due_on' => '2026-12-05', 'done_on' => ''),
+	array('due_on' => '2026-12-19', 'done_on' => ''),
+);
+same(array('total' => 4, 'done' => 1, 'overdue' => 1, 'percent' => 25), VereineEventRules::progress($points, '2026-11-10'),
+	'one of four done, one overdue, a quarter of the way');
+same(array('total' => 0, 'done' => 0, 'overdue' => 0, 'percent' => 0), VereineEventRules::progress(array(), '2026-11-10'),
+	'an empty checklist is not a division by zero');
+
+// What the templates refuse.
+same(array(), VereineEventRules::validateTemplate(array('code' => 'lanparty', 'label' => 'LAN-Party')), 'a sensible own template is fine');
+same(array('VereineEventErrorCode'), VereineEventRules::validateTemplate(array('code' => 'LAN Party', 'label' => 'LAN-Party')),
+	'a code with a blank is refused');
+same(array(), VereineEventRules::validateTask(array('phase' => 'before', 'label' => 'Halle buchen', 'offset_days' => '-30')),
+	'a sensible point is fine');
+same(array('VereineEventErrorPhase'), VereineEventRules::validateTask(array('phase' => 'irgendwann', 'label' => 'Halle buchen', 'offset_days' => '-30')),
+	'a phase that does not exist is refused');
+same(array('VereineEventErrorOffset'), VereineEventRules::validateTask(array('phase' => 'before', 'label' => 'Halle buchen', 'offset_days' => '-400')),
+	'more than a year ahead is refused');
+
+// What an event refuses: exactly one place leads the sign-up, and an external one says who it is.
+$eventData = array('label' => 'Winter-Cup', 'event_day' => '2026-12-05', 'end_day' => '', 'registration' => 'dolibarr');
+same(array(), VereineEventRules::validateEvent($eventData), 'an event led by Dolibarr is fine');
+same(array('VereineEventErrorExternalRef'), VereineEventRules::validateEvent(array('registration' => 'external') + $eventData),
+	'an external sign-up without its reference is refused');
+same(array(), VereineEventRules::validateEvent(array('registration' => 'external', 'external_ref' => 'lionsapp-42') + $eventData),
+	'an external sign-up with its reference is fine');
+same(array('VereineEventErrorEndDay'), VereineEventRules::validateEvent(array('end_day' => '2026-12-04') + $eventData),
+	'an end before the beginning is refused');
 
 // ------------------------------------------------------------------- result
 
