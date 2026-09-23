@@ -9,6 +9,19 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **Mitgliedsantrag: eine Liste für PDF und Web** (#216): Was der gedruckte Antrag als Pflicht
+  markiert, verlangt jetzt auch ein Antrag über die Website – und umgekehrt. Vor- und Nachname
+  sind immer Pflicht und stehen auch so im PDF; die **Anschrift (Straße, PLZ, Ort) ist ab Werk
+  Pflicht**, weil das Mitgliederverzeichnis sie braucht. Eine bewusst gespeicherte Auswahl bleibt.
+- **Eigene Felder auf dem Antrag**: Zusatzfelder am Mitglied, etwa ein *Gamertag*, lassen sich
+  unter *Einrichtung > Vereine > Mitgliedsantrag* auf den Antrag stellen – freiwillig oder als
+  Pflicht. Sie stehen im PDF, werden beim Web-Antrag geprüft und landen direkt am Mitglied. Eine
+  Website fragt über `GET /vereine/applicationform`, welche Felder es gibt.
+- **Der Beitrag in echten Zahlen**: Statt „Im Eintrittsjahr wird der Beitrag halbjahresweise
+  anteilig verrechnet" – was sich wie „jedes halbe Jahr" las – steht jetzt z. B. „Eintritt
+  1. Januar bis 30. Juni: 75,00 € · Eintritt 1. Juli bis 31. Dezember: 37,50 € · ab dem folgenden
+  Beitragsjahr: 75,00 €". Gerechnet mit derselben Regel wie der Beitragslauf.
+- **„1 Monat"** statt „1 Monate" in allen Kündigungstexten.
 - **Persönlicher Zugriff über die API** (#153): Eine App, eine Website oder Dolibarrs Portal kann
   jetzt für **eine bestimmte Person** handeln – aber nur über eine Bindung, die der Verein
   ausdrücklich erzeugt hat. Neue Endpunkte `POST /vereine/identities/claim`,

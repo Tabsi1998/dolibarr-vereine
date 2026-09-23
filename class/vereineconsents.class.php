@@ -522,6 +522,10 @@ class VereineConsents
 			$member->login = $application['email'];
 		}
 		$member->note_private = $application['note'];
+		// The association's own fields, such as a gamer tag; only the ones the form asks for got this far (#216).
+		foreach (isset($application['fields']) && is_array($application['fields']) ? $application['fields'] : array() as $code => $value) {
+			$member->array_options['options_'.$code] = (string) $value;
+		}
 
 		$this->db->begin();
 		if ($member->create($user) <= 0) {

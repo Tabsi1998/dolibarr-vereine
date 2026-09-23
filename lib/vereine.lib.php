@@ -125,7 +125,10 @@ function vereineExitRuleText(array $rule)
 
 	$months = array(1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April', 5 => 'May', 6 => 'June', 7 => 'July', 8 => 'August',
 		9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December');
-	return $langs->trans('VereineExitRuleText_'.$rule['at'], $rule['months'], $langs->trans($months[$rule['start_month']]));
+	// "1 Monat", "3 Monate": the number decides the word, not the text around it (#216).
+	$span = (int) $rule['months'] === 1 ? $langs->transnoentitiesnoconv('VereineMonthsOne')
+		: $langs->transnoentities('VereineMonthsMany', (int) $rule['months']);
+	return $langs->trans('VereineExitRuleText_'.$rule['at'], $span, $langs->trans($months[$rule['start_month']]));
 }
 
 /**

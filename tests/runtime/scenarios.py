@@ -1863,7 +1863,8 @@ def applications(stack: Stack) -> str:
     type_id = int(stack.value("SELECT rowid FROM llx_adherent_type WHERE libelle = 'Beitragspflichtig'"))
     email = "amelie.antrag@runtime-verein.test"
     body = {"external_id": "web-2026-0042", "firstname": "Amelie", "lastname": "Antrag", "email": email, "birth": "2001-04-30",
-            "zip": "6020", "town": "Innsbruck", "country_code": "AT", "type_id": type_id, "note": "Ich spiele gern Schach.",
+            "address": "Teststraße 1", "zip": "6020", "town": "Innsbruck", "country_code": "AT", "type_id": type_id,
+            "note": "Ich spiele gern Schach.",
             "consents": [{"code": "fotos", "version": 2, "granted_at": "2026-09-22T19:30:00+02:00", "form": "Beitrittsformular",
                           "reference": "web-2026-0042"}]}
     status, _ = stack.api("vereine/applications", key, method="POST", data=body)
@@ -2848,6 +2849,82 @@ def identities(stack: Stack) -> str:
             "what it was")
 
 
+def applicationfields(stack: Stack) -> str:
+    """The fields of an application: one list for the PDF and the web, own fields with their switch, the fee in real numbers (#216)."""
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/application.php"
+    key = stack.notes["applicationkey"]
+    stack.php_fixture("memberextra")
+
+    # The name stands there, ticked and fixed; the own field can be put on the form as required.
+    page = page_ok(browser.get(setup), "application setup")
+    expect('data-always="lastname"' in page.text and 'data-always="firstname"' in page.text,
+           "the setup does not show that the name is always required")
+    expect('data-extra-field="gamertag" data-extra-state="off"' in page.text, "the own field of the member is not offered")
+    form = page.form(name="vereineapplicationsetup")
+    fields = [(name, value) for name, value in form.values() if name != "required[]" and not name.startswith("extra[")]
+    fields += [("required[]", field) for field in ("address", "zip", "town", "email")]
+    fields += [("extra[gamertag]", "required")]
+    page_ok(browser.post(form.url(), fields), "put the gamer tag on the form as required")
+    expect(stack.const("VEREINE_APPLICATION_EXTRAFIELDS") == '{"gamertag":true}',
+           f"the own field was not stored: {stack.const('VEREINE_APPLICATION_EXTRAFIELDS')}")
+    expect(stack.const("VEREINE_APPLICATION_REQUIRED") == "address,zip,town,email",
+           f"the required fields were not stored: {stack.const('VEREINE_APPLICATION_REQUIRED')}")
+
+    # A website asks what the form asks for.
+    status, form_fields = stack.api("vereine/applicationform", key)
+    expect(status == 200 and form_fields["required"] == ["lastname", "firstname", "address", "zip", "town", "email"],
+           f"the web is told other required fields: HTTP {status}, {form_fields}")
+    expect(form_fields["fields"] == [{"code": "gamertag", "label": "Gamertag", "required": True}],
+           f"the web is told other own fields: {form_fields['fields']}")
+
+    # The web follows the same list as the PDF.
+    type_id = int(stack.value("SELECT rowid FROM llx_adherent_type WHERE libelle = 'Beitragspflichtig'"))
+    body = {"firstname": "Gina", "lastname": "Gamer", "email": "gina.gamer@runtime-verein.test", "type_id": type_id,
+            "birth": "1999-05-05", "address": "Teststraße 3", "zip": "6410", "town": "Telfs"}
+    for change, message in (({}, "fields.gamertag is required"), ({"address": ""}, "address is required"),
+                            ({"fields": {"gamertag": "Gina", "passwort": "x"}}, "fields.passwort is not a field")):
+        status, answer = stack.api("vereine/applications", key, method="POST", data={**body, **change})
+        expect(status == 400 and message in json.dumps(answer), f"application with {change or 'no gamer tag'}: HTTP {status} {answer}")
+    expect(stack.value("SELECT COUNT(*) FROM llx_adherent WHERE lastname = 'Gamer'") == "0", "a refused application created a member")
+    status, created = stack.api("vereine/applications", key, method="POST", data={**body, "fields": {"gamertag": " GinaTheLion "}})
+    expect(status == 200, f"a complete application was refused: HTTP {status} {created}")
+    member = int(stack.value("SELECT rowid FROM llx_adherent WHERE lastname = 'Gamer'"))
+    tag = stack.value(f"SELECT gamertag FROM llx_adherent_extrafields WHERE fk_object = {member}")
+    expect(tag == "GinaTheLion", f"the gamer tag did not reach the member: {tag!r}")
+
+    # The printed form: the own field, the fee in real numbers, one month in the singular.
+    before = stack.sql(f"SELECT amount, duration FROM llx_adherent_type WHERE rowid = {type_id}")[0]
+    extra_row = stack.sql(f"SELECT vereine_fee_start_month, vereine_fee_proration FROM llx_adherent_type_extrafields WHERE fk_object = {type_id}")
+    stack.sql(f"UPDATE llx_adherent_type SET amount = 75, duration = '1y' WHERE rowid = {type_id}")
+    if extra_row:
+        stack.sql(f"UPDATE llx_adherent_type_extrafields SET vereine_fee_start_month = 1, vereine_fee_proration = 'half_year' WHERE fk_object = {type_id}")
+    else:
+        stack.sql(f"INSERT INTO llx_adherent_type_extrafields (fk_object, vereine_fee_start_month, vereine_fee_proration) VALUES ({type_id}, 1, 'half_year')")
+    try:
+        page = page_ok(browser.get("/custom/vereine/application.php"), "the blank applications")
+        page_ok(browser.submit(page.form(name=f"vereineapplication{type_id}")), "build the blank application")
+        blank = pdf_text(stack, "vereine/application")
+        expect("Gamertag" in blank, "the own field is missing on the printed form")
+        expect("halbjahresweise" not in blank, "the form still says the fee is prorated by half-year in words")
+        expect("75,00" in blank and "37,50" in blank, "the form does not name the fee of both half-years")
+        expect("1 Monate" not in blank, "the form still says 1 Monate")
+    finally:
+        stack.sql(f"UPDATE llx_adherent_type SET amount = {before[0] if before[0] not in ('', 'NULL', None) else 'NULL'},"
+                  f" duration = '{before[1]}' WHERE rowid = {type_id}")
+        if extra_row:
+            month = extra_row[0][0] if extra_row[0][0] not in ("", "NULL", None) else "NULL"
+            proration = f"'{extra_row[0][1]}'" if extra_row[0][1] not in ("", "NULL", None) else "NULL"
+            stack.sql(f"UPDATE llx_adherent_type_extrafields SET vereine_fee_start_month = {month},"
+                      f" vereine_fee_proration = {proration} WHERE fk_object = {type_id}")
+        else:
+            stack.sql(f"DELETE FROM llx_adherent_type_extrafields WHERE fk_object = {type_id}")
+    return ("the name stands fixed and ticked, the gamer tag goes on the form as required; the web is told exactly those fields, "
+            "refuses an application without the gamer tag, without a street or with a field the form does not know, and stores "
+            "the gamer tag at the member; the printed form carries the own field, 75,00 and 37,50 for the two half-years and no "
+            "\"1 Monate\"")
+
+
 def board(stack: Stack) -> str:
     """A website reads the board: names only with consent, or for the board always when it must be disclosed."""
     site = stack.notes["website"]
@@ -3032,7 +3109,8 @@ def statutes(stack: Stack) -> str:
     key = stack.notes["applicationkey"]
     day = datetime.date.fromisoformat(today)
     body = {"firstname": "Ylvie", "lastname": "Jung", "email": "ylvie.jung@runtime-verein.test", "type_id": int(type_id),
-            "birth": (day - datetime.timedelta(days=17 * 365)).isoformat()}
+            "birth": (day - datetime.timedelta(days=17 * 365)).isoformat(),
+            "address": "Teststraße 2", "zip": "6020", "town": "Innsbruck"}
     for change, message in (({}, "the statutes admit members from 18 years of age"), ({"birth": ""}, "birth is required")):
         status, answer = stack.api("vereine/applications", key, method="POST", data={**body, **change})
         expect(status == 400 and message in json.dumps(answer), f"application with {change or 'age 17'}: HTTP {status} {answer}")
@@ -4964,6 +5042,7 @@ SCENARIOS = (
     ("changes", "The change feed: notes without content, a cursor that loses nothing, resync instead of a silent gap", changes, ("assembly",)),
     ("webhooks", "Signed webhooks: https targets only, delivery after the commit, backoff, rotation, reference receiver", webhooks, ("changes",)),
     ("identities", "Verified external identities: two clients, one contract, bindings that open exactly their own object", identities, ("webhooks",)),
+    ("applicationfields", "The fields of an application: one list for PDF and web, own fields, the fee in real numbers", applicationfields, ("identities", "application")),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),

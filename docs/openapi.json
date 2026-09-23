@@ -1292,6 +1292,42 @@
           ]
         ]
       }
+    },
+    "/vereine/applicationform": {
+      "get": {
+        "operationId": "getApplicationForm",
+        "summary": "Welche Felder der Antrag verlangt",
+        "description": "Damit eine Website genau das fragt, was der gedruckte Antrag des Vereins fragt: welche Felder Pflicht sind und welche eigenen Felder der Verein hat. Ein Antrag ohne Pflichtfeld wird mit derselben Liste abgewiesen.",
+        "responses": {
+          "200": {
+            "description": "Die Felder des Antrags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationForm"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:application:write"
+          ]
+        ]
+      }
     }
   },
   "components": {
@@ -2147,6 +2183,14 @@
           "signature": {
             "type": "string",
             "description": "Am Bildschirm gezeichnete Unterschrift als PNG, base64 kodiert, höchstens 200000 Bytes. Sie erscheint im Antrags-PDF. Einfache elektronische Signatur (Art. 25 eIDAS), keine qualifizierte"
+          },
+          "fields": {
+            "type": "object",
+            "description": "Eigene Felder des Vereins, etwa ein Gamertag: Kürzel => Wert. Welche es gibt und welche Pflicht sind, sagt GET /vereine/applicationform; ein Feld, das der Antrag nicht kennt, wird abgewiesen.",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 255
+            }
           }
         }
       },
@@ -2768,6 +2812,54 @@
           },
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "ApplicationForm": {
+        "type": "object",
+        "required": [
+          "required",
+          "fields"
+        ],
+        "properties": {
+          "required": {
+            "type": "array",
+            "description": "Pflichtfelder, die ein Web-Antrag mitschicken muss",
+            "items": {
+              "type": "string",
+              "enum": [
+                "lastname",
+                "firstname",
+                "address",
+                "zip",
+                "town",
+                "birth",
+                "phone",
+                "email"
+              ]
+            }
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "label",
+                "required"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              }
+            }
           }
         }
       }

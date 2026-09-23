@@ -296,6 +296,13 @@ class Vereine extends DolibarrApi
 		$statutes = new VereineStatutes($this->db);
 		$statuteRules = $statutes->rules();
 		$checked = VereineConsentRules::application($request_data, $types, $texts, $statuteRules['min_age'], dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+		// The same fields the printed form asks for: what the PDF marks as required, the web may not leave out (#216).
+		dol_include_once('/vereine/class/vereinememberform.class.php');
+		$form = VereineMemberForm::settings(array_keys(VereineMemberForm::memberExtraFields($this->db)));
+		$fields = VereineApplicationFormRules::checkWeb($checked['application'], $form['required'], $form['extra'],
+			isset($request_data['fields']) ? $request_data['fields'] : array());
+		$checked['errors'] = array_values(array_unique(array_merge($checked['errors'], $fields['errors'])));
+		$checked['application']['fields'] = $fields['fields'];
 		if ($checked['errors']) {
 			throw new RestException(400, implode('; ', $checked['errors']));
 		}
@@ -741,6 +748,45 @@ class Vereine extends DolibarrApi
 		}
 		$changes = new VereineChanges($this->db);
 		return $changes->snapshot((string) $object_type, (int) $after, (int) $limit);
+	}
+
+	/**
+	 * What an application for membership asks for
+	 *
+	 * The fields a website shows in its own form, so it asks for exactly what the printed form of the
+	 * association asks for: which of Dolibarr's fields are required, and which own fields of the
+	 * association there are, with their label and whether they are required. Own fields go into the
+	 * application as fields: {code: value}.
+	 *
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET applicationform
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getApplicationForm()
+	{
+		global $langs;
+
+		$this->checkAccess();
+		if (!DolibarrApiAccess::$user->hasRight('vereine', 'application', 'write')) {
+			throw new RestException(403, 'Not allowed: the user needs the right to send membership applications');
+		}
+		dol_include_once('/vereine/class/vereinememberform.class.php');
+		$labels = VereineMemberForm::memberExtraFields($this->db);
+		$settings = VereineMemberForm::settings(array_keys($labels));
+		$fields = array();
+		foreach ($settings['extra'] as $code => $mustHave) {
+			$fields[] = array('code' => $code, 'label' => (string) $langs->transnoentitiesnoconv($labels[$code]), 'required' => $mustHave);
+		}
+		$required = array();
+		foreach ($settings['required'] as $field) {
+			if (in_array($field, VereineApplicationFormRules::WEB_FIELDS, true)) {
+				$required[] = $field;
+			}
+		}
+		return array('required' => $required, 'fields' => $fields);
 	}
 
 	/**
