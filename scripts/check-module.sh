@@ -35,7 +35,7 @@ php tests/run.php
 
 # The pages a browser opens. Every one loads Dolibarr, refuses when the module
 # is off and checks a right or administrator status before it does anything.
-pages=(vereineindex.php partners.php fees_run.php functions.php authority.php meetings.php resolutions.php circulars.php signature.php taxcheck.php audit.php account.php duties.php events.php assembly.php application.php applications.php consents.php admin/application.php admin/events.php admin/functions.php partner_membership.php member_association.php admin/setup.php admin/partners.php admin/taxprofiles.php admin/fees.php admin/consents.php admin/statutes.php admin/meetings.php admin/signatures.php admin/api.php admin/about.php)
+pages=(vereineindex.php partners.php fees_run.php functions.php authority.php meetings.php resolutions.php circulars.php signature.php taxcheck.php audit.php account.php duties.php events.php assembly.php application.php applications.php consents.php admin/application.php admin/events.php admin/webhooks.php admin/functions.php partner_membership.php member_association.php admin/setup.php admin/partners.php admin/taxprofiles.php admin/fees.php admin/consents.php admin/statutes.php admin/meetings.php admin/signatures.php admin/api.php admin/about.php)
 for page in "${pages[@]}"; do
   grep -qi 'include of main fails' "$page" || fail "$page does not load main.inc.php"
   grep -q "isModEnabled('vereine')" "$page" || fail "$page does not refuse when the module is disabled"
@@ -78,7 +78,7 @@ fi
 # Two files are the exception, below: the signature service for ID Austria, and the signature a website
 # sends with an application, which is only read as an image.
 if module_code | xargs -0 grep -nE '\bbase64_decode[[:space:]]*\(|\b(curl_init|fsockopen|getURLContent)[[:space:]]*\(|file_get_contents[[:space:]]*\([[:space:]]*["'"'"']https?:' \
-  | grep -vE '^\./class/(vereineqes|vereineconsentrules)\.class\.php:'; then
+  | grep -vE '^\./class/(vereineqes|vereineconsentrules|vereinehooks)\.class\.php:'; then
   fail "the module must not decode hidden code or call other servers"
 fi
 # The application of a website may carry a signature drawn on the screen. It is decoded once, must be a
@@ -94,6 +94,14 @@ qes=./class/vereineqes.class.php
 grep -qF "getURLContent(self::settings()['url'].\$path" "$qes" || fail "$qes posts somewhere else than to the signature service that is set up"
 grep -qF "self::sameService(\$settings['url'], (string) \$pdfurl)" "$qes" || fail "$qes fetches a signed document without checking its address"
 [ "$( (grep -o 'base64_decode(' "$qes" || true) | wc -l)" -eq 1 ] || fail "$qes decodes more than the signed document of the service"
+# A webhook goes to the address an administrator entered, over https only, without following a
+# redirect, and the address is checked again right before every attempt.
+hooks=./class/vereinehooks.class.php
+[ "$( (grep -o 'getURLContent(' "$hooks" || true) | wc -l)" -eq 1 ] || fail "$hooks calls other servers in more places than the one reviewed"
+grep -qF "array('https')" "$hooks" || fail "$hooks delivers over something else than https"
+# shellcheck disable=SC2016 # the dollar sign belongs to the PHP code searched for
+grep -qF 'VereineHookRules::checkUrl($target[' "$hooks" || fail "$hooks posts without checking the address again"
+
 if module_code | xargs -0 grep -nE 'DOL_DOCUMENT_ROOT[^;]*(fopen|file_put_contents|mkdir|dol_mkdir)|(fopen|file_put_contents)[[:space:]]*\([^;]*DOL_DOCUMENT_ROOT'; then
   fail "the module writes only below DOL_DATA_ROOT, never into the program folder"
 fi

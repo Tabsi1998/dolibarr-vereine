@@ -41,6 +41,10 @@ EXCLUDED_TOP = {
     ".local-testing", ".ci-panel", ".vscode", ".idea", "dist", "build", "scripts", "tests",
     "CLAUDE.md", "CONTRIBUTING.md",
 }
+# Paths below the top level that are for developers, not for an installation. The reference receiver
+# of the webhooks is an example an integrator runs on their own server; it has no business inside a
+# Dolibarr that would then serve it as a page.
+EXCLUDED_PATHS = {("docs", "beispiele")}
 # File names that never belong in a package, wherever they are.
 EXCLUDED_NAMES = {"__pycache__", ".DS_Store", "Thumbs.db"}
 EXCLUDED_SUFFIXES = (".pyc", ".log", ".tmp", ".swp")
@@ -90,6 +94,8 @@ def included(relative: Path) -> bool:
     if not parts or parts[0] in EXCLUDED_TOP:
         return False
     if any(part in EXCLUDED_NAMES for part in parts):
+        return False
+    if any(parts[:len(prefix)] == prefix for prefix in EXCLUDED_PATHS):
         return False
     return not relative.name.endswith(EXCLUDED_SUFFIXES)
 
