@@ -3408,6 +3408,28 @@ def application(stack: Stack) -> str:
             "missing one and one page for a single member; fields to fill in only on the document switched on")
 
 
+def todo(stack: Stack) -> str:
+    """What is to do: deadlines, elections and applications of the association, plus what waits for the person (#124)."""
+    browser = stack.browser()
+    page = page_ok(browser.get("/custom/vereine/vereineindex.php"), "the overview with what is to do")
+    rows = re.findall(r'data-todo-kind="([a-z]+)" data-todo-state="([a-z]+)"', page.text)
+    kinds = {kind for kind, _ in rows}
+    expect(rows, "the overview shows nothing to do although deadlines and applications are open")
+    # The audit of the last year that ended, and the applications waiting for a decision (#72).
+    waiting = stack.value("SELECT COUNT(*) FROM llx_vereine_application WHERE status IN ('received', 'in_review')")
+    expect((int(waiting) == 0) == ("application" not in kinds), f"{waiting} applications wait, kinds shown: {sorted(kinds)}")
+    expect({"account", "audit"} & kinds, f"neither the account nor its audit is named: {sorted(kinds)}")
+    total = re.search(r'data-todo="(\d+)"', page.text)
+    expect(total is not None and int(total.group(1)) == len(rows), f"the overview counts {total.group(1) if total else None} for {len(rows)} rows")
+
+    # The same list on the home page, as a box.
+    home = page_ok(browser.get("/"), "the home page with the box")
+    expect('data-box-waiting=' in home.text, "the box does not show what is to do")
+    expect(denied(stack.browser("rtnobody").get("/custom/vereine/vereineindex.php")), "a user without rights opens the overview")
+    return (f"{len(rows)} open points on the overview: {sorted(kinds)}; the count matches the rows, the home box shows them too, "
+            "nobody without rights sees the page")
+
+
 def sepaonline(stack: Stack) -> str:
     """The SEPA mandate at the member: its state from Dolibarr's data, Dolibarr's own online signature, the invitation (#125)."""
     browser = stack.browser()
@@ -4176,6 +4198,7 @@ SCENARIOS = (
     ("history", "History of a member in Dolibarr's events: new entries and earlier ones exactly once", history, ("authority",)),
     ("application", "Application for membership and declaration of consent as PDF, with fields to fill in", application, ("history",)),
     ("sepaonline", "SEPA mandate at the member: state, Dolibarr's own online signature, invitation", sepaonline, ("application",)),
+    ("todo", "What is to do: deadlines, elections and applications of the association and of the person", todo, ("sepaonline",)),
     ("board", "Board for a website: names with consent or disclosure, functions in the summary", board, ("authority",)),
     ("groups", "User groups through functions, changed only after an administrator confirms", groups, ("board",)),
     ("mailing", "E-mail campaign recipients by function, consent and guardians of minors", mailing, ("groups",)),

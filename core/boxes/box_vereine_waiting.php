@@ -77,12 +77,9 @@ class box_vereine_waiting extends ModeleBoxes
 		$langs->load('vereine@vereine');
 		$this->info_box_head = array('text' => $langs->trans('VereineBoxWaiting'));
 
-		if ((int) $user->fk_member < 1) {
-			$this->info_box_contents[0][0] = array('td' => 'class="nohover opacitymedium" data-box-waiting="nomember"', 'text' => $langs->trans('VereineBoxWaitingNoMember'));
-			return;
-		}
 		$waiting = new VereineWaiting($this->db);
-		$open = $waiting->forMember((int) $user->fk_member);
+		$open = (int) $user->fk_member > 0 ? $waiting->forMember((int) $user->fk_member)
+			: array('votes' => array(), 'signatures' => array(), 'tasks' => array());
 		$line = 0;
 		foreach (array('votes' => 'VereineBoxWaitingVote', 'signatures' => 'VereineBoxWaitingSignature', 'tasks' => 'VereineBoxWaitingTask') as $kind => $label) {
 			foreach (array_slice($open[$kind], 0, max(1, (int) $max)) as $entry) {
@@ -92,6 +89,13 @@ class box_vereine_waiting extends ModeleBoxes
 				$this->info_box_contents[$line][1] = array('td' => 'class="right nowraponall"', 'text' => $when);
 				$line++;
 			}
+		}
+		foreach (array_slice($waiting->forAssociation(dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver')), 0, max(1, (int) $max)) as $entry) {
+			$when = $entry['deadline'] !== '' ? vereineFormatDay($entry['deadline']) : '';
+			$this->info_box_contents[$line][0] = array('td' => 'data-box-waiting="'.$entry['kind'].'"', 'asis' => 1,
+				'text' => '<a href="'.$entry['url'].'" class="valignmiddle">'.dol_escape_htmltag($entry['title']).'</a>');
+			$this->info_box_contents[$line][1] = array('td' => 'class="right nowraponall"', 'text' => $when);
+			$line++;
 		}
 		if ($line === 0) {
 			$this->info_box_contents[0][0] = array('td' => 'class="nohover opacitymedium" data-box-waiting="none"', 'text' => $langs->trans('VereineBoxWaitingNone'));

@@ -2159,3 +2159,19 @@ VereineSepaInviteSent=Der Link ist an %s gegangen.
 VereineSepaErrorNoLink=Für dieses Mandat gibt es keine Unterschriftsseite. Prüfe, ob das Mandat hinterlegt und Dolibarrs Online-Unterschrift eingeschaltet ist.
 VereineSepaErrorNoEmail=Der Zahler hat keine E-Mail-Adresse hinterlegt.
 VereineLog_sepa_invite=Link zur Mandats-Unterschrift verschickt
+
+# Was ist zu tun? (#124)
+VereineTodoTitle=Was ist zu tun?
+VereineTodoNone=Gerade nichts – alles erledigt.
+VereineTodoState_overdue=Überfällig
+VereineTodoState_due=Frist läuft
+VereineTodoState_open=Offen
+VereineTodoSignature=Zu unterschreiben
+VereineTodoVote=Abstimmung
+VereineTodoTask=Aufgabe
+VereineTodoReport=Behördenmeldung für %s: Bestellung binnen vier Wochen anzeigen
+VereineTodoAccount=Einnahmen-Ausgaben-Rechnung %s erstellen
+VereineTodoAudit=Rechnungsprüfung %s durchführen
+VereineTodoElection=Funktionsperiode abgelaufen: %s neu wählen
+VereineTodoFunctionMissing=Funktion nicht besetzt: %s
+VereineTodoApplications=%s Beitrittsanträge warten auf eine Entscheidung
