@@ -9,6 +9,25 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **Fristen und Aufgaben des Vereins** (#24): Ein neuer Menüpunkt *Mitglieder > Verein >
+  Fristen und Aufgaben* führt alle wiederkehrenden Pflichten an einer Stelle. Der Katalog
+  ist beim Aktivieren schon gefüllt: Einnahmen-Ausgaben-Rechnung, Rechnungsprüfung,
+  Information der Mitglieder, ordentliche Generalversammlung, Spendenmeldung,
+  Freiwilligenpauschale, Jahresbeleg der Registrierkasse und die Anzeige eines
+  Organwechsels – jede mit der zuständigen Funktion und der Fundstelle im Gesetz.
+- **Die Fristen rechnet das Modul selbst aus**: aus dem Vereinsjahr (auch wenn es nicht im
+  Jänner beginnt), aus dem Tag, an dem die Rechnung erstellt wurde, oder aus einem festen
+  Kalendertag. Ende Februar ist wirklich Ende Februar, auch im Schaltjahr.
+- **Termine im Dolibarr-Kalender**: Ein Klick auf *Termine anlegen* schreibt für jede Pflicht
+  eine Aufgabe in Dolibarrs Agenda – bei der Person, die die Funktion heute innehat, mit
+  Dolibarrs eigener E-Mail-Erinnerung. Ein zweiter Klick legt nichts doppelt an.
+- **Übergabe nach einem Funktionswechsel**: Wechselt die Kassierin, bleiben ihre offenen
+  Aufgaben stehen, bis jemand die Übergabe bestätigt. Erst dann wandern Aufgabe und
+  Kalendertermin zur Nachfolge – von selbst verschiebt sich nichts.
+- **Eigene Pflichten**: Was nicht im Gesetz steht, aber jedes Jahr ansteht – etwa der Bericht
+  an die Sponsoren –, lässt sich aufnehmen, samt Wiederholung (auch alle paar Jahre) und
+  Vorlaufzeit für die Erinnerung. Pflichten aus dem Gesetz lassen sich abschalten, aber
+  nicht löschen.
 - **„Was ist zu tun?“** (#124): Die Vereinsübersicht und die Startseiten-Box zeigen jetzt
   auf einen Blick, was offen ist – Dokumente, die du unterschreiben musst, offene
   Umlaufbeschlüsse und Aufgaben, dazu die Fristen des Vereins: Behördenmeldung nach einer

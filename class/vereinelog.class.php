@@ -94,6 +94,11 @@ class VereineLog
 	const CIRCULAR_DECIDED = 'circular_decided';
 	const CIRCULAR_CANCELLED = 'circular_cancelled';
 	const MEETING_DOCUMENT = 'meeting_document';
+	const DUTY_SAVED = 'duty_saved';
+	const DUTY_REMOVED = 'duty_removed';
+	const DUTY_PLANNED = 'duty_planned';
+	const DUTY_HANDOVER = 'duty_handover';
+	const DUTY_DONE = 'duty_done';
 
 	/**
 	 * Append one entry.

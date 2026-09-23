@@ -360,6 +360,7 @@ def enable(stack: Stack) -> str:
                     ["members", "vereine_authority", "/vereine/authority.php"],
                     ["members", "vereine_circulars", "/vereine/circulars.php"],
                     ["members", "vereine_consentform", "/vereine/consents.php"],
+                    ["members", "vereine_duties", "/vereine/duties.php"],
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
                     ["members", "vereine_meetings", "/vereine/meetings.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"],
@@ -2115,6 +2116,120 @@ def authority(stack: Stack) -> str:
             "noted as reported: no open report, agenda event done, letter without new marks")
 
 
+def duties(stack: Stack) -> str:
+    """The calendar of duties: the catalogue of the law, the days of a year, tasks in Dolibarr's agenda and the handover after a change of office (#24)."""
+    browser = stack.browser()
+    today = stack.today()
+    year = int(today[:4])
+    base = f"/custom/vereine/duties.php?year={year}"
+    expect(denied(stack.browser("rtnobody").get(base)), "a user without rights opens the calendar of duties")
+
+    # Enabling the module filled the catalogue with what Austrian law asks of every association.
+    page = page_ok(browser.get(base), "the calendar of duties")
+    catalogue = dict(re.findall(r'data-duty-entry="([a-z_]+)" data-duty-active="(\d)"', page.text))
+    expect({"account", "audit", "inform", "assembly", "donations", "volunteers", "cash_register", "report"} <= set(catalogue),
+           f"the catalogue of the law: {sorted(catalogue)}")
+    expect(catalogue["account"] == "1" and catalogue["donations"] == "0",
+           "what every association owes is on, what only some do is off until they switch it on")
+
+    # The treasurer switches the report of donations on; its day follows the association's year.
+    donations = int(stack.value("SELECT rowid FROM llx_vereine_duty WHERE code = 'donations' AND entity = 1"))
+    form = page_ok(browser.get(f"{base}&edit={donations}"), "the report of donations in the catalogue")
+    page_ok(browser.submit(form.form(name="vereineduty"), {"active": "1"}), "switch the report of donations on")
+    page = page_ok(browser.get(base), "the calendar with the report of donations")
+    due = dict(re.findall(r'data-duty-code="([a-z_]+)" data-duty-state="[a-z]+" data-duty-due="([\d-]*)"', page.text))
+    expect(due.get("donations") == f"{year + 1}-02-28", f"the report of donations is due end of February: {due.get('donations')}")
+    expect("report" not in due, "what follows an event stands in the year's plan although it has no day")
+    expect(due.get("account") == f"{year + 1}-05-31", f"the account is due five months after the year: {due.get('account')}")
+    expect('data-duty-unplanned="1"' in page.text, "the duties already have tasks although nobody planned them")
+
+    # Planning writes one task per duty as an agenda event of the person who holds the function.
+    holding = stack.sql("SELECT t.rowid, t.fk_adherent FROM llx_vereine_function_term as t INNER JOIN llx_vereine_function as f ON f.rowid = t.fk_function"
+                        f" WHERE f.code = 'kassier' AND t.date_start <= '{today}' AND (t.date_end IS NULL OR t.date_end >= '{today}')"
+                        " ORDER BY t.rowid DESC LIMIT 1")
+    expect(len(holding) == 1, f"exactly one treasurer should hold office today: {holding}")
+    kassier_term, kassier = int(holding[0][0]), int(holding[0][1])
+    page = page_ok(browser.get(base), "the calendar before planning")
+    page_ok(browser.submit(page.form(name="vereinedutyplan")), "put the duties into the agenda")
+    tasks = stack.sql("SELECT d.code, t.due_on, t.fk_adherent, t.fk_actioncomm FROM llx_vereine_duty_task as t"
+                      f" INNER JOIN llx_vereine_duty as d ON d.rowid = t.fk_duty WHERE t.fiscal_year = {year} ORDER BY d.code")
+    planned = {row[0]: row for row in tasks}
+    expect("donations" in planned and planned["donations"][1][:10] == f"{year + 1}-02-28", f"the tasks of the year: {tasks}")
+    expect(int(planned["donations"][2]) == kassier, f"the report of donations went to {planned['donations'][2]}, the treasurer is {kassier}")
+    events = {row[0] for row in stack.sql("SELECT id FROM llx_actioncomm WHERE label LIKE 'Vereinspflicht%'")}
+    expect(str(planned["donations"][3]) in events, f"no agenda event for the report of donations: {sorted(events)}")
+
+    # Planning again changes nothing.
+    page = page_ok(browser.get(base), "the calendar after planning")
+    page_ok(browser.submit(page.form(name="vereinedutyplan")), "plan a second time")
+    expect(int(stack.value(f"SELECT COUNT(*) FROM llx_vereine_duty_task WHERE fiscal_year = {year}") or 0) == len(tasks),
+           "a second planning wrote tasks again")
+
+    # A change of office: the term of the treasurer ended yesterday, somebody else took over.
+    yesterday = (datetime.date.fromisoformat(today) - datetime.timedelta(days=1)).isoformat()
+    successor = int(stack.value(f"SELECT rowid FROM llx_adherent WHERE statut = 1 AND rowid <> {kassier} ORDER BY rowid LIMIT 1"))
+    function_id = stack.value("SELECT rowid FROM llx_vereine_function WHERE code = 'kassier' AND entity = 1")
+    # The way a term is ended is what the functions scenario checks; here only its consequence matters.
+    stack.sql(f"UPDATE llx_vereine_function_term SET date_end = '{yesterday}' WHERE rowid = {kassier_term}")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={successor}"), "association tab of the successor")
+    page_ok(browser.submit(tab.form(name="vereineaddfunction"), {
+        "function_id": function_id, "function_start": today, "function_end": "", "function_note": "Runtime"}),
+        "the successor takes over as treasurer")
+    holders = [int(row[0]) for row in stack.sql("SELECT t.fk_adherent FROM llx_vereine_function_term as t"
+                                                f" INNER JOIN llx_adherent as a ON a.rowid = t.fk_adherent WHERE t.fk_function = {function_id}"
+                                                f" AND a.statut = 1 AND t.date_start <= '{today}' AND (t.date_end IS NULL OR t.date_end >= '{today}')")]
+    expect(holders == [successor], f"the treasurer today should be {successor} alone: {holders}")
+
+    # Nothing moves by itself: the open tasks wait for a word.
+    page = page_ok(browser.get(base), "the calendar after the change of office")
+    waiting = re.search(r'data-duty-handovers="(\d+)"', page.text)
+    expect(waiting is not None and int(waiting.group(1)) > 0, "no handover is offered although the treasurer changed")
+    handover_task = int(stack.value(f"SELECT rowid FROM llx_vereine_duty_task WHERE fiscal_year = {year} AND fk_duty = {donations}"))
+    expect(int(stack.value(f"SELECT fk_adherent FROM llx_vereine_duty_task WHERE rowid = {handover_task}") or 0) == kassier,
+           "the task moved without anybody confirming it")
+    page_ok(browser.post(base, [("token", token_of(page)), ("action", "handover"), ("task", str(handover_task))]), "confirm the handover")
+    expect(int(stack.value(f"SELECT fk_adherent FROM llx_vereine_duty_task WHERE rowid = {handover_task}") or 0) == successor,
+           "the task did not move to the successor")
+    event_member = stack.value("SELECT a.fk_element FROM llx_actioncomm as a INNER JOIN llx_vereine_duty_task as t ON t.fk_actioncomm = a.id"
+                               f" WHERE t.rowid = {handover_task}")
+    expect(int(event_member or 0) == successor, f"the agenda event still hangs on member {event_member}")
+
+    # Ticking a duty off closes its event too.
+    page = page_ok(browser.get(base), "the calendar before ticking off")
+    page_ok(browser.post(base, [("token", token_of(page)), ("action", "done"), ("task", str(handover_task)), ("day", today)]),
+            "tick the report of donations off")
+    expect((stack.value(f"SELECT done_on FROM llx_vereine_duty_task WHERE rowid = {handover_task}") or "")[:10] == today,
+           "the duty was not noted as done")
+    percentage = stack.value("SELECT a.percent FROM llx_actioncomm as a INNER JOIN llx_vereine_duty_task as t ON t.fk_actioncomm = a.id"
+                             f" WHERE t.rowid = {handover_task}")
+    expect(int(percentage or 0) == 100, f"the agenda event is still open: {percentage}")
+    page = page_ok(browser.get(base), "the calendar after ticking off")
+    expect('data-duty-code="donations" data-duty-state="done"' in page.text, "the report of donations is not shown as done")
+
+    # The overview names the deadlines of the calendar, not a list of its own.
+    overview = page_ok(browser.get("/custom/vereine/vereineindex.php"), "the overview with what is to do")
+    expect('data-todo-kind="duty"' in overview.text, "the overview does not name the duties of the calendar")
+
+    # An own duty of the association, and what the catalogue refuses.
+    form = page_ok(browser.get(base), "the catalogue for an own duty")
+    refused = page_ok(browser.submit(form.form(name="vereineduty"), {
+        "duty": "0", "code": "Sponsoren Bericht", "label": "Bericht an Sponsoren", "basis": "calendar", "due_month": "3", "due_day": "15"}),
+        "an own duty with a wrong code")
+    expect("Kleinbuchstaben" in html.unescape(refused.text), "a code with a blank was not refused with an explanation")
+    page_ok(browser.submit(page_ok(browser.get(base), "the catalogue again").form(name="vereineduty"), {
+        "duty": "0", "code": "sponsorenbericht", "label": "Bericht an Sponsoren", "function_code": "obmann", "basis": "calendar",
+        "due_month": "3", "due_day": "15", "every_years": "1", "lead_days": "30", "active": "1"}), "add an own duty")
+    own = stack.sql("SELECT code, standard, due_month, due_day FROM llx_vereine_duty WHERE code = 'sponsorenbericht' AND entity = 1")
+    expect(own and own[0][1] == "0" and own[0][2] == "3", f"the own duty was not stored: {own}")
+    page = page_ok(browser.get(base), "the calendar with the own duty")
+    expect(f'data-duty-code="sponsorenbericht" data-duty-state=' in page.text and f'{year + 1}-03-15' in page.text,
+           "the own duty has no day in the year")
+    return (f"the catalogue holds the duties of the law, {len(tasks)} of them planned for {year} as agenda events of the right function; "
+            "the report of donations falls due end of February, a second planning writes nothing; after a change of office the open task "
+            "waits and moves to the successor only when confirmed, together with its agenda event; ticking it off closes the event and "
+            "the overview names the deadlines; an own duty of the association is taken, a wrong code refused")
+
+
 def board(stack: Stack) -> str:
     """A website reads the board: names only with consent, or for the board always when it must be disclosed."""
     site = stack.notes["website"]
@@ -3418,7 +3533,7 @@ def todo(stack: Stack) -> str:
     # The audit of the last year that ended, and the applications waiting for a decision (#72).
     waiting = stack.value("SELECT COUNT(*) FROM llx_vereine_application WHERE status IN ('received', 'in_review')")
     expect((int(waiting) == 0) == ("application" not in kinds), f"{waiting} applications wait, kinds shown: {sorted(kinds)}")
-    expect({"account", "audit"} & kinds, f"neither the account nor its audit is named: {sorted(kinds)}")
+    expect("duty" in kinds, f"the deadlines of the calendar of duties are not named: {sorted(kinds)}")
     total = re.search(r'data-todo="(\d+)"', page.text)
     expect(total is not None and int(total.group(1)) == len(rows), f"the overview counts {total.group(1) if total else None} for {len(rows)} rows")
 
@@ -4224,7 +4339,8 @@ SCENARIOS = (
     ("taxcheck", "Older invoice lines without a tax profile: suggestions from facts, a preview, assigning only the profile", taxcheck, ("placeholders",)),
     ("audit", "The audit of the auditors: bookings and invoices with hints, samples, checklist, report with signatures", audit, ("taxcheck",)),
     ("account", "Income and expenditure account: the money of the year by area, agreeing with the bank, statement of assets, PDF, signatures", account, ("audit",)),
-    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account",)),
+    ("duties", "The calendar of duties: catalogue of the law, days of the year, agenda tasks, handover after a change of office", duties, ("account",)),
+    ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
 )

@@ -90,22 +90,23 @@ class VereineWaiting
 				dol_buildpath('/vereine/functions.php', 1));
 		}
 
-		// The income and expenditure account of the last year that ended, and its audit.
+		// What the calendar of duties holds for the year that ended: the account, its audit and everything
+		// else the catalogue carries, each with the day it is due (#24). Done ones are gone from here.
+		require_once __DIR__.'/vereineduties.class.php';
 		$year = VereineAuditRules::lastEnded($today, getDolGlobalInt('SOCIETE_FISCAL_MONTH_START', 1));
-		$period = VereineAccount::period($year);
-		$account = $this->db->query("SELECT made_on FROM ".MAIN_DB_PREFIX."vereine_account WHERE entity = ".$entity." AND fiscal_year = ".((int) $year));
-		$made = $account ? $this->db->fetch_object($account) : null;
-		$madeOn = $made && $made->made_on ? substr((string) $made->made_on, 0, 10) : '';
-		if ($madeOn === '') {
-			$add('account', VereineAccountRules::deadline($period['end']), $langs->transnoentities('VereineTodoAccount', $period['label']),
-				dol_buildpath('/vereine/account.php', 1).'?year='.((int) $year));
-		} else {
-			$audit = $this->db->query("SELECT audit_day FROM ".MAIN_DB_PREFIX."vereine_audit WHERE entity = ".$entity." AND fiscal_year = ".((int) $year));
-			$done = $audit ? $this->db->fetch_object($audit) : null;
-			if (!$done || !$done->audit_day) {
-				$add('audit', VereineAuditRules::deadline($madeOn), $langs->transnoentities('VereineTodoAudit', $period['label']),
-					dol_buildpath('/vereine/audit.php', 1).'?year='.((int) $year));
+		$duties = new VereineDuties($this->db);
+		foreach ($duties->plan($year, $today) as $entry) {
+			if ($entry['state'] === 'done' || $entry['due'] === '') {
+				continue;
 			}
+			$add('duty', $entry['due'], $entry['duty']['label'].' ('.VereineAuditRules::period($year, getDolGlobalInt('SOCIETE_FISCAL_MONTH_START', 1))['label'].')',
+				dol_buildpath('/vereine/duties.php', 1).'?year='.((int) $year));
+		}
+
+		// Tasks that sit with someone who no longer holds the function and wait for a word.
+		foreach ($duties->handovers($today) as $entry) {
+			$add('handover', $entry['due_on'], $langs->transnoentities('VereineTodoHandover', $entry['label'], $entry['to_name']),
+				dol_buildpath('/vereine/duties.php', 1).'?year='.((int) $entry['fiscal_year']));
 		}
 
 		// Functions without a holder and terms of office that are over: an election is due.

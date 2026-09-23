@@ -59,6 +59,7 @@ require_once $root.'/class/vereineqes.class.php';
 require_once $root.'/class/vereinemailtemplates.class.php';
 require_once $root.'/class/vereinetaxcheckrules.class.php';
 require_once $root.'/class/vereineauditrules.class.php';
+require_once $root.'/class/vereinedutyrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1786,7 +1787,9 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done'),
+	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
+	'VereineDutyBasis_' => VereineDutyRules::BASES,
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
 	'VereineReportMissing_' => array('birth', 'birth_place', 'address'),
@@ -1991,6 +1994,63 @@ same("a\nb\nc", VereineTextRepair::text('a\r\nb\rc'), 'stored \\r\\n and \\r bec
 same(array('activities' => array('Turniere', 'Training', 'Liga'), 'asset_purpose' => "Zeile 1\nZeile 2", 'arrears_months' => 3),
 	VereineTextRepair::statuteText(array('activities' => array('Turniere\nTraining', 'Liga'), 'asset_purpose' => 'Zeile 1\nZeile 2', 'arrears_months' => 3)),
 	'statute text: lists split into items, texts get line breaks, numbers stay');
+
+// ------------------------------------------------------------- calendar of duties (#24)
+
+$dutyStandard = array();
+foreach (VereineDutyRules::standard() as $duty) {
+	$dutyStandard[$duty['code']] = $duty;
+}
+expect(isset($dutyStandard['account'], $dutyStandard['audit'], $dutyStandard['assembly'], $dutyStandard['donations']),
+	'the catalogue starts with the duties of Austrian law');
+same('kassier', $dutyStandard['donations']['function_code'], 'the report of donations belongs to the treasurer');
+expect($dutyStandard['donations']['active'] === 0 && $dutyStandard['account']['active'] === 1,
+	'what only some associations do is switched off until they switch it on');
+
+// The day a duty is due follows the association's year, also when it does not start in January.
+same('2026-05-31', VereineDutyRules::due($dutyStandard['account'], '2025-12-31'), 'the account of 2025 is due end of May 2026');
+same('2026-11-30', VereineDutyRules::due($dutyStandard['account'], '2026-06-30'), 'a year to June has five months, so end of November');
+same('2026-09-29', VereineDutyRules::due($dutyStandard['audit'], '2025-12-31', '2026-05-29'),
+	'the audit runs four months from the day the account was made');
+same('2026-09-30', VereineDutyRules::due($dutyStandard['audit'], '2025-12-31', '', '2026-05-31'),
+	'while the account is not made, its own deadline counts');
+same('2027-02-28', VereineDutyRules::due($dutyStandard['donations'], '2026-06-30'),
+	'the report of donations is due end of February of the calendar year after the year of the association');
+same('2028-02-29', VereineDutyRules::due($dutyStandard['donations'], '2027-12-31'), 'the end of February is the 29th in a leap year');
+same('', VereineDutyRules::due($dutyStandard['report'], '2025-12-31'), 'what follows an event has no day of the year');
+
+// The end of a month stays the end of a month.
+same('2026-02-28', VereineDutyRules::addMonths('2025-12-31', 2), 'two months after 31 December is the last day of February');
+same('2026-01-31', VereineDutyRules::addMonths('2025-12-31', 1), 'a month with 31 days keeps the 31st');
+same('2025-11-30', VereineDutyRules::addMonths('2025-12-31', -1), 'counting back works too');
+
+// How a duty stands.
+same('overdue', VereineDutyRules::state('2026-05-31', '2026-06-01', false), 'a day that passed is overdue');
+same('due', VereineDutyRules::state('2026-05-31', '2026-05-01', false), 'within the lead time the deadline runs');
+same('ahead', VereineDutyRules::state('2026-05-31', '2026-01-01', false), 'far ahead there is still time');
+same('done', VereineDutyRules::state('2026-05-31', '2026-06-01', true), 'what is done is done, however late');
+same('ahead', VereineDutyRules::state('2026-05-31', '2026-05-01', false, 10), 'a short lead time keeps it ahead');
+
+// Duties that do not come back every year.
+$everyThree = array('active' => 1, 'basis' => VereineDutyRules::BASIS_YEAR_END, 'every_years' => 3, 'first_year' => 2025);
+expect(VereineDutyRules::planned($everyThree, 2025) && !VereineDutyRules::planned($everyThree, 2026)
+	&& VereineDutyRules::planned($everyThree, 2028), 'every three years means 2025, 2028, and nothing in between');
+expect(!VereineDutyRules::planned(array('active' => 0, 'basis' => VereineDutyRules::BASIS_YEAR_END) + $everyThree, 2025),
+	'a duty that is switched off is not planned');
+expect(!VereineDutyRules::planned(array('active' => 1, 'basis' => VereineDutyRules::BASIS_EVENT, 'every_years' => 1), 2025),
+	'what follows an event is not planned by the year either');
+
+// What the catalogue refuses.
+same(array(), VereineDutyRules::validate(array('code' => 'sponsorenbericht', 'label' => 'Bericht an Sponsoren',
+	'basis' => VereineDutyRules::BASIS_CALENDAR, 'due_month' => '3', 'due_day' => '15', 'every_years' => '1', 'lead_days' => '30')),
+	'a sensible own duty is fine');
+same(array('VereineDutyErrorCode'), VereineDutyRules::validate(array('code' => 'Sponsoren Bericht', 'label' => 'x',
+	'basis' => VereineDutyRules::BASIS_EVENT, 'every_years' => '1', 'lead_days' => '30')), 'a code with a blank is refused');
+same(array('VereineDutyErrorDay'), VereineDutyRules::validate(array('code' => 'bericht', 'label' => 'x',
+	'basis' => VereineDutyRules::BASIS_CALENDAR, 'due_month' => '13', 'due_day' => '1', 'every_years' => '1', 'lead_days' => '30')),
+	'a thirteenth month is refused');
+same(array('VereineDutyErrorLabel', 'VereineDutyErrorEveryYears'), VereineDutyRules::validate(array('code' => 'bericht', 'label' => '',
+	'basis' => VereineDutyRules::BASIS_EVENT, 'every_years' => '0', 'lead_days' => '30')), 'everything wrong is named at once');
 
 // ------------------------------------------------------------------- result
 

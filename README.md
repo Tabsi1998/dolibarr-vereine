@@ -66,6 +66,12 @@ und bringt eine REST-API für die Vereinswebsite mit.
   qualifiziert, rechtlich wie eigenhändig – über einen eigenen Signaturdienst
   (PDF-AS). Einrichtung in [docs/ID-AUSTRIA.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/ID-AUSTRIA.md).
 
+- **Fristen und Aufgaben**: ein Katalog der wiederkehrenden Pflichten – die des
+  Vereinsgesetzes und der Steuer sind schon drin, eigene kommen dazu. Das Modul
+  rechnet für jedes Vereinsjahr die Fristen aus, legt sie als Aufgaben in
+  Dolibarrs Kalender bei der zuständigen Person an und erinnert daran; wechselt
+  eine Funktion, warten offene Aufgaben auf die Bestätigung der Übergabe.
+
 ### Für die Vereinswebsite
 
 - **REST-API**: Vereinsdaten, Vorstand, Steuerprofile, Beiträge, Einwilligungen,
