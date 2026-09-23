@@ -20,8 +20,8 @@
  * \ingroup vereine
  * \brief   Rules of fee arrears reported by the Mahnwesen module (#17): what an event of a dunning case means here.
  *
- * The Mahnwesen module dunns; the association decides. When a membership fee reaches the last step
- * "Mitgliedschaft prüfen", the board gets one proposal for its next meeting, nothing more: no exclusion,
+ * The Mahnwesen module dunns; the association decides. When a membership fee reaches the last step of
+ * a membership review, the board gets one proposal for its next meeting, nothing more: no exclusion,
  * no lost right to vote. A payment, a pause or a closed case updates the proposal instead of escalating
  * a debt that is gone.
  */
@@ -62,8 +62,8 @@ class VereineArrearRules
 	 * @param array{state:string,revision:int}|null $stored The arrear kept for the case, null when there is none
 	 * @param array{type:string,revision:int}       $event  The event: its type and the case revision it belongs to
 	 * @param array<string,mixed>                   $facts  fee (the invoice is a membership fee by Dolibarr's own link),
-	 *                                                       final_step (of the profile), case_status and paused (as read now),
-	 *                                                       paid (the invoice as read now)
+	 *                                                      final_step (of the profile), case_status and paused (as read now),
+	 *                                                      paid (the invoice as read now)
 	 * @return array{do:string,state:string,why:string} do: create, update or ignore
 	 */
 	public static function decide($stored, array $event, array $facts)
