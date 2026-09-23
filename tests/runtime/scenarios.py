@@ -390,7 +390,8 @@ def enable(stack: Stack) -> str:
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
                     ["members", "vereine_meetings", "/vereine/meetings.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"],
-                    ["members", "vereine_resolutions", "/vereine/resolutions.php"]],
+                    ["members", "vereine_resolutions", "/vereine/resolutions.php"],
+                    ["members", "vereine_volunteers", "/vereine/volunteer.php"]],
            f"menu entries after enabling: {menu}")
     expect(stack.sql("SHOW TABLES LIKE 'llx_vereine_log'") == [["llx_vereine_log"]], "the log table was not created")
     categories = {name: stack.const(name) or "0" for name in CATEGORY_CONSTANTS}
@@ -2925,6 +2926,77 @@ def applicationfields(stack: Stack) -> str:
             "\"1 Monate\"")
 
 
+def volunteers(stack: Stack) -> str:
+    """Volunteer allowances: over the day marked when stored, the list of the year matches, a confirmed shift is paid once (#7)."""
+    browser = stack.browser()
+    year = int(stack.today()[:4])
+    base = f"/custom/vereine/volunteer.php?year={year}"
+    expect(denied(stack.browser("rtnobody").get(base)), "a user without rights opens the volunteer allowances")
+    page = page_ok(browser.get(base), "the volunteer allowances")
+    expect('data-volunteer-limit="small"' in page.text and 'data-volunteer-limit="prae"' in page.text,
+           "the page does not name the limits")
+
+    members = [int(row[0]) for row in stack.sql("SELECT rowid FROM llx_adherent WHERE statut = 1 ORDER BY rowid LIMIT 2")]
+    first, second = members[0], members[1]
+
+    def record(member: int, day: str, kind: str, amount: str, activity: str = "Kassa beim Turnier") -> Page:
+        form = page_ok(browser.get(base), "the page before recording").form(name="vereinevolunteer")
+        return page_ok(browser.submit(form, {"member_id": str(member), "day": day, "activity": activity, "kind": kind,
+                                             "amount": amount, "note": ""}), f"record {amount} {kind} on {day}")
+
+    # Within the limit, then over it on the same day: the second entry is marked the moment it is stored.
+    record(first, f"{year}-03-14", "small", "20")
+    after = record(first, f"{year}-03-14", "small", "15")
+    expect("Tagesgrenze" in html.unescape(after.text), "going over the day was not said when it was stored")
+    flags = re.findall(r'data-volunteer-flags="([a-z_ ]*)"', page_ok(browser.get(base), "the entries").text)
+    expect(any("over_day" in value for value in flags), f"no entry is marked over the day: {flags}")
+
+    # PRAE and an allowance for one person in a year: marked as a case to check.
+    record(first, f"{year}-04-02", "prae", "60", "Fahrt zum Auswärtsturnier")
+    page = page_ok(browser.get(base), "the list of the year")
+    person = re.search(rf'data-volunteer-person="{first}" data-volunteer-total="([\d.]+)" data-volunteer-findings="([a-z_ ]*)"', page.text)
+    expect(person is not None and float(person.group(1)) == 95.0, f"the list of the year does not add up for member {first}: {person}")
+    expect("mixed" in person.group(2), f"PRAE and an allowance in one year were not pointed out: {person.group(2)}")
+    stored = stack.value(f"SELECT SUM(amount) FROM llx_vereine_volunteer WHERE fk_adherent = {first} AND YEAR(duty_day) = {year}")
+    expect(abs(float(stored) - 95.0) < 0.001, f"the table holds {stored}, the list says 95")
+
+    # Refused: an amount of nothing, and a day that does not exist.
+    refused = record(second, f"{year}-02-30", "small", "0")
+    expect("Betrag" in html.unescape(refused.text) and "Tag" in html.unescape(refused.text), "a wrong entry was not refused with an explanation")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_volunteer WHERE fk_adherent = {second}") == "0", "a refused entry was stored")
+
+    # A confirmed helper shift from the events is offered once and paid once.
+    shift_entry = stack.value("SELECT rowid FROM llx_vereine_event_shift_entry WHERE status = 'done' ORDER BY rowid LIMIT 1")
+    if shift_entry not in (None, "", "NULL"):
+        shift_year = stack.value("SELECT YEAR(s.shift_day) FROM llx_vereine_event_shift_entry as e INNER JOIN llx_vereine_event_shift as s"
+                                 f" ON s.rowid = e.fk_shift WHERE e.rowid = {shift_entry}")
+        shift_page = f"/custom/vereine/volunteer.php?year={shift_year}"
+        page = page_ok(browser.get(shift_page), "the page with the open shifts")
+        expect(f'data-volunteer-shift="{shift_entry}"' in page.text, "a confirmed helper shift is not offered for an allowance")
+        form = page.form(name=f"vereinevolunteershift{shift_entry}")
+        page_ok(browser.submit(form, {"kind": "small", "amount": "25"}), "record the helper shift")
+        expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_volunteer WHERE fk_shift_entry = {shift_entry}") == "1",
+               "the helper shift was not recorded")
+        page = page_ok(browser.get(shift_page), "the page after recording the shift")
+        expect(f'data-volunteer-shift="{shift_entry}"' not in page.text, "a paid helper shift is offered a second time")
+
+    # The list for the reports.
+    page = page_ok(browser.get(base), "the page for the list")
+    link = re.search(r'href="([^"]*action=csv[^"]*)"', page.text)
+    expect(link is not None, "the page offers no list for the reports")
+    csv = browser.get(html.unescape(link.group(1)))
+    text = csv.body.decode("utf-8-sig")
+    expect(csv.status == 200 and text.startswith("Mitglied;Name;Einsatztage") and "95" not in text.split("\n")[0],
+           f"the list for the reports is not what it should be: {text[:120]!r}")
+    small = float(stack.value(f"SELECT COALESCE(SUM(amount), 0) FROM llx_vereine_volunteer WHERE fk_adherent = {first}"
+                              f" AND kind = 'small' AND YEAR(duty_day) = {year}"))
+    line = next((row for row in text.splitlines() if row.startswith(f"{first};")), "")
+    expect(f"{small:.2f}".replace(".", ",") in line, f"the list says {line!r}, the table holds {small:.2f} for member {first}")
+    return ("an allowance over the day was marked the moment it was stored, PRAE and an allowance in one year were pointed out, "
+            "the list of the year adds up to what the table holds, a wrong entry was refused, a confirmed helper shift was offered "
+            "once and paid once, and the list for the reports comes as CSV")
+
+
 def board(stack: Stack) -> str:
     """A website reads the board: names only with consent, or for the board always when it must be disclosed."""
     site = stack.notes["website"]
@@ -5043,6 +5115,7 @@ SCENARIOS = (
     ("webhooks", "Signed webhooks: https targets only, delivery after the commit, backoff, rotation, reference receiver", webhooks, ("changes",)),
     ("identities", "Verified external identities: two clients, one contract, bindings that open exactly their own object", identities, ("webhooks",)),
     ("applicationfields", "The fields of an application: one list for PDF and web, own fields, the fee in real numbers", applicationfields, ("identities", "application")),
+    ("volunteers", "Volunteer allowances: marked over the limit when stored, the list of the year, a helper shift paid once", volunteers, ("shifts",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),

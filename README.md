@@ -66,6 +66,11 @@ und bringt eine REST-API für die Vereinswebsite mit.
   qualifiziert, rechtlich wie eigenhändig – über einen eigenen Signaturdienst
   (PDF-AS). Einrichtung in [docs/ID-AUSTRIA.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/ID-AUSTRIA.md).
 
+- **Freiwilligenpauschale und PRAE**: Einsätze je Person mit Tag, Tätigkeit,
+  Art und Betrag. Was über einer Tages-, Monats- oder Jahresgrenze liegt, markiert
+  das Modul sofort beim Speichern – nicht erst im Februar. Bestätigte Helferdienste
+  der Veranstaltungen werden genau einmal übernommen; am Jahresende gibt es die
+  Liste je Person für die Meldungen ans Finanzamt.
 - **Persönlicher Zugriff über die API**: Eine App oder Website handelt für eine
   bestimmte Person nur über eine Bindung, die der Verein per einmaliger Einladung
   erzeugt hat – je Anwendung, je Objekt, mit einzeln eingeschalteten Fähigkeiten.

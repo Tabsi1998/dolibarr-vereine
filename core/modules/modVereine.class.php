@@ -340,6 +340,21 @@ class modVereine extends DolibarrModules
 			'target' => '',
 			'user' => 0,
 		);
+		// Volunteer allowances with their limits and the list for the reports (#7).
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
+			'titre' => 'VereineMenuVolunteers',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_volunteers',
+			'url' => '/vereine/volunteer.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->hasRight("vereine", "association", "read")',
+			'target' => '',
+			'user' => 0,
+		);
 		// The way through a general assembly: before, on the day, afterwards (#127).
 		$this->menu[$r++] = array(
 			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',

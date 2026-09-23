@@ -35,7 +35,7 @@ php tests/run.php
 
 # The pages a browser opens. Every one loads Dolibarr, refuses when the module
 # is off and checks a right or administrator status before it does anything.
-pages=(vereineindex.php partners.php fees_run.php functions.php authority.php meetings.php resolutions.php circulars.php signature.php taxcheck.php audit.php account.php duties.php events.php assembly.php application.php applications.php consents.php admin/application.php admin/events.php admin/webhooks.php admin/identities.php admin/functions.php partner_membership.php member_association.php admin/setup.php admin/partners.php admin/taxprofiles.php admin/fees.php admin/consents.php admin/statutes.php admin/meetings.php admin/signatures.php admin/api.php admin/about.php)
+pages=(vereineindex.php partners.php fees_run.php functions.php authority.php meetings.php resolutions.php circulars.php signature.php taxcheck.php audit.php account.php duties.php events.php assembly.php volunteer.php application.php applications.php consents.php admin/application.php admin/events.php admin/webhooks.php admin/identities.php admin/functions.php partner_membership.php member_association.php admin/setup.php admin/partners.php admin/taxprofiles.php admin/fees.php admin/consents.php admin/statutes.php admin/meetings.php admin/signatures.php admin/api.php admin/about.php)
 for page in "${pages[@]}"; do
   grep -qi 'include of main fails' "$page" || fail "$page does not load main.inc.php"
   grep -q "isModEnabled('vereine')" "$page" || fail "$page does not refuse when the module is disabled"
