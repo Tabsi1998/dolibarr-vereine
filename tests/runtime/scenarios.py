@@ -193,6 +193,11 @@ def enable_dolibarr_module(stack: Stack, name: str) -> None:
     raise CheckFailed(f"the module list offers no way to switch {name} on")
 
 
+def vereine_day(day: str) -> str:
+    """A day the way the module prints it, so a page can be searched for it."""
+    return datetime.date.fromisoformat(day).strftime("%d.%m.%Y")
+
+
 def module_link(page: Page, action: str) -> str:
     """The enable or disable link of the module in Dolibarr's module list."""
     for href in re.findall(r'href="([^"]*modules\.php\?[^"]*)"', page.text):
@@ -370,6 +375,7 @@ def enable(stack: Stack) -> str:
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_account", "/vereine/account.php"],
                     ["members", "vereine_application", "/vereine/application.php"],
                     ["members", "vereine_applications", "/vereine/applications.php"],
+                    ["members", "vereine_assembly", "/vereine/assembly.php"],
                     ["members", "vereine_audit", "/vereine/audit.php"],
                     ["members", "vereine_authority", "/vereine/authority.php"],
                     ["members", "vereine_circulars", "/vereine/circulars.php"],
@@ -2429,6 +2435,57 @@ def shifts(stack: Stack) -> str:
             "afternoon shift took the third member because the times do not overlap; being put on a shift carried no hours until the "
             "association noted the first helper as present with four hours; the short report is a PDF with the checklist, the helpers "
             "and the money of the project")
+
+
+def assembly(stack: Stack) -> str:
+    """The way through a general assembly: the invitation deadline, a due election, the missing audit report, and afterwards the notice to the authority (#127)."""
+    browser = stack.browser()
+    today = stack.today()
+    base = "/custom/vereine/assembly.php"
+    expect(denied(stack.browser("rtnobody").get(base)), "a user without rights opens the way through the assembly")
+
+    # A general assembly in thirty days, so the invitation deadline still runs.
+    day = (datetime.date.fromisoformat(today) + datetime.timedelta(days=30)).isoformat()
+    meeting = int(stack.value("SELECT rowid FROM llx_vereine_meeting WHERE kind = 'general' AND entity = 1 ORDER BY rowid DESC LIMIT 1"))
+    stack.sql(f"UPDATE llx_vereine_meeting SET meeting_day = '{day}', status = 'planned', invited_at = NULL WHERE rowid = {meeting}")
+
+    page = page_ok(browser.get(base), "the way through the assembly")
+    steps = {code: state for code, state in re.findall(r'data-step="([a-z]+)" data-step-state="([a-z]+)"', page.text)}
+    expect(len(steps) == 17, f"the way should hold seventeen steps: {sorted(steps)}")
+    phases = re.findall(r'data-assembly-phase="([a-z]+)"', page.text)
+    expect(phases == ["before", "meeting", "after"], f"the phases in their order: {phases}")
+
+    # What the acceptance of the issue asks for: the invitation with its deadline, a due election, the
+    # audit report that is not signed.
+    expect(steps.get("invitation") in ("now", "overdue"), f"the invitation is not what to do now: {steps.get('invitation')}")
+    invite_deadline = (datetime.date.fromisoformat(day) - datetime.timedelta(days=int(stack.value(
+        "SELECT JSON_EXTRACT(value, '$.invite_days') FROM llx_const WHERE name = 'VEREINE_STATUTE_RULES' AND entity = 1") or 14))).isoformat()
+    expect(f'data-step="invitation"' in page.text and vereine_day(invite_deadline) in page.text,
+           f"the invitation deadline {invite_deadline} does not stand on the page")
+    expect(steps.get("elections") == "now", f"a due election is not shown: {steps.get('elections')}")
+    expect(steps.get("auditreport") in ("now", "overdue"), f"the missing audit report is not shown: {steps.get('auditreport')}")
+    expect(steps.get("attendance") in ("later", "done") and steps.get("minutes") in ("later", "done"),
+           f"what belongs to the day and afterwards is asked for too early: {steps.get('attendance')}, {steps.get('minutes')}")
+
+    # The same points stand where everybody looks.
+    overview = page_ok(browser.get("/custom/vereine/vereineindex.php"), "the overview with what is to do")
+    expect('data-todo-kind="assembly"' in overview.text, "the overview does not name what the assembly still needs")
+
+    # After the assembly with an election, the authority has to hear of it within four weeks.
+    held = (datetime.date.fromisoformat(today) - datetime.timedelta(days=1)).isoformat()
+    stack.sql(f"UPDATE llx_vereine_meeting SET meeting_day = '{held}', status = 'held' WHERE rowid = {meeting}")
+    reports = int(stack.value("SELECT COUNT(*) FROM llx_vereine_function_report WHERE reported_on IS NULL AND entity = 1") or 0)
+    page = page_ok(browser.get(base), "the way after the assembly")
+    steps = {code: state for code, state in re.findall(r'data-step="([a-z]+)" data-step-state="([a-z]+)"', page.text)}
+    expect(steps.get("attendance") in ("done", "now") and steps.get("minutes") in ("done", "now"),
+           f"after the day the meeting and what follows are due: {steps.get('attendance')}, {steps.get('minutes')}")
+    expect((reports > 0) == (steps.get("authority") in ("now", "overdue")),
+           f"{reports} notices to the authority are open, the step says {steps.get('authority')}")
+    progress = re.search(r'data-assembly-progress="(\d+)"', page.text)
+    expect(progress is not None and 0 <= int(progress.group(1)) <= 100, f"the way shows no progress: {progress}")
+    return (f"seventeen steps in three phases; thirty days ahead the invitation deadline, a due election and the missing audit report "
+            f"stand as what to do, the day itself and everything after it as still to come; the overview names them too; after the "
+            f"assembly the notice to the authority ({reports} open) and the minutes are what follows")
 
 
 def board(stack: Stack) -> str:
@@ -4543,6 +4600,7 @@ SCENARIOS = (
     ("duties", "The calendar of duties: catalogue of the law, days of the year, agenda tasks, handover after a change of office", duties, ("account",)),
     ("events", "Events from templates: a project of Dolibarr with its tasks, the checklist, a template that changes later", events, ("duties",)),
     ("shifts", "Helper shifts: places, overlapping times, confirmed duties, and the short report as PDF", shifts, ("events",)),
+    ("assembly", "The way through a general assembly: deadlines before, the day itself, and what follows from it", assembly, ("shifts", "minutes")),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),

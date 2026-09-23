@@ -66,6 +66,12 @@ und bringt eine REST-API für die Vereinswebsite mit.
   qualifiziert, rechtlich wie eigenhändig – über einen eigenen Signaturdienst
   (PDF-AS). Einrichtung in [docs/ID-AUSTRIA.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/ID-AUSTRIA.md).
 
+- **Generalversammlung Schritt für Schritt**: ein Ablauf je Versammlung, rückwärts
+  vom Termin gerechnet – Rechnung, Prüfung, Prüfbericht, fällige Wahlen,
+  Tagesordnung, Einladungsfrist, dann Anwesenheit und Abstimmungen, danach
+  Protokoll, Beschluss-PDFs, Meldung an die Behörde, Benutzergruppen und das
+  Protokoll an die Mitglieder. Jeder Schritt zeigt seinen Stand und führt direkt
+  zur richtigen Seite.
 - **Veranstaltungen aus Vorlagen**: eine Vorlage ist eine Checkliste mit Phasen
   (Vorbereitung, Durchführung, Nachbereitung), Frist je Punkt und zuständiger
   Funktion. Aus ihr entsteht ein **Projekt in Dolibarr** mit einer Aufgabe je
