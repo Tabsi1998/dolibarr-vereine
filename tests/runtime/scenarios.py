@@ -4474,9 +4474,11 @@ def application(stack: Stack) -> str:
     # The free texts of the association understand the placeholders of the module (#206).
     expect("__VEREINE_" not in blank and "runtime-verein.test" in blank,
            "placeholders in the texts of the association were not filled in on the form")
-    # Only to print: the brackets to tick, and every consent asks once (#203).
-    expect(blank.count("Ich willige ein") == blank.count("Ja [") - 1, f"the print form does not ask every consent exactly once: "
-           + f"{blank.count('Ich willige ein')} consents, {blank.count('Ja [')} pairs of brackets")
+    # Every consent asks once, with one pair of boxes; the statutes are only ticked, there is no "no" (#202, #203).
+    expect(blank.count("Ich willige ein") == blank.count("Nein") and blank.count("Nein") > 0, f"the form does not ask every consent exactly once: "
+           + f"{blank.count('Ich willige ein')} consents, {blank.count('Nein')} times Nein")
+    expect("Ja [" not in blank and "(v1)" not in blank and "Kündigungsfrist beträgt" in blank and re.search(r"Fassung \d", blank) is not None,
+           "the form still carries brackets, versions in titles or the setup text for leaving")
     expect("Bezahlt" not in blank, "the blank application carries the data of a member")
     expect("Vereinstrikot" in blank, "what the member type includes is missing on the form")
     # Discounts of the fee model belong on the form, and the mandate when Dolibarr collects by direct debit (#206).
@@ -4502,7 +4504,7 @@ def application(stack: Stack) -> str:
             "a new version of the newsletter consent")
     page_ok(browser.submit(page_ok(browser.get(base), "applications").form(name=f"vereineapplication{type_id}")), "build the blank application again")
     blank = pdf_text(stack, "vereine/application")
-    expect("neu gefasst" in blank and "(v2)" in blank, "the new version of the consent is not on the form")
+    expect("neu gefasst" in blank and "Fassung 2" in blank, "the new version of the consent is not on the form")
 
     # The declaration of consent: one page per member who is still missing one of the chosen consents (#110).
     forms = "/custom/vereine/consents.php"

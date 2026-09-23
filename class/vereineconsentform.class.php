@@ -150,7 +150,7 @@ class VereineConsentForm
 				$pdf->AddPage();
 			}
 			$page++;
-			VereinePdf::title($pdf, $outputlangs, $outputlangs->transnoentities('VereineConsentFormTitle'), $organization['name']);
+			VereinePdf::title($pdf, $outputlangs, $outputlangs->transnoentities('VereineConsentFormTitle'));
 			$pdf->SetFont($font, '', 10);
 			$pdf->MultiCell(0, 5, $outputlangs->transnoentities('VereineConsentFormFor', $member->getFullName($outputlangs)), 0, 'L');
 			$address = trim($member->address.', '.trim($member->zip.' '.$member->town), ' ,');
@@ -168,7 +168,7 @@ class VereineConsentForm
 				if ($pdf->GetY() + 8 + $pdf->getStringHeight(170, $body) + 10 > $pdf->getPageHeight() - VereinePdf::BOTTOM - 5) {
 					$pdf->AddPage();
 				}
-				VereinePdf::heading($pdf, $outputlangs, $text['label'].' (v'.((int) $text['version']).')');
+				VereinePdf::heading($pdf, $outputlangs, $text['label'], $outputlangs->transnoentities('VereineApplicationConsentVersion', (int) $text['version']), 0);
 				$pdf->SetFont($font, '', 9);
 				$pdf->MultiCell(0, 4, $body, 0, 'L');
 				VereinePdf::choice($pdf, $outputlangs, 'consent_'.$page.'_'.$code, $outputlangs->transnoentitiesnoconv('VereineConsentFormChoice'), $fillable);

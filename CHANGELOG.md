@@ -56,6 +56,18 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Kontakt für das Stammzahlenregister. Hochladen in FinanzOnline bleibt ein Klick bei euch.
 
 
+### Geändert
+
+- **Mitgliedsantrag und Einwilligungserklärung sehen aus wie Formulare** (#202): Jedes Feld hat
+  eine Schreiblinie, auch im ausfüllbaren PDF – gedruckt sieht das Blatt aus wie am Bildschirm.
+  Ja/Nein sind zwei gezeichnete Kästchen, die Statuten nur ein Kästchen zum Anhaken (ein „Nein“
+  gibt es beim Antrag nicht). Die Fassung einer Einwilligung steht klein daneben statt „(v2)“ im
+  Titel. Angaben zur Person stehen in zwei Spalten, bekannte Werte fett auf der Linie. Der
+  Austritt ist ein Satz („Austritt: schriftlich zum Monatsende, die Kündigungsfrist beträgt
+  1 Monat.“), die Bankverbindung steht beim Beitrag. Untertitel und Fußzeile, die den Seitenkopf
+  wiederholt haben, entfallen; der Seitenkopf aller PDFs zeigt dafür Telefon und Website.
+  Überschriften stehen nie mehr allein am Seitenende, der Unterschriftenblock bleibt beisammen.
+
 ### Behoben
 
 - **„Was wartet auf mich“ führt zur richtigen Seite**: Unterschriften für die

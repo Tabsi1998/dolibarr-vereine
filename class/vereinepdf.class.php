@@ -90,19 +90,80 @@ class VereinePdf
 	 * @param TCPDF     $pdf         Document
 	 * @param Translate $outputlangs Language of the document
 	 * @param string    $text        Heading
+	 * @param string    $note        Small grey note on the right, such as the version of a text; may be empty
+	 * @param float     $keep        Room in mm the heading needs under it on the same page (#202)
 	 * @return void
 	 */
-	public static function heading($pdf, $outputlangs, $text)
+	public static function heading($pdf, $outputlangs, $text, $note = '', $keep = 25)
 	{
 		$font = pdf_getPDFFont($outputlangs);
+		self::keep($pdf, $keep + 10);
 		$pdf->Ln(2);
 		$pdf->SetFont($font, 'B', 11);
-		$pdf->MultiCell(0, 6, $text, 0, 'L');
+		if ((string) $note !== '') {
+			$pdf->MultiCell(135, 6, $text, 0, 'L', false, 0);
+			self::note($pdf, $outputlangs, $note, 35, 6);
+		} else {
+			$pdf->MultiCell(0, 6, $text, 0, 'L');
+		}
 		$y = $pdf->GetY();
 		$pdf->SetDrawColor(190, 190, 190);
 		$pdf->Line(self::SIDE, $y, $pdf->getPageWidth() - self::SIDE, $y);
 		$pdf->Ln(1.5);
 		$pdf->SetFont($font, '', 10);
+	}
+
+	/**
+	 * A new page when the rest of this one is too short for what belongs together (#202).
+	 *
+	 * @param TCPDF $pdf    Document
+	 * @param float $needed Room in mm
+	 * @return void
+	 */
+	public static function keep($pdf, $needed)
+	{
+		if ($pdf->GetY() + (float) $needed > $pdf->getPageHeight() - self::BOTTOM - 5) {
+			$pdf->AddPage();
+		}
+	}
+
+	/**
+	 * A bold line with a small grey note at its right end, such as a consent and its version.
+	 *
+	 * @param TCPDF     $pdf         Document
+	 * @param Translate $outputlangs Language of the document
+	 * @param string    $text        Bold text
+	 * @param string    $note        Note, may be empty
+	 * @return void
+	 */
+	public static function label($pdf, $outputlangs, $text, $note)
+	{
+		$pdf->SetFont(pdf_getPDFFont($outputlangs), 'B', 10);
+		if ((string) $note === '') {
+			$pdf->MultiCell(0, 5, $text, 0, 'L');
+			return;
+		}
+		$pdf->MultiCell(135, 5, $text, 0, 'L', false, 0);
+		self::note($pdf, $outputlangs, $note, 35, 5);
+	}
+
+	/**
+	 * A small grey note, right aligned, ending the line.
+	 *
+	 * @param TCPDF     $pdf         Document
+	 * @param Translate $outputlangs Language of the document
+	 * @param string    $note        Note
+	 * @param float     $width       Width in mm
+	 * @param float     $height      Height of the line in mm
+	 * @return void
+	 */
+	private static function note($pdf, $outputlangs, $note, $width, $height)
+	{
+		$pdf->SetFont(pdf_getPDFFont($outputlangs), '', 8);
+		$pdf->SetTextColor(120, 120, 120);
+		$pdf->MultiCell($width, $height, $note, 0, 'R', false, 1);
+		$pdf->SetTextColor(0, 0, 0);
+		$pdf->SetFont(pdf_getPDFFont($outputlangs), '', 10);
 	}
 
 	/**
@@ -161,34 +222,101 @@ class VereinePdf
 	}
 
 	/**
-	 * A field to write in, or a line to write on when the document is only printed.
+	 * A line to write on, then on to the next line.
 	 *
 	 * @param TCPDF  $pdf      Document
 	 * @param string $name     Name of the field, unique in the document
 	 * @param float  $width    Width in mm
 	 * @param bool   $fillable Whether the document carries fields
 	 * @param float  $height   Height in mm
+	 * @param string $value    What is known already, bold on the line; no field then
 	 * @return void
 	 */
-	public static function input($pdf, $name, $width, $fillable, $height = 6)
+	public static function input($pdf, $name, $width, $fillable, $height = 6, $value = '')
 	{
 		$x = $pdf->GetX();
 		$y = $pdf->GetY();
-		if ($fillable) {
-			$pdf->TextField($name, $width, $height, array('lineWidth' => 0.1, 'borderStyle' => 'solid', 'strokeColor' => array(190, 190, 190)), array(), $x, $y);
-		} else {
-			// A thin line to write on reads better than a row of underscores.
-			$pdf->SetDrawColor(150, 150, 150);
-			$pdf->SetLineWidth(0.2);
-			$pdf->Line($x, $y + $height - 1.5, $x + $width, $y + $height - 1.5);
-		}
+		self::line($pdf, $name, $width, $fillable, $height, $value);
 		$pdf->SetXY($x + $width, $y);
 		$pdf->Ln($height);
 	}
 
 	/**
-	 * A yes or no to tick: two boxes to tick, or two brackets when the document is only printed. The
-	 * label never carries the brackets itself, so a fillable form does not show them twice (#203).
+	 * A line to write on where the cursor stands, and the cursor right after it.
+	 *
+	 * The line is always drawn: printed, and on a screen that draws no fields, the sheet looks the same.
+	 * A fillable document lays a field without a frame over it (#202).
+	 *
+	 * @param TCPDF  $pdf      Document
+	 * @param string $name     Name of the field, unique in the document
+	 * @param float  $width    Width in mm
+	 * @param bool   $fillable Whether the document carries fields
+	 * @param float  $height   Height in mm
+	 * @param string $value    What is known already, bold on the line; no field then
+	 * @return void
+	 */
+	public static function line($pdf, $name, $width, $fillable, $height = 6, $value = '')
+	{
+		$x = $pdf->GetX();
+		$y = $pdf->GetY();
+		$pdf->SetDrawColor(150, 150, 150);
+		$pdf->SetLineWidth(0.2);
+		$pdf->Line($x, $y + $height - 1.5, $x + $width, $y + $height - 1.5);
+		if ((string) $value !== '') {
+			$family = $pdf->getFontFamily();
+			$size = $pdf->getFontSizePt();
+			$pdf->SetFont($family, 'B', $size);
+			$pdf->SetXY($x + 1, $y);
+			$pdf->Cell($width - 1, $height - 1.5, (string) $value, 0, 0, 'L', false, '', 1, false, 'T', 'B');
+			$pdf->SetFont($family, '', $size);
+		} elseif ($fillable) {
+			$pdf->TextField($name, $width, $height - 1.5, array('lineWidth' => 0, 'borderStyle' => 'none'), array(), $x, $y);
+		}
+		$pdf->SetXY($x + $width, $y);
+	}
+
+	/**
+	 * A box to tick where the cursor stands: drawn always, a check box over it when the document is fillable.
+	 *
+	 * @param TCPDF  $pdf      Document
+	 * @param string $name     Name of the field, unique in the document
+	 * @param bool   $fillable Whether the document carries fields
+	 * @param string $export   Value of the ticked box
+	 * @return void
+	 */
+	public static function box($pdf, $name, $fillable, $export = 'Ja')
+	{
+		$x = $pdf->GetX();
+		$y = $pdf->GetY();
+		$pdf->SetDrawColor(90, 90, 90);
+		$pdf->SetLineWidth(0.25);
+		$pdf->Rect($x, $y + 1, 4, 4);
+		if ($fillable) {
+			$pdf->CheckBox($name, 4, false, array('lineWidth' => 0, 'borderStyle' => 'none'), array(), $export, $x, $y + 1);
+		}
+		$pdf->SetXY($x + 6, $y);
+	}
+
+	/**
+	 * One box to tick with its text, for something that is only agreed to, such as the statutes (#202).
+	 *
+	 * @param TCPDF     $pdf         Document
+	 * @param Translate $outputlangs Language of the document
+	 * @param string    $name        Name of the field, unique in the document
+	 * @param string    $label       What is agreed to
+	 * @param bool      $fillable    Whether the document carries fields
+	 * @return void
+	 */
+	public static function tick($pdf, $outputlangs, $name, $label, $fillable)
+	{
+		$pdf->SetFont(pdf_getPDFFont($outputlangs), '', 10);
+		self::box($pdf, $name, $fillable);
+		$pdf->MultiCell(0, 6, $label, 0, 'L', false, 1);
+	}
+
+	/**
+	 * A yes or no to tick: the question, then a box with Ja and a box with Nein, printed as on the
+	 * screen. The label never carries boxes itself, so nothing shows twice (#202, #203).
 	 *
 	 * @param TCPDF     $pdf         Document
 	 * @param Translate $outputlangs Language of the document
@@ -202,18 +330,9 @@ class VereinePdf
 		$font = pdf_getPDFFont($outputlangs);
 		$pdf->SetFont($font, '', 10);
 		$pdf->MultiCell(110, 6, $label, 0, 'L', false, 0);
-		if (!$fillable) {
-			$pdf->MultiCell(60, 6, $outputlangs->transnoentitiesnoconv('VereineApplicationYesNo'), 0, 'L', false, 1);
-			return;
-		}
-		$x = $pdf->GetX();
-		$y = $pdf->GetY();
-		$pdf->CheckBox($name.'_ja', 4, false, array(), array(), 'Ja', $x, $y + 1);
-		$pdf->SetXY($x + 6, $y);
+		self::box($pdf, $name.'_ja', $fillable, 'Ja');
 		$pdf->MultiCell(14, 6, $outputlangs->transnoentitiesnoconv('Yes'), 0, 'L', false, 0);
-		$x = $pdf->GetX();
-		$pdf->CheckBox($name.'_nein', 4, false, array(), array(), 'Nein', $x, $y + 1);
-		$pdf->SetXY($x + 6, $y);
+		self::box($pdf, $name.'_nein', $fillable, 'Nein');
 		$pdf->MultiCell(20, 6, $outputlangs->transnoentitiesnoconv('No'), 0, 'L', false, 1);
 	}
 
@@ -230,17 +349,24 @@ class VereinePdf
 	public static function signatures($pdf, $outputlangs, array $lines, $prefix, $fillable)
 	{
 		$font = pdf_getPDFFont($outputlangs);
-		$pdf->Ln(4);
-		$pdf->SetFont($font, '', 10);
-		$pdf->MultiCell(45, 6, $outputlangs->transnoentitiesnoconv('VereineApplicationPlaceDay').':', 0, 'L', false, 0);
-		self::input($pdf, $prefix.'_ort_datum', 80, $fillable);
-		$pdf->Ln(4);
-		foreach ($lines as $line) {
-			self::input($pdf, $prefix.'_'.dol_sanitizeFileName(strtolower($line)), 85, $fillable, 10);
+		// The whole block on one page: nobody signs a page that does not show what is signed.
+		self::keep($pdf, 8 + 17 * count($lines));
+		$pdf->Ln(6);
+		foreach (array_values($lines) as $index => $line) {
+			$pdf->SetX(self::SIDE);
+			$pdf->SetFont($font, '', 10);
+			self::line($pdf, $prefix.'_ort_datum'.($index > 0 ? '_'.$index : ''), 60, $fillable, 10);
+			$pdf->SetX(self::SIDE + 70);
+			self::line($pdf, $prefix.'_'.dol_sanitizeFileName(strtolower($line)), 100, $fillable, 10);
+			$pdf->Ln(10);
 			$pdf->SetFont($font, '', 8);
-			$pdf->MultiCell(85, 4, $outputlangs->transnoentitiesnoconv($line), 0, 'L');
+			$pdf->SetX(self::SIDE);
+			$pdf->MultiCell(60, 4, $outputlangs->transnoentitiesnoconv('VereineApplicationPlaceDay'), 0, 'L', false, 0);
+			$pdf->SetX(self::SIDE + 70);
+			$pdf->MultiCell(100, 4, $outputlangs->transnoentitiesnoconv($line), 0, 'L', false, 1);
 			$pdf->Ln(3);
 		}
+		$pdf->SetFont($font, '', 10);
 	}
 
 	/**
@@ -303,8 +429,9 @@ class VereinePdf
 		if ($address !== '') {
 			$lines[] = str_replace(array("\r\n", "\n"), ', ', $address);
 		}
-		if (trim((string) $mysoc->email) !== '') {
-			$lines[] = trim((string) $mysoc->email);
+		$contact = array_filter(array(trim((string) $mysoc->email), trim((string) $mysoc->phone), trim((string) $mysoc->url)), 'strlen');
+		if ($contact) {
+			$lines[] = implode(' · ', $contact);
 		}
 		$pdf->SetX(self::SIDE);
 		$pdf->MultiCell($width - 2 * self::SIDE - $logoWidth - 4, 4, implode("\n", $lines), 0, 'L');
