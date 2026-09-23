@@ -129,6 +129,20 @@ class modVereine extends DolibarrModules
 				'test' => 'isModEnabled("vereine")',
 				'priority' => 50,
 			),
+			1 => array(
+				'label' => 'VereineCronHooks',
+				'jobtype' => 'method',
+				'class' => '/vereine/class/vereinehooks.class.php',
+				'objectname' => 'VereineHooks',
+				'method' => 'runDue',
+				'parameters' => '',
+				'comment' => 'VereineCronHooksHelp',
+				'frequency' => 5,
+				'unitfrequency' => 60,
+				'status' => 1,
+				'test' => 'isModEnabled("vereine")',
+				'priority' => 50,
+			),
 		);
 
 		$this->rights = array();

@@ -66,6 +66,10 @@ und bringt eine REST-API für die Vereinswebsite mit.
   qualifiziert, rechtlich wie eigenhändig – über einen eigenen Signaturdienst
   (PDF-AS). Einrichtung in [docs/ID-AUSTRIA.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/ID-AUSTRIA.md).
 
+- **Signierte Webhooks**: Der Verein trägt ein Ziel ein, das Modul schickt jede
+  Änderung dorthin – signiert, erst nach dem Commit und über eine geplante
+  Aufgabe, damit ein langsamer Empfänger niemanden aufhält. Mit Wiederholung,
+  Schlüsselwechsel und einer Betriebsansicht, in der kein Geheimnis auftaucht.
 - **Änderungsfeed für externe Anwendungen**: eine Website oder App liest mit
   einem Cursor nach, was sich geändert hat, und holt nach einer Unterbrechung
   genau den freigegebenen Stand nach. Der Feed sagt nur, *dass* sich etwas

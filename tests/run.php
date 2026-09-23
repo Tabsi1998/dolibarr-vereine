@@ -64,6 +64,7 @@ require_once $root.'/class/vereineeventrules.class.php';
 require_once $root.'/class/vereineshiftrules.class.php';
 require_once $root.'/class/vereineassemblyrules.class.php';
 require_once $root.'/class/vereinechangerules.class.php';
+require_once $root.'/class/vereinehookrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1791,7 +1792,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1803,6 +1804,7 @@ $prefixes = array(
 	'VereineAssemblyState_' => array('done', 'overdue', 'now', 'later', 'none'),
 	'VereineAssemblyStep_' => array_keys(VereineAssemblyRules::STEPS),
 	'VereineAssemblyHelp_' => array_keys(VereineAssemblyRules::STEPS),
+	'VereineHookStatus_' => VereineHookRules::STATUSES,
 	'VereineDutyBasis_' => VereineDutyRules::BASES,
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
@@ -2309,6 +2311,78 @@ same(array('membership', 'fee'), VereineChangeRules::wantedTypes('membership, fe
 same(VereineChangeRules::TYPES, VereineChangeRules::wantedTypes(''), 'without a wish every kind comes');
 same(VereineChangeRules::TYPES, VereineChangeRules::wantedTypes('bankverbindung'), 'a kind nobody knows is ignored');
 same(array('membership'), VereineChangeRules::wantedTypes('membership,membership'), 'a kind named twice comes once');
+
+// ------------------------------------------------------------- signed webhooks (#155)
+
+$hookEvent = array('event_id' => 'abc123', 'object_type' => 'membership', 'object_id' => 42, 'revision' => 3,
+	'change' => 'updated', 'occurred_at' => '2026-09-23T14:05:11Z');
+$hookBody = VereineHookRules::body($hookEvent);
+$decoded = json_decode($hookBody, true);
+same(array('version', 'event_id', 'object_type', 'object_id', 'revision', 'change', 'occurred_at'), array_keys($decoded),
+	'the body carries the reference and nothing else');
+expect(strpos($hookBody, 'name') === false && strpos($hookBody, 'iban') === false, 'the body carries no content of the change');
+
+// The signature covers version, moment and the bytes; anything else changes it.
+$secret = 'ein-geheimnis';
+$header = VereineHookRules::header($secret, 'a1b2c3d4', $hookBody, 1790000000, 'abc123');
+same('', VereineHookRules::verify($header, $hookBody, array('a1b2c3d4' => $secret), 1790000000), 'a fresh delivery is genuine');
+same('signature', VereineHookRules::verify($header, $hookBody.' ', array('a1b2c3d4' => $secret), 1790000000),
+	'one changed byte makes the signature wrong');
+same('signature', VereineHookRules::verify($header, $hookBody, array('a1b2c3d4' => 'falsch'), 1790000000),
+	'the wrong secret makes the signature wrong');
+same('key', VereineHookRules::verify($header, $hookBody, array('99999999' => $secret), 1790000000),
+	'a key the receiver does not know is refused');
+same('expired', VereineHookRules::verify($header, $hookBody, array('a1b2c3d4' => $secret), 1790000000 + 301),
+	'a moment older than five minutes is refused');
+same('', VereineHookRules::verify($header, $hookBody, array('a1b2c3d4' => $secret), 1790000000 + 299),
+	'inside the five minutes it still counts');
+same('header', VereineHookRules::verify('kein header', $hookBody, array('a1b2c3d4' => $secret), 1790000000),
+	'something that is no header of ours is refused');
+same('header', VereineHookRules::verify('v1=kurz,t=1790000000,k=a1b2c3d4,e=abc123', $hookBody,
+	array('a1b2c3d4' => $secret), 1790000000), 'a signature that is not a sha256 is refused');
+
+// A repetition keeps the name of the event and gets a new moment, so it is no replay.
+$again = VereineHookRules::header($secret, 'a1b2c3d4', $hookBody, 1790000200, 'abc123');
+expect($again !== $header, 'a second attempt is signed anew');
+same('abc123', VereineHookRules::readHeader($again)['event_id'], 'a second attempt keeps the name of the event');
+same('', VereineHookRules::verify($again, $hookBody, array('a1b2c3d4' => $secret), 1790000200), 'the second attempt is genuine too');
+
+// During a rotation a receiver knows two secrets.
+$old = VereineHookRules::header('altes-geheimnis', 'aaaa1111', $hookBody, 1790000000, 'abc123');
+$both = array('a1b2c3d4' => $secret, 'aaaa1111' => 'altes-geheimnis');
+same('', VereineHookRules::verify($old, $hookBody, $both, 1790000000), 'the old key still works during the rotation');
+same('', VereineHookRules::verify($header, $hookBody, $both, 1790000000), 'the new key works as well');
+
+// The pauses grow, and they stop growing.
+same(30, VereineHookRules::backoff(1), 'the first pause is half a minute');
+same(120, VereineHookRules::backoff(2), 'the second is two minutes');
+same(21600, VereineHookRules::backoff(7), 'the seventh is six hours');
+same(21600, VereineHookRules::backoff(99), 'it never grows past six hours');
+expect(VereineHookRules::accepted(200) && VereineHookRules::accepted(204) && !VereineHookRules::accepted(302)
+	&& !VereineHookRules::accepted(500), 'only an answer from 200 to 299 counts as taken');
+
+// Where a delivery may go.
+same('VereineHookErrorHttps', VereineHookRules::checkUrl('http://verein.test/hook', false), 'plain http is refused');
+same('VereineHookErrorCredentials', VereineHookRules::checkUrl('https://user:pass@verein.test/hook', false),
+	'credentials in the address are refused');
+same('VereineHookErrorUrl', VereineHookRules::checkUrl('', false), 'an empty address is refused');
+same('VereineHookErrorInternal', VereineHookRules::checkUrl('https://localhost/hook', false), 'localhost is inside the network');
+same('VereineHookErrorInternal', VereineHookRules::checkUrl('https://127.0.0.1/hook', false), 'the loopback address is inside');
+same('VereineHookErrorInternal', VereineHookRules::checkUrl('https://192.168.1.10/hook', false), 'a private address is inside');
+same('VereineHookErrorInternal', VereineHookRules::checkUrl('https://169.254.169.254/latest/meta-data', false),
+	'the address a cloud answers about itself with is inside, whatever the letter says');
+same('', VereineHookRules::checkUrl('https://192.168.1.10/hook', true), 'with the exception a local address is allowed');
+expect(VereineHookRules::isInternalAddress('10.0.0.5') && VereineHookRules::isInternalAddress('::1')
+	&& !VereineHookRules::isInternalAddress('93.184.216.34'), 'private and loopback are inside, a public address is not');
+expect(VereineHookRules::isInternalAddress('kein-ip'), 'what is no address at all is not a target either');
+
+// Nothing secret ever reaches a log.
+expect(strpos(VereineHookRules::maskError('failed with ein-geheimnis', array($secret)), $secret) === false,
+	'the secret is taken out of a message');
+expect(strpos(VereineHookRules::maskError('v1=deadbeefdeadbeef broken', array()), 'deadbeef') === false,
+	'a signature is taken out of a message');
+same('a1b2c3d4…', VereineHookRules::maskSecret('a1b2c3d4'), 'the setup shows the name of the secret, never the secret');
+same(250, mb_strlen(VereineHookRules::maskError(str_repeat('x', 400), array()), 'UTF-8'), 'a message stays short');
 
 // ------------------------------------------------------------------- result
 

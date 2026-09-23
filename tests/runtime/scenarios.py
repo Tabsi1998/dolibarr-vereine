@@ -2595,6 +2595,153 @@ def changes(stack: Stack) -> str:
             f"reconciliation lists {members} members as bare ids and only the last page says complete")
 
 
+def webhooks(stack: Stack) -> str:
+    """Signed webhooks: only https targets, delivery after the commit, backoff, rotation, and a reference receiver that refuses what it should (#155)."""
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/webhooks.php"
+    expect(denied(stack.browser("rtreader").get(setup)), "a non-administrator opens the webhook setup")
+    page = page_ok(browser.get(setup), "the webhook setup")
+    expect('data-hook-none="1"' in page.text, "there is already a target")
+
+    # Where a delivery may not go.
+    sync_user = int(stack.value("SELECT rowid FROM llx_user WHERE login = 'rtwebsite'"))
+    for url, message in (("http://verein.test/hook", "https"), ("https://user:pass@verein.test/hook", "Benutzer"),
+                         ("https://localhost/hook", "eigenen Netz")):
+        form = page_ok(browser.get(setup), f"the setup before {url}").form(name="vereinehook")
+        refused = page_ok(browser.submit(form, {"label": "Test", "url": url, "user_id": str(sync_user)}), f"a target at {url}")
+        expect(message in html.unescape(refused.text), f"{url} was not refused with an explanation")
+    expect(int(stack.value("SELECT COUNT(*) FROM llx_vereine_hook_target") or 0) == 0, "a refused target was stored anyway")
+
+    # A target nobody answers at: that is enough to watch the attempts.
+    form = page_ok(browser.get(setup), "the setup for a target").form(name="vereinehook")
+    # Nothing answers on that port; the stack has no name service, so a public name would look internal
+    # anyway. This is how a receiver beside Dolibarr is set up, with the exception switched on.
+    page = page_ok(browser.submit(form, {"label": "LionsAPP", "url": "https://127.0.0.1:9443/hook",
+                                         "user_id": str(sync_user), "allow_internal": "1"}),
+                   "a target that cannot be reached")
+    expect('data-hook-secret="1"' in page.text, "the secret was not shown when the target was made")
+    secret = re.search(r"<code>([0-9a-f]{64})</code>", page.text)
+    expect(secret is not None, "the secret is not shown as a secret")
+    secret = secret.group(1)
+    target = int(stack.value("SELECT rowid FROM llx_vereine_hook_target WHERE label = 'LionsAPP'"))
+    page = page_ok(browser.get(setup), "the setup again")
+    expect(secret not in page.text and 'data-hook-secret="1"' not in page.text, "the secret is shown a second time")
+    key_id = stack.value(f"SELECT key_id FROM llx_vereine_hook_target WHERE rowid = {target}")
+
+    # A change of a member becomes a job, but only after the change itself is through.
+    member = int(stack.value("SELECT rowid FROM llx_adherent WHERE statut = 1 ORDER BY rowid LIMIT 1"))
+    card = page_ok(browser.get(f"/adherents/card.php?id={member}&action=edit"), "the member card")
+    page_ok(browser.submit(card.form(action_part="card.php"), {"note_public": "Webhook-Test " + stack.today()}), "change the member")
+    for _ in range(15):
+        page = page_ok(browser.submit(page_ok(browser.get(setup), "the setup before a run").form(name="vereinehookrun")), "deliver now")
+        if int(stack.value(f"SELECT COUNT(*) FROM llx_vereine_hook_delivery WHERE fk_target = {target}") or 0) > 0:
+            break
+        time.sleep(1)
+    jobs = stack.sql(f"SELECT event_id, status, attempts, last_error, next_try FROM llx_vereine_hook_delivery WHERE fk_target = {target}")
+    expect(jobs, "the change of the member never became a job")
+    expect(jobs[0][1] == "pending" and int(jobs[0][2]) >= 1, f"the job should wait after a failed attempt: {jobs[0]}")
+    expect(jobs[0][4] not in ("", "NULL", None), f"a job that failed has no next attempt: {jobs[0]}")
+    expect(secret not in jobs[0][3], "the error message carries the secret")
+    expect(len({row[0] for row in jobs}) == len(jobs), "the same event became two jobs")
+
+    # The same event stays one job, however often the queue runs.
+    before = int(stack.value(f"SELECT COUNT(*) FROM llx_vereine_hook_delivery WHERE fk_target = {target}") or 0)
+    page_ok(browser.submit(page_ok(browser.get(setup), "the setup").form(name="vereinehookrun")), "deliver again")
+    expect(int(stack.value(f"SELECT COUNT(*) FROM llx_vereine_hook_delivery WHERE fk_target = {target}") or 0) == before,
+           "running the queue again wrote the same event a second time")
+
+    # Starting a job again by hand keeps its name and counts from the beginning.
+    delivery = int(stack.value(f"SELECT rowid FROM llx_vereine_hook_delivery WHERE fk_target = {target} ORDER BY rowid LIMIT 1"))
+    event_id = stack.value(f"SELECT event_id FROM llx_vereine_hook_delivery WHERE rowid = {delivery}")
+    page = page_ok(browser.get(setup), "the setup before a retry")
+    page_ok(browser.post(setup, [("token", token_of(page)), ("action", "retry"), ("delivery", str(delivery))]), "start the job again")
+    after = stack.sql(f"SELECT event_id, status, attempts FROM llx_vereine_hook_delivery WHERE rowid = {delivery}")
+    expect(after[0][0] == event_id and after[0][1] == "pending" and int(after[0][2]) == 0,
+           f"the job should wait again under its own name: {after}")
+
+    # A target that is switched off delivers nothing, and neither does one whose right was taken away.
+    stack.sql(f"UPDATE llx_vereine_hook_target SET active = 0 WHERE rowid = {target}")
+    page_ok(browser.submit(page_ok(browser.get(setup), "the setup").form(name="vereinehookrun")), "deliver with the target off")
+    expect(stack.value(f"SELECT status FROM llx_vereine_hook_delivery WHERE rowid = {delivery}") == "stopped",
+           "a target that is switched off still delivered")
+    right = int(stack.value("SELECT id FROM llx_rights_def WHERE module = 'vereine' AND perms = 'sync' AND subperms = 'read' AND entity = 1"))
+    stack.sql(f"DELETE FROM llx_user_rights WHERE fk_user = {sync_user} AND fk_id = {right}")
+    stack.sql(f"UPDATE llx_vereine_hook_target SET active = 1 WHERE rowid = {target}")
+    page = page_ok(browser.get(setup), "the setup without the right")
+    expect('data-hook-allowed="0"' in page.text, "the setup does not say that the right is gone")
+    page_ok(browser.post(setup, [("token", token_of(page)), ("action", "retry"), ("delivery", str(delivery))]), "start the job again")
+    page_ok(browser.submit(page_ok(browser.get(setup), "the setup").form(name="vereinehookrun")), "deliver without the right")
+    expect(stack.value(f"SELECT status FROM llx_vereine_hook_delivery WHERE rowid = {delivery}") == "stopped",
+           "a delivery went out although the right was taken away")
+    stack.sql(f"INSERT INTO llx_user_rights (entity, fk_user, fk_id) VALUES (1, {sync_user}, {right})")
+
+    # A rotation: the new secret signs, the old one is still accepted for a day.
+    page = page_ok(browser.get(setup), "the setup before the rotation")
+    page = page_ok(browser.post(setup, [("token", token_of(page)), ("action", "rotate"), ("target", str(target))]), "rotate the secret")
+    rotated = re.search(r"<code>([0-9a-f]{64})</code>", page.text)
+    expect(rotated is not None and rotated.group(1) != secret, "the rotation gave no new secret")
+    new_secret, new_key = rotated.group(1), stack.value(f"SELECT key_id FROM llx_vereine_hook_target WHERE rowid = {target}")
+    kept = stack.sql(f"SELECT next_key_id, rotate_until FROM llx_vereine_hook_target WHERE rowid = {target}")
+    expect(kept[0][0] == key_id and kept[0][1] not in ("", "NULL", None), f"the old key is not kept for the change over: {kept}")
+
+    # The reference receiver, answering real requests: a pipe would prove nothing about a web server.
+    receiver = "/tmp/webhook-empfaenger.php"
+    poster = "/tmp/hook_post.php"
+    stack.run(stack.docker, "cp", str(OPENAPI.parent / "beispiele" / "webhook-empfaenger.php"), f"{stack.web}:{receiver}")
+    stack.run(stack.docker, "cp", str(Path(__file__).resolve().parent / "hook_post.php"), f"{stack.web}:{poster}")
+    stack.shell("rm -f /tmp/vereine-hook-seen.json /tmp/vereine-hook-log.json")
+    rules = "/var/www/html/custom/vereine/class/vereinehookrules.class.php"
+    # The body lives in a file, and both sides read that file: a byte that differs would be a test of
+    # the test, not of the signature.
+    stack.shell(f"php -r \"require '{rules}'; file_put_contents('/tmp/hook-body.json',"
+                " VereineHookRules::body(array('event_id' => 'rt-1', 'object_type' => 'membership',"
+                " 'object_id' => 7, 'revision' => 1, 'change' => 'updated', 'occurred_at' => '2026-09-23T14:05:11Z')));\"")
+    stack.shell("php -r \"file_put_contents('/tmp/hook-body-bad.json', str_replace('7', '8',"
+                " file_get_contents('/tmp/hook-body.json')));\"")
+    now = int(stack.shell("php -r 'echo time();'").stdout.strip())
+    secrets = json.dumps({new_key: new_secret, key_id: secret})
+    # Detached, not backgrounded in a shell: when the exec session ends it would take the server with it.
+    stack.run(stack.docker, "exec", "-d", "-u", "www-data", stack.web, "sh", "-c",
+              f"VEREINE_HOOK_SECRETS='{secrets}' php -S 127.0.0.1:8099 {receiver} >/tmp/hook-server.log 2>&1", check=False)
+    url = "http://127.0.0.1:8099/hook"
+    for _ in range(20):
+        if "no answer" not in stack.shell(f"php {poster} {url} /tmp/hook-body.json leer").stdout:
+            break
+        time.sleep(1)
+    else:
+        raise CheckFailed("the reference receiver never came up: " + stack.shell("cat /tmp/hook-server.log").stdout[:300])
+
+    def header_for(when: int, with_secret: str, with_key: str, event: str = "rt-1") -> str:
+        """The header the module itself would build, so the test never signs by its own rules."""
+        return stack.shell(f"php -r \"require '{rules}'; echo VereineHookRules::header('{with_secret}', '{with_key}',"
+                           f" file_get_contents('/tmp/hook-body.json'), {when}, '{event}');\"").stdout.strip()
+
+    def receive(header: str, body_file: str = "/tmp/hook-body.json") -> str:
+        """Send a body to the receiver over HTTP and give back what it answered."""
+        return stack.shell(f"php {poster} {url} {body_file} '{header}'").stdout.strip()
+
+    genuine = header_for(now, new_secret, new_key)
+    first = receive(genuine)
+    expect('"ok":true' in first, f"the reference receiver refused a genuine delivery: {first}")
+    expect('"reason":"already seen"' in receive(genuine), "the reference receiver took the same event twice")
+    tampered = receive(genuine, "/tmp/hook-body-bad.json")
+    expect('"reason":"signature"' in tampered, f"changed bytes were not refused: {tampered}")
+    wrong_key = receive(header_for(now, new_secret, "99999999", "rt-2"))
+    expect('"reason":"key"' in wrong_key, f"an unknown key was not refused: {wrong_key}")
+    expired = receive(header_for(now - 3600, new_secret, new_key, "rt-3"))
+    expect('"reason":"expired"' in expired, f"an old header was not refused: {expired}")
+    old_key_ok = receive(header_for(now, secret, key_id, "rt-4"))
+    expect('"ok":true' in old_key_ok, f"the old key was refused during the rotation: {old_key_ok}")
+    log = stack.shell("cat /tmp/vereine-hook-log.json").stdout
+    expect(log.count('"event_id"') == 2, f"the receiver logged something it should have refused: {log[:200]}")
+    stack.shell("pkill -f 'php -S 127.0.0.1:8099' || true")
+    return ("only https targets without credentials and outside the network are taken; a change of a member became exactly one job, "
+            "a failed attempt waits with a masked error, a repetition stays the same job and a retry keeps its name; a target that is "
+            "switched off or whose right was taken away delivers nothing; after a rotation the new secret signs and the old one is "
+            "still accepted; the reference receiver takes what is genuine, refuses changed bytes, an unknown key and an old header, "
+            "and takes the same event only once")
+
+
 def board(stack: Stack) -> str:
     """A website reads the board: names only with consent, or for the board always when it must be disclosed."""
     site = stack.notes["website"]
@@ -4709,6 +4856,7 @@ SCENARIOS = (
     ("shifts", "Helper shifts: places, overlapping times, confirmed duties, and the short report as PDF", shifts, ("events",)),
     ("assembly", "The way through a general assembly: deadlines before, the day itself, and what follows from it", assembly, ("shifts", "minutes")),
     ("changes", "The change feed: notes without content, a cursor that loses nothing, resync instead of a silent gap", changes, ("assembly",)),
+    ("webhooks", "Signed webhooks: https targets only, delivery after the commit, backoff, rotation, reference receiver", webhooks, ("changes",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),

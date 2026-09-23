@@ -696,6 +696,84 @@ lückenlos im Feed weiter.
 einem Datum wirkt, oder eine Korrektur direkt in der Datenbank – erzeugen keinen Eintrag. Genau
 dafür ist der regelmäßige Vollabgleich da.
 
+## Signierte Webhooks
+
+Ein Webhook ist ein **Hinweis zum Nachlesen, kein Beweis**. Er sagt, dass sich etwas geändert
+hat; die Daten holt der Empfänger danach über die API. Und auch bei lauter erfolgreichen
+Zustellungen bleibt der regelmäßige Vollabgleich (`GET /vereine/changes/snapshot`) Pflicht –
+ein Hinweis kann immer verloren gehen.
+
+Eingerichtet wird das unter **Einrichtung > Vereine > Webhooks**: Adresse, der Benutzer, unter
+dessen Freigabe zugestellt wird, und wahlweise die Objektarten. Das Geheimnis wird **genau
+einmal** gezeigt.
+
+### Wann zugestellt wird
+
+Nie während einer Fachtransaktion. Eine geplante Aufgabe (alle fünf Minuten) macht aus den
+Änderungsvermerken des Feeds (#154) Zustellaufträge und schickt sie los. Damit gilt:
+
+- Was zurückgerollt wurde, stand nie im Feed und wird nie zugestellt.
+- Ein langsamer oder toter Empfänger hält niemanden im Verein auf.
+- Der Commit ist durch, bevor der Empfänger nachliest.
+
+### Der Body
+
+```json
+{"version":"v1","event_id":"9f2c…","object_type":"membership","object_id":42,
+ "revision":3,"change":"updated","occurred_at":"2026-09-23T14:05:11Z"}
+```
+
+Mehr nicht: keine Namen, Beträge, Dokumente, Bankdaten oder Stimmen.
+
+### Die Signatur
+
+Header `Vereine-Signature`, zum Beispiel:
+
+```
+v1=6f1c…a3,t=1790000000,k=a1b2c3d4,e=9f2c…
+```
+
+| Teil | Bedeutung |
+| --- | --- |
+| `v1` | HMAC-SHA-256, hexadezimal, über `v1.<t>.<Body-Bytes>` |
+| `t` | Zeitpunkt **dieses Versuchs**, Sekunden seit 1970 |
+| `k` | Kennung des Schlüssels – bei einer Rotation gibt es zwei |
+| `e` | Ereignis-ID, **bleibt über Wiederholungen gleich** |
+
+Ein Empfänger prüft in dieser Reihenfolge: Header lesbar → Schlüssel bekannt → Zeitpunkt
+höchstens **300 Sekunden** alt → Signatur stimmt (in konstanter Zeit vergleichen) → Ereignis-ID
+noch nicht gesehen. **Die Bytes signieren, nicht das geparste JSON.**
+
+### Wiederholungen
+
+Zustellung ist *mindestens einmal*. Empfänger **müssen** nach `event_id` deduplizieren. Schlägt
+ein Versuch fehl, wartet der Auftrag 30 s, 2 min, 10 min, 30 min, 1 h, 3 h, 6 h – nach acht
+Versuchen bleibt er liegen und kann von Hand erneut angestoßen werden, mit **derselben**
+Ereignis-ID und neuer Signatur.
+
+### Schlüsselwechsel
+
+*Schlüssel wechseln* erzeugt ein neues Geheimnis; ab sofort wird damit signiert. Der alte
+Schlüssel bleibt **24 Stunden** gültig, damit der Empfänger in Ruhe umstellen kann. In dieser
+Zeit kennt der Empfänger zwei Schlüssel und entscheidet über `k`.
+
+### Wohin zugestellt wird
+
+Nur **https**, ohne Benutzer und Passwort in der Adresse, ohne Weiterleitungen, mit
+Zertifikatsprüfung. Adressen im eigenen Netz (localhost, private Bereiche, die
+Metadaten-Adresse einer Cloud) sind gesperrt, außer die Ausnahme ist für dieses Ziel bewusst
+gesetzt. Der Name wird **vor jedem Versuch neu aufgelöst**, damit ein Name, der gestern
+öffentlich zeigte, heute nicht ins interne Netz führt.
+
+Vor jedem Versuch wird geprüft, ob der hinterlegte Benutzer den Änderungsfeed noch verfolgen
+darf. Ist das Recht weg oder das Ziel abgeschaltet, wird der Auftrag gestoppt statt zugestellt.
+
+### Referenz-Empfänger
+
+`docs/beispiele/webhook-empfaenger.php` ist ein vollständiger, kurzer Empfänger zum Abschreiben.
+Er liegt bewusst **nicht** im Installationspaket: er gehört auf den Server des Empfängers, nicht
+in ein Dolibarr, das ihn dann als Seite ausliefern würde.
+
 ## Benachrichtigung über Webhooks
 
 Statt alle paar Minuten zu fragen, kann eine Website erfahren, wann sich die

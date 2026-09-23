@@ -108,6 +108,9 @@ class VereineLog
 	const SHIFT_SAVED = 'shift_saved';
 	const SHIFT_SIGNUP = 'shift_signup';
 	const SHIFT_DONE = 'shift_done';
+	const HOOK_TARGET = 'hook_target';
+	const HOOK_ROTATED = 'hook_rotated';
+	const HOOK_RETRY = 'hook_retry';
 
 	/**
 	 * Append one entry.

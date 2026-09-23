@@ -9,6 +9,25 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **Signierte Webhooks** (#155): Unter *Einrichtung > Vereine > Webhooks* trägt der Verein ein
+  Ziel ein; eine geplante Aufgabe schickt jede Änderung des Feeds dorthin. **Nie während einer
+  Fachtransaktion**: ein zurückgerollter Vorgang wird nie zugestellt, und ein langsamer oder
+  toter Empfänger hält niemanden im Verein auf.
+- **Jede Zustellung ist signiert** (HMAC-SHA-256 über Version, Zustellzeitpunkt und die Bytes
+  des Body). Eine Wiederholung behält die Ereignis-ID und bekommt eine neue Signatur, damit ein
+  Empfänger eine Wiederholung von einer Aufzeichnung unterscheiden kann.
+- **Wiederholung mit wachsenden Pausen** (30 s bis 6 h, acht Versuche), Betriebsansicht mit
+  Rückstand, letzter erfolgreicher Zustellung und maskierten Fehlern – Geheimnisse tauchen
+  weder in der Ansicht noch im Protokoll auf. Ein liegengebliebener Auftrag lässt sich von Hand
+  erneut anstoßen, mit derselben Ereignis-ID.
+- **Schlüsselwechsel** auf Knopfdruck: der neue Schlüssel signiert sofort, der alte gilt noch
+  24 Stunden, damit der Empfänger in Ruhe umstellen kann. Das Geheimnis wird genau einmal
+  gezeigt.
+- **Nur https**, ohne Zugangsdaten in der Adresse, ohne Weiterleitungen, mit Zertifikatsprüfung;
+  Adressen im eigenen Netz nur mit ausdrücklicher Ausnahme, und der Name wird vor jedem Versuch
+  neu aufgelöst. Vor jedem Versuch wird geprüft, ob der hinterlegte Benutzer den Feed überhaupt
+  noch verfolgen darf.
+- **Referenz-Empfänger zum Abschreiben** in `docs/beispiele/webhook-empfaenger.php`.
 - **Änderungsfeed für externe Anwendungen** (#154): Zwei neue Endpunkte,
   `GET /vereine/changes` und `GET /vereine/changes/snapshot`. Eine Website oder App liest mit
   einem Cursor nach, was sich geändert hat, und holt nach einer Unterbrechung genau den
