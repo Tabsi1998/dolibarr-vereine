@@ -7,6 +7,23 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Neu
+
+- **Freiwilligenpauschale und PRAE** (#7): Ein neuer Menüpunkt *Mitglieder > Verein >
+  Freiwilligenpauschale*. Kassier und Obmann erfassen Einsätze mit Tag, Tätigkeit, Art (kleine
+  oder große Pauschale, PRAE) und Betrag.
+- **Überschreitungen fallen sofort auf**: Liegt ein Einsatz über der Grenze des Tages, des Monats
+  (PRAE) oder des Kalenderjahres, sagt das Modul es beim Speichern – nicht erst im Februar. Auch
+  PRAE und Pauschale für dieselbe Person im selben Jahr werden als „bitte prüfen" markiert.
+  Verboten wird nichts, denn was darüber liegt, ist nicht verboten, nur nicht mehr steuerfrei.
+- **Grenzen als datierte Tabelle** mit Rechtsgrundlage (§ 3 Abs. 1 Z 42 und Z 16c EStG, Stand
+  2024): ändert sich das Gesetz, kommt eine Zeile dazu, und frühere Jahre behalten ihre Zahlen.
+- **Helferdienste werden übernommen**: Bestätigte Einsätze der Veranstaltungen („war da") stehen
+  zum Erfassen bereit – ein Klick mit dem Betrag, und jeder Helferdienst lässt sich nur einmal
+  abrechnen.
+- **Jahresliste je Person** mit Einsatztagen, Summen je Art und Hinweisen, als CSV für die
+  Meldungen ans Finanzamt. Abschicken bleibt Handarbeit.
+
 ## [0.8.0-beta] - 2026-09-23
 
 Veranstaltungen & Aufgaben: Fristenkalender des Vereins, Veranstaltungen aus Vorlagen mit

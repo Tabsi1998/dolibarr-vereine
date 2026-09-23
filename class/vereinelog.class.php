@@ -114,6 +114,8 @@ class VereineLog
 	const IDENTITY_INVITE = 'identity_invite';
 	const IDENTITY_LINKED = 'identity_linked';
 	const IDENTITY_REVOKED = 'identity_revoked';
+	const VOLUNTEER_RECORDED = 'volunteer_recorded';
+	const VOLUNTEER_REMOVED = 'volunteer_removed';
 
 	/**
 	 * Append one entry.

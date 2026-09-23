@@ -67,6 +67,7 @@ require_once $root.'/class/vereinechangerules.class.php';
 require_once $root.'/class/vereinehookrules.class.php';
 require_once $root.'/class/vereineidentityrules.class.php';
 require_once $root.'/class/vereineapplicationformrules.class.php';
+require_once $root.'/class/vereinevolunteerrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1794,7 +1795,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1811,6 +1812,9 @@ $prefixes = array(
 	'VereineIdentityProof_' => VereineIdentityRules::PROOFS,
 	'VereineIdentityInviteState_' => array('open', 'used', 'expired'),
 	'VereineApplicationExtra_' => array('off', 'optional', 'required'),
+	'VereineVolunteerKind_' => VereineVolunteerRules::KINDS,
+	'VereineVolunteerLimit_' => VereineVolunteerRules::KINDS,
+	'VereineVolunteerFinding_' => VereineVolunteerRules::FINDINGS,
 	'VereineDutyBasis_' => VereineDutyRules::BASES,
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
@@ -2522,6 +2526,69 @@ $july = array('start_month' => 7) + $halfYear;
 same('2027-06-30', VereineApplicationFormRules::prorationSteps($july, 2026)[1]['to'], 'a fee year from July ends in June of the next year');
 same(array(), VereineApplicationFormRules::prorationSteps(array('proration' => 'none') + $halfYear, 2026), 'nothing prorated, no steps');
 same(array(), VereineApplicationFormRules::prorationSteps(array('start_month' => 0) + $halfYear, 2026), 'a fee year from joining has no steps');
+
+// ------------------------------------------------------------- volunteer allowances (#7)
+
+same(array('small' => 30.0, 'large' => 50.0, 'prae' => 120.0), array(
+	'small' => VereineVolunteerRules::limitsOn('small', '2026-05-01')['day'], 'large' => VereineVolunteerRules::limitsOn('large', '2026-05-01')['day'],
+	'prae' => VereineVolunteerRules::limitsOn('prae', '2026-05-01')['day']), 'the limits of a day since 2024');
+same(null, VereineVolunteerRules::limitsOn('small', '2023-12-31'), 'before the rule the module knows no limit and claims none');
+
+// A day: 30.00 is within, 30.01 is not.
+same(array(), VereineVolunteerRules::check(array('day' => '2026-05-01', 'kind' => 'small', 'amount' => 30), array())['findings'],
+	'thirty euros on a day are within the small allowance');
+same(array('over_day'), VereineVolunteerRules::check(array('day' => '2026-05-01', 'kind' => 'small', 'amount' => 30.01), array())['findings'],
+	'one cent more is over the day');
+same(array('over_day'), VereineVolunteerRules::check(array('day' => '2026-05-01', 'kind' => 'small', 'amount' => 20),
+	array(array('day' => '2026-05-01', 'kind' => 'small', 'amount' => 15)))['findings'], 'two entries on one day count together');
+
+// The year, and a year that ends: December counts, January of the next year does not.
+$year = array();
+for ($month = 1; $month <= 11; $month++) {
+	$year[] = array('day' => sprintf('2026-%02d-10', $month), 'kind' => 'small', 'amount' => 30);
+	$year[] = array('day' => sprintf('2026-%02d-20', $month), 'kind' => 'small', 'amount' => 30);
+	$year[] = array('day' => sprintf('2026-%02d-25', $month), 'kind' => 'small', 'amount' => 30);
+}
+$december = VereineVolunteerRules::check(array('day' => '2026-12-05', 'kind' => 'small', 'amount' => 30), $year);
+same(1020.0, $december['year'], 'eleven months of three days and one in December make 1020 euros');
+same(array('over_year'), $december['findings'], 'which is over the year');
+same(array(), VereineVolunteerRules::check(array('day' => '2027-01-05', 'kind' => 'small', 'amount' => 30), $year)['findings'],
+	'the next year starts at nothing');
+same(array(), VereineVolunteerRules::check(array('day' => '2026-12-05', 'kind' => 'large', 'amount' => 30), $year)['findings'],
+	'the large allowance has its own, higher limit of the year');
+
+// PRAE by month, and a month that ends.
+$june = array();
+for ($day = 1; $day <= 6; $day++) {
+	$june[] = array('day' => sprintf('2026-06-%02d', $day), 'kind' => 'prae', 'amount' => 120);
+}
+same(array('over_month'), VereineVolunteerRules::check(array('day' => '2026-06-30', 'kind' => 'prae', 'amount' => 1), $june)['findings'],
+	'a seventh day in June is over the month');
+same(array(), VereineVolunteerRules::check(array('day' => '2026-07-01', 'kind' => 'prae', 'amount' => 120), $june)['findings'],
+	'July starts at nothing');
+same(array('over_day'), VereineVolunteerRules::check(array('day' => '2026-07-01', 'kind' => 'prae', 'amount' => 121), array())['findings'],
+	'more than 120 euros on a day is over');
+
+// PRAE and an allowance for the same person in one year.
+same(array('mixed'), VereineVolunteerRules::check(array('day' => '2026-08-01', 'kind' => 'small', 'amount' => 10),
+	array(array('day' => '2026-03-01', 'kind' => 'prae', 'amount' => 50)))['findings'], 'PRAE and an allowance in one year is a case to check');
+same(array(), VereineVolunteerRules::check(array('day' => '2027-08-01', 'kind' => 'small', 'amount' => 10),
+	array(array('day' => '2026-03-01', 'kind' => 'prae', 'amount' => 50)))['findings'], 'in different years it is not');
+
+// The list of the year per person.
+$list = VereineVolunteerRules::yearList(array(
+	array('member_id' => 2, 'name' => 'Zoe', 'day' => '2026-01-02', 'kind' => 'small', 'amount' => 30),
+	array('member_id' => 2, 'name' => 'Zoe', 'day' => '2026-01-02', 'kind' => 'small', 'amount' => 10),
+	array('member_id' => 1, 'name' => 'Anna', 'day' => '2026-02-02', 'kind' => 'prae', 'amount' => 100),
+	array('member_id' => 1, 'name' => 'Anna', 'day' => '2025-12-31', 'kind' => 'prae', 'amount' => 100),
+), 2026);
+same(array('Anna', 'Zoe'), array_column($list, 'name'), 'one line per person, by name');
+same(array(100.0, 40.0), array(array_sum(array($list[0]['prae'])), $list[1]['small']), 'only the calendar year counts');
+same(1, $list[1]['days'], 'two entries on one day are one day');
+same(array(), VereineVolunteerRules::validate(array('member_id' => 1, 'day' => '2026-02-28', 'activity' => 'Kassa', 'kind' => 'small', 'amount' => '25,50')),
+	'a sensible entry with a comma is fine');
+same(array('VereineVolunteerErrorDay', 'VereineVolunteerErrorAmount'), VereineVolunteerRules::validate(
+	array('member_id' => 1, 'day' => '2026-02-30', 'activity' => 'Kassa', 'kind' => 'small', 'amount' => '0')), 'no 30 February, no zero amount');
 
 // ------------------------------------------------------------------- result
 
