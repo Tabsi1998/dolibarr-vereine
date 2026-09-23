@@ -2036,6 +2036,8 @@ VereineApplicationAccount=Bankkonto für die Fußzeile
 VereineApplicationAccountHelp=Die IBAN dieses Kontos steht in der Fußzeile des Antrags.
 VereineApplicationAccountFirst=Erstes offenes Konto
 VereineApplicationBlankPage=Leeren Antrag je Mitgliedsart erstellen
+VereineApplicationSubmitted=Elektronisch eingereicht am %s über die Website des Vereins. Die Angaben und Einwilligungen kommen aus dem Online-Formular.
+VereineApplicationSignDrawn=Am Bildschirm gezeichnete Unterschrift (einfache elektronische Signatur)
 VereineLog_application_pdf=Mitgliedsantrag als PDF erstellt
 
 # Einwilligungserklärung drucken und ausfüllbare Felder (#110, #107)

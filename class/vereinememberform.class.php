@@ -163,11 +163,12 @@ class VereineMemberForm
 	 *
 	 * @param Adherent|null $member      Member, null for a blank form
 	 * @param int           $typeId      Member type; taken from the member when there is one
-	 * @param Translate     $outputlangs Language
-	 * @param string        $file        Where to write it
+	 * @param Translate            $outputlangs Language
+	 * @param string               $file        Where to write it
+	 * @param array<string,mixed>  $submitted   An application that came in over the website: at, signature (path of a PNG)
 	 * @return string Path, empty on error
 	 */
-	public function build($member, $typeId, $outputlangs, $file)
+	public function build($member, $typeId, $outputlangs, $file, array $submitted = array())
 	{
 		global $mysoc;
 
@@ -254,7 +255,7 @@ class VereineMemberForm
 			}
 		}
 
-		$this->signatures($pdf, $member, $outputlangs, $fillable);
+		$this->signatures($pdf, $member, $outputlangs, $fillable && !$submitted, $submitted);
 		$footer = $this->footer($organization);
 		$pdf->Ln(4);
 		$pdf->SetFont($font, 'I', 8);
@@ -339,16 +340,30 @@ class VereineMemberForm
 	 * @param TCPDF         $pdf         PDF
 	 * @param Adherent|null $member      Member, null for a blank form
 	 * @param Translate     $outputlangs Language
-	 * @param bool          $fillable    Whether the form carries fields to fill in
+	 * @param bool                $fillable    Whether the form carries fields to fill in
+	 * @param array<string,mixed> $submitted   An application that came in over the website: at, signature
 	 * @return void
 	 */
-	private function signatures($pdf, $member, $outputlangs, $fillable)
+	private function signatures($pdf, $member, $outputlangs, $fillable, array $submitted = array())
 	{
 		$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
+		if ($submitted) {
+			// Came in over the website: the note takes the place of the handwritten signature (#111).
+			$pdf->Ln(4);
+			$pdf->SetFont(pdf_getPDFFont($outputlangs), '', 9);
+			$pdf->MultiCell(0, 5, $outputlangs->transnoentities('VereineApplicationSubmitted',
+				dol_print_date(isset($submitted['at']) ? $submitted['at'] : dol_now(), 'dayhour')), 0, 'L');
+			if (!empty($submitted['signature']) && is_file($submitted['signature'])) {
+				$pdf->Image($submitted['signature'], VereinePdf::SIDE, $pdf->GetY() + 2, 50, 0, 'PNG');
+				$pdf->Ln(20);
+				$pdf->SetFont(pdf_getPDFFont($outputlangs), '', 8);
+				$pdf->MultiCell(85, 4, $outputlangs->transnoentitiesnoconv('VereineApplicationSignDrawn'), 0, 'L');
+			}
+		}
 		$birth = $member !== null && !empty($member->birth) ? dol_print_date($member->birth, '%Y-%m-%d', 'tzserver') : '';
 		// A blank form carries the line for guardians as well, it does not know who fills it in.
-		$lines = array('VereineApplicationSignApplicant');
-		if ($member === null || self::isMinor($birth, $today)) {
+		$lines = $submitted ? array() : array('VereineApplicationSignApplicant');
+		if (!$submitted && ($member === null || self::isMinor($birth, $today))) {
 			$lines[] = 'VereineApplicationSignGuardian';
 		}
 		$lines[] = 'VereineApplicationSignBoard';

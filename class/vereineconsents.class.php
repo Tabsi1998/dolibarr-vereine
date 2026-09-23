@@ -207,6 +207,46 @@ class VereineConsents
 	}
 
 	/**
+	 * The application as PDF at the documents of the member, as if it came in on paper (#111).
+	 *
+	 * @param Adherent $member    Member in draft
+	 * @param string   $signature Signature drawn on the screen as a PNG, empty when there is none
+	 * @param User     $user      API user
+	 * @return bool Whether the document was written
+	 */
+	private function applicationDocument($member, $signature, $user)
+	{
+		global $conf, $langs;
+
+		dol_include_once('/vereine/class/vereinememberform.class.php');
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+
+		$image = '';
+		if ($signature !== '') {
+			$image = DOL_DATA_ROOT.($conf->entity > 1 ? '/'.((int) $conf->entity) : '').'/vereine/temp/unterschrift-'.((int) $member->id).'.png';
+			if (dol_mkdir(dirname($image)) < 0 || file_put_contents($image, $signature) === false) {
+				dol_syslog(__METHOD__.' cannot keep the signature at '.$image, LOG_WARNING);
+				$image = '';
+			}
+		}
+		$form = new VereineMemberForm($this->db);
+		$directory = $conf->adherent->dir_output.'/'.dol_sanitizeFileName($member->ref !== '' ? $member->ref : (string) $member->id);
+		$file = $directory.'/mitgliedsantrag-'.dol_sanitizeFileName($member->ref !== '' ? $member->ref : (string) $member->id).'.pdf';
+		$submitted = array('at' => dol_now(), 'signature' => $image);
+		$written = $form->build($member, (int) $member->typeid, $langs, $file, $submitted) !== '';
+		if ($image !== '') {
+			dol_delete_file($image, 0, 1, 0, null, false, 0);
+		}
+		if (!$written) {
+			dol_syslog(__METHOD__.' '.$form->error, LOG_WARNING);
+			return false;
+		}
+		VereineLog::add($this->db, $user, VereineLog::APPLICATION_PDF, (int) $member->id, 0,
+			basename($file).' / sha256 '.substr(hash_file('sha256', $file), 0, 16).($signature !== '' ? ' / signature' : ''));
+		return true;
+	}
+
+	/**
 	 * Attach the scan of a signed declaration to a consent: Dolibarr keeps it with the documents of the member.
 	 *
 	 * @param int                 $eventId  Consent event
@@ -362,7 +402,7 @@ class VereineConsents
 	 *
 	 * @param array<string,mixed> $application Normalised application, see VereineConsentRules::application()
 	 * @param User                $user        API user
-	 * @return array{id:int,ref:string,status:string,duplicate:bool}|null Null on error, see $error
+	 * @return array{id:int,ref:string,status:string,duplicate:bool,document:bool}|null Null on error, see $error
 	 */
 	public function createApplication(array $application, $user)
 	{
@@ -373,7 +413,8 @@ class VereineConsents
 		if ($application['external_id'] !== '') {
 			$existing = $this->applicationMember($application['external_id']);
 			if ($existing !== null) {
-				return $existing + array('duplicate' => true);
+				// Sent twice: the same member, and no second document (#111).
+				return $existing + array('duplicate' => true, 'document' => false);
 			}
 		}
 
@@ -426,7 +467,10 @@ class VereineConsents
 		VereineLog::add($this->db, $user, VereineLog::APPLICATION_RECEIVED, (int) $member->id, 0, $application['external_id']);
 		$this->db->commit();
 		$member->fetch($member->id);
-		return array('id' => (int) $member->id, 'ref' => (string) $member->ref, 'status' => VereineMemberSummary::status($member->statut), 'duplicate' => false);
+		// The document comes after the transaction: a PDF that fails must not lose the application (#111).
+		$document = $this->applicationDocument($member, isset($application['signature']) ? (string) $application['signature'] : '', $user);
+		return array('id' => (int) $member->id, 'ref' => (string) $member->ref, 'status' => VereineMemberSummary::status($member->statut),
+			'duplicate' => false, 'document' => $document);
 	}
 
 	/**
