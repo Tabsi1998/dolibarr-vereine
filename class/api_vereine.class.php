@@ -398,6 +398,89 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Consents of a member
+	 *
+	 * The state per purpose for the member: what they agreed to, in which version, when, the
+	 * current version of the text and whether they can give or withdraw it now. Needs the right
+	 * to read member summaries for a website. Which person a website may act for is bound to the
+	 * verified client of issue #153; until then the website itself is responsible for asking the
+	 * right member.
+	 *
+	 * @param int $id Member id
+	 * @return array List of purposes as documented in docs/API.md
+	 *
+	 * @url GET members/{id}/consents
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such member
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMemberConsents($id)
+	{
+		$this->checkAccess();
+		$this->checkWebsiteRight();
+		if ($this->memberReport()->summary((int) $id) === null) {
+			throw new RestException(404, 'No member with this id');
+		}
+		dol_include_once('/vereine/class/vereineconsents.class.php');
+		$consents = new VereineConsents($this->db);
+		return $consents->stateFor((int) $id);
+	}
+
+	/**
+	 * Decide about a consent
+	 *
+	 * Records that a member gives or withdraws a consent. Giving needs the version of the text
+	 * that was shown; an older version is refused, so nobody agrees silently to a newer text.
+	 * Withdrawing needs no version and works although the text has a newer version (Art. 7 (3)
+	 * GDPR). The same order with the same reference is recorded once. Needs the right to send
+	 * membership applications.
+	 *
+	 * @param int   $id           Member id
+	 * @param array $request_data Decision as documented in docs/API.md
+	 * @return array What was recorded
+	 *
+	 * @url POST members/{id}/consents
+	 * @status 200
+	 *
+	 * @throws RestException 400 The decision is incomplete or invalid
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such member
+	 * @throws RestException 409 A withdrawal is newer than this consent
+	 * @throws RestException 500 The decision could not be recorded
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function postMemberConsent($id, $request_data = null)
+	{
+		$this->checkAccess();
+		if (!DolibarrApiAccess::$user->hasRight('vereine', 'application', 'write')) {
+			throw new RestException(403, 'Not allowed: the user needs the right to send membership applications');
+		}
+		if ($this->memberReport()->summary((int) $id) === null) {
+			throw new RestException(404, 'No member with this id');
+		}
+		dol_include_once('/vereine/class/vereineconsents.class.php');
+		$consents = new VereineConsents($this->db);
+		$texts = array();
+		foreach ($consents->currentTexts() as $code => $text) {
+			$texts[$code] = (int) $text['version'];
+		}
+		$checked = VereineConsentRules::decision($request_data, $texts, VereineConsentRules::current($consents->history((int) $id)));
+		if ($checked['errors']) {
+			throw new RestException(400, implode('; ', $checked['errors']));
+		}
+		$result = $consents->decide((int) $id, $checked['decision'], DolibarrApiAccess::$user);
+		if ($result === null && in_array('VereineConsentErrorLate', $consents->errors, true)) {
+			throw new RestException(409, 'A withdrawal of this consent is newer than the moment this consent was given');
+		}
+		if ($result === null) {
+			dol_syslog(__METHOD__.' '.$consents->error, LOG_ERR);
+			throw new RestException(500, 'The decision could not be recorded');
+		}
+		return $result;
+	}
+
+	/**
 	 * Find a member
 	 *
 	 * The summary of the member with a member number or an e-mail address, to link a

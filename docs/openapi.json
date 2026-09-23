@@ -685,6 +685,128 @@
           ]
         ]
       }
+    },
+    "/vereine/members/{id}/consents": {
+      "get": {
+        "operationId": "getMemberConsents",
+        "summary": "Einwilligungen eines Mitglieds mit Stand und aktueller Textversion",
+        "description": "Braucht das Recht, den Verein zu lesen, und das Recht, die Mitglieds-Zusammenfassung für die Website zu lesen.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Mitglieds-ID",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stand je Zweck",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemberConsent"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:website:read"
+          ]
+        ]
+      },
+      "post": {
+        "operationId": "postMemberConsent",
+        "summary": "Einwilligung erteilen oder widerrufen",
+        "description": "Braucht das Recht, den Verein zu lesen, und das Recht, Beitrittsanträge anzulegen. Zustimmen geht nur mit der aktuellen Textversion; widerrufen geht immer, auch wenn es inzwischen eine neue Fassung gibt (Art. 7 Abs. 3 DSGVO). Eine Zustimmung, die älter ist als ein bereits gespeicherter Widerruf, wird mit 409 abgelehnt.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Mitglieds-ID",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Was gespeichert wurde",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentDecisionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:application:write"
+          ]
+        ]
+      }
     }
   },
   "components": {
@@ -1754,6 +1876,122 @@
           "fee": {
             "type": "boolean",
             "description": "Eine Beitragsrechnung: mit einer Beitragsperiode verknüpft, aus einem Beitragslauf oder von der Mitgliedskarte"
+          }
+        }
+      },
+      "MemberConsent": {
+        "type": "object",
+        "required": [
+          "code",
+          "label",
+          "state",
+          "version",
+          "current_version",
+          "can_give",
+          "can_withdraw"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Kennung des Zwecks"
+          },
+          "label": {
+            "type": "string",
+            "description": "Kurzname des Zwecks"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "none",
+              "given",
+              "withdrawn"
+            ],
+            "description": "Stand des Mitglieds zu diesem Zweck"
+          },
+          "version": {
+            "type": "integer",
+            "description": "Version, der das Mitglied zugestimmt hat; 0, wenn noch nie"
+          },
+          "current_version": {
+            "type": "integer",
+            "description": "Aktuelle Version des Textes; 0, wenn der Zweck nicht mehr aktiv ist"
+          },
+          "moment": {
+            "type": "string",
+            "description": "Zeitpunkt der letzten Entscheidung"
+          },
+          "can_give": {
+            "type": "boolean",
+            "description": "Ob jetzt zugestimmt werden kann (aktiver Text, noch nicht in der aktuellen Version erteilt)"
+          },
+          "can_withdraw": {
+            "type": "boolean",
+            "description": "Ob jetzt widerrufen werden kann"
+          }
+        }
+      },
+      "ConsentDecision": {
+        "type": "object",
+        "required": [
+          "code",
+          "decision"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Kennung des Zwecks"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "given",
+              "withdrawn"
+            ],
+            "description": "Zustimmen oder widerrufen"
+          },
+          "version": {
+            "type": "integer",
+            "description": "Bei given: die Version des Textes, die gezeigt wurde. Eine ältere Version wird mit 400 abgelehnt"
+          },
+          "granted_at": {
+            "type": "string",
+            "description": "Zeitpunkt der Entscheidung, ISO 8601"
+          },
+          "form": {
+            "type": "string",
+            "description": "Formular oder Seite, auf der entschieden wurde"
+          },
+          "reference": {
+            "type": "string",
+            "description": "Kennung des Vorgangs. Derselbe Auftrag nochmals geschickt wird nur einmal gespeichert"
+          }
+        }
+      },
+      "ConsentDecisionResult": {
+        "type": "object",
+        "required": [
+          "code",
+          "state",
+          "version",
+          "recorded"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "given",
+              "withdrawn"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "recorded": {
+            "type": "boolean",
+            "description": "False, wenn derselbe Auftrag schon gespeichert war"
           }
         }
       }

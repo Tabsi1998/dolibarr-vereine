@@ -9,6 +9,23 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ### Neu
 
+- **Einwilligungen über die API** (#98): `GET /vereine/members/{id}/consents` zeigt je
+  Zweck den Stand, die zugestimmte und die aktuelle Textversion und was jetzt möglich ist.
+  `POST /vereine/members/{id}/consents` erteilt oder widerruft. Zustimmen geht nur mit der
+  Version, die der Person gezeigt wurde; widerrufen geht immer, auch bei neuer Fassung
+  (Art. 7 Abs. 3 DSGVO). Derselbe Auftrag nochmals geschickt wird einmal gespeichert, und
+  eine Zustimmung, die älter ist als ein gespeicherter Widerruf, wird abgelehnt.
+- **Eigene Dokumente über Dolibarrs ODT-Vorlagen** (#113): Das Modul liefert Platzhalter
+  für eigene Vorlagen – Vereinsdaten samt Bankverbindung, Mitgliedsnummer, Mitgliedsart,
+  Beitrag, Mitglied seit, Funktionen und Einwilligungen. Dazu eine Beispielvorlage
+  (`docs/vorlagen/vereinsvereinbarung.odt`) und eine Anleitung Schritt für Schritt
+  (`docs/ODT-VORLAGEN.md`), etwa für die Vereinbarung mit einem Vertragsspieler.
+- Wissenswert aus der Anleitung: Ab Dolibarr 24 müssen ODT-Vorlagen unter
+  `documents/doctemplates` liegen, sonst lehnt Dolibarr sie ab. In ODT-Vorlagen stehen die
+  Platzhalter in geschweiften Klammern, in E-Mail-Vorlagen ohne.
+
+### Neu
+
 - **Online-Antrag als PDF am Mitglied** (#111): Kommt ein Beitrittsantrag über die Website,
   legt das Modul denselben Antrag als PDF bei den Dokumenten des Mitglieds ab – mit dem
   Vermerk „Elektronisch eingereicht am … über die Website“, den gesendeten Daten und den

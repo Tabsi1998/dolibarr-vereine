@@ -247,6 +247,79 @@ class VereineConsents
 	}
 
 	/**
+	 * What a member can be asked about their consents: the state per purpose with the version they
+	 * agreed to, the current version of the text and what they can do now (#98).
+	 *
+	 * @param int $memberId Member
+	 * @return array<int,array<string,mixed>> By purpose, in the order of the texts
+	 */
+	public function stateFor($memberId)
+	{
+		$current = VereineConsentRules::current($this->history((int) $memberId));
+		$texts = $this->currentTexts();
+		$labels = array();
+		foreach ($this->texts() as $text) {
+			if (!isset($labels[$text['code']])) {
+				$labels[$text['code']] = $text['label'];
+			}
+		}
+		$state = array();
+		foreach (array_unique(array_merge(array_keys($texts), array_keys($current))) as $code) {
+			$event = isset($current[$code]) ? $current[$code] : null;
+			$given = $event !== null && $event['given'];
+			$state[] = array(
+				'code' => $code,
+				'label' => isset($labels[$code]) ? $labels[$code] : $code,
+				'state' => $event === null ? 'none' : ($given ? 'given' : 'withdrawn'),
+				'version' => $event !== null ? (int) $event['version'] : 0,
+				'current_version' => isset($texts[$code]) ? (int) $texts[$code]['version'] : 0,
+				'moment' => $event !== null ? dol_print_date($event['moment'], 'dayhourrfc') : '',
+				'can_give' => isset($texts[$code]) && (!$given || (int) $event['version'] !== (int) $texts[$code]['version']),
+				'can_withdraw' => $given,
+			);
+		}
+		return $state;
+	}
+
+	/**
+	 * Record a decision a member made about a purpose, as a website sends it (#98).
+	 *
+	 * The same decision with the same reference is recorded once; a consent that arrives late must
+	 * not undo a withdrawal that happened after it.
+	 *
+	 * @param int                 $memberId Member
+	 * @param array<string,mixed> $decision Normalised decision, see VereineConsentRules::decision()
+	 * @param User                $user     API user
+	 * @return array{code:string,state:string,version:int,recorded:bool}|null Null on error or conflict, see $error and $errors
+	 */
+	public function decide($memberId, array $decision, $user)
+	{
+		$this->errors = array();
+		$history = $this->history((int) $memberId);
+		$reference = $decision['proof']['ref'];
+		foreach ($history as $event) {
+			// The same order sent twice: what was recorded the first time counts.
+			if ($reference !== '' && $event['code'] === $decision['code'] && $event['proof_ref'] === $reference
+				&& $event['given'] === ($decision['decision'] === 'given')) {
+				return array('code' => $decision['code'], 'state' => $decision['decision'], 'version' => (int) $event['version'], 'recorded' => false);
+			}
+		}
+		$current = VereineConsentRules::current($history);
+		$latest = isset($current[$decision['code']]) ? $current[$decision['code']] : null;
+		if ($decision['decision'] === 'given' && $latest !== null && !$latest['given'] && $decision['proof']['at'] !== ''
+			&& $decision['proof']['at'] < dol_print_date($latest['moment'], '%Y-%m-%d %H:%M:%S', 'tzserver')) {
+			// A consent from before the withdrawal arrives late: the withdrawal stays.
+			$this->errors[] = 'VereineConsentErrorLate';
+			return null;
+		}
+		$stored = $this->record((int) $memberId, $decision['code'], (int) $decision['version'], $decision['decision'] === 'given', 'website', '', $user, $decision['proof']);
+		if ($stored < 0) {
+			return null;
+		}
+		return array('code' => $decision['code'], 'state' => $decision['decision'], 'version' => (int) $decision['version'], 'recorded' => true);
+	}
+
+	/**
 	 * Attach the scan of a signed declaration to a consent: Dolibarr keeps it with the documents of the member.
 	 *
 	 * @param int                 $eventId  Consent event
