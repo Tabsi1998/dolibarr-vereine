@@ -356,6 +356,8 @@ class VereineArchive
 	 */
 	public function export($from, $to, $user, $outputlangs)
 	{
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+
 		if (!class_exists('ZipArchive')) {
 			$this->error = 'ZipArchive is missing';
 			return '';
