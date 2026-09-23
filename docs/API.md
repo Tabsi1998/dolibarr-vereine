@@ -350,6 +350,26 @@ richtet, kann ein Kind in Österreich ab 14 Jahren selbst einwilligen (§ 4 Abs.
 DSG); bei Jüngeren die Eltern fragen.
 
 
+## GET /vereine/applicationform
+
+Welche Felder der Antrag verlangt – damit eine Website genau das fragt, was der gedruckte Antrag
+des Vereins fragt. Braucht dasselbe Recht wie das Senden eines Antrags.
+
+```json
+{"required": ["lastname", "firstname", "address", "zip", "town", "email"],
+ "fields": [{"code": "gamertag", "label": "Gamertag", "required": true}]}
+```
+
+- `required`: die Pflichtfelder aus *Einrichtung > Vereine > Mitgliedsantrag*. Vor- und Nachname
+  sind immer dabei; die Anschrift ist ab Werk angehakt.
+- `fields`: eigene Felder des Vereins (Zusatzfelder am Mitglied), die er auf den Antrag gestellt
+  hat, je mit Pflicht-Schalter.
+
+`POST /vereine/applications` lehnt einen Antrag mit **derselben** Liste ab: fehlt ein
+Pflichtfeld, kommt `400` mit z. B. `address is required` oder `fields.gamertag is required`.
+Eigene Felder gehen als `"fields": {"gamertag": "…"}` mit und landen am Mitglied. Ein Feld, das
+der Antrag nicht kennt, wird abgewiesen, nicht still gespeichert.
+
 ## GET /vereine/applications/{external_id}
 
 Wo ein Beitrittsantrag steht. Braucht das Recht, Beitrittsanträge anzulegen.

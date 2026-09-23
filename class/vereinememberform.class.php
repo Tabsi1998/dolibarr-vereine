@@ -27,6 +27,7 @@
 
 require_once __DIR__.'/vereineorganization.class.php';
 require_once __DIR__.'/vereinepdf.class.php';
+require_once __DIR__.'/vereineapplicationformrules.class.php';
 require_once __DIR__.'/vereinefeemodel.class.php';
 require_once __DIR__.'/vereinefeerules.class.php';
 require_once __DIR__.'/vereineconsents.class.php';
@@ -57,8 +58,10 @@ class VereineMemberForm
 
 	/** Fields of the person, in the order of the form. */
 	const FIELDS = array('lastname', 'firstname', 'birth', 'gender', 'address', 'zip', 'town', 'country', 'phone', 'email');
-	/** Fields that can be required; name and address of a member are needed anyway. */
-	const REQUIRABLE = array('birth', 'gender', 'phone', 'email');
+	/** Fields the association may require; the name is required anyway (#216). */
+	const REQUIRABLE = VereineApplicationFormRules::REQUIRABLE;
+	/** Own fields of the member on the form, as JSON of code => 1 when required (#216). */
+	const EXTRA = 'VEREINE_APPLICATION_EXTRAFIELDS';
 	/** Age from which somebody signs alone (§ 21 (2) ABGB). */
 	const ADULT = 18;
 
@@ -85,17 +88,46 @@ class VereineMemberForm
 	/**
 	 * What the association set for the form.
 	 *
-	 * @return array{intro:string,privacy:string,privacy_url:string,required:string[],account:int}
+	 * The required fields always carry the name; until the association saves its own choice the address
+	 * is required too, because the register of members needs it. The own fields are the additional fields
+	 * of the member the association put on the form, each with its switch.
+	 *
+	 * @param string[] $known Codes of the additional fields of the member, to drop ones that are gone
+	 * @return array{intro:string,privacy:string,privacy_url:string,required:string[],extra:array<string,bool>,account:int}
 	 */
-	public static function settings()
+	public static function settings(array $known = array())
 	{
 		return array(
 			'intro' => (string) getDolGlobalString(self::INTRO),
 			'privacy' => (string) getDolGlobalString(self::PRIVACY),
 			'privacy_url' => (string) getDolGlobalString(self::PRIVACY_URL),
-			'required' => self::requiredFields(getDolGlobalString(self::REQUIRED)),
+			'required' => VereineApplicationFormRules::required(getDolGlobalString(self::REQUIRED, VereineApplicationFormRules::DEFAULT_REQUIRED)),
+			'extra' => VereineApplicationFormRules::extraFields(getDolGlobalString(self::EXTRA), $known),
 			'account' => getDolGlobalInt(self::ACCOUNT),
 		);
+	}
+
+	/**
+	 * The additional fields of the member an association may put on the form: code => label.
+	 *
+	 * @param DoliDB $db Database handler
+	 * @return array<string,string>
+	 */
+	public static function memberExtraFields($db)
+	{
+		require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
+
+		$extrafields = new ExtraFields($db);
+		$extrafields->fetch_name_optionals_label('adherent');
+		$labels = array();
+		$attributes = isset($extrafields->attributes['adherent']['label']) ? $extrafields->attributes['adherent']['label'] : array();
+		foreach ($attributes as $code => $label) {
+			// The module's own fields are kept by the module and have their own place on the form.
+			if (strpos((string) $code, 'vereine_') !== 0) {
+				$labels[(string) $code] = (string) $label;
+			}
+		}
+		return $labels;
 	}
 
 	/**
@@ -188,7 +220,8 @@ class VereineMemberForm
 			return '';
 		}
 		$type = $this->memberType($member !== null ? (int) $member->typeid : (int) $typeId);
-		$settings = self::settings();
+		$extraLabels = self::memberExtraFields($this->db);
+		$settings = self::settings(array_keys($extraLabels));
 		$organization = VereineOrganization::load($mysoc);
 		$fillable = VereinePdf::fillable('application');
 		$pdf = VereinePdf::start($outputlangs);
@@ -224,7 +257,12 @@ class VereineMemberForm
 			$field($name, $outputlangs->transnoentitiesnoconv('VereineApplicationField_'.$name), $this->personValue($member, $name, $outputlangs),
 				in_array($name, $settings['required'], true));
 		}
-		if ($settings['required']) {
+		// The association's own fields, such as a gamer tag, with the value the member already has.
+		foreach ($settings['extra'] as $code => $mustHave) {
+			$value = $member !== null && isset($member->array_options['options_'.$code]) ? (string) $member->array_options['options_'.$code] : '';
+			$field('extra_'.$code, $outputlangs->transnoentitiesnoconv($extraLabels[$code]), $value, $mustHave);
+		}
+		if ($settings['required'] || in_array(true, $settings['extra'], true)) {
 			$pdf->SetFont($font, 'I', 8);
 			$pdf->MultiCell(0, 4, $outputlangs->transnoentitiesnoconv('VereineApplicationRequiredHint'), 0, 'L');
 		}
@@ -473,8 +511,46 @@ class VereineMemberForm
 			$lines[] = $outputlangs->transnoentities('VereineApplicationAdmission', price($model['admission_fee'], 0, $outputlangs, 1, -1, 2).' €');
 		}
 		if ($model['proration'] !== VereineFeeRules::PRORATION_NONE) {
-			$lines[] = $outputlangs->transnoentitiesnoconv('VereineApplicationProration_'.$model['proration']);
+			$lines = array_merge($lines, $this->prorationLines($model, $outputlangs));
 		}
+		return $lines;
+	}
+
+	/**
+	 * What joining costs in the year of joining, part by part, and from the next year on (#216).
+	 *
+	 * A sentence like "prorated by half-year" reads as "billed every half-year" to many; the amounts
+	 * leave no room for that. With a monthly proration twelve lines would be too many, so the first and
+	 * the last month stand for them.
+	 *
+	 * @param array<string,mixed> $model       Fee model
+	 * @param Translate           $outputlangs Language
+	 * @return string[]
+	 */
+	private function prorationLines(array $model, $outputlangs)
+	{
+		$year = (int) dol_print_date(dol_now(), '%Y', 'tzserver');
+		$steps = VereineApplicationFormRules::prorationSteps($model, $year);
+		if (!$steps) {
+			return array($outputlangs->transnoentitiesnoconv('VereineApplicationProration_'.$model['proration']));
+		}
+		$day = function ($date) use ($outputlangs) {
+			// 1. Juli, not 01. Juli.
+			return ltrim(dol_print_date(dol_mktime(12, 0, 0, (int) substr($date, 5, 2), (int) substr($date, 8, 2), (int) substr($date, 0, 4)),
+				'%d. %B', 'tzserver', $outputlangs), '0');
+		};
+		$money = function ($amount) use ($outputlangs) {
+			return price($amount, 0, $outputlangs, 1, -1, 2).' €';
+		};
+		$lines = array($outputlangs->transnoentitiesnoconv('VereineApplicationProrationHead'));
+		$shown = count($steps) > 4 ? array($steps[0], $steps[count($steps) - 1]) : $steps;
+		foreach ($shown as $index => $step) {
+			if (count($steps) > 4 && $index === 1) {
+				$lines[] = $outputlangs->transnoentities('VereineApplicationProrationEach', $money($steps[0]['amount'] - $steps[1]['amount']));
+			}
+			$lines[] = $outputlangs->transnoentities('VereineApplicationProrationStep', $day($step['from']), $day($step['to']), $money($step['amount']));
+		}
+		$lines[] = $outputlangs->transnoentities('VereineApplicationProrationAfter', $money($model['amount']));
 		return $lines;
 	}
 

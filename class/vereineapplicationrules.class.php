@@ -98,6 +98,12 @@ class VereineApplicationRules
 		}
 		ksort($consents);
 		$parts['consents'] = $consents;
+		// Own fields count too; an application without them keeps the fingerprint it always had (#216).
+		if (!empty($application['fields']) && is_array($application['fields'])) {
+			$fields = array_map('strval', $application['fields']);
+			ksort($fields);
+			$parts['fields'] = $fields;
+		}
 		return hash('sha256', (string) json_encode($parts));
 	}
 }

@@ -66,6 +66,7 @@ require_once $root.'/class/vereineassemblyrules.class.php';
 require_once $root.'/class/vereinechangerules.class.php';
 require_once $root.'/class/vereinehookrules.class.php';
 require_once $root.'/class/vereineidentityrules.class.php';
+require_once $root.'/class/vereineapplicationformrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1809,6 +1810,7 @@ $prefixes = array(
 	'VereineIdentityCapability_' => VereineIdentityRules::CAPABILITIES,
 	'VereineIdentityProof_' => VereineIdentityRules::PROOFS,
 	'VereineIdentityInviteState_' => array('open', 'used', 'expired'),
+	'VereineApplicationExtra_' => array('off', 'optional', 'required'),
 	'VereineDutyBasis_' => VereineDutyRules::BASES,
 	'VereineGroupsChange_' => array('add', 'remove'),
 	'VereineMailingStatus_' => VereineMailingRules::STATUSES,
@@ -2468,6 +2470,58 @@ same(array('subject', 'member_id', 'application_id', 'capabilities', 'proof', 'l
 same(42, $described['member_id'], 'the member of the binding is named');
 same(null, $described['application_id'], 'what the binding does not carry is null, not zero');
 same(array('consents'), $described['capabilities'], 'the abilities are named as a list');
+
+// ------------------------------------------------------------- the fields of an application (#216)
+
+// The name always, the address by default, and nothing that does not exist.
+same(array('lastname', 'firstname', 'address', 'zip', 'town'), VereineApplicationFormRules::required(VereineApplicationFormRules::DEFAULT_REQUIRED),
+	'by default name and address are required');
+same(array('lastname', 'firstname'), VereineApplicationFormRules::required('none'), 'a choice of nothing still keeps the name');
+same(array('lastname', 'firstname', 'birth', 'email'), VereineApplicationFormRules::required('email,birth,unfug'),
+	'in the order of the form, nonsense left out');
+
+// Own fields: only ones the member really has, never the module's own.
+same(array('gamertag' => true, 'discord' => false), VereineApplicationFormRules::extraFields('{"gamertag":1,"discord":0,"weg":1}',
+	array('gamertag', 'discord')), 'a field that is gone is dropped');
+same(array(), VereineApplicationFormRules::extraFields('{"vereine_fee_payer":1}', array('vereine_fee_payer')),
+	'the fields of the module never go on the form');
+same(array(), VereineApplicationFormRules::extraFields('kein json', array('gamertag')), 'something that is no JSON is nothing');
+
+// The web follows the same list as the PDF.
+$webApplication = array('firstname' => 'Amelie', 'lastname' => 'Antrag', 'address' => '', 'zip' => '6020', 'town' => 'Innsbruck', 'email' => 'a@b.test');
+$required = VereineApplicationFormRules::required(VereineApplicationFormRules::DEFAULT_REQUIRED);
+$checked = VereineApplicationFormRules::checkWeb($webApplication, $required, array(), array());
+same(array('address is required'), $checked['errors'], 'a web application without a street is refused');
+$checked = VereineApplicationFormRules::checkWeb(array('address' => 'Teststraße 1') + $webApplication, VereineApplicationFormRules::required('gender'),
+	array(), array());
+same(array(), $checked['errors'], 'a field the web cannot send is not held against it');
+
+// Own fields over the web.
+$extra = array('gamertag' => true, 'discord' => false);
+$full = array('address' => 'Teststraße 1') + $webApplication;
+same(array('fields.gamertag is required'), VereineApplicationFormRules::checkWeb($full, $required, $extra, array())['errors'],
+	'a required own field that is missing is refused');
+$checked = VereineApplicationFormRules::checkWeb($full, $required, $extra, array('gamertag' => ' LionKing ', 'discord' => ''));
+same(array(), $checked['errors'], 'a required own field that is there is fine');
+same(array('gamertag' => 'LionKing'), $checked['fields'], 'values are trimmed and empty optional ones dropped');
+same(array('fields.passwort is not a field of the application'),
+	VereineApplicationFormRules::checkWeb($full, $required, $extra, array('gamertag' => 'x', 'passwort' => 'geheim'))['errors'],
+	'a field the form does not ask for is refused, not stored');
+same(array('fields.gamertag must be text'), VereineApplicationFormRules::checkWeb($full, $required, $extra, array('gamertag' => array('x')))['errors'],
+	'a field must be text');
+
+// The fee of the year of joining in real numbers, by the same rule the fee run uses.
+$halfYear = array('amount' => 75, 'duration_value' => 1, 'duration_unit' => 'y', 'start_month' => 1, 'proration' => 'half_year');
+same(array(array('from' => '2026-01-01', 'to' => '2026-06-30', 'amount' => 75.0), array('from' => '2026-07-01', 'to' => '2026-12-31', 'amount' => 37.5)),
+	VereineApplicationFormRules::prorationSteps($halfYear, 2026), 'first half-year the full fee, second half-year half of it');
+$quarter = array('proration' => 'quarter') + $halfYear;
+same(array(75.0, 56.25, 37.5, 18.75), array_column(VereineApplicationFormRules::prorationSteps($quarter, 2026), 'amount'),
+	'by quarter, four steps down');
+same(12, count(VereineApplicationFormRules::prorationSteps(array('proration' => 'month') + $halfYear, 2026)), 'by month, twelve steps');
+$july = array('start_month' => 7) + $halfYear;
+same('2027-06-30', VereineApplicationFormRules::prorationSteps($july, 2026)[1]['to'], 'a fee year from July ends in June of the next year');
+same(array(), VereineApplicationFormRules::prorationSteps(array('proration' => 'none') + $halfYear, 2026), 'nothing prorated, no steps');
+same(array(), VereineApplicationFormRules::prorationSteps(array('start_month' => 0) + $halfYear, 2026), 'a fee year from joining has no steps');
 
 // ------------------------------------------------------------------- result
 

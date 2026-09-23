@@ -1381,6 +1381,20 @@ if ($stage === 'reset') {
 	exit(0);
 }
 
+if ($stage === 'memberextra') {
+	// An own field of the member, the way an association adds it under Members > Setup > Attributes.
+	require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
+	$extrafields = new ExtraFields($db);
+	$extrafields->fetch_name_optionals_label('adherent');
+	if (empty($extrafields->attributes['adherent']['label']['gamertag'])) {
+		if ($extrafields->addExtraField('gamertag', 'Gamertag', 'varchar', 100, '255', 'adherent', 0, 0, '', '', 1, '', '1') < 0) {
+			rt_fail('extrafield gamertag: '.$extrafields->error);
+		}
+	}
+	print json_encode(array('extrafield' => 'gamertag'))."\n";
+	exit(0);
+}
+
 if ($stage === 'apiclient') {
 	// A technical client of an external application: it authenticates itself, and nothing more. For whom
 	// it may act comes from a binding, never from the client saying so (#153).
@@ -1413,4 +1427,4 @@ if ($stage === 'apiclient') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra or reset');

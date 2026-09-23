@@ -56,6 +56,7 @@ if (!$res) {
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once __DIR__.'/../lib/vereine.lib.php';
 require_once __DIR__.'/../class/vereinememberform.class.php';
+require_once __DIR__.'/../class/vereineapplicationformrules.class.php';
 require_once __DIR__.'/../class/vereinepdf.class.php';
 
 $langs->loadLangs(array('admin', 'members', 'banks', 'vereine@vereine'));
@@ -79,7 +80,15 @@ if ($action === 'save') {
 		VereineMemberForm::INTRO => GETPOST('intro', 'restricthtml'),
 		VereineMemberForm::PRIVACY => GETPOST('privacy', 'restricthtml'),
 		VereineMemberForm::PRIVACY_URL => GETPOST('privacy_url', 'alphanohtml'),
-		VereineMemberForm::REQUIRED => implode(',', VereineMemberForm::requiredFields(GETPOST('required', 'array'))),
+		// "none" rather than empty, so a choice of nothing is not taken for no choice and the default comes back.
+		VereineMemberForm::REQUIRED => implode(',', VereineMemberForm::requiredFields(GETPOST('required', 'array'))) ?: 'none',
+		// Own fields: ticked "on the form", and with it "required" or not (#216).
+		VereineMemberForm::EXTRA => (string) json_encode(VereineApplicationFormRules::extraFields(
+			array_map(function ($value) {
+				return $value === 'required' ? 1 : 0;
+			}, array_filter((array) GETPOST('extra', 'array'), function ($value) {
+				return in_array($value, array('optional', 'required'), true);
+			})), array_keys(VereineMemberForm::memberExtraFields($db)))),
 		VereineMemberForm::ACCOUNT => (string) GETPOSTINT('account'),
 		VereinePdf::FILLABLE => implode(',', VereinePdf::fillableKinds(GETPOST('fillable', 'array'))),
 	);
@@ -97,7 +106,8 @@ if ($action === 'save') {
  * View
  */
 
-$settings = VereineMemberForm::settings();
+$extraLabels = VereineMemberForm::memberExtraFields($db);
+$settings = VereineMemberForm::settings(array_keys($extraLabels));
 $title = $langs->trans('VereineSetupTitle');
 llxHeader('', $title, '', '', 0, 0, '', '', '', 'mod-vereine page-admin-application');
 
@@ -136,9 +146,29 @@ print '<tr class="oddeven"><td><label for="privacy_url">'.$langs->trans('Vereine
 print '<td><input type="text" id="privacy_url" name="privacy_url" class="minwidth300" value="'.dol_escape_htmltag($settings['privacy_url']).'" placeholder="https://"></td></tr>';
 
 print '<tr class="oddeven"><td>'.$langs->trans('VereineApplicationRequired').'<div class="opacitymedium small">'.$langs->trans('VereineApplicationRequiredHelp').'</div></td><td>';
+// The name is required anyway; it stands here so nobody wonders where it went.
+foreach (VereineApplicationFormRules::ALWAYS as $field) {
+	print '<label class="paddingright"><input type="checkbox" checked disabled data-always="'.$field.'"> ';
+	print $langs->trans('VereineApplicationField_'.$field).'</label> ';
+}
 foreach (VereineMemberForm::REQUIRABLE as $field) {
 	print '<label class="paddingright"><input type="checkbox" name="required[]" value="'.$field.'"'.(in_array($field, $settings['required'], true) ? ' checked' : '').'> ';
 	print $langs->trans('VereineApplicationField_'.$field).'</label> ';
+}
+print '</td></tr>';
+
+print '<tr class="oddeven"><td>'.$langs->trans('VereineApplicationExtra').'<div class="opacitymedium small">'.$langs->trans('VereineApplicationExtraHelp').'</div></td><td>';
+if (!$extraLabels) {
+	print '<span class="opacitymedium" data-extra-none="1">'.$langs->trans('VereineApplicationExtraNone').'</span>';
+}
+foreach ($extraLabels as $code => $label) {
+	$state = !isset($settings['extra'][$code]) ? 'off' : ($settings['extra'][$code] ? 'required' : 'optional');
+	print '<div class="paddingbottom" data-extra-field="'.dol_escape_htmltag($code).'" data-extra-state="'.$state.'">';
+	print '<select name="extra['.dol_escape_htmltag($code).']" class="flat">';
+	foreach (array('off', 'optional', 'required') as $option) {
+		print '<option value="'.$option.'"'.($state === $option ? ' selected' : '').'>'.$langs->trans('VereineApplicationExtra_'.$option).'</option>';
+	}
+	print '</select> '.dol_escape_htmltag($langs->trans($label)).' <span class="opacitymedium small">('.dol_escape_htmltag($code).')</span></div>';
 }
 print '</td></tr>';
 
