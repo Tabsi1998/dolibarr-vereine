@@ -245,47 +245,47 @@ class VereineErasure
 						return $this->fail($access->error);
 					}
 				}
-				$changed = $this->exec("DELETE FROM ".$p."vereine_identity WHERE entity = ".$entity." AND fk_adherent = ".$id)
-					+ $this->exec("DELETE FROM ".$p."vereine_identity_invite WHERE entity = ".$entity." AND fk_adherent = ".$id);
+				$changed = $this->change("DELETE FROM ".$p."vereine_identity WHERE entity = ".$entity." AND fk_adherent = ".$id)
+					+ $this->change("DELETE FROM ".$p."vereine_identity_invite WHERE entity = ".$entity." AND fk_adherent = ".$id);
 			} elseif ($kind === 'contact') {
-				$changed = $this->exec("UPDATE ".$p."adherent SET societe = NULL, address = NULL, zip = NULL, town = NULL, state_id = NULL, email = NULL, url = NULL, socialnetworks = NULL, phone = NULL, phone_perso = NULL, phone_mobile = NULL, birth = NULL, photo = NULL, note_public = NULL, note_private = NULL, gender = NULL WHERE rowid = ".$id) < 0 ? -1 : $preview['plan']['contact']['count'];
+				$changed = $this->change("UPDATE ".$p."adherent SET societe = NULL, address = NULL, zip = NULL, town = NULL, state_id = NULL, email = NULL, url = NULL, socialnetworks = NULL, phone = NULL, phone_perso = NULL, phone_mobile = NULL, birth = NULL, photo = NULL, note_public = NULL, note_private = NULL, gender = NULL WHERE rowid = ".$id) < 0 ? -1 : $preview['plan']['contact']['count'];
 				if ($changed >= 0 && $member->deleteExtraFields() < 0) {
 					return $this->fail($member->error);
 				}
 				$files[] = $this->folder($member).'/photos';
 			} elseif ($kind === 'invitations') {
 				$cut = $this->db->escape($this->cutoff($today, $periods['invitations']));
-				$changed = $this->exec("UPDATE ".$p."vereine_meeting_invitation SET email = NULL, error = NULL WHERE entity = ".$entity." AND fk_adherent = ".$id
+				$changed = $this->change("UPDATE ".$p."vereine_meeting_invitation SET email = NULL, error = NULL WHERE entity = ".$entity." AND fk_adherent = ".$id
 					." AND email IS NOT NULL AND email <> '' AND fk_meeting IN (SELECT rowid FROM ".$p."vereine_meeting WHERE meeting_day <= '".$cut."')")
-					+ $this->exec("UPDATE ".$p."vereine_circular_vote SET email = NULL WHERE entity = ".$entity." AND fk_adherent = ".$id
+					+ $this->change("UPDATE ".$p."vereine_circular_vote SET email = NULL WHERE entity = ".$entity." AND fk_adherent = ".$id
 					." AND email IS NOT NULL AND email <> '' AND datec <= '".$cut." 23:59:59'");
 			} elseif ($kind === 'tasks') {
-				$changed = $this->exec("UPDATE ".$p."vereine_resolution_task SET fk_adherent = 0 WHERE entity = ".$entity." AND fk_adherent = ".$id)
-					+ $this->exec("UPDATE ".$p."vereine_duty_task SET fk_adherent = 0 WHERE entity = ".$entity." AND fk_adherent = ".$id)
-					+ $this->exec("UPDATE ".$p."vereine_event_shift_entry SET fk_adherent = 0, note = NULL WHERE entity = ".$entity." AND fk_adherent = ".$id);
+				$changed = $this->change("UPDATE ".$p."vereine_resolution_task SET fk_adherent = 0 WHERE entity = ".$entity." AND fk_adherent = ".$id)
+					+ $this->change("UPDATE ".$p."vereine_duty_task SET fk_adherent = 0 WHERE entity = ".$entity." AND fk_adherent = ".$id)
+					+ $this->change("UPDATE ".$p."vereine_event_shift_entry SET fk_adherent = 0, note = NULL WHERE entity = ".$entity." AND fk_adherent = ".$id);
 			} elseif ($kind === 'consents') {
 				foreach ($this->column("SELECT scan_name as v FROM ".$p."vereine_consent WHERE entity = ".$entity." AND fk_adherent = ".$id." AND scan_name IS NOT NULL AND scan_name <> ''") as $scan) {
 					$files[] = $this->folder($member).'/'.basename((string) $scan);
 				}
-				$changed = $this->exec("DELETE FROM ".$p."vereine_consent WHERE entity = ".$entity." AND fk_adherent = ".$id);
+				$changed = $this->change("DELETE FROM ".$p."vereine_consent WHERE entity = ".$entity." AND fk_adherent = ".$id);
 			} elseif ($kind === 'applications') {
 				$pdfs = $this->files($member, '/^mitgliedsantrag-.*\.pdf$/');
 				$files = array_merge($files, $pdfs);
-				$changed = $this->exec("DELETE FROM ".$p."vereine_application WHERE entity = ".$entity." AND fk_adherent = ".$id) + count($pdfs);
+				$changed = $this->change("DELETE FROM ".$p."vereine_application WHERE entity = ".$entity." AND fk_adherent = ".$id) + count($pdfs);
 			} elseif ($kind === 'disclosures') {
-				$changed = $this->exec("DELETE FROM ".$p."vereine_disclosure WHERE entity = ".$entity." AND fk_adherent = ".$id
+				$changed = $this->change("DELETE FROM ".$p."vereine_disclosure WHERE entity = ".$entity." AND fk_adherent = ".$id
 					." AND datec <= '".$this->db->escape($this->cutoff($today, $periods['disclosures']))." 23:59:59'");
 			} elseif ($kind === 'log') {
-				$changed = $this->exec("DELETE FROM ".$p."vereine_log WHERE entity = ".$entity." AND fk_adherent = ".$id
+				$changed = $this->change("DELETE FROM ".$p."vereine_log WHERE entity = ".$entity." AND fk_adherent = ".$id
 					." AND action NOT IN ('".VereineLog::ERASURE."', '".VereineLog::ERASURE_HOLD."')");
 			} elseif ($kind === 'volunteer') {
-				$changed = $this->exec("DELETE FROM ".$p."vereine_volunteer WHERE entity = ".$entity." AND fk_adherent = ".$id);
+				$changed = $this->change("DELETE FROM ".$p."vereine_volunteer WHERE entity = ".$entity." AND fk_adherent = ".$id);
 			} elseif ($kind === 'donations') {
 				// The lines of reports sent stay: they carry a reference number only and belong to the report.
-				$this->exec("DELETE FROM ".$p."vereine_donation_gift WHERE fk_donor IN (SELECT rowid FROM ".$p."vereine_donor WHERE entity = ".$entity." AND fk_adherent = ".$id.")");
-				$changed = $this->exec("DELETE FROM ".$p."vereine_donor WHERE entity = ".$entity." AND fk_adherent = ".$id);
+				$this->change("DELETE FROM ".$p."vereine_donation_gift WHERE fk_donor IN (SELECT rowid FROM ".$p."vereine_donor WHERE entity = ".$entity." AND fk_adherent = ".$id.")");
+				$changed = $this->change("DELETE FROM ".$p."vereine_donor WHERE entity = ".$entity." AND fk_adherent = ".$id);
 			} elseif ($kind === 'name') {
-				$changed = $this->exec("UPDATE ".$p."adherent SET lastname = '".$this->db->escape(self::ANONYMOUS)."', firstname = NULL, civility = NULL, login = NULL, pass_crypted = NULL WHERE rowid = ".$id);
+				$changed = $this->change("UPDATE ".$p."adherent SET lastname = '".$this->db->escape(self::ANONYMOUS)."', firstname = NULL, civility = NULL, login = NULL, pass_crypted = NULL WHERE rowid = ".$id);
 			}
 			if ($changed < 0) {
 				return $this->fail($this->error);
@@ -293,7 +293,7 @@ class VereineErasure
 			$done[$kind] = $changed;
 		}
 		$summary = (string) json_encode($done);
-		if ($this->exec("INSERT INTO ".$p."vereine_erasure (entity, fk_adherent, kind, done, fk_user, datec) VALUES (".$entity.", ".$id.", 'run', '"
+		if ($this->change("INSERT INTO ".$p."vereine_erasure (entity, fk_adherent, kind, done, fk_user, datec) VALUES (".$entity.", ".$id.", 'run', '"
 			.$this->db->escape($summary)."', ".((int) $user->id).", '".$this->db->idate(dol_now())."')") < 0) {
 			return $this->fail($this->error);
 		}
@@ -333,7 +333,7 @@ class VereineErasure
 		if ($this->errors) {
 			return 0;
 		}
-		if ($this->exec("INSERT INTO ".MAIN_DB_PREFIX."vereine_erasure (entity, fk_adherent, kind, note, fk_user, datec) VALUES (".((int) $conf->entity).", "
+		if ($this->change("INSERT INTO ".MAIN_DB_PREFIX."vereine_erasure (entity, fk_adherent, kind, note, fk_user, datec) VALUES (".((int) $conf->entity).", "
 			.((int) $memberId).", '".($on ? 'hold' : 'release')."', '".$this->db->escape($note)."', ".((int) $user->id).", '".$this->db->idate(dol_now())."')") < 0) {
 			return -1;
 		}
@@ -476,7 +476,7 @@ class VereineErasure
 	 * @param string $sql Statement
 	 * @return int Rows changed, -1 on error
 	 */
-	private function exec($sql)
+	private function change($sql)
 	{
 		$resql = $this->db->query($sql);
 		if (!$resql) {
