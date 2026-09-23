@@ -153,6 +153,9 @@ Bereich fällt, hängt vom Einzelfall ab. Quellen und Stand stehen in
 
 ## Wo das Modul in Dolibarr sitzt
 
+Neu eingeschaltet? *Einrichtung > Erste Schritte* führt in neun Schritten durch alles, was ein Verein
+einstellen sollte, und erkennt an den Daten, was schon erledigt ist.
+
 | Stelle in Dolibarr | Was das Modul ergänzt oder nutzt |
 | --- | --- |
 | *Start > Einstellungen > Unternehmen/Organisation* | Name, Anschrift, E-Mail, Telefon, Website und erster Monat des Rechnungsjahres – das Modul liest sie, es führt keine eigene Kopie |

@@ -67,6 +67,7 @@ if (!$res) {
 require_once __DIR__.'/lib/vereine.lib.php';
 require_once __DIR__.'/class/vereineorganization.class.php';
 require_once __DIR__.'/class/vereinethresholdreport.class.php';
+require_once __DIR__.'/class/vereinesetupguide.class.php';
 
 $langs->loadLangs(array('members', 'companies', 'vereine@vereine'));
 
@@ -109,6 +110,10 @@ if (!empty($user->admin)) {
 	$morehtmlright = dolGetButtonTitle($langs->trans('VereineEditAssociation'), '', 'fa fa-pen', dol_buildpath('/vereine/admin/setup.php', 1));
 }
 print load_fiche_titre($title, $morehtmlright, 'fa-landmark');
+// How far the setup is, for whoever can set it up (#126).
+if (!empty($user->admin)) {
+	print (new VereineSetupGuide($db))->hint(dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+}
 
 print '<div class="fichecenter"><div class="fichethirdleft">';
 

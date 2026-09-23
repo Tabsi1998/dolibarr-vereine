@@ -2878,7 +2878,7 @@ def applicationfields(stack: Stack) -> str:
     status, form_fields = stack.api("vereine/applicationform", key)
     expect(status == 200 and form_fields["required"] == ["lastname", "firstname", "address", "zip", "town", "email"],
            f"the web is told other required fields: HTTP {status}, {form_fields}")
-    expect(form_fields["fields"] == [{"code": "gamertag", "label": "Gamertag", "required": True}],
+    expect(form_fields["fields"] == [{"code": "gamertag", "label": "Gamertag", "required": True, "type": "text", "max_length": 255}],
            f"the web is told other own fields: {form_fields['fields']}")
 
     # The web follows the same list as the PDF.
@@ -2896,6 +2896,27 @@ def applicationfields(stack: Stack) -> str:
     tag = stack.value(f"SELECT gamertag FROM llx_adherent_extrafields WHERE fk_object = {member}")
     expect(tag == "GinaTheLion", f"the gamer tag did not reach the member: {tag!r}")
 
+    # A field made right in the setup: a choice, required; Dolibarr has it, the web learns its options (#226).
+    page = page_ok(browser.get(setup), "the setup before a new field")
+    page_ok(browser.submit(page.form(name="vereineapplicationnewfield"), {"field_label": "Spielstärke", "field_kind": "select",
+                                                                          "field_options": "Anfänger\nFortgeschritten\nProfi", "field_state": "required"}),
+            "a new choice on the form")
+    made = stack.sql("SELECT type, elementtype FROM llx_extrafields WHERE name = 'spielstaerke'")
+    expect(made == [["select", "adherent"]], f"the new field is no choice of the member in Dolibarr: {made}")
+    expect(json.loads(stack.const("VEREINE_APPLICATION_EXTRAFIELDS") or "{}").get("spielstaerke") is True, "the new field is not on the form as required")
+    status, form_fields = stack.api("vereine/applicationform", key)
+    choice = next((field for field in form_fields.get("fields", []) if field["code"] == "spielstaerke"), None)
+    expect(choice is not None and choice["type"] == "select" and choice["required"] is True
+           and choice.get("options") == [{"code": "anfaenger", "label": "Anfänger"}, {"code": "fortgeschritten", "label": "Fortgeschritten"},
+                                         {"code": "profi", "label": "Profi"}], f"the web is told another choice: {choice}")
+    level = {**body, "firstname": "Lena", "lastname": "Level", "email": "lena.level@runtime-verein.test"}
+    status, answer = stack.api("vereine/applications", key, method="POST", data={**level, "fields": {"gamertag": "Lena", "spielstaerke": "meister"}})
+    expect(status == 400 and "fields.spielstaerke must be one of" in json.dumps(answer), f"a wrong option was taken: HTTP {status} {answer}")
+    status, created = stack.api("vereine/applications", key, method="POST", data={**level, "fields": {"gamertag": "Lena", "spielstaerke": "profi"}})
+    expect(status == 200, f"an application with a right option was refused: HTTP {status} {created}")
+    chosen = stack.value("SELECT e.spielstaerke FROM llx_adherent_extrafields as e INNER JOIN llx_adherent as a ON a.rowid = e.fk_object WHERE a.lastname = 'Level'")
+    expect(chosen == "profi", f"the choice did not reach the member: {chosen!r}")
+
     # The printed form: the own field, the fee in real numbers, one month in the singular.
     before = stack.sql(f"SELECT amount, duration FROM llx_adherent_type WHERE rowid = {type_id}")[0]
     extra_row = stack.sql(f"SELECT vereine_fee_start_month, vereine_fee_proration FROM llx_adherent_type_extrafields WHERE fk_object = {type_id}")
@@ -2909,6 +2930,8 @@ def applicationfields(stack: Stack) -> str:
         page_ok(browser.submit(page.form(name=f"vereineapplication{type_id}")), "build the blank application")
         blank = pdf_text(stack, "vereine/application")
         expect("Gamertag" in blank, "the own field is missing on the printed form")
+        expect("Spielst" in blank and "Anfänger" in blank and "Fortgeschritten" in blank and "Profi" in blank,
+               "the choice made in the setup is not on the printed form with its options")
         expect("halbjahresweise" not in blank, "the form still says the fee is prorated by half-year in words")
         expect("75,00" in blank and "37,50" in blank, "the form does not name the fee of both half-years")
         expect("1 Monate" not in blank, "the form still says 1 Monate")
@@ -2922,7 +2945,9 @@ def applicationfields(stack: Stack) -> str:
                       f" vereine_fee_proration = {proration} WHERE fk_object = {type_id}")
         else:
             stack.sql(f"DELETE FROM llx_adherent_type_extrafields WHERE fk_object = {type_id}")
-    return ("the name stands fixed and ticked, the gamer tag goes on the form as required; the web is told exactly those fields, "
+    return ("the name stands fixed and ticked, the gamer tag goes on the form as required; a choice made in the setup became a field of "
+            "the member in Dolibarr, the web learned its options, a wrong option was refused and a right one reached the member; "
+            "the web is told exactly those fields, "
             "refuses an application without the gamer tag, without a street or with a field the form does not know, and stores "
             "the gamer tag at the member; the printed form carries the own field, 75,00 and 37,50 for the two half-years and no "
             "\"1 Monate\"")
@@ -3278,6 +3303,67 @@ def donations(stack: Stack) -> str:
             "with both people and the answer read from its ZIP (found and not found), a first transmission checked against the schema, a test "
             "protocol counted for nothing, the real one took the line, another donation became a change to 120, a refused change stays open, "
             "and the company got a confirmation")
+
+
+def setupguide(stack: Stack) -> str:
+    """First steps: a fresh installation shows every step open, the association data close step 1, a missing module is explained (#126)."""
+    browser = stack.browser()
+    start = "/custom/vereine/admin/start.php"
+    expect(denied(stack.browser("rtreader").get(start)), "a non-administrator opens the first steps")
+    page = page_ok(browser.get(start), "the first steps after enabling")
+    states = dict(re.findall(r'data-setup-step="([a-z]+)" data-setup-state="([a-z]+)"', page.text))
+    expect(list(states) == ["association", "modules", "statutes", "board", "fees", "consents", "mail", "meetings", "website"],
+           f"the steps: {list(states)}")
+    expect(states["association"] == "open" and states["statutes"] == "open" and states["website"] == "optional" and states["modules"] == "done",
+           f"a fresh installation: {states}")
+    overview = page_ok(browser.get("/custom/vereine/vereineindex.php"), "the overview with the hint")
+    expect("data-setup-hint=" in overview.text and "/admin/start.php" in overview.text, "the overview does not point at the first steps")
+
+    # The association data close step 1; what the test set is taken back for the scenarios after it.
+    before = {name: stack.const(name) for name in ("VEREINE_REGISTER_NUMBER", "VEREINE_PURPOSE", "MAIN_INFO_SOCIETE_NOM")}
+    try:
+        for name, value in (("VEREINE_REGISTER_NUMBER", "123456789"), ("VEREINE_PURPOSE", "Sport"), ("MAIN_INFO_SOCIETE_NOM", "Runtime Verein")):
+            stack.sql(f"DELETE FROM llx_const WHERE name = '{name}' AND entity = 1")
+            stack.sql(f"INSERT INTO llx_const (name, entity, value, type, visible) VALUES ('{name}', 1, '{value}', 'chaine', 0)")
+        page = page_ok(browser.get(start), "the first steps with the association data")
+        expect('data-setup-step="association" data-setup-state="done"' in page.text, "the association data do not close step 1")
+    finally:
+        for name, value in before.items():
+            stack.sql(f"DELETE FROM llx_const WHERE name = '{name}' AND entity = 1")
+            if value is not None:
+                stack.sql(f"INSERT INTO llx_const (name, entity, value, type, visible) VALUES ('{name}', 1, '{value.replace(chr(39), chr(39) * 2)}', 'chaine', 0)")
+
+    # A required module switched off is named and explained.
+    try:
+        stack.sql("UPDATE llx_const SET value = '0' WHERE name = 'MAIN_MODULE_CATEGORIE' AND entity = 1")
+        page = page_ok(browser.get(start), "the first steps without categories")
+        expect('data-setup-step="modules" data-setup-state="open"' in page.text and 'data-setup-module-missing="categorie"' in page.text,
+               "a missing required module is not explained")
+    finally:
+        stack.sql("UPDATE llx_const SET value = '1' WHERE name = 'MAIN_MODULE_CATEGORIE' AND entity = 1")
+
+    # Leaving out and taking back in; the test e-mail reaches the mailbox and closes its step.
+    page = page_ok(browser.get(start), "the first steps again")
+    page_ok(browser.submit(page.form(name="vereinesetupskipwebsite")), "leave the website out")
+    page = page_ok(browser.get(start), "after leaving out")
+    expect('data-setup-step="website" data-setup-state="skipped"' in page.text, "a step left out is not shown as left out")
+    page_ok(browser.submit(page.form(name="vereinesetupskipwebsite")), "take the website back in")
+    address = stack.value("SELECT email FROM llx_user WHERE login = 'admin'")
+    try:
+        stack.sql("UPDATE llx_user SET email = 'kassier.test@runtime-verein.test' WHERE login = 'admin'")
+        page = page_ok(browser.get(start), "the first steps with an address")
+        page_ok(browser.submit(page.form(name="vereinesetupmail")), "send the test e-mail")
+        arrived = [message for message in stack.mailpit().messages() if "Testnachricht" in (message.get("Subject") or "")
+                   and any(to.get("Address") == "kassier.test@runtime-verein.test" for to in message.get("To") or [])]
+        expect(arrived, "the test e-mail did not arrive")
+        page = page_ok(browser.get(start), "after the test e-mail")
+        expect('data-setup-step="mail" data-setup-state="done"' in page.text and 'data-setup-step="website" data-setup-state="optional"' in page.text,
+               "the test e-mail does not close its step, or the website stayed left out")
+    finally:
+        stack.sql(f"UPDATE llx_user SET email = {repr(address) if address not in (None, 'NULL') else 'NULL'} WHERE login = 'admin'")
+    return ("a fresh installation showed all nine steps with the association data open and the website optional, the overview pointed at "
+            "them; the association data closed step 1, a switched-off required module was named, a step could be left out and taken back, "
+            "and the test e-mail arrived and closed its step")
 
 
 def board(stack: Stack) -> str:
@@ -5341,7 +5427,8 @@ SCENARIOS = (
     ("deploy", "The package deploys through Deploy an external module", deploy, ("upgrade",)),
     ("enable", "Enabling registers rights and menu and removes the old country profile", enable, ("deploy",)),
     ("pages", "Overview, setup, about and the menu entry render", pages, ("enable",)),
-    ("setup", "Setup validates, normalises and stores the association", setup, ("pages",)),
+    ("setupguide", "First steps: every step open after enabling, association data close step 1, a missing module explained", setupguide, ("pages",)),
+    ("setup", "Setup validates, normalises and stores the association", setup, ("setupguide",)),
     ("access", "Rights decide who sees overview and setup", access, ("setup",)),
     ("api", "REST API answers with the right and refuses without", api, ("setup",)),
     ("partners", "Members and third parties are linked and reconciled", partners, ("access", "api")),

@@ -309,6 +309,12 @@ function vereineAdminPrepareHead()
 	$h = 0;
 	$head = array();
 
+	// The guide first: a new association starts here (#126).
+	$head[$h][0] = dol_buildpath('/vereine/admin/start.php', 1);
+	$head[$h][1] = $langs->trans('VereineSetupTabStart');
+	$head[$h][2] = 'start';
+	$h++;
+
 	$head[$h][0] = dol_buildpath('/vereine/admin/setup.php', 1);
 	$head[$h][1] = $langs->trans('VereineSetupTabAssociation');
 	$head[$h][2] = 'settings';

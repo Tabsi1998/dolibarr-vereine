@@ -58,6 +58,7 @@ require_once __DIR__.'/../lib/vereine.lib.php';
 require_once __DIR__.'/../class/vereinememberform.class.php';
 require_once __DIR__.'/../class/vereineapplicationformrules.class.php';
 require_once __DIR__.'/../class/vereinepdf.class.php';
+require_once __DIR__.'/../class/vereinelog.class.php';
 
 $langs->loadLangs(array('admin', 'members', 'banks', 'vereine@vereine'));
 
@@ -99,6 +100,21 @@ if ($action === 'save') {
 	setEventMessages($stored ? $langs->trans('RecordModifiedSuccessfully') : $langs->trans('Error'), null, $stored ? 'mesgs' : 'errors');
 	header('Location: '.$_SERVER['PHP_SELF']);
 	exit;
+} elseif ($action === 'newfield') {
+	// An own field made right here, and put on the form at once (#226).
+	$errors = array();
+	$label = GETPOST('field_label', 'alphanohtml');
+	$code = VereineMemberForm::addField($db, $label, GETPOST('field_kind', 'aZ09'), GETPOST('field_options', 'nohtml'), $errors);
+	if ($code !== '') {
+		$extra = VereineMemberForm::settings(array_keys(VereineMemberForm::memberExtraFields($db)))['extra'];
+		$extra[$code] = GETPOST('field_state', 'aZ09') === 'required';
+		dolibarr_set_const($db, VereineMemberForm::EXTRA, (string) json_encode($extra), 'chaine', 0, '', $conf->entity);
+		VereineLog::add($db, $user, VereineLog::APPLICATION_FIELD, 0, 0, $code);
+		setEventMessages($langs->trans('VereineApplicationNewFieldCreated', $label), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereinenewfield');
+		exit;
+	}
+	setEventMessages(null, array_map(array($langs, 'trans'), $errors), 'errors');
 }
 
 
@@ -106,7 +122,10 @@ if ($action === 'save') {
  * View
  */
 
-$extraLabels = VereineMemberForm::memberExtraFields($db);
+$extraSpecs = VereineMemberForm::memberExtraFieldSpecs($db);
+$extraLabels = array_map(function ($spec) {
+	return $spec['label'];
+}, $extraSpecs);
 $settings = VereineMemberForm::settings(array_keys($extraLabels));
 $title = $langs->trans('VereineSetupTitle');
 llxHeader('', $title, '', '', 0, 0, '', '', '', 'mod-vereine page-admin-application');
@@ -168,8 +187,11 @@ foreach ($extraLabels as $code => $label) {
 	foreach (array('off', 'optional', 'required') as $option) {
 		print '<option value="'.$option.'"'.($state === $option ? ' selected' : '').'>'.$langs->trans('VereineApplicationExtra_'.$option).'</option>';
 	}
-	print '</select> '.dol_escape_htmltag($langs->trans($label)).' <span class="opacitymedium small">('.dol_escape_htmltag($code).')</span></div>';
+	print '</select> '.dol_escape_htmltag($langs->trans($label)).' <span class="opacitymedium small">('.dol_escape_htmltag($code).', '
+		.$langs->trans('VereineApplicationKind_'.$extraSpecs[$code]['kind']).')</span></div>';
 }
+print '<div class="paddingtop small"><a href="'.DOL_URL_ROOT.'/adherents/admin/member_extrafields.php">'.img_picto('', 'fa-pen', 'class="pictofixedwidth"')
+	.$langs->trans('VereineApplicationEditInDolibarr').'</a></div>';
 print '</td></tr>';
 
 print '<tr class="oddeven"><td>'.$langs->trans('VereineApplicationFillable').'<div class="opacitymedium small">'.$langs->trans('VereineApplicationFillableHelp').'</div></td><td>';
@@ -192,6 +214,28 @@ print '</select></td></tr>';
 print '</table>';
 print '<div class="center paddingtop"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('Save')).'"></div>';
 print '</form>';
+
+// A new own field: made here, it is a field of the member in Dolibarr and on the form at once (#226).
+print load_fiche_titre($langs->trans('VereineApplicationNewField'), '', '', 0, 'vereinenewfield');
+print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineApplicationNewFieldHelp').'</div>';
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereinenewfield" name="vereineapplicationnewfield">';
+print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="newfield">';
+print '<table class="border centpercent">';
+print '<tr><td class="titlefieldcreate fieldrequired"><label for="field_label">'.$langs->trans('VereineApplicationNewFieldLabel').'</label></td>';
+print '<td><input type="text" id="field_label" name="field_label" maxlength="100" class="minwidth300" value=""></td></tr>';
+print '<tr><td><label for="field_kind">'.$langs->trans('VereineApplicationNewFieldKind').'</label></td><td><select id="field_kind" name="field_kind" class="flat">';
+foreach (VereineApplicationFormRules::KINDS as $kind) {
+	print '<option value="'.$kind.'">'.$langs->trans('VereineApplicationKind_'.$kind).'</option>';
+}
+print '</select></td></tr>';
+print '<tr><td><label for="field_options">'.$langs->trans('VereineApplicationNewFieldOptions').'</label><div class="opacitymedium small">'
+	.$langs->trans('VereineApplicationNewFieldOptionsHelp').'</div></td><td><textarea id="field_options" name="field_options" rows="4" class="minwidth300"></textarea></td></tr>';
+print '<tr><td><label for="field_state">'.$langs->trans('VereineApplicationNewFieldState').'</label></td><td><select id="field_state" name="field_state" class="flat">';
+foreach (array('optional', 'required') as $option) {
+	print '<option value="'.$option.'">'.$langs->trans('VereineApplicationExtra_'.$option).'</option>';
+}
+print '</select></td></tr></table>';
+print '<div class="center paddingtop"><input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineApplicationNewFieldCreate')).'"></div></form>';
 
 print '<div class="paddingtop"><a href="'.dol_buildpath('/vereine/application.php', 1).'">'.$langs->trans('VereineApplicationBlankPage').'</a></div>';
 

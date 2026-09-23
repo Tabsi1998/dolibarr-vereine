@@ -124,6 +124,8 @@ class VereineLog
 	const DONATION_SZR = 'donation_szr';
 	const DONATION_REPORT = 'donation_report';
 	const DONATION_PROTOCOL = 'donation_protocol';
+	const SETUP_GUIDE = 'setup_guide';
+	const APPLICATION_FIELD = 'application_field';
 
 	/**
 	 * Append one entry.

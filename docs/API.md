@@ -357,18 +357,25 @@ des Vereins fragt. Braucht dasselbe Recht wie das Senden eines Antrags.
 
 ```json
 {"required": ["lastname", "firstname", "address", "zip", "town", "email"],
- "fields": [{"code": "gamertag", "label": "Gamertag", "required": true}]}
+ "fields": [{"code": "gamertag", "label": "Gamertag", "required": true, "type": "text", "max_length": 255},
+            {"code": "spielstaerke", "label": "Spielstärke", "required": false, "type": "select",
+             "options": [{"code": "anfaenger", "label": "Anfänger"}, {"code": "profi", "label": "Profi"}]}]}
 ```
 
 - `required`: die Pflichtfelder aus *Einrichtung > Vereine > Mitgliedsantrag*. Vor- und Nachname
   sind immer dabei; die Anschrift ist ab Werk angehakt.
 - `fields`: eigene Felder des Vereins (Zusatzfelder am Mitglied), die er auf den Antrag gestellt
-  hat, je mit Pflicht-Schalter.
+  hat, in ihrer Reihenfolge, je mit Pflicht-Schalter und `type`: `text`, `textarea` (je mit
+  `max_length`), `number`, `date` (JJJJ-MM-TT), `boolean`, `select` oder `multi` (je mit `options`).
+  Eine Website zeigt damit jedes Feld passend, ohne es fest einzubauen – der Verein legt neue unter
+  *Einrichtung > Vereine > Mitgliedsantrag* an.
 
 `POST /vereine/applications` lehnt einen Antrag mit **derselben** Liste ab: fehlt ein
 Pflichtfeld, kommt `400` mit z. B. `address is required` oder `fields.gamertag is required`.
-Eigene Felder gehen als `"fields": {"gamertag": "…"}` mit und landen am Mitglied. Ein Feld, das
-der Antrag nicht kennt, wird abgewiesen, nicht still gespeichert.
+Eigene Felder gehen als `"fields": {"gamertag": "…", "spielstaerke": "profi"}` mit und landen am
+Mitglied: eine Mehrfachauswahl als Liste von Kürzeln, Ja/Nein als `true`/`false`, ein Datum als
+`JJJJ-MM-TT`. Ein Feld, das der Antrag nicht kennt, oder ein Wert, der nicht zur Art passt, wird
+abgewiesen (z. B. `fields.spielstaerke must be one of: anfaenger, profi`), nicht still gespeichert.
 
 ## GET /vereine/applications/{external_id}
 

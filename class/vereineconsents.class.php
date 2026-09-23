@@ -523,8 +523,17 @@ class VereineConsents
 		}
 		$member->note_private = $application['note'];
 		// The association's own fields, such as a gamer tag; only the ones the form asks for got this far (#216).
+		require_once __DIR__.'/vereinememberform.class.php';
+		$specs = VereineMemberForm::memberExtraFieldSpecs($this->db);
 		foreach (isset($application['fields']) && is_array($application['fields']) ? $application['fields'] : array() as $code => $value) {
-			$member->array_options['options_'.$code] = (string) $value;
+			$kind = isset($specs[$code]) ? $specs[$code]['kind'] : 'text';
+			// A date field of Dolibarr holds a moment, a yes or no a number (#226).
+			if ($kind === 'date' && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', (string) $value, $parts)) {
+				$value = dol_mktime(12, 0, 0, (int) $parts[2], (int) $parts[3], (int) $parts[1]);
+			} elseif ($kind === 'boolean') {
+				$value = (int) $value;
+			}
+			$member->array_options['options_'.$code] = is_int($value) ? $value : (string) $value;
 		}
 
 		$this->db->begin();

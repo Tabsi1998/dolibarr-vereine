@@ -66,6 +66,7 @@ require_once __DIR__.'/../lib/vereine.lib.php';
 require_once __DIR__.'/../class/vereineassociationrules.class.php';
 require_once __DIR__.'/../class/vereineorganization.class.php';
 require_once __DIR__.'/../class/vereinemail.class.php';
+require_once __DIR__.'/../class/vereinesetupguide.class.php';
 
 $langs->loadLangs(array('admin', 'members', 'vereine@vereine'));
 
@@ -194,6 +195,7 @@ print load_fiche_titre($title, $linkback, 'title_setup');
 
 $head = vereineAdminPrepareHead();
 print dol_get_fiche_head($head, 'settings', $title, -1, 'fa-landmark');
+print (new VereineSetupGuide($db))->hint(dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
 
 print '<span class="opacitymedium">'.$langs->trans('VereineSetupIntro').'</span><br><br>';
 
