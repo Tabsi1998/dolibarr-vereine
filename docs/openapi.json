@@ -2186,11 +2186,8 @@
           },
           "fields": {
             "type": "object",
-            "description": "Eigene Felder des Vereins, etwa ein Gamertag: Kürzel => Wert. Welche es gibt und welche Pflicht sind, sagt GET /vereine/applicationform; ein Feld, das der Antrag nicht kennt, wird abgewiesen.",
-            "additionalProperties": {
-              "type": "string",
-              "maxLength": 255
-            }
+            "description": "Eigene Felder des Vereins: Kürzel => Wert. Welche es gibt, welcher Art sie sind und welche Pflicht sind, sagt GET /vereine/applicationform. Text als Zeichenkette, Zahl als Zahl oder Text, Datum als JJJJ-MM-TT, Ja/Nein als true/false, eine Auswahl als Kürzel, eine Mehrfachauswahl als Liste von Kürzeln. Ein Feld, das der Antrag nicht kennt, oder ein Wert, der nicht zur Art passt, wird abgewiesen.",
+            "additionalProperties": {}
           }
         }
       },
@@ -2846,7 +2843,8 @@
               "required": [
                 "code",
                 "label",
-                "required"
+                "required",
+                "type"
               ],
               "properties": {
                 "code": {
@@ -2857,6 +2855,42 @@
                 },
                 "required": {
                   "type": "boolean"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "text",
+                    "textarea",
+                    "number",
+                    "date",
+                    "boolean",
+                    "select",
+                    "multi"
+                  ],
+                  "description": "Wie die Website das Feld zeigt und was sie schicken darf: Text, langer Text, Zahl, Datum (JJJJ-MM-TT), Ja/Nein (true/false), eine Option oder mehrere Optionen (Liste von Kürzeln)"
+                },
+                "max_length": {
+                  "type": "integer",
+                  "description": "Bei Text und langem Text: höchstens so viele Zeichen"
+                },
+                "options": {
+                  "type": "array",
+                  "description": "Bei Auswahl und Mehrfachauswahl: die Optionen, geschickt wird das Kürzel",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "code",
+                      "label"
+                    ],
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }

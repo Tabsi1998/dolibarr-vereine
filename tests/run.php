@@ -1799,7 +1799,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1828,6 +1828,7 @@ $prefixes = array(
 	'VereineDonationType_' => array('E', 'A', 'S'),
 	'VereineDonationProtocol_' => array('ok', 'twok', 'nok'),
 	'VereineSetupState_' => VereineSetupGuideRules::STATES,
+	'VereineApplicationKind_' => VereineApplicationFormRules::KINDS,
 	'VereineSetupStep_' => VereineSetupGuideRules::STEPS,
 	'VereineSetupStepHelp_' => VereineSetupGuideRules::STEPS,
 	'VereineSetupModule_' => array('banque', 'facture', 'prelevement', 'agenda', 'mailing', 'don', 'api', 'webportal'),
@@ -2739,6 +2740,37 @@ same(array('consents', 'mail'), VereineSetupGuideRules::skipped('consents, mail,
 $doneStates = VereineSetupGuideRules::states(array('zvr' => '1', 'purpose' => 'x', 'modules_missing' => array(), 'statute_rules' => true, 'functions_missing' => 0,
 	'board_users' => 1, 'member_types' => 1, 'consents' => 1, 'mail_tested' => true, 'signature_rules' => true) + $freshFacts, array());
 same(array('finished' => 9, 'total' => 9, 'complete' => true), VereineSetupGuideRules::progress($doneStates), 'everything done: the hint goes away');
+
+// ------------------------------------------------------------- own fields by their kind (#226)
+
+same('text', VereineApplicationFormRules::kindOf('varchar'), 'a line of text');
+same('select', VereineApplicationFormRules::kindOf('radio'), 'radio buttons are a choice');
+same('multi', VereineApplicationFormRules::kindOf('checkbox'), 'check boxes are a choice of several');
+same('', VereineApplicationFormRules::kindOf('sellist'), 'a list out of another table cannot be asked on a form');
+same('', VereineApplicationFormRules::kindOf('password'), 'no secrets on a form');
+same('spielstaerke', VereineApplicationFormRules::code('Spielstärke', array()), 'a code from the label, umlauts spelled out');
+same('spielstaerke_2', VereineApplicationFormRules::code('Spielstärke', array('spielstaerke')), 'a code that is taken gets a number');
+same('feld_2_liga', VereineApplicationFormRules::code('2. Liga', array()), 'a code starts with a letter');
+same('feld_vereine_x', VereineApplicationFormRules::code('Vereine X', array()), 'the module keeps its own prefix');
+same('', VereineApplicationFormRules::code(' ?! ', array()), 'no letters, no code');
+same(array('anfaenger' => 'Anfänger', 'profi' => 'Profi'), VereineApplicationFormRules::options("Anfänger\r\n\r\n Profi \n"), 'one option per line, empty lines dropped');
+$specs = array('staerke' => array('kind' => 'select', 'options' => array('anfaenger' => 'Anfänger', 'profi' => 'Profi')),
+	'spiele' => array('kind' => 'multi', 'options' => array('lol' => 'LoL', 'cs' => 'CS')), 'seit' => array('kind' => 'date'),
+	'jahre' => array('kind' => 'number', 'integer' => true), 'pro' => array('kind' => 'boolean'), 'notiz' => array('kind' => 'textarea'),
+	'kurz' => array('kind' => 'text', 'max' => 5));
+$extraSpecs = array('staerke' => true, 'spiele' => false, 'seit' => false, 'jahre' => false, 'pro' => false, 'notiz' => false, 'kurz' => false);
+$good = VereineApplicationFormRules::checkWeb($full, $required, $extraSpecs, array('staerke' => 'profi', 'spiele' => array('cs', 'lol', 'cs'), 'seit' => '2020-02-29',
+	'jahre' => '12', 'pro' => true, 'notiz' => str_repeat('x', 1500), 'kurz' => 'abc'), $specs);
+same(array(), $good['errors'], 'every kind with a good value');
+same(array('staerke' => 'profi', 'spiele' => 'cs,lol', 'seit' => '2020-02-29', 'jahre' => '12', 'pro' => '1', 'notiz' => str_repeat('x', 1500), 'kurz' => 'abc'),
+	$good['fields'], 'values as Dolibarr keeps them: several options with a comma, yes as 1');
+$bad = VereineApplicationFormRules::checkWeb($full, $required, $extraSpecs, array('staerke' => 'meister', 'spiele' => array('fifa'), 'seit' => '2021-02-29',
+	'jahre' => '1.5', 'pro' => 'vielleicht', 'kurz' => 'abcdef'), $specs);
+same(array('fields.staerke must be one of: anfaenger, profi', 'fields.spiele must be a list of: lol, cs', 'fields.seit must be a date (YYYY-MM-DD)',
+	'fields.jahre must be a whole number', 'fields.pro must be true or false', 'fields.kurz is longer than 5 characters'), $bad['errors'],
+	'every kind refuses what it cannot take, the refused required choice named once');
+same(array('pro' => '0'), VereineApplicationFormRules::checkWeb($full, $required, array('pro' => false), array('pro' => 'nein'), $specs)['fields'], 'a no is a value too');
+same(array('fields.staerke is required'), VereineApplicationFormRules::checkWeb($full, $required, $extraSpecs, array(), $specs)['errors'], 'a required choice left out');
 
 // ------------------------------------------------------------------- result
 

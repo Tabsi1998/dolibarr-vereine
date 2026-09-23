@@ -298,9 +298,10 @@ class Vereine extends DolibarrApi
 		$checked = VereineConsentRules::application($request_data, $types, $texts, $statuteRules['min_age'], dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
 		// The same fields the printed form asks for: what the PDF marks as required, the web may not leave out (#216).
 		dol_include_once('/vereine/class/vereinememberform.class.php');
-		$form = VereineMemberForm::settings(array_keys(VereineMemberForm::memberExtraFields($this->db)));
+		$specs = VereineMemberForm::memberExtraFieldSpecs($this->db);
+		$form = VereineMemberForm::settings(array_keys($specs));
 		$fields = VereineApplicationFormRules::checkWeb($checked['application'], $form['required'], $form['extra'],
-			isset($request_data['fields']) ? $request_data['fields'] : array());
+			isset($request_data['fields']) ? $request_data['fields'] : array(), $specs);
 		$checked['errors'] = array_values(array_unique(array_merge($checked['errors'], $fields['errors'])));
 		$checked['application']['fields'] = $fields['fields'];
 		if ($checked['errors']) {
@@ -774,11 +775,27 @@ class Vereine extends DolibarrApi
 			throw new RestException(403, 'Not allowed: the user needs the right to send membership applications');
 		}
 		dol_include_once('/vereine/class/vereinememberform.class.php');
-		$labels = VereineMemberForm::memberExtraFields($this->db);
-		$settings = VereineMemberForm::settings(array_keys($labels));
+		$specs = VereineMemberForm::memberExtraFieldSpecs($this->db);
+		$settings = VereineMemberForm::settings(array_keys($specs));
 		$fields = array();
-		foreach ($settings['extra'] as $code => $mustHave) {
-			$fields[] = array('code' => $code, 'label' => (string) $langs->transnoentitiesnoconv($labels[$code]), 'required' => $mustHave);
+		// Each field with what a website needs to show it: its kind, its options, how long it may be (#226).
+		foreach ($specs as $code => $spec) {
+			if (!isset($settings['extra'][$code])) {
+				continue;
+			}
+			$field = array('code' => $code, 'label' => (string) $langs->transnoentitiesnoconv($spec['label']), 'required' => $settings['extra'][$code],
+				'type' => $spec['kind']);
+			if ($spec['kind'] === 'text' || $spec['kind'] === 'textarea') {
+				$limit = $spec['kind'] === 'text' ? VereineApplicationFormRules::EXTRA_MAX : VereineApplicationFormRules::TEXTAREA_MAX;
+				$field['max_length'] = $spec['max'] > 0 && $spec['max'] < $limit ? $spec['max'] : $limit;
+			}
+			if ($spec['options']) {
+				$field['options'] = array();
+				foreach ($spec['options'] as $option => $text) {
+					$field['options'][] = array('code' => (string) $option, 'label' => (string) $langs->transnoentitiesnoconv($text));
+				}
+			}
+			$fields[] = $field;
 		}
 		$required = array();
 		foreach ($settings['required'] as $field) {

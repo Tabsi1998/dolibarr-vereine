@@ -2878,7 +2878,7 @@ def applicationfields(stack: Stack) -> str:
     status, form_fields = stack.api("vereine/applicationform", key)
     expect(status == 200 and form_fields["required"] == ["lastname", "firstname", "address", "zip", "town", "email"],
            f"the web is told other required fields: HTTP {status}, {form_fields}")
-    expect(form_fields["fields"] == [{"code": "gamertag", "label": "Gamertag", "required": True}],
+    expect(form_fields["fields"] == [{"code": "gamertag", "label": "Gamertag", "required": True, "type": "text", "max_length": 255}],
            f"the web is told other own fields: {form_fields['fields']}")
 
     # The web follows the same list as the PDF.
@@ -2896,6 +2896,27 @@ def applicationfields(stack: Stack) -> str:
     tag = stack.value(f"SELECT gamertag FROM llx_adherent_extrafields WHERE fk_object = {member}")
     expect(tag == "GinaTheLion", f"the gamer tag did not reach the member: {tag!r}")
 
+    # A field made right in the setup: a choice, required; Dolibarr has it, the web learns its options (#226).
+    page = page_ok(browser.get(setup), "the setup before a new field")
+    page_ok(browser.submit(page.form(name="vereineapplicationnewfield"), {"field_label": "Spielstärke", "field_kind": "select",
+                                                                          "field_options": "Anfänger\nFortgeschritten\nProfi", "field_state": "required"}),
+            "a new choice on the form")
+    made = stack.sql("SELECT type, elementtype FROM llx_extrafields WHERE name = 'spielstaerke'")
+    expect(made == [["select", "adherent"]], f"the new field is no choice of the member in Dolibarr: {made}")
+    expect(json.loads(stack.const("VEREINE_APPLICATION_EXTRAFIELDS") or "{}").get("spielstaerke") is True, "the new field is not on the form as required")
+    status, form_fields = stack.api("vereine/applicationform", key)
+    choice = next((field for field in form_fields.get("fields", []) if field["code"] == "spielstaerke"), None)
+    expect(choice is not None and choice["type"] == "select" and choice["required"] is True
+           and choice.get("options") == [{"code": "anfaenger", "label": "Anfänger"}, {"code": "fortgeschritten", "label": "Fortgeschritten"},
+                                         {"code": "profi", "label": "Profi"}], f"the web is told another choice: {choice}")
+    level = {**body, "firstname": "Lena", "lastname": "Level", "email": "lena.level@runtime-verein.test"}
+    status, answer = stack.api("vereine/applications", key, method="POST", data={**level, "fields": {"gamertag": "Lena", "spielstaerke": "meister"}})
+    expect(status == 400 and "fields.spielstaerke must be one of" in json.dumps(answer), f"a wrong option was taken: HTTP {status} {answer}")
+    status, created = stack.api("vereine/applications", key, method="POST", data={**level, "fields": {"gamertag": "Lena", "spielstaerke": "profi"}})
+    expect(status == 200, f"an application with a right option was refused: HTTP {status} {created}")
+    chosen = stack.value("SELECT e.spielstaerke FROM llx_adherent_extrafields as e INNER JOIN llx_adherent as a ON a.rowid = e.fk_object WHERE a.lastname = 'Level'")
+    expect(chosen == "profi", f"the choice did not reach the member: {chosen!r}")
+
     # The printed form: the own field, the fee in real numbers, one month in the singular.
     before = stack.sql(f"SELECT amount, duration FROM llx_adherent_type WHERE rowid = {type_id}")[0]
     extra_row = stack.sql(f"SELECT vereine_fee_start_month, vereine_fee_proration FROM llx_adherent_type_extrafields WHERE fk_object = {type_id}")
@@ -2909,6 +2930,8 @@ def applicationfields(stack: Stack) -> str:
         page_ok(browser.submit(page.form(name=f"vereineapplication{type_id}")), "build the blank application")
         blank = pdf_text(stack, "vereine/application")
         expect("Gamertag" in blank, "the own field is missing on the printed form")
+        expect("Spielst" in blank and "Anfänger" in blank and "Fortgeschritten" in blank and "Profi" in blank,
+               "the choice made in the setup is not on the printed form with its options")
         expect("halbjahresweise" not in blank, "the form still says the fee is prorated by half-year in words")
         expect("75,00" in blank and "37,50" in blank, "the form does not name the fee of both half-years")
         expect("1 Monate" not in blank, "the form still says 1 Monate")
@@ -2922,7 +2945,9 @@ def applicationfields(stack: Stack) -> str:
                       f" vereine_fee_proration = {proration} WHERE fk_object = {type_id}")
         else:
             stack.sql(f"DELETE FROM llx_adherent_type_extrafields WHERE fk_object = {type_id}")
-    return ("the name stands fixed and ticked, the gamer tag goes on the form as required; the web is told exactly those fields, "
+    return ("the name stands fixed and ticked, the gamer tag goes on the form as required; a choice made in the setup became a field of "
+            "the member in Dolibarr, the web learned its options, a wrong option was refused and a right one reached the member; "
+            "the web is told exactly those fields, "
             "refuses an application without the gamer tag, without a street or with a field the form does not know, and stores "
             "the gamer tag at the member; the printed form carries the own field, 75,00 and 37,50 for the two half-years and no "
             "\"1 Monate\"")

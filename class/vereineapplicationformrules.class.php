@@ -47,6 +47,154 @@ class VereineApplicationFormRules
 	/** How long the value of an own field may be. */
 	const EXTRA_MAX = 255;
 
+	/** How long a long text of an own field may be (#226). */
+	const TEXTAREA_MAX = 2000;
+
+	/** Kinds of own fields the form can ask for, in the order the setup offers them (#226). */
+	const KINDS = array('text', 'textarea', 'number', 'date', 'boolean', 'select', 'multi');
+
+	/** Dolibarr's type and size of a new field of each kind. */
+	const DOLIBARR_TYPES = array('text' => array('varchar', '255'), 'textarea' => array('text', '2000'), 'number' => array('double', '24,8'),
+		'date' => array('date', ''), 'boolean' => array('boolean', ''), 'select' => array('select', ''), 'multi' => array('checkbox', ''));
+
+	/**
+	 * The kind of an additional field of Dolibarr, as a form can ask for it.
+	 *
+	 * Fields that point into other tables or hold secrets cannot be asked on a form; they get no kind.
+	 *
+	 * @param string $type Dolibarr's type of the field
+	 * @return string One of KINDS, empty when a form cannot ask for it
+	 */
+	public static function kindOf($type)
+	{
+		$map = array('varchar' => 'text', 'phone' => 'text', 'mail' => 'text', 'url' => 'text', 'ip' => 'text', 'text' => 'textarea', 'html' => 'textarea',
+			'int' => 'number', 'double' => 'number', 'price' => 'number', 'date' => 'date', 'datetime' => 'date', 'boolean' => 'boolean',
+			'select' => 'select', 'radio' => 'select', 'checkbox' => 'multi');
+		return isset($map[(string) $type]) ? $map[(string) $type] : '';
+	}
+
+	/**
+	 * A code for a new field from its label: small letters, digits and underscores, not yet taken.
+	 *
+	 * @param string   $label What the field is called
+	 * @param string[] $taken Codes that exist
+	 * @return string Empty when the label gives no letters
+	 */
+	public static function code($label, array $taken)
+	{
+		$code = strtr(mb_strtolower(trim((string) $label), 'UTF-8'), array('ä' => 'ae', 'ö' => 'oe', 'ü' => 'ue', 'ß' => 'ss'));
+		$code = trim((string) preg_replace('/[^a-z0-9]+/', '_', (string) $code), '_');
+		if ($code === '') {
+			return '';
+		}
+		// Dolibarr wants a letter first, and the module's own fields keep their prefix.
+		if (!preg_match('/^[a-z]/', $code) || strpos($code, 'vereine_') === 0) {
+			$code = 'feld_'.$code;
+		}
+		$code = substr($code, 0, 50);
+		$candidate = $code;
+		$number = 2;
+		while (in_array($candidate, $taken, true)) {
+			$candidate = substr($code, 0, 46).'_'.$number;
+			$number++;
+		}
+		return $candidate;
+	}
+
+	/**
+	 * The options of a choice, one per line as the setup takes them: code => label.
+	 *
+	 * @param string $text One option per line
+	 * @return array<string,string>
+	 */
+	public static function options($text)
+	{
+		$options = array();
+		foreach (preg_split('/\r\n|\r|\n/', (string) $text) as $line) {
+			$label = trim($line);
+			if ($label === '') {
+				continue;
+			}
+			$code = self::code($label, array_keys($options));
+			if ($code !== '') {
+				$options[$code] = mb_substr($label, 0, 128, 'UTF-8');
+			}
+		}
+		return $options;
+	}
+
+	/**
+	 * One value of an own field as the web sent it, checked by the kind of the field.
+	 *
+	 * @param string              $code  Code of the field, for the message
+	 * @param mixed               $value What was sent
+	 * @param array<string,mixed> $spec  kind, options (for a choice), max, integer
+	 * @return array{value:string|null,error:string} Value null when nothing was given
+	 */
+	public static function checkValue($code, $value, array $spec)
+	{
+		$kind = isset($spec['kind']) ? (string) $spec['kind'] : 'text';
+		$name = 'fields.'.$code;
+		if ($value === null || $value === '' || $value === array()) {
+			return array('value' => null, 'error' => '');
+		}
+		if ($kind === 'multi') {
+			$list = is_array($value) ? $value : explode(',', (string) $value);
+			$chosen = array();
+			foreach ($list as $one) {
+				if (!is_scalar($one) || !isset($spec['options'][trim((string) $one)])) {
+					return array('value' => null, 'error' => $name.' must be a list of: '.implode(', ', array_keys($spec['options'])));
+				}
+				$chosen[trim((string) $one)] = true;
+			}
+			return array('value' => implode(',', array_keys($chosen)), 'error' => '');
+		}
+		if ($kind === 'boolean' && is_bool($value)) {
+			return array('value' => $value ? '1' : '0', 'error' => '');
+		}
+		if (!is_scalar($value)) {
+			return array('value' => null, 'error' => $name.' must be text');
+		}
+		$text = trim((string) $value);
+		if ($text === '') {
+			return array('value' => null, 'error' => '');
+		}
+		switch ($kind) {
+			case 'number':
+				$number = str_replace(',', '.', $text);
+				if (!is_numeric($number) || (!empty($spec['integer']) && !preg_match('/^-?\d+$/', $number))) {
+					return array('value' => null, 'error' => $name.' must be '.(!empty($spec['integer']) ? 'a whole number' : 'a number'));
+				}
+				return array('value' => $number, 'error' => '');
+			case 'date':
+				if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $text, $parts) || !checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1])) {
+					return array('value' => null, 'error' => $name.' must be a date (YYYY-MM-DD)');
+				}
+				return array('value' => $text, 'error' => '');
+			case 'boolean':
+				$yes = array('1', 'true', 'yes', 'ja', 'on');
+				$no = array('0', 'false', 'no', 'nein', 'off');
+				$lower = strtolower($text);
+				if (!in_array($lower, $yes, true) && !in_array($lower, $no, true)) {
+					return array('value' => null, 'error' => $name.' must be true or false');
+				}
+				return array('value' => in_array($lower, $yes, true) ? '1' : '0', 'error' => '');
+			case 'select':
+				if (!isset($spec['options'][$text])) {
+					return array('value' => null, 'error' => $name.' must be one of: '.implode(', ', array_keys($spec['options'])));
+				}
+				return array('value' => $text, 'error' => '');
+		}
+		$max = $kind === 'textarea' ? self::TEXTAREA_MAX : self::EXTRA_MAX;
+		if (!empty($spec['max']) && (int) $spec['max'] < $max) {
+			$max = (int) $spec['max'];
+		}
+		if (mb_strlen($text, 'UTF-8') > $max) {
+			return array('value' => null, 'error' => $name.' is longer than '.$max.' characters');
+		}
+		return array('value' => $text, 'error' => '');
+	}
+
 	/**
 	 * The required fields of the form: the name always, and what the association chose.
 	 *
@@ -102,9 +250,10 @@ class VereineApplicationFormRules
 	 * @param string[]             $required    Required fields of the form, see required()
 	 * @param array<string,bool>   $extra       Own fields of the form, see extraFields()
 	 * @param mixed                $sent        What the web sent as fields: code => value
+	 * @param array<string,array<string,mixed>> $specs Kind, options and length of each own field (#226); text when missing
 	 * @return array{errors:string[],fields:array<string,string>} The own fields that are taken, cleaned
 	 */
-	public static function checkWeb(array $application, array $required, array $extra, $sent)
+	public static function checkWeb(array $application, array $required, array $extra, $sent, array $specs = array())
 	{
 		$errors = array();
 		foreach ($required as $field) {
@@ -123,19 +272,14 @@ class VereineApplicationFormRules
 				$errors[] = 'fields.'.$code.' is not a field of the application';
 				continue;
 			}
-			if (!is_scalar($value)) {
-				$errors[] = 'fields.'.$code.' must be text';
+			$checked = self::checkValue($code, $value, isset($specs[$code]) ? $specs[$code] : array('kind' => 'text'));
+			if ($checked['error'] !== '') {
+				$errors[] = $checked['error'];
 				$refused[$code] = true;
 				continue;
 			}
-			$text = trim((string) $value);
-			if (mb_strlen($text, 'UTF-8') > self::EXTRA_MAX) {
-				$errors[] = 'fields.'.$code.' is longer than '.self::EXTRA_MAX.' characters';
-				$refused[$code] = true;
-				continue;
-			}
-			if ($text !== '') {
-				$fields[$code] = $text;
+			if ($checked['value'] !== null) {
+				$fields[$code] = $checked['value'];
 			}
 		}
 		foreach ($extra as $code => $mustHave) {

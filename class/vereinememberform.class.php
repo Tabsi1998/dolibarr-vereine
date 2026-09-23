@@ -115,19 +115,143 @@ class VereineMemberForm
 	 */
 	public static function memberExtraFields($db)
 	{
+		return array_map(function ($spec) {
+			return $spec['label'];
+		}, self::memberExtraFieldSpecs($db));
+	}
+
+	/**
+	 * The additional fields of the member a form can ask for, each with its kind, options and length (#226).
+	 *
+	 * Read from Dolibarr's own additional fields, in their order; fields that point into other tables or
+	 * hold secrets are left out, and so are the module's own fields, which have their own place.
+	 *
+	 * @param DoliDB $db Database handler
+	 * @return array<string,array{label:string,kind:string,options:array<string,string>,max:int,integer:bool,pos:int}>
+	 */
+	public static function memberExtraFieldSpecs($db)
+	{
 		require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
+		require_once __DIR__.'/vereineapplicationformrules.class.php';
 
 		$extrafields = new ExtraFields($db);
 		$extrafields->fetch_name_optionals_label('adherent');
-		$labels = array();
-		$attributes = isset($extrafields->attributes['adherent']['label']) ? $extrafields->attributes['adherent']['label'] : array();
-		foreach ($attributes as $code => $label) {
-			// The module's own fields are kept by the module and have their own place on the form.
-			if (strpos((string) $code, 'vereine_') !== 0) {
-				$labels[(string) $code] = (string) $label;
+		$attributes = isset($extrafields->attributes['adherent']) ? $extrafields->attributes['adherent'] : array();
+		$specs = array();
+		foreach (isset($attributes['label']) && is_array($attributes['label']) ? $attributes['label'] : array() as $code => $label) {
+			$code = (string) $code;
+			$type = isset($attributes['type'][$code]) ? (string) $attributes['type'][$code] : '';
+			$kind = VereineApplicationFormRules::kindOf($type);
+			if ($kind === '' || strpos($code, 'vereine_') === 0) {
+				continue;
 			}
+			$param = isset($attributes['param'][$code]) && is_array($attributes['param'][$code]) ? $attributes['param'][$code] : array();
+			$options = array();
+			foreach (isset($param['options']) && is_array($param['options']) ? $param['options'] : array() as $value => $text) {
+				if ((string) $value !== '') {
+					// Dolibarr may keep a parent after a bar; the form shows the option itself.
+					$options[(string) $value] = (string) preg_replace('/\|.*$/', '', (string) $text);
+				}
+			}
+			$size = isset($attributes['size'][$code]) ? (string) $attributes['size'][$code] : '';
+			$specs[$code] = array('label' => (string) $label, 'kind' => $kind, 'options' => $options,
+				'max' => $kind === 'text' && ctype_digit($size) ? (int) $size : 0, 'integer' => $type === 'int',
+				'pos' => isset($attributes['pos'][$code]) ? (int) $attributes['pos'][$code] : 0);
 		}
-		return $labels;
+		uasort($specs, function ($left, $right) {
+			return $left['pos'] - $right['pos'];
+		});
+		return $specs;
+	}
+
+	/**
+	 * Create an own field of the member right from the setup of the form (#226).
+	 *
+	 * It becomes one of Dolibarr's additional fields of the member, with the member card showing it too;
+	 * changing and deleting it stays with Dolibarr.
+	 *
+	 * @param DoliDB   $db      Database handler
+	 * @param string   $label   What the field is called
+	 * @param string   $kind    One of VereineApplicationFormRules::KINDS
+	 * @param string   $options For a choice: one option per line
+	 * @param string[] $errors  Language keys of what was refused, or a message of Dolibarr
+	 * @return string Code of the new field, empty when refused
+	 */
+	public static function addField($db, $label, $kind, $options, array &$errors)
+	{
+		require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
+		require_once __DIR__.'/vereineapplicationformrules.class.php';
+
+		$label = trim((string) $label);
+		if ($label === '' || mb_strlen($label, 'UTF-8') > 100) {
+			$errors[] = 'VereineApplicationNewFieldErrorLabel';
+			return '';
+		}
+		if (!in_array($kind, VereineApplicationFormRules::KINDS, true)) {
+			$errors[] = 'VereineApplicationNewFieldErrorKind';
+			return '';
+		}
+		$choices = in_array($kind, array('select', 'multi'), true) ? VereineApplicationFormRules::options($options) : array();
+		if (in_array($kind, array('select', 'multi'), true) && count($choices) < 2) {
+			$errors[] = 'VereineApplicationNewFieldErrorOptions';
+			return '';
+		}
+		$extrafields = new ExtraFields($db);
+		$extrafields->fetch_name_optionals_label('adherent');
+		$attributes = isset($extrafields->attributes['adherent']) ? $extrafields->attributes['adherent'] : array();
+		$code = VereineApplicationFormRules::code($label, array_keys(isset($attributes['label']) && is_array($attributes['label']) ? $attributes['label'] : array()));
+		if ($code === '') {
+			$errors[] = 'VereineApplicationNewFieldErrorLabel';
+			return '';
+		}
+		// After the fields there are, so the form keeps its order.
+		$position = 10;
+		foreach (isset($attributes['pos']) && is_array($attributes['pos']) ? $attributes['pos'] : array() as $pos) {
+			$position = max($position, (int) $pos + 10);
+		}
+		$type = VereineApplicationFormRules::DOLIBARR_TYPES[$kind];
+		$result = $extrafields->addExtraField($code, $label, $type[0], $position, $type[1], 'adherent', 0, 0, '', $choices ? array('options' => $choices) : '',
+			1, '', '1', '', '', '', '', '1', 0, 1);
+		if ($result <= 0) {
+			$errors[] = (string) $extrafields->error !== '' ? (string) $extrafields->error : 'VereineApplicationNewFieldErrorCreate';
+			return '';
+		}
+		return $code;
+	}
+
+	/**
+	 * A value an own field of the member holds, as the form prints it: a date as a day, a choice by its text.
+	 *
+	 * @param array<string,mixed> $spec        Field, see memberExtraFieldSpecs()
+	 * @param mixed               $value       Value of the member
+	 * @param Translate           $outputlangs Language
+	 * @return string Empty when there is none
+	 */
+	public static function shownValue(array $spec, $value, $outputlangs)
+	{
+		if ($value === null || $value === '' || (is_array($value) && !$value)) {
+			return '';
+		}
+		switch ($spec['kind']) {
+			case 'date':
+				if (is_numeric($value)) {
+					return dol_print_date((int) $value, 'day', 'tzserver', $outputlangs);
+				}
+				return preg_match('/^(\d{4})-(\d{2})-(\d{2})/', (string) $value, $parts) ? $parts[3].'.'.$parts[2].'.'.$parts[1] : (string) $value;
+			case 'boolean':
+				return $outputlangs->transnoentitiesnoconv(!empty($value) ? 'Yes' : 'No');
+			case 'select':
+			case 'multi':
+				$shown = array();
+				foreach (is_array($value) ? $value : explode(',', (string) $value) as $one) {
+					$one = trim((string) $one);
+					if ($one !== '') {
+						$shown[] = isset($spec['options'][$one]) ? $outputlangs->transnoentitiesnoconv($spec['options'][$one]) : $one;
+					}
+				}
+				return implode(', ', $shown);
+		}
+		return (string) $value;
 	}
 
 	/**
@@ -220,8 +344,8 @@ class VereineMemberForm
 			return '';
 		}
 		$type = $this->memberType($member !== null ? (int) $member->typeid : (int) $typeId);
-		$extraLabels = self::memberExtraFields($this->db);
-		$settings = self::settings(array_keys($extraLabels));
+		$extraSpecs = self::memberExtraFieldSpecs($this->db);
+		$settings = self::settings(array_keys($extraSpecs));
 		$organization = VereineOrganization::load($mysoc);
 		$fillable = VereinePdf::fillable('application');
 		$pdf = VereinePdf::start($outputlangs);
@@ -272,10 +396,42 @@ class VereineMemberForm
 				$field($person[$row[0]][0], $person[$row[0]][1], $person[$row[0]][2], $person[$row[0]][3]);
 			}
 		}
-		// The association's own fields, such as a gamer tag, with the value the member already has.
-		foreach ($settings['extra'] as $code => $mustHave) {
-			$value = $member !== null && isset($member->array_options['options_'.$code]) ? (string) $member->array_options['options_'.$code] : '';
-			$field('extra_'.$code, $outputlangs->transnoentitiesnoconv($extraLabels[$code]), $value, $mustHave);
+		// The association's own fields, each by its kind, with the value the member already has (#216, #226).
+		foreach ($extraSpecs as $code => $spec) {
+			if (!isset($settings['extra'][$code])) {
+				continue;
+			}
+			$mustHave = $settings['extra'][$code];
+			$label = $outputlangs->transnoentitiesnoconv($spec['label']);
+			$shown = self::shownValue($spec, $member !== null && isset($member->array_options['options_'.$code]) ? $member->array_options['options_'.$code] : '', $outputlangs);
+			if ($shown !== '' || in_array($spec['kind'], array('text', 'number'), true)) {
+				$field('extra_'.$code, $label, $shown, $mustHave);
+			} elseif ($spec['kind'] === 'date') {
+				$field('extra_'.$code, $label.' ('.$outputlangs->transnoentitiesnoconv('VereineApplicationDateHint').')', '', $mustHave);
+			} elseif ($spec['kind'] === 'textarea') {
+				$field('extra_'.$code, $label, '', $mustHave);
+				$pdf->SetX(VereinePdf::SIDE + 28);
+				VereinePdf::input($pdf, 'antrag_extra_'.$code.'_2', 142, $fillable, 7);
+			} elseif ($spec['kind'] === 'boolean') {
+				$pdf->SetX(VereinePdf::SIDE);
+				VereinePdf::tick($pdf, $outputlangs, 'antrag_extra_'.$code, $label.($mustHave ? ' *' : ''), $fillable);
+			} else {
+				// A choice: a box for every option, wrapped where the line ends.
+				$pdf->SetFont($font, '', 9);
+				$pdf->MultiCell(28, 7, $label.($mustHave ? ' *' : ''), 0, 'L', false, 0, '', '', true, 0, false, true, 7, 'B');
+				$pdf->SetFont($font, '', 10);
+				foreach ($spec['options'] as $option => $text) {
+					$text = $outputlangs->transnoentitiesnoconv($text);
+					$width = $pdf->GetStringWidth($text) + 10;
+					if ($pdf->GetX() + $width > $pdf->getPageWidth() - VereinePdf::SIDE) {
+						$pdf->Ln(7);
+						$pdf->SetX(VereinePdf::SIDE + 28);
+					}
+					VereinePdf::box($pdf, 'antrag_extra_'.$code.'_'.$option, $fillable, $option);
+					$pdf->Cell($width - 6, 7, $text, 0, 0, 'L');
+				}
+				$pdf->Ln(7);
+			}
 		}
 		if ($settings['required'] || in_array(true, $settings['extra'], true)) {
 			$pdf->SetFont($font, 'I', 8);

@@ -16,6 +16,13 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   führt zur Seite, auf der die Einstellung schon wohnt, und gilt erst als erledigt, wenn die Daten
   da sind. Was ein Verein nicht braucht, lässt er aus. Übersicht und Einrichtung zeigen, wie weit
   die Einrichtung ist, bis alles erledigt ist oder der Hinweis ausgeblendet wird.
+- **Eigene Felder im Antrag dynamisch** (#226): Unter *Einrichtung – Mitgliedsantrag* legst du
+  beliebig viele eigene Felder direkt an – Text, langer Text, Zahl, Datum, Ja/Nein, Auswahl oder
+  Mehrfachauswahl mit ihren Möglichkeiten, gleich als freiwillig oder Pflicht auf dem Antrag. Jedes
+  wird ein normales Zusatzfeld des Mitglieds in Dolibarr. Die API sagt einer Website zu jedem Feld
+  Art, Optionen und Länge, sodass sie es ohne feste Programmierung zeigen kann, und prüft beim
+  Absenden nach Art. Im PDF steht jedes Feld passend: Linie, Datum, Kästchen, eine Auswahl mit einem
+  Kästchen je Möglichkeit.
 
 ## [0.9.0-beta] - 2026-09-23
 
