@@ -5574,7 +5574,7 @@ def arrears(stack: Stack) -> str:
     expect("nur auf die Tagesordnung einer Vorstandssitzung" in html.unescape(refused.text) and kept(moritz["invoice"])[0][1] == "0",
            "the arrear went on the agenda of a general assembly")
     page = page_ok(browser.get("/custom/vereine/meetings.php?template=board"), "a new board meeting")
-    page_ok(browser.submit(page.form(name="vereinemeeting"), {"arrear[]": str(arrear)}), "the arrear on a board meeting")
+    page_ok(browser.submit(page.form(name="vereinemeeting"), {"arrear[]": str(arrear), "time": "19:00", "place": "Vereinsheim"}), "the arrear on a board meeting")
     meeting = int(kept(moritz["invoice"])[0][1])
     board = html.unescape(page_ok(browser.get(f"/custom/vereine/meetings.php?id={meeting}"), "the board meeting").text) if meeting else ""
     expect(f"Beitragsrückstand von {moritz['name']}" in board and moritz["ref"] in board, f"the agenda of board meeting {meeting} lacks the arrear")
