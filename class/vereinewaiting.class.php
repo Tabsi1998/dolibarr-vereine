@@ -62,7 +62,7 @@ class VereineWaiting
 	 */
 	public function forAssociation($today)
 	{
-		global $conf, $langs;
+		global $conf, $langs, $user;
 
 		require_once __DIR__.'/vereinefunctions.class.php';
 		require_once __DIR__.'/vereineauditrules.class.php';
@@ -136,6 +136,16 @@ class VereineWaiting
 				$add('assembly', $step['deadline'], $langs->transnoentities('VereineTodoAssembly',
 					$langs->transnoentitiesnoconv('VereineAssemblyStep_'.$step['code']), vereineFormatDay($next['day'])),
 					dol_buildpath('/vereine/assembly.php', 1).'?id='.((int) $next['id']));
+			}
+		}
+
+		// Invoices paid over their total that wait for a decision (#54), for whoever may read invoices.
+		if (is_object($user) && $user->hasRight('facture', 'lire')) {
+			require_once __DIR__.'/vereineoverpayments.class.php';
+			$unassigned = (new VereineOverpayments($this->db))->listing(0, '', true);
+			if ($unassigned) {
+				$add('overpayment', '', $langs->transnoentities('VereineTodoOverpayments', count($unassigned),
+					price(array_sum(array_column($unassigned, 'excess')), 0, $langs, 1, -1, 2).' €'), dol_buildpath('/vereine/overpayments.php', 1));
 			}
 		}
 

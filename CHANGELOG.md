@@ -31,6 +31,17 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Einnahmen-Ausgaben-Rechnung sehen sie wie jede andere Zahlung. Eine Liste, die nach dem
   Unterschreiben geändert wurde, lässt sich nicht auszahlen; eine noch nicht ausbezahlte Liste
   lässt sich zurücknehmen. Ausbezahlte Einsätze bleiben – sie gehören zur Buchhaltung.
+- **Überzahlungen zuordnen** (#54): Neuer Menüpunkt *Mitglieder > Verein > Überzahlungen*. Hat
+  jemand 38,00 € auf eine Rechnung über 37,68 € überwiesen, zeigt das Modul die 0,32 € auf der
+  Rechnung und in einer Liste (Filter nach Jahr, Rechnung oder Geschäftspartner). Du wählst mit
+  Vorschau: **Guthaben** (Dolibarrs eigenes Guthaben, wie der Knopf auf der Rechnung),
+  **Rückzahlung** (sonstige Zahlung vom Bankkonto) oder – nur nach der Bestätigung, dass er
+  freiwillig und ohne Gegenleistung gegeben wurde – **Spende** über genau den Mehrbetrag im
+  Spendenmodul, mit der Rechnung verknüpft. Die Rechnung bleibt unverändert und gilt danach als
+  bezahlt. Derselbe Mehrbetrag lässt sich nicht zweimal zuordnen, auch nicht über Dolibarrs
+  eigenen Knopf. Die Einnahmen-Ausgaben-Rechnung zählt einen gespendeten Mehrbetrag zum ideellen
+  Bereich; die Vereinsübersicht meldet offene Überzahlungen.
+
 
 ### Behoben
 

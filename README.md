@@ -25,6 +25,10 @@ und bringt eine REST-API für die Vereinswebsite mit.
   auf der Übersicht, als Startseiten-Widget und in der API;
   **Registrierkassen-Check** je Bereich und der fehlende **13-%-Satz** auf
   Knopfdruck.
+- **Überzahlungen zuordnen**: Wer mehr überweist, als die Rechnung ausmacht, landet
+  in einer Liste. Der Mehrbetrag wird mit Vorschau Guthaben, Rückzahlung oder –
+  nur wenn er freiwillig und ohne Gegenleistung kam – Spende, genau einmal. Die
+  Rechnung bleibt, wie sie ist.
 
 ### Mitglieder und Beiträge
 
@@ -154,6 +158,7 @@ Bereich fällt, hängt vom Einzelfall ab. Quellen und Stand stehen in
 | Mitgliedskarte | Reiter *Verein*; *Geschäftspartner anlegen* und *Verknüpfung mit Geschäftspartner* zieht das Modul nach |
 | Mitgliedsart | Beitragsmodell (Reiter *Beiträge* in der Einrichtung) |
 | Produkt- und Leistungskarte, Zeilen von Rechnungen und Lieferantenrechnungen | Zusatzfeld *Steuerprofil*; Rechnungen warnen bei Zeilen, deren Umsatzsteuer nicht zum Profil passt |
+| Kundenrechnung | Hinweis bei einer Überzahlung mit Link zum Zuordnen; danach steht dort, wohin der Mehrbetrag ging |
 | Rechnungs-PDF (Dolibarr-Vorlagen, unverändert) | Hinweise der Steuerprofile je Zeile und ZVR-Zahl im Hinweisbereich |
 | E-Mail-Kampagnen | Empfängerauswahl *Vereine* |
 | *Benutzer & Gruppen > Berechtigungen* | *Vereinsübersicht und Vereinsdaten lesen*; *Mitglieder und Geschäftspartner verknüpfen und abgleichen*; *Mitglieder-Zusammenfassung für die Website über die API lesen*; *Beitrittsanträge über die API anlegen* |

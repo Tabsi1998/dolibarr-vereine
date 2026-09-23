@@ -118,6 +118,7 @@ class VereineLog
 	const VOLUNTEER_REMOVED = 'volunteer_removed';
 	const VOLUNTEER_PAYOUT = 'volunteer_payout';
 	const VOLUNTEER_PAID = 'volunteer_paid';
+	const OVERPAYMENT_ASSIGNED = 'overpayment_assigned';
 
 	/**
 	 * Append one entry.

@@ -355,6 +355,21 @@ class modVereine extends DolibarrModules
 			'target' => '',
 			'user' => 0,
 		);
+		// Invoices paid over their total, and what becomes of the excess (#54).
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
+			'titre' => 'VereineMenuOverpayments',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_overpayments',
+			'url' => '/vereine/overpayments.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->hasRight("vereine", "association", "read") && $user->hasRight("facture", "lire")',
+			'target' => '',
+			'user' => 0,
+		);
 		// The way through a general assembly: before, on the day, afterwards (#127).
 		$this->menu[$r++] = array(
 			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',

@@ -389,6 +389,7 @@ def enable(stack: Stack) -> str:
                     ["members", "vereine_events", "/vereine/events.php"],
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
                     ["members", "vereine_meetings", "/vereine/meetings.php"],
+                    ["members", "vereine_overpayments", "/vereine/overpayments.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"],
                     ["members", "vereine_resolutions", "/vereine/resolutions.php"],
                     ["members", "vereine_volunteers", "/vereine/volunteer.php"]],
@@ -3072,6 +3073,104 @@ def volunteerpayout(stack: Stack) -> str:
             "marked as paid, and a paid entry cannot be removed")
 
 
+def overpayments(stack: Stack) -> str:
+    """Overpayments: 37,68 paid with 38,00, the 0,32 assigned once to a credit, a refund or a donation (#54)."""
+    base = "/custom/vereine/overpayments.php"
+    expect(denied(stack.browser("rtnobody").get(base)), "a user without rights opens the overpayments")
+    invoices = stack.php_fixture("overpaid")["invoices"]
+    browser = stack.browser()
+    account = stack.value("SELECT rowid FROM llx_bank_account WHERE clos = 0 ORDER BY rowid LIMIT 1")
+    mode = stack.value("SELECT id FROM llx_c_paiement WHERE code = 'VIR' AND active = 1 LIMIT 1")
+
+    # The invoice card asks; Dolibarr's own button converts one excess itself, and the module sees that.
+    converted = invoices["dolibarr"]["invoice"]
+    card = f"/compta/facture/card.php?facid={converted}"
+    page = page_ok(browser.get(card), "the card of an overpaid invoice")
+    expect('data-overpayment-hint="0.32"' in page.text, "the invoice card does not ask where the 0,32 go")
+    page_ok(browser.post(card, [("token", token_of(page)), ("action", "confirm_converttoreduc"), ("confirm", "yes"), ("facid", str(converted))]),
+            "Dolibarr's own conversion")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_societe_remise_except WHERE fk_facture_source = {converted}") == "1",
+           "Dolibarr's own button made no credit")
+
+    page = page_ok(browser.get(base + "?show=all"), "the overpayments")
+    found = {invoice: (amount, state) for invoice, amount, state
+             in re.findall(r'data-overpayment="(\d+)" data-overpayment-amount="([\d.]+)" data-overpayment-state="([a-z]+)"', page.text)}
+    for key in ("credit", "refund", "donation"):
+        expect(found.get(str(invoices[key]["invoice"])) == ("0.32", "open"), f"{key}: {found.get(str(invoices[key]['invoice']))}")
+    expect(found.get(str(converted)) == ("0.32", "dolibarr"), f"the invoice Dolibarr converted: {found.get(str(converted))}")
+
+    # A credit: Dolibarr's own discount of exactly 0,32; the invoice stays at 37,68 and is paid.
+    credit = invoices["credit"]["invoice"]
+    page = page_ok(browser.get(f"{base}?invoice={credit}"), "the three ways for one invoice")
+    expect(all(f'data-overpayment-preview="{kind}"' in page.text for kind in ("credit", "refund", "donation"))
+           and "0,32" in html.unescape(page.text), "the ways are not shown with what Dolibarr makes of them")
+    page_ok(browser.submit(page.form(name="vereineoverpaymentcredit")), "keep the excess as a credit")
+    discount = stack.sql(f"SELECT amount_ttc, description FROM llx_societe_remise_except WHERE fk_facture_source = {credit}")
+    expect(len(discount) == 1 and abs(float(discount[0][0]) - 0.32) < 0.001 and discount[0][1] == "(EXCESS RECEIVED)", f"the credit: {discount}")
+    invoice = stack.sql(f"SELECT total_ttc, paye FROM llx_facture WHERE rowid = {credit}")[0]
+    expect(abs(float(invoice[0]) - 37.68) < 0.001 and invoice[1] == "1", f"the invoice after the credit: {invoice}")
+
+    # Once only: a second way for the same excess is refused, and nothing is made.
+    page = page_ok(browser.get(f"{base}?invoice={credit}"), "the assigned excess")
+    expect("data-overpayment-way=" not in page.text and 'data-overpayment-state="credit"' in page.text, "an assigned excess still offers a way")
+    various = stack.value("SELECT COUNT(*) FROM llx_payment_various")
+    refused = page_ok(browser.post(f"{base}?invoice={credit}", [("token", token_of(page)), ("action", "assign"), ("kind", "refund"),
+                                                                ("bank_account", account), ("payment_mode", mode), ("pay_day", stack.today())]),
+                      "assign the same excess a second time")
+    expect("schon zugeordnet" in html.unescape(refused.text), "a second assignment was not refused")
+    expect(stack.value("SELECT COUNT(*) FROM llx_payment_various") == various, "a second assignment made a payment")
+
+    # A refund: a various payment of 0,32 leaving the bank; the invoice stays at 37,68.
+    refund = invoices["refund"]["invoice"]
+    page = page_ok(browser.get(f"{base}?invoice={refund}"), "the refund")
+    page_ok(browser.submit(page.form(name="vereineoverpaymentrefund"), {"bank_account": account, "payment_mode": mode}), "refund the excess")
+    payment = stack.sql("SELECT p.amount, p.sens, p.fk_bank FROM llx_payment_various as p INNER JOIN llx_vereine_overpayment as o"
+                        f" ON o.fk_payment_various = p.rowid WHERE o.fk_facture = {refund}")
+    expect(len(payment) == 1 and abs(float(payment[0][0]) - 0.32) < 0.001 and payment[0][1] == "0"
+           and payment[0][2] not in (None, "", "NULL", "0"), f"the refund: {payment}")
+    invoice = stack.sql(f"SELECT total_ttc, paye FROM llx_facture WHERE rowid = {refund}")[0]
+    expect(abs(float(invoice[0]) - 37.68) < 0.001 and invoice[1] == "1", f"the invoice after the refund: {invoice}")
+    # Dolibarr's own button cannot convert the refunded excess either.
+    card = f"/compta/facture/card.php?facid={refund}"
+    page = page_ok(browser.get(card), "the card of the refunded invoice")
+    expect('data-overpayment-done="refund"' in page.text, "the card does not say where the excess went")
+    page_ok(browser.post(card, [("token", token_of(page)), ("action", "confirm_converttoreduc"), ("confirm", "yes"), ("facid", str(refund))]),
+            "Dolibarr's button on a refunded excess")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_societe_remise_except WHERE fk_facture_source = {refund}") == "0",
+           "Dolibarr converted an excess that went back")
+
+    # A donation: only when it was given freely, and 0,32 - not the 38,00 of the payment.
+    donation = invoices["donation"]["invoice"]
+    page = page_ok(browser.get(f"{base}?invoice={donation}"), "the donation")
+    refused = page_ok(browser.submit(page.form(name="vereineoverpaymentdonation")), "a donation without the word that it was given freely")
+    expect("freiwillig" in html.unescape(refused.text)
+           and stack.value(f"SELECT COUNT(*) FROM llx_vereine_overpayment WHERE fk_facture = {donation}") == "0",
+           "a donation without the confirmation was not refused")
+    page = page_ok(browser.get(f"{base}?invoice={donation}"), "the donation again")
+    page_ok(browser.submit(page.form(name="vereineoverpaymentdonation"), {"given_freely": "yes"}), "take the excess as a donation")
+    don = stack.sql("SELECT d.amount, d.fk_statut, d.fk_soc FROM llx_don as d INNER JOIN llx_vereine_overpayment as o ON o.fk_don = d.rowid"
+                    f" WHERE o.fk_facture = {donation}")
+    expect(len(don) == 1 and abs(float(don[0][0]) - 0.32) < 0.001 and don[0][1] == "2", f"the donation: {don}")
+    expect(stack.value("SELECT COUNT(*) FROM llx_element_element WHERE sourcetype = 'facture' AND targettype = 'don'"
+                       f" AND fk_source = {donation}") == "1", "the donation is not linked to its invoice")
+
+    # The account: the 0,32 count as a donation in the ideal area, the rest stays with the invoice.
+    year = stack.today()[:4]
+    page = page_ok(browser.get(f"/custom/vereine/account.php?year={year}"), "the account after the donation")
+    parts = re.search(rf'data-booking="{invoices["donation"]["line"]}" data-kind="invoice" data-parts="([^"]*)"', page.text)
+    shares = dict(part.split("=") for part in parts.group(1).split(";") if part) if parts else {}
+    expect(shares.get("ideal") == "0.32" and abs(sum(float(value) for value in shares.values()) - 38.0) < 0.001,
+           f"the payment with the donation in the account: {shares}")
+    page = page_ok(browser.get(base), "the open overpayments")
+    left = re.search(r'data-overpayment-open="(\d+)"', page.text)
+    expect(left is not None and all(f'data-overpayment="{invoices[key]["invoice"]}"' not in page.text for key in invoices),
+           "an assigned excess is still listed as open")
+    return ("37,68 paid with 38,00 showed 0,32 on the card and in the list; Dolibarr's own conversion counted as assigned; "
+            "a credit became Dolibarr's discount of 0,32, a refund a various payment of 0,32 with its bank line, a donation of 0,32 "
+            "only after the confirmation and linked to the invoice, in the account as ideal; every invoice stayed at 37,68, "
+            "and neither the module nor Dolibarr's button assigned an excess twice")
+
+
 def board(stack: Stack) -> str:
     """A website reads the board: names only with consent, or for the board always when it must be disclosed."""
     site = stack.notes["website"]
@@ -5193,6 +5292,7 @@ SCENARIOS = (
     ("applicationfields", "The fields of an application: one list for PDF and web, own fields, the fee in real numbers", applicationfields, ("identities", "application")),
     ("volunteers", "Volunteer allowances: marked over the limit when stored, the list of the year, a helper shift paid once", volunteers, ("shifts",)),
     ("volunteerpayout", "Paying volunteer allowances: a list, refused until signed, then Dolibarr's various payments", volunteerpayout, ("volunteers", "signatures")),
+    ("overpayments", "Overpayments: 37,68 paid with 38,00, the 0,32 assigned once to a credit, a refund or a donation", overpayments, ("account", "volunteerpayout")),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),

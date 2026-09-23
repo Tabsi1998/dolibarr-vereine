@@ -149,7 +149,8 @@ class ActionsVereine
 	}
 
 	/**
-	 * On a customer or supplier invoice: report lines whose VAT rate differs from their tax profile.
+	 * On a customer or supplier invoice: report lines whose VAT rate differs from their tax profile, and on a
+	 * customer invoice paid over its total, ask where the excess goes (#54).
 	 *
 	 * Printed where Dolibarr shows confirmations, so it is seen before the lines. Nothing changes.
 	 *
@@ -161,28 +162,58 @@ class ActionsVereine
 	 */
 	public function formConfirm($parameters, &$object, &$action, $hookmanager)
 	{
-		global $langs;
+		global $langs, $user;
 
 		$contexts = explode(':', isset($parameters['context']) ? (string) $parameters['context'] : '');
 		$element = in_array('invoicecard', $contexts, true) ? 'facturedet' : (in_array('invoicesuppliercard', $contexts, true) ? 'facture_fourn_det' : '');
 		if ($element === '' || !is_object($object) || (int) $object->id <= 0) {
 			return 0;
 		}
+		$html = '';
 		dol_include_once('/vereine/class/vereinetaxassign.class.php');
 		$assign = new VereineTaxAssign($this->db);
 		$lines = $assign->deviations($element, (int) $object->id);
-		if (!$lines) {
-			return 0;
+		if ($lines) {
+			$langs->load('vereine@vereine');
+			$html .= '<div class="warning" data-taxprofile-warning="'.count($lines).'"><strong>'.$langs->trans('VereineTaxLinesDeviateTitle').'</strong><ul>';
+			foreach ($lines as $line) {
+				// Translate::trans() takes at most four parameters: position and description travel together.
+				$where = $line['position'].($line['description'] !== '' ? ' ('.$line['description'].')' : '');
+				$html .= '<li>'.$langs->trans('VereineTaxLineDeviation', $where, VereineTaxRules::formatRate($line['rate']), $line['profile'], VereineTaxRules::formatRate($line['profile_rate'])).'</li>';
+			}
+			$html .= '</ul>'.$langs->trans('VereineTaxLinesDeviateHint').'</div>';
+		}
+		if ($element === 'facturedet' && $user->hasRight('vereine', 'association', 'read')) {
+			$html .= $this->overpaymentHint((int) $object->id);
+		}
+		$this->resprints = $html;
+		return 0;
+	}
+
+	/**
+	 * The note on an invoice paid over its total: asking for a decision, or saying where the excess went.
+	 *
+	 * @param int $invoiceId Invoice
+	 * @return string HTML, empty when the invoice is not paid over
+	 */
+	private function overpaymentHint($invoiceId)
+	{
+		global $langs;
+
+		dol_include_once('/vereine/class/vereineoverpayments.class.php');
+		$row = (new VereineOverpayments($this->db))->fetch($invoiceId);
+		if ($row === null) {
+			return '';
 		}
 		$langs->load('vereine@vereine');
-		$html = '<div class="warning" data-taxprofile-warning="'.count($lines).'"><strong>'.$langs->trans('VereineTaxLinesDeviateTitle').'</strong><ul>';
-		foreach ($lines as $line) {
-			// Translate::trans() takes at most four parameters: position and description travel together.
-			$where = $line['position'].($line['description'] !== '' ? ' ('.$line['description'].')' : '');
-			$html .= '<li>'.$langs->trans('VereineTaxLineDeviation', $where, VereineTaxRules::formatRate($line['rate']), $line['profile'], VereineTaxRules::formatRate($line['profile_rate'])).'</li>';
+		$excess = price($row['excess'], 0, $langs, 1, -1, 2).' €';
+		$url = dol_buildpath('/vereine/overpayments.php', 1).'?invoice='.((int) $invoiceId).'#vereineoverpayment';
+		if ($row['state'] === VereineOverpaymentRules::STATE_OPEN) {
+			return '<div class="warning" data-overpayment-hint="'.number_format($row['excess'], 2, '.', '').'">'.$langs->trans('VereineOverpaymentHint', $excess)
+				.' <a href="'.$url.'">'.$langs->trans('VereineOverpaymentAssign').'</a></div>';
 		}
-		$this->resprints = $html.'</ul>'.$langs->trans('VereineTaxLinesDeviateHint').'</div>';
-		return 0;
+		return '<div class="info" data-overpayment-done="'.$row['state'].'">'.$langs->trans('VereineOverpaymentHintDone', $excess,
+			$langs->transnoentitiesnoconv('VereineOverpaymentState_'.$row['state'])).' <a href="'.$url.'">'.$langs->trans('VereineOverpaymentDetails').'</a></div>';
 	}
 
 	/**

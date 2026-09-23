@@ -1395,6 +1395,58 @@ if ($stage === 'memberextra') {
 	exit(0);
 }
 
+// Four invoices of 37,68 paid with 38,00 (#54): one for each way, and one Dolibarr's own button converts.
+if ($stage === 'overpaid') {
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/compta/paiement/class/paiement.class.php';
+	if (!isModEnabled('don')) {
+		$result = activateModule('modDon');
+		if (!empty($result['errors'])) {
+			rt_fail('enable donations: '.implode(' | ', (array) $result['errors']));
+		}
+	}
+	$bank = new Account($db);
+	if ($bank->fetch(0, 'RTBANK') <= 0) {
+		rt_fail('the audit fixture should leave the bank account RTBANK');
+	}
+	$socid = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."societe WHERE nom = 'Rechnung Kunde'");
+	$transfer = (int) rt_value($db, "SELECT id FROM ".MAIN_DB_PREFIX."c_paiement WHERE code = 'VIR' AND entity IN (0, 1) ORDER BY entity DESC");
+	$made = array();
+	foreach (array('credit', 'refund', 'donation', 'dolibarr') as $key) {
+		$invoice = new Facture($db);
+		$invoice->socid = $socid;
+		$invoice->type = Facture::TYPE_STANDARD;
+		$invoice->date = dol_now();
+		if ($invoice->create($admin) <= 0) {
+			rt_fail('overpaid invoice '.$key.': '.$invoice->error);
+		}
+		if ($invoice->addline('Fanartikel '.$key, 37.68, 1, 0) <= 0) {
+			rt_fail('overpaid invoice line '.$key.': '.$invoice->error);
+		}
+		if ($invoice->validate($admin) <= 0) {
+			rt_fail('validate overpaid invoice '.$key.': '.$invoice->error.' '.implode(' | ', (array) $invoice->errors));
+		}
+		$payment = new Paiement($db);
+		$payment->datepaye = dol_now();
+		$payment->date = $payment->datepaye;
+		$payment->amounts = array((int) $invoice->id => 38.00);
+		$payment->paiementid = $transfer;
+		$payment->paiementcode = 'VIR';
+		if ($payment->create($admin, 1) <= 0) {
+			rt_fail('overpayment of '.$key.': '.$payment->error.' '.implode(' | ', (array) $payment->errors));
+		}
+		$line = (int) $payment->addPaymentToBank($admin, 'payment', '(CustomerInvoicePayment)', (int) $bank->id, '', '');
+		if ($line <= 0) {
+			rt_fail('overpayment of '.$key.' to the bank: '.$payment->error);
+		}
+		$made[$key] = array('invoice' => (int) $invoice->id, 'line' => $line);
+	}
+	print json_encode(array('invoices' => $made))."\n";
+	exit(0);
+}
+
 if ($stage === 'apiclient') {
 	// A technical client of an external application: it authenticates itself, and nothing more. For whom
 	// it may act comes from a binding, never from the client saying so (#153).
@@ -1427,4 +1479,4 @@ if ($stage === 'apiclient') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid or reset');
