@@ -868,6 +868,36 @@ samt Unterschriften. Bei jedem Abruf wird neu geprüft, ob die Person es sehen d
 veröffentlicht ist. Sonst kommt `404`, ob es das Dokument gibt oder nicht. Fehlt die Datei oder passt
 ihre Prüfsumme nicht mehr zur Vereinsakte, kommt `500` statt anderer Bytes.
 
+### GET /vereine/me/meetings
+
+`subject`, Fähigkeit `meetings`. Jede Sitzung, zu der die Person **eingeladen** wurde, neueste zuerst.
+Eine Vorstandssitzung sieht nur, wer zu ihr eingeladen ist, nie ein Mitglied allein wegen der
+Mitgliedschaft.
+
+```json
+[{"id": 7, "kind": "general", "title": "Generalversammlung 2026", "day": "2026-10-24", "time": "18:00",
+  "timezone": "Europe/Vienna", "format": "hybrid", "place": "Vereinsheim", "access": "https://…",
+  "status": "invited", "agenda": ["Begrüßung", "…"], "voting": true, "response": "yes",
+  "responded_at": "2026-09-24T18:02:11+00:00", "motion_deadline": "2026-10-21", "motions": []}]
+```
+
+`access` bekommt nur, wer eingeladen ist, und nur bei online oder hybrid. `motion_deadline` ist der
+letzte Tag für rechtzeitige Anträge laut Statuten; bei Vorstandssitzungen leer.
+
+### PUT /vereine/me/meetings/{id}/response
+
+`subject`, Fähigkeit `meetings`, Body `{"response": "yes" | "no" | "maybe"}`. Zu- oder Absage, keine
+Anwesenheit und keine Stimme; dieselbe Antwort nochmal ändert nichts. Nach der Sitzung oder bei Absage
+kommt `409`.
+
+### POST /vereine/me/meetings/{id}/motions
+
+`subject`, Fähigkeit `meetings`, Body `{"external_id": "app-123", "title": "…", "text": "…"}`. Ein Antrag
+zur Tagesordnung einer Generalversammlung. Dieselbe `external_id` mit demselben Inhalt antwortet mit dem
+schon eingegangenen Antrag, mit anderem Inhalt `409`. Nach der Frist bleibt er als `late: true` stehen.
+Ob er auf die Tagesordnung kommt, entscheidet der Vorstand in Dolibarr (`status`: received, accepted,
+rejected); angenommen steht er als letzter Punkt auf der Tagesordnung.
+
 ### GET /vereine/me/accounts
 
 `subject`, braucht die Fähigkeit `accounts`. Die Konten der Person: jedes Netzwerk, das der Verein

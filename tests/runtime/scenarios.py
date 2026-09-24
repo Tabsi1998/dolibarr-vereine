@@ -5946,6 +5946,90 @@ def statuteapi(stack: Stack) -> str:
             "read them with a future version; two from the same day ambiguous without a guess; a missing file an error")
 
 
+def meetingapi(stack: Stack) -> str:
+    """Meetings through the API: only the ones the person is invited to, an answer that is no attendance, a motion once and late
+    after the deadline, the board decides, cancelled means no more answers (#159)."""
+    browser = stack.browser()
+    base = "/custom/vereine/meetings.php"
+    today = datetime.date.fromisoformat(stack.today())
+
+    def create(template: str, fields: dict) -> int:
+        page = page_ok(browser.get(f"{base}?template={template}"), f"a new {template} meeting")
+        page_ok(browser.submit(page.form(name="vereinemeeting"), fields), f"store the {template} meeting")
+        meeting = int(stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting") or 0)
+        page_ok(browser.submit(page_ok(browser.get(f"{base}?id={meeting}"), "the meeting").form(name="vereinemeetinginvite"), {"checked": "1"}), "invite")
+        return meeting
+
+    general = create("general", {"day": (today + datetime.timedelta(days=30)).isoformat(), "time": "18:00", "format": "hybrid", "place": "Vereinsheim",
+                                 "access": "https://meet.example.org/gv", "title": "Generalversammlung API"})
+    board = create("board", {"day": (today + datetime.timedelta(days=10)).isoformat(), "time": "19:00", "format": "physical", "place": "Vereinsheim",
+                             "title": "Vorstandssitzung API"})
+    expect(stack.value(f"SELECT status FROM llx_vereine_meeting WHERE rowid = {general}") == "invited", "the general assembly was not invited")
+    member = stack.value(f"SELECT i.fk_adherent FROM llx_vereine_meeting_invitation i WHERE i.fk_meeting = {general} AND i.fk_adherent NOT IN "
+                         f"(SELECT fk_adherent FROM llx_vereine_meeting_invitation WHERE fk_meeting = {board}) ORDER BY i.fk_adherent LIMIT 1")
+    expect(member not in (None, ""), "every member invited to the assembly is on the board")
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtmeet", RT_CLIENT_KEY=client)
+    for subject, capability in (("sub-meet", "meetings"), ("sub-nomeet", "consents")):
+        page = page_ok(browser.get("/custom/vereine/admin/identities.php"), "the identities")
+        page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtmeet", "member_id": member, "application_id": "0",
+                                                                                 "capabilities[]": capability}), f"invite for {capability}")
+        code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+        status, bound = stack.api(f"vereine/identities/claim?subject={subject}&code={code}", client, method="POST")
+        expect(status == 200, f"binding {subject}: HTTP {status} {bound}")
+    status, refused = stack.api("vereine/me/meetings?subject=sub-nomeet", client)
+    expect(status == 403, f"a binding without the ability read meetings: HTTP {status}")
+
+    status, mine = stack.api("vereine/me/meetings?subject=sub-meet", client)
+    ids = [meeting["id"] for meeting in mine] if status == 200 else []
+    expect(general in ids and board not in ids, f"the member's meetings: {ids}, assembly {general}, board {board}")
+    assembly = next(meeting for meeting in mine if meeting["id"] == general)
+    motion_days = int(json.loads(stack.const("VEREINE_STATUTE_RULES") or "{}").get("motion_days", 3))
+    expect(assembly["access"] == "https://meet.example.org/gv" and assembly["agenda"] and assembly["motion_deadline"]
+           == (today + datetime.timedelta(days=30 - motion_days)).isoformat(), f"the assembly for the member: {assembly}")
+
+    # An answer twice: one answer, no attendance.
+    attendance = f"SELECT COUNT(*) FROM llx_vereine_meeting_attendance WHERE fk_meeting = {general} AND fk_adherent = {member}"
+    before = stack.value(attendance)
+    for _ in range(2):
+        status, answered = stack.api(f"vereine/me/meetings/{general}/response?subject=sub-meet", client, method="PUT", data={"response": "yes"})
+    expect(status == 200 and answered["response"] == "yes" and stack.value(f"SELECT COUNT(*) FROM llx_vereine_meeting_response WHERE fk_meeting = {general}") == "1"
+           and stack.value(attendance) == before, f"the answer: HTTP {status}, attendance {before} -> {stack.value(attendance)}")
+    status, _ = stack.api(f"vereine/me/meetings/{board}/response?subject=sub-meet", client, method="PUT", data={"response": "yes"})
+    expect(status == 404, f"an answer to a board meeting the member is not invited to: HTTP {status}")
+
+    # A motion once; the same id with another text is refused; after the deadline it is late.
+    motion = {"external_id": "app-motion-1", "title": "Neue Sparte Valorant", "text": "Die Generalversammlung möge eine Sparte Valorant gründen."}
+    for _ in range(2):
+        status, sent = stack.api(f"vereine/me/meetings/{general}/motions?subject=sub-meet", client, method="POST", data=motion)
+    expect(status == 200 and sent["status"] == "received" and sent["late"] is False
+           and stack.value(f"SELECT COUNT(*) FROM llx_vereine_motion WHERE fk_meeting = {general}") == "1", f"the motion: HTTP {status} {sent}")
+    status, _ = stack.api(f"vereine/me/meetings/{general}/motions?subject=sub-meet", client, method="POST", data={**motion, "text": "anders"})
+    expect(status == 409, f"another motion under the same id: HTTP {status}")
+    stack.sql(f"UPDATE llx_vereine_meeting SET meeting_day = '{(today + datetime.timedelta(days=1)).isoformat()}' WHERE rowid = {general}")
+    status, late = stack.api(f"vereine/me/meetings/{general}/motions?subject=sub-meet", client, method="POST",
+                             data={"external_id": "app-motion-2", "title": "Spät", "text": ""})
+    expect(status == 200 and late["late"] is True, f"a motion after the deadline: HTTP {status} {late}")
+    stack.sql(f"UPDATE llx_vereine_meeting SET meeting_day = '{(today + datetime.timedelta(days=30)).isoformat()}' WHERE rowid = {general}")
+
+    # The board decides in Dolibarr; accepted, it is the last item of the agenda.
+    first = stack.value(f"SELECT rowid FROM llx_vereine_motion WHERE external_id = 'app-motion-1'")
+    page = page_ok(browser.get(f"{base}?id={general}"), "the assembly with motions")
+    expect(f'data-motion="{first}" data-motion-status="received"' in page.text and 'data-responses="1-0-0"' in page.text, "the meeting page does not show the motions")
+    page_ok(browser.submit(page.form(name=f"vereinemotion{first}accepted")), "accept the motion")
+    status, mine = stack.api("vereine/me/meetings?subject=sub-meet", client)
+    assembly = next(meeting for meeting in mine if meeting["id"] == general)
+    accepted = next(row for row in assembly["motions"] if row["external_id"] == "app-motion-1")
+    expect(accepted["status"] == "accepted" and "Neue Sparte Valorant" in assembly["agenda"][-1], f"after accepting: {accepted}, agenda {assembly['agenda']}")
+
+    # Cancelled: no more answers.
+    stack.sql(f"UPDATE llx_vereine_meeting SET status = 'cancelled' WHERE rowid = {general}")
+    status, _ = stack.api(f"vereine/me/meetings/{general}/response?subject=sub-meet", client, method="PUT", data={"response": "no"})
+    expect(status == 409, f"an answer to a cancelled meeting: HTTP {status}")
+    return ("the member saw the assembly with its access and deadline, never the board meeting; answered twice, one answer, no attendance; "
+            "a motion once, another under the same id refused, a late one kept as late; accepted in Dolibarr it closed the agenda; cancelled, no more answers")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -6104,6 +6188,7 @@ SCENARIOS = (
     ("inventory", "Equipment and loans: lend with state, no second loan, late reminder once to the borrower, return, reservation", inventory, ("honours",)),
     ("documents", "Publishing documents: rule for signed ones, by hand for the public, withdrawn gone, app and website see theirs", documents, ("inventory",)),
     ("statuteapi", "Statutes through the API: published or not, in force, future, ambiguous, missing file", statuteapi, ("documents",)),
+    ("meetingapi", "Meetings through the API: only invited ones, answer, motion once and late, board decides, cancelled", meetingapi, ("statuteapi",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),

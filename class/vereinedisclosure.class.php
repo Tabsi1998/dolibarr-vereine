@@ -145,6 +145,10 @@ class VereineDisclosure
 		}
 		$sections['invitations'] = $this->rows("SELECT m.title as meeting, m.meeting_day as day, i.channel, i.voting, i.sent_at FROM ".MAIN_DB_PREFIX."vereine_meeting_invitation as i INNER JOIN ".MAIN_DB_PREFIX."vereine_meeting as m ON m.rowid = i.fk_meeting WHERE i.entity = ".$entity." AND i.fk_adherent = ".$id." ORDER BY m.meeting_day");
 		$sections['attendance'] = $this->rows("SELECT m.title as meeting, m.meeting_day as day, a.state FROM ".MAIN_DB_PREFIX."vereine_meeting_attendance as a INNER JOIN ".MAIN_DB_PREFIX."vereine_meeting as m ON m.rowid = a.fk_meeting WHERE a.entity = ".$entity." AND a.fk_adherent = ".$id." ORDER BY m.meeting_day");
+		$sections['responses'] = $this->rows("SELECT m.title as meeting, m.meeting_day as day, r.response as state, r.responded_at as sent_at FROM ".MAIN_DB_PREFIX
+			."vereine_meeting_response as r INNER JOIN ".MAIN_DB_PREFIX."vereine_meeting as m ON m.rowid = r.fk_meeting WHERE r.entity = ".$entity." AND r.fk_adherent = ".$id." ORDER BY m.meeting_day");
+		$sections['motions'] = $this->rows("SELECT m.title as meeting, o.title as task, o.text as note, o.received_at as received, o.status as state FROM ".MAIN_DB_PREFIX
+			."vereine_motion as o INNER JOIN ".MAIN_DB_PREFIX."vereine_meeting as m ON m.rowid = o.fk_meeting WHERE o.entity = ".$entity." AND o.fk_adherent = ".$id." ORDER BY o.rowid");
 		// Only the member's own votes of circular resolutions, which are not secret.
 		$sections['votes'] = $this->rows("SELECT c.title as resolution, v.choice, v.voted_at FROM ".MAIN_DB_PREFIX."vereine_circular_vote as v INNER JOIN ".MAIN_DB_PREFIX."vereine_circular as c ON c.rowid = v.fk_circular WHERE v.entity = ".$entity." AND v.fk_adherent = ".$id." ORDER BY v.rowid");
 		$sections['signatures'] = $this->rows("SELECT s.doc_name as document, p.function_label as function, p.signed_at, p.way FROM ".MAIN_DB_PREFIX."vereine_signature_person as p INNER JOIN ".MAIN_DB_PREFIX."vereine_signature as s ON s.rowid = p.fk_signature WHERE p.fk_adherent = ".$id." AND s.entity = ".$entity." ORDER BY p.rowid");

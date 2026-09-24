@@ -995,6 +995,100 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Meetings of the person the caller acts for
+	 *
+	 * Every meeting the person was invited to, newest first: kind, day and time, place or access, the
+	 * agenda as invited, whether the person has a vote, their own answer and motions, and until when a
+	 * motion is in time. Never a meeting because of the membership alone: a board meeting stays with the
+	 * board. Only with the ability meetings for this binding.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array List as documented in docs/API.md
+	 *
+	 * @url GET me/meetings
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyMeetings($subject = '')
+	{
+		$this->checkAccess();
+		$memberId = $this->meetingMember((string) $subject);
+		return (new VereineMeetingPortal($this->db))->meetingsFor($memberId);
+	}
+
+	/**
+	 * Answer an invitation for the person the caller acts for
+	 *
+	 * Whether the person means to come: yes, no or maybe. It is no attendance and no vote; the same answer
+	 * again changes nothing.
+	 *
+	 * @param int    $id           Meeting
+	 * @param string $subject      How the application calls the person
+	 * @param array  $request_data response
+	 * @return array The meeting afterwards
+	 *
+	 * @url PUT me/meetings/{id}/response
+	 *
+	 * @throws RestException 400 subject missing or no such answer
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 Not invited to such a meeting
+	 * @throws RestException 409 The meeting is over or cancelled
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function putMyMeetingResponse($id, $subject = '', $request_data = null)
+	{
+		$this->checkAccess();
+		$memberId = $this->meetingMember((string) $subject);
+		$portal = new VereineMeetingPortal($this->db);
+		$response = is_array($request_data) && isset($request_data['response']) && is_scalar($request_data['response']) ? (string) $request_data['response'] : '';
+		$result = $portal->respond($memberId, (int) $id, $response, (string) DolibarrApiAccess::$user->login, dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+		if ($result <= 0) {
+			$this->portalRefused($portal, $result);
+		}
+		foreach ($portal->meetingsFor($memberId) as $meeting) {
+			if ($meeting['id'] === (int) $id) {
+				return $meeting;
+			}
+		}
+		throw new RestException(404, 'Not found');
+	}
+
+	/**
+	 * Send a motion for the agenda of a general assembly for the person the caller acts for
+	 *
+	 * The motion arrives once: the same external_id with the same content answers the same motion, with
+	 * other content it is refused. After the days the statutes set before the assembly it is kept as late.
+	 * Whether it goes on the agenda, the board decides in Dolibarr.
+	 *
+	 * @param int    $id           Meeting
+	 * @param string $subject      How the application calls the person
+	 * @param array  $request_data external_id, title, text
+	 * @return array The motion
+	 *
+	 * @url POST me/meetings/{id}/motions
+	 * @status 200
+	 *
+	 * @throws RestException 400 subject missing, the motion is incomplete, or the meeting is no general assembly
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 Not invited to such a meeting
+	 * @throws RestException 409 The meeting is over or cancelled, or the external_id holds another motion
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function postMyMeetingMotion($id, $subject = '', $request_data = null)
+	{
+		$this->checkAccess();
+		$memberId = $this->meetingMember((string) $subject);
+		$portal = new VereineMeetingPortal($this->db);
+		$motion = $portal->submitMotion($memberId, (int) $id, $request_data, (string) DolibarrApiAccess::$user->login, dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+		if ($motion === null) {
+			$this->portalRefused($portal, $portal->error !== '' ? -1 : 0);
+		}
+		return $motion;
+	}
+
+	/**
 	 * The accounts of the person the caller acts for
 	 *
 	 * The networks the association asks for and every other the member has, each with the name, where it
@@ -1349,6 +1443,50 @@ class Vereine extends DolibarrApi
 			throw new RestException(500, 'The archived file is missing or was changed');
 		}
 		return $pdf;
+	}
+
+	/**
+	 * The member the caller acts for, when the binding may handle the person's meetings.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return int Member
+	 *
+	 * @throws RestException
+	 */
+	private function meetingMember($subject)
+	{
+		$this->checkIdentityRight();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		dol_include_once('/vereine/class/vereinemeetingportal.class.php');
+		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_MEETINGS, 'member');
+		return (int) $identity['member_id'];
+	}
+
+	/**
+	 * Turn what the meeting service refused into the answer of the API.
+	 *
+	 * @param VereineMeetingPortal $portal The service
+	 * @param int                  $result What it returned
+	 * @return void
+	 *
+	 * @throws RestException
+	 */
+	private function portalRefused($portal, $result)
+	{
+		if ($result < 0) {
+			dol_syslog(__METHOD__.' '.$portal->error, LOG_ERR);
+			throw new RestException(500, 'The answer could not be kept');
+		}
+		if (in_array('not found', $portal->errors, true)) {
+			throw new RestException(404, 'Not found');
+		}
+		if (in_array('the meeting is over or cancelled', $portal->errors, true)) {
+			throw new RestException(409, 'The meeting is over or cancelled');
+		}
+		if (in_array('conflict', $portal->errors, true)) {
+			throw new RestException(409, 'A motion with this external_id exists with other content');
+		}
+		throw new RestException(400, implode('; ', $portal->errors));
 	}
 
 	/**
