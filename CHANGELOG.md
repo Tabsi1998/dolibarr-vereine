@@ -16,6 +16,16 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Turniersieg) oder Ehrenmitgliedschaft. Ein Ehrenmitglied wechselt in die Mitgliedsart, die der Verein
   dafür wählt, etwa eine ohne Beitrag. Zu jeder Ehrung gibt es eine **Urkunde als PDF** mit Linien für
   die Unterschriften; der Reiter *Verein* des Mitglieds nennt seine Ehrungen.
+- **Dokumente, zweiter Teil** (#239): In der Vereinsakte lässt sich je Dokument eine **gekürzte
+  Fassung** hochladen, etwa ein Protokoll ohne Personalangelegenheiten für die Mitglieder. Sie ist eine
+  eigene Datei mit eigener Prüfsumme und zeigt – auch bei der öffentlichen Echtheitsprüfung –, aus
+  welcher Fassung sie abgeleitet ist; das Original bleibt unverändert. Ein Dokument kann **nur für eine
+  Person** veröffentlicht werden (etwa eine persönliche Bestätigung); die App sieht es nur für diese
+  Person, und es steht in ihrer Datenauskunft. Wer mehrere Veröffentlichungen eines Dokuments sehen
+  darf, bekommt die der engsten Zielgruppe: der Vorstand das Original, Mitglieder die gekürzte Fassung.
+  Veröffentlichen, Ersetzen und Zurückziehen meldet der Änderungsfeed als `document`.
+- Eine **mit ID Austria unterschriebene Fassung** geht erst dann automatisch hinaus, wenn alle
+  Unterschriften da sind, die der Unterschriftslauf verlangt; bisher schon nach der ersten (#239, #151).
 - **Veranstaltungen in der App und auf der Website** (#165): Eine Veranstaltung ist jetzt intern, **nur für
   Mitglieder** oder öffentlich. `GET /vereine/events` liefert der Website die öffentlichen, mit der
   einen Stelle, bei der man sich anmeldet (keine, Dolibarr oder eine genannte externe Anwendung); nie

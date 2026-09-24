@@ -438,7 +438,13 @@ class VereineSignatures
 			return -1;
 		}
 		VereineLog::add($this->db, $user, VereineLog::QES_SIGNED, $mine['member_id'], 0, $run['kind'].' '.$run['object_id'].': '.$mine['label'].' / '.(string) $subject);
-		return $this->finishWhenComplete($id, $user, $outputlangs);
+		$result = $this->finishWhenComplete($id, $user, $outputlangs);
+		$after = $this->fetch($id);
+		if ($result > 0 && $after !== null && $after['status'] === self::STATUS_DONE) {
+			// Complete now: the same file again, and this time it may go out (#239).
+			(new VereineArchive($this->db))->registerCopy($run['kind'], $run['object_id'], $target, 'signed');
+		}
+		return $result;
 	}
 
 	/**

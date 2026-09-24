@@ -47,9 +47,11 @@ class VereineChangeRules
 	const TYPE_APPLICATION = 'application';
 	/** A consent of a member. */
 	const TYPE_CONSENT = 'consent';
+	/** A published document: published, replaced by a newer revision, withdrawn (#239). */
+	const TYPE_DOCUMENT = 'document';
 
 	/** Every kind of object the feed carries. */
-	const TYPES = array('membership', 'function', 'fee', 'application', 'consent');
+	const TYPES = array('membership', 'function', 'fee', 'application', 'consent', 'document');
 
 	/** The object came into being. */
 	const KIND_CREATED = 'created';

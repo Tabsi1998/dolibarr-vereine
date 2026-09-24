@@ -154,6 +154,9 @@ class VereineDisclosure
 		// Only the member's own votes of circular resolutions, which are not secret.
 		$sections['votes'] = $this->rows("SELECT c.title as resolution, v.choice, v.voted_at FROM ".MAIN_DB_PREFIX."vereine_circular_vote as v INNER JOIN ".MAIN_DB_PREFIX."vereine_circular as c ON c.rowid = v.fk_circular WHERE v.entity = ".$entity." AND v.fk_adherent = ".$id." ORDER BY v.rowid");
 		$sections['signatures'] = $this->rows("SELECT s.doc_name as document, p.function_label as function, p.signed_at, p.way FROM ".MAIN_DB_PREFIX."vereine_signature_person as p INNER JOIN ".MAIN_DB_PREFIX."vereine_signature as s ON s.rowid = p.fk_signature WHERE p.fk_adherent = ".$id." AND s.entity = ".$entity." ORDER BY p.rowid");
+		// Documents published for this person alone (#239): which, since when, and whether withdrawn.
+		$sections['documents'] = $this->rows("SELECT d.title as document, d.kind, p.published_at as day, p.withdrawn_at as end FROM ".MAIN_DB_PREFIX."vereine_publication as p INNER JOIN "
+			.MAIN_DB_PREFIX."vereine_document as d ON d.rowid = p.fk_document WHERE p.entity = ".$entity." AND p.fk_adherent = ".$id." ORDER BY p.rowid");
 		$sections['tasks'] = $this->rows("SELECT label as task, deadline, done_at FROM ".MAIN_DB_PREFIX."vereine_resolution_task WHERE entity = ".$entity
 			." AND fk_adherent = ".$id." ORDER BY rowid");
 		$sections['duties'] = $this->rows("SELECT d.label as duty, t.fiscal_year as year, t.due_on, t.done_on FROM ".MAIN_DB_PREFIX."vereine_duty_task as t INNER JOIN ".MAIN_DB_PREFIX."vereine_duty as d ON d.rowid = t.fk_duty WHERE t.entity = ".$entity." AND t.fk_adherent = ".$id." ORDER BY t.due_on");

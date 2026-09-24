@@ -1822,6 +1822,44 @@ if ($stage === 'signedcopy') {
 	exit(0);
 }
 
+// A signed copy while the signature run still waits for somebody, then once it is done (#239, #151).
+if ($stage === 'signedrun') {
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+	dol_include_once('/vereine/class/vereinearchive.class.php');
+	dol_include_once('/vereine/class/vereinepublications.class.php');
+	$resql = $db->query("SELECT d.rowid, d.kind, d.fk_object, f.relpath FROM ".MAIN_DB_PREFIX."vereine_document as d INNER JOIN ".MAIN_DB_PREFIX."vereine_document_file as f ON f.fk_document = d.rowid WHERE d.rowid = ".((int) rt_env('RT_DOCUMENT_ID'))." ORDER BY f.rowid LIMIT 1");
+	$row = $resql ? $db->fetch_object($resql) : null;
+	if (!$row) {
+		rt_fail('no document '.rt_env('RT_DOCUMENT_ID'));
+	}
+	$rules = getDolGlobalString(VereinePublications::RULES);
+	$wanted = json_decode($rules !== '' ? $rules : '{}', true);
+	$wanted[(string) $row->kind] = array('audience' => 'members', 'auto' => true);
+	dolibarr_set_const($db, VereinePublications::RULES, (string) json_encode($wanted), 'chaine', 0, '', $conf->entity);
+	$count = function () use ($db, $row) {
+		$resql = $db->query("SELECT COUNT(*) as n FROM ".MAIN_DB_PREFIX."vereine_publication WHERE fk_document = ".((int) $row->rowid)." AND withdrawn_at IS NULL");
+		$obj = $resql ? $db->fetch_object($resql) : null;
+		return $obj ? (int) $obj->n : -1;
+	};
+	$before = $count();
+	$db->query("INSERT INTO ".MAIN_DB_PREFIX."vereine_signature (entity, kind, fk_object, doc_name, doc_sha, status, datec) VALUES (".((int) $conf->entity).", '".$db->escape((string) $row->kind)."', ".((int) $row->fk_object).", 'laufzeit.pdf', '".str_repeat('0', 64)."', 'open', '".$db->idate(dol_now())."')");
+	$run = (int) $db->last_insert_id(MAIN_DB_PREFIX.'vereine_signature');
+	$root = rtrim((string) $conf->vereine->dir_output, '/').'/';
+	$signed = $root.dirname((string) $row->relpath).'/teilweise-'.((int) $row->rowid).'.pdf';
+	file_put_contents($signed, file_get_contents($root.(string) $row->relpath)."\n% eine von zwei Unterschriften\n");
+	$archive = new VereineArchive($db);
+	$archive->registerCopy((string) $row->kind, (int) $row->fk_object, $signed, 'signed');
+	$open = $count();
+	$db->query("UPDATE ".MAIN_DB_PREFIX."vereine_signature SET status = 'done' WHERE rowid = ".$run);
+	$archive->registerCopy((string) $row->kind, (int) $row->fk_object, $signed, 'signed');
+	$done = $count();
+	// What the check leaves behind goes: the rule as it was, the run.
+	dolibarr_set_const($db, VereinePublications::RULES, $rules, 'chaine', 0, '', $conf->entity);
+	$db->query("UPDATE ".MAIN_DB_PREFIX."vereine_signature SET status = 'cancelled' WHERE rowid = ".$run);
+	print json_encode(array('before' => $before, 'open' => $open, 'done' => $done))."\n";
+	exit(0);
+}
+
 // Where the module keeps the PDFs of the statutes (#158).
 if ($stage === 'statutedir') {
 	dol_include_once('/vereine/class/vereinestatutes.class.php');
@@ -1829,4 +1867,4 @@ if ($stage === 'statutedir') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers, inventory, runloans, signedcopy, statutedir or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers, inventory, runloans, signedcopy, signedrun, statutedir or reset');

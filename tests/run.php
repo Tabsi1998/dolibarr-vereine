@@ -1855,7 +1855,7 @@ $prefixes = array(
 	'VereineArrearState_' => VereineArrearRules::STATES,
 	'VereineStatisticsGender_' => array('woman', 'man', 'other', 'unknown'),
 	'VereineLoanState_' => array('available', 'out', 'overdue', 'returned'),
-	'VereinePublicationAudience_' => array('none', 'board', 'members', 'public'),
+	'VereinePublicationAudience_' => array('none', 'board', 'members', 'public', 'person'),
 	'VereineMotionState_' => array('accepted', 'rejected'),
 	'VereineProfileField_' => array_keys(VereineProfileRules::FIELDS),
 	'VereineMotionDecide_' => array('accepted', 'rejected'),
@@ -2927,6 +2927,29 @@ $sorted = VereineSocialRules::sortChannels(array(
 	array('network' => 'twitch', 'position' => 20, 'label' => 'CS2'),
 	array('network' => 'discord', 'position' => 30, 'label' => 'Server')), array('discord', 'twitch', 'youtube'));
 same(array('Hauptstream', 'CS2', 'Livestream', 'Server'), array_column($sorted, 'label'), 'the order of the association first, then the network');
+// ------------------------------------------------------------- documents, the second part (#239)
+
+$member7 = array('public' => true, 'member' => true, 'board' => false, 'member_id' => 7);
+$board8 = array('public' => true, 'member' => true, 'board' => true, 'member_id' => 8);
+same(array(true, false, false), array(VereinePublicationRules::sees('person', $member7, 7), VereinePublicationRules::sees('person', $board8, 7),
+	VereinePublicationRules::sees('person', array('public' => true), 0)), 'a document for one person: that person only, not the board, not the public');
+$rows = array(
+	array('document_id' => 1, 'audience' => 'members', 'member_id' => 0, 'revision' => 12, 'created' => 200),
+	array('document_id' => 1, 'audience' => 'board', 'member_id' => 0, 'revision' => 10, 'created' => 100),
+	array('document_id' => 2, 'audience' => 'person', 'member_id' => 7, 'revision' => 20, 'created' => 150),
+	array('document_id' => 3, 'audience' => 'public', 'member_id' => 0, 'revision' => 30, 'created' => 300),
+	array('document_id' => 3, 'audience' => 'public', 'member_id' => 0, 'revision' => 31, 'created' => 300),
+);
+same(array(31, 12, 20), array_column(VereinePublicationRules::pick($rows, $member7), 'revision'), 'a member: the shortened version, their own document, the newest public one; newest first');
+same(array(31, 10), array_column(VereinePublicationRules::pick($rows, $board8), 'revision'), 'the board: the original, even when the shortened version is newer; not somebody else\'s document');
+same(array(31), array_column(VereinePublicationRules::pick($rows, array('public' => true)), 'revision'), 'the public: only what is public');
+same(array('VereinePublicationErrorFile', 'VereineExcerptErrorMissing', 'VereineExcerptErrorSize', 'VereineExcerptErrorKind', 'VereineExcerptErrorKind', ''),
+	array(VereineArchiveRules::excerptProblem(0, 'a.pdf', 10, '%PDF-', 100), VereineArchiveRules::excerptProblem(5, '', 0, '', 100),
+		VereineArchiveRules::excerptProblem(5, 'a.pdf', 101, '%PDF-', 100), VereineArchiveRules::excerptProblem(5, 'a.docx', 10, '%PDF-', 100),
+		VereineArchiveRules::excerptProblem(5, 'a.pdf', 10, 'PK', 100), VereineArchiveRules::excerptProblem(5, 'Kurz.PDF', 10, '%PDF-', 100)),
+	'a shortened version needs an original, a PDF, not too large');
+same(true, in_array('document', VereineChangeRules::TYPES, true), 'the change feed carries documents');
+
 // ------------------------------------------------------------- who sees an event (#165)
 
 same(array('internal', 'public', 'members', 'internal'), array(VereineEventRules::visibility(0), VereineEventRules::visibility('1'), VereineEventRules::visibility(2),
