@@ -5811,6 +5811,76 @@ def inventory(stack: Stack) -> str:
             "late, one reminder to the borrower only, none the next day; the to-do list counts without a name; back with its state, available again")
 
 
+def documents(stack: Stack) -> str:
+    """Publishing documents: nothing by default, a signed revision goes out by itself for members, by hand for the public, once;
+    withdrawn is gone; the app of a member and the website get exactly what is theirs; a changed file is an error (#156, #157)."""
+    browser = stack.browser()
+    base = "/custom/vereine/archive.php"
+    documents_ = stack.sql("SELECT d.rowid, d.kind FROM llx_vereine_document d WHERE EXISTS (SELECT 1 FROM llx_vereine_document_file f WHERE f.fk_document = d.rowid)"
+                           " AND d.kind <> 'statute' ORDER BY d.rowid LIMIT 2")
+    expect(len(documents_) == 2, f"the files have too few documents for the test: {documents_}")
+    (members_doc, members_kind), (public_doc, public_kind) = ((int(row[0]), row[1]) for row in documents_)
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_publication") == "0", "something was published before anybody said so")
+
+    # The app of an active member, bound with the ability documents; another binding without it.
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtdocs", RT_CLIENT_KEY=client)
+    member, other = (int(row[0]) for row in stack.sql("SELECT rowid FROM llx_adherent WHERE statut = 1 ORDER BY rowid LIMIT 2"))
+    for subject, capability, person in (("sub-docs", "documents", member), ("sub-nodocs", "consents", other)):
+        page = page_ok(browser.get("/custom/vereine/admin/identities.php"), "the identities")
+        page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtdocs", "member_id": str(person), "application_id": "0",
+                                                                                 "capabilities[]": capability}), f"invite for {capability}")
+        code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+        status, bound = stack.api(f"vereine/identities/claim?subject={subject}&code={code}", client, method="POST")
+        expect(status == 200, f"binding {subject}: HTTP {status} {bound}")
+    status, mine = stack.api("vereine/me/documents?subject=sub-docs", client)
+    expect(status == 200 and mine == [], f"the member sees documents nobody published: HTTP {status} {mine}")
+    status, refused = stack.api("vereine/me/documents?subject=sub-nodocs", client)
+    expect(status == 403, f"a binding without the ability read documents: HTTP {status}")
+
+    # A rule: the kind goes out for members by itself once signed.
+    page = page_ok(browser.get(base), "the files")
+    page_ok(browser.submit(page.form(name="vereinepublishrules"), {f"audience_{members_kind}": "members", f"auto_{members_kind}": "1"}), "the rule")
+    signed = stack.php_fixture("signedcopy", RT_DOCUMENT_ID=str(members_doc))
+    status, mine = stack.api("vereine/me/documents?subject=sub-docs", client)
+    entry = next((row for row in mine if row["document_id"] == members_doc), None) if status == 200 else None
+    expect(entry is not None and entry["what"] == "signed" and entry["sha256"] == signed["sha256"] and entry["audience"] == "members",
+           f"the signed revision did not go out for members: HTTP {status} {mine}")
+    status, pdf = stack.api(f"vereine/me/documents/{members_doc}/pdf?subject=sub-docs", client)
+    delivered = base64.b64decode(pdf["content"]) if status == 200 else b""
+    expect(hashlib.sha256(delivered).hexdigest() == signed["sha256"] == pdf.get("sha256"), f"the PDF for the member: HTTP {status}")
+    status, public = stack.api("vereine/documents", stack.reader_key)
+    expect(status == 200 and all(row["document_id"] != members_doc for row in public), f"a document for members is public: {public}")
+    status, _ = stack.api(f"vereine/documents/{members_doc}/pdf", stack.reader_key)
+    expect(status == 404, f"the public got a document for members: HTTP {status}")
+
+    # By hand for the public, twice: one publication.
+    for _ in range(2):
+        page = page_ok(browser.get(base), "the files before publishing")
+        page_ok(browser.submit(page.form(name=f"vereinepublish{public_doc}"), {"audience": "public"}), "publish for the public")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_publication WHERE fk_document = {public_doc}") == "1", "publishing twice made two publications")
+    status, public = stack.api("vereine/documents", stack.reader_key)
+    expect(status == 200 and [row["document_id"] for row in public] == [public_doc], f"the public list: {public}")
+    status, pdf = stack.api(f"vereine/documents/{public_doc}/pdf", stack.reader_key)
+    expect(status == 200 and hashlib.sha256(base64.b64decode(pdf["content"])).hexdigest() == public[0]["sha256"], f"the public PDF: HTTP {status}")
+
+    # Withdrawn: gone at once, still in the files.
+    publication = stack.value(f"SELECT rowid FROM llx_vereine_publication WHERE fk_document = {public_doc} AND withdrawn_at IS NULL")
+    page = page_ok(browser.get(base), "the files before withdrawing")
+    page_ok(browser.submit(page.form(name=f"vereinewithdraw{publication}")), "withdraw")
+    status, public = stack.api("vereine/documents", stack.reader_key)
+    status_pdf, _ = stack.api(f"vereine/documents/{public_doc}/pdf", stack.reader_key)
+    expect(status == 200 and public == [] and status_pdf == 404, f"after withdrawing: {public}, PDF HTTP {status_pdf}")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_document_file WHERE fk_document = {public_doc}") != "0", "withdrawing removed the file from the files")
+
+    # A file changed on the disk is an error, never other bytes.
+    stack.shell(f"printf 'x' >> '{signed['file']}'")
+    status, broken = stack.api(f"vereine/me/documents/{members_doc}/pdf?subject=sub-docs", client)
+    expect(status == 500, f"a changed file was handed out: HTTP {status}")
+    return ("nothing published by default; the rule sent the signed revision to members and the app got exactly those bytes, the public nothing; "
+            "published for the public by hand once though twice, withdrawn and gone, still in the files; a changed file is an error; no ability, no documents")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -5967,6 +6037,7 @@ SCENARIOS = (
      ("identities", "applicationfields")),
     ("honours", "Honours and statistics: jubilee once, birthdays with consent, honorary member, certificate, members on a day as a file", honours, ("social",)),
     ("inventory", "Equipment and loans: lend with state, no second loan, late reminder once to the borrower, return, reservation", inventory, ("honours",)),
+    ("documents", "Publishing documents: rule for signed ones, by hand for the public, withdrawn gone, app and website see theirs", documents, ("inventory",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),

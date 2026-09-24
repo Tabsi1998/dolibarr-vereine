@@ -1800,4 +1800,27 @@ if ($stage === 'runloans') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers, inventory, runloans or reset');
+// A signed copy of a document of the association's files, as a finished signature run keeps it (#156).
+if ($stage === 'signedcopy') {
+	dol_include_once('/vereine/class/vereinearchive.class.php');
+	$row = null;
+	$resql = $db->query("SELECT d.rowid, d.kind, d.fk_object, f.relpath FROM ".MAIN_DB_PREFIX."vereine_document as d INNER JOIN ".MAIN_DB_PREFIX."vereine_document_file as f ON f.fk_document = d.rowid"
+		." WHERE d.rowid = ".((int) rt_env('RT_DOCUMENT_ID'))." ORDER BY f.rowid LIMIT 1");
+	$row = $resql ? $db->fetch_object($resql) : null;
+	if (!$row) {
+		rt_fail('no document '.rt_env('RT_DOCUMENT_ID'));
+	}
+	$root = rtrim((string) $conf->vereine->dir_output, '/').'/';
+	$signed = $root.dirname((string) $row->relpath).'/signiert-'.((int) $row->rowid).'.pdf';
+	if (file_put_contents($signed, file_get_contents($root.(string) $row->relpath)."\n% signiert\n") === false) {
+		rt_fail('cannot write '.$signed);
+	}
+	$archive = new VereineArchive($db);
+	if ($archive->registerCopy((string) $row->kind, (int) $row->fk_object, $signed, 'signed') <= 0) {
+		rt_fail('signed copy: '.$archive->error);
+	}
+	print json_encode(array('file' => $signed, 'sha256' => hash_file('sha256', $signed)))."\n";
+	exit(0);
+}
+
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers, inventory, runloans, signedcopy or reset');

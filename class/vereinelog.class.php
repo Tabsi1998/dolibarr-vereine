@@ -140,6 +140,7 @@ class VereineLog
 	const LOAN = 'loan';
 	const LOAN_RETURNED = 'loan_returned';
 	const LOAN_REMINDED = 'loan_reminded';
+	const PUBLICATION = 'publication';
 
 	/**
 	 * Append one entry.

@@ -16,6 +16,14 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Turniersieg) oder Ehrenmitgliedschaft. Ein Ehrenmitglied wechselt in die Mitgliedsart, die der Verein
   dafür wählt, etwa eine ohne Beitrag. Zu jeder Ehrung gibt es eine **Urkunde als PDF** mit Linien für
   die Unterschriften; der Reiter *Verein* des Mitglieds nennt seine Ehrungen.
+- **Dokumente veröffentlichen** (#156, #157): In der Vereinsakte gibst du ein fertiges Dokument frei
+  für den **Vorstand**, die **Mitglieder** oder die **Öffentlichkeit** (nur Administratoren). Je
+  Dokumentart kannst du festlegen, dass die unterschriebene Fassung von selbst hinausgeht, etwa das
+  Protokoll der Generalversammlung für Mitglieder; Entwürfe nie. Ab Werk ist nichts veröffentlicht.
+  Dieselbe Fassung zweimal ergibt eine Veröffentlichung, eine neuere ersetzt die ältere, Zurückziehen
+  wirkt sofort, und die Datei bleibt in der Vereinsakte. Über die API holt eine App mit der Fähigkeit
+  *documents* die Dokumente der Person (`me/documents`), die Website die öffentlichen (`documents`),
+  jeweils als PDF, unverändert samt Unterschriften und geprüft gegen die Prüfsumme der Vereinsakte.
 - **Inventar und Ausleihe** (#26): Die Geräte des Vereins (PCs, Konsolen, Headsets, Zelte, Kassen) sind
   Dolibarrs Ressourcen. *Mitglieder > Verein > Inventar und Ausleihe* zeigt, was gerade wer hat, gibt
   ein Gerät mit Rückgabetag und Zustand aus und nimmt es mit Zustand zurück. Ein verliehenes Gerät lässt

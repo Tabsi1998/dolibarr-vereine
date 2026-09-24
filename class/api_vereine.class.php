@@ -819,6 +819,98 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Documents published for the public
+	 *
+	 * Finished documents of the association's files that it published for the public, the newest
+	 * revision each: minutes, resolutions, reports, as the association chose. Nothing else, never a
+	 * draft, never a withdrawn one. The PDF comes from documents/{id}/pdf.
+	 *
+	 * @return array List as documented in docs/API.md
+	 *
+	 * @url GET documents
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getDocuments()
+	{
+		$this->checkAccess();
+		dol_include_once('/vereine/class/vereinepublications.class.php');
+		return (new VereinePublications($this->db))->catalog(array('public' => true));
+	}
+
+	/**
+	 * The PDF of a document published for the public
+	 *
+	 * The bytes of the published revision, unchanged, signatures included, checked against the checksum
+	 * kept in the association's files. An unknown, unpublished or withdrawn document is not found.
+	 *
+	 * @param int $id       Document
+	 * @param int $revision Revision, 0 for the one published now
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET documents/{id}/pdf
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such document
+	 * @throws RestException 500 The archived file is missing or was changed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getDocumentPdf($id, $revision = 0)
+	{
+		$this->checkAccess();
+		return $this->documentPdf((int) $id, (int) $revision, array('public' => true));
+	}
+
+	/**
+	 * Documents for the person the caller acts for
+	 *
+	 * What the association published for this person: public documents, those for members while the
+	 * person is an active member, those for the board while the person sits on it. Only with the
+	 * ability documents for this binding.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array List as documented in docs/API.md
+	 *
+	 * @url GET me/documents
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyDocuments($subject = '')
+	{
+		$this->checkAccess();
+		$actor = $this->documentActor((string) $subject);
+		return (new VereinePublications($this->db))->catalog($actor);
+	}
+
+	/**
+	 * The PDF of a document for the person the caller acts for
+	 *
+	 * Checked again on every call: whether the binding may, whether the person may, whether it is still
+	 * published. A document the person may not see is not found, whether it exists or not.
+	 *
+	 * @param int    $id       Document
+	 * @param string $subject  How the application calls the person
+	 * @param int    $revision Revision, 0 for the one published now
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET me/documents/{id}/pdf
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 No such document
+	 * @throws RestException 500 The archived file is missing or was changed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyDocumentPdf($id, $subject = '', $revision = 0)
+	{
+		$this->checkAccess();
+		return $this->documentPdf((int) $id, (int) $revision, $this->documentActor((string) $subject));
+	}
+
+	/**
 	 * The accounts of the person the caller acts for
 	 *
 	 * The networks the association asks for and every other the member has, each with the name, where it
@@ -1086,6 +1178,48 @@ class Vereine extends DolibarrApi
 			throw new RestException(403, 'Not allowed: '.$result['reason']);
 		}
 		return $result['identity'];
+	}
+
+	/**
+	 * Who the caller acts for, for the publications: a member binding with the ability documents.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array{public:bool,member:bool,board:bool}
+	 *
+	 * @throws RestException
+	 */
+	private function documentActor($subject)
+	{
+		$this->checkIdentityRight();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		dol_include_once('/vereine/class/vereinepublications.class.php');
+		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_DOCUMENTS, 'member');
+		return (new VereinePublications($this->db))->actorFor((int) $identity['member_id']);
+	}
+
+	/**
+	 * The PDF of a published document for somebody.
+	 *
+	 * @param int                $id       Document
+	 * @param int                $revision Revision, 0 for the one published now
+	 * @param array<string,bool> $actor    public, member, board
+	 * @return array
+	 *
+	 * @throws RestException
+	 */
+	private function documentPdf($id, $revision, array $actor)
+	{
+		dol_include_once('/vereine/class/vereinepublications.class.php');
+		$publications = new VereinePublications($this->db);
+		$pdf = $publications->pdf($id, $revision, $actor);
+		if ($pdf === null) {
+			throw new RestException(404, 'No such document');
+		}
+		if ($pdf === false) {
+			dol_syslog(__METHOD__.' '.$publications->error, LOG_ERR);
+			throw new RestException(500, 'The archived file is missing or was changed');
+		}
+		return $pdf;
 	}
 
 	/**
