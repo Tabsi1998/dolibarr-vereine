@@ -39,6 +39,7 @@ require_once $root.'/class/vereinepartnerrules.class.php';
 require_once $root.'/class/vereinetaxrules.class.php';
 require_once $root.'/class/vereinethresholds.class.php';
 require_once $root.'/class/vereinewebsiteprofilerules.class.php';
+require_once $root.'/class/vereinefilerules.class.php';
 require_once $root.'/class/vereinecashregister.class.php';
 require_once $root.'/class/vereinemembersummary.class.php';
 require_once $root.'/class/vereinewebsiteevents.class.php';
@@ -1332,7 +1333,7 @@ foreach (is_array($openapi) ? $openapi['paths'] : array() as $path => $item) {
 			'docs/openapi.json lists 200, 401, 403 and 501 for '.strtoupper($method).' '.$path);
 	}
 }
-preg_match_all('/@url\s+(GET|POST|PUT|DELETE)\s+(\S+)/', (string) file_get_contents($root.'/class/api_vereine.class.php'), $matches, PREG_SET_ORDER);
+preg_match_all('/@url\s+(GET|HEAD|POST|PUT|DELETE)\s+(\S+)/', (string) file_get_contents($root.'/class/api_vereine.class.php'), $matches, PREG_SET_ORDER);
 $implemented = array();
 foreach ($matches as $match) {
 	$implemented[] = $match[1].' /vereine/'.$match[2];
@@ -3213,6 +3214,26 @@ same(array('sha256' => str_repeat('a', 64), 'size' => 12, 'content_type' => 'ima
 	VereineWebsiteProfileRules::photo(array('sha256' => str_repeat('a', 64), 'size' => '12', 'content_type' => 'image/png', 'updated_at' => '2026-09-25T10:00:00Z', 'path' => '/x')),
 	'the photo as checksum, size, type and time');
 same(null, VereineWebsiteProfileRules::photo(null), 'no photo is null');
+
+// A file as it is (#244): its tag, 304 for an application that has it, a part with Range, the whole file otherwise.
+$fileTag = str_repeat('a', 64);
+$fileAnswer = function ($method, $ifNoneMatch, $range, $ifRange = '') use ($fileTag) {
+	$answer = VereineFileRules::answer($method, 1000, $fileTag, $ifNoneMatch, $range, $ifRange);
+	return array($answer['status'], $answer['start'], $answer['length'], $answer['body'], isset($answer['headers']['Content-Range']) ? $answer['headers']['Content-Range'] : '');
+};
+same(array(
+	array(200, 0, 1000, true, ''), array(200, 0, 1000, false, ''), array(304, 0, 0, false, ''), array(304, 0, 0, false, ''), array(200, 0, 1000, true, ''),
+	array(206, 100, 900, true, 'bytes 100-999/1000'), array(206, 100, 100, true, 'bytes 100-199/1000'), array(206, 900, 100, true, 'bytes 900-999/1000'),
+	array(206, 0, 1000, true, 'bytes 0-999/1000'), array(416, 0, 0, false, 'bytes */1000'), array(200, 0, 1000, true, ''), array(200, 0, 1000, true, ''),
+	array(200, 0, 1000, true, ''), array(206, 100, 900, false, 'bytes 100-999/1000'),
+), array(
+	$fileAnswer('GET', '', ''), $fileAnswer('HEAD', '', ''), $fileAnswer('GET', '"'.$fileTag.'"', ''), $fileAnswer('GET', 'W/"x", W/"'.$fileTag.'"', 'bytes=1-2'),
+	$fileAnswer('GET', '"anders"', ''),
+	$fileAnswer('GET', '', 'bytes=100-'), $fileAnswer('GET', '', 'bytes=100-199'), $fileAnswer('GET', '', 'bytes=-100'), $fileAnswer('GET', '', 'bytes=0-5000'),
+	$fileAnswer('GET', '', 'bytes=1000-'), $fileAnswer('GET', '', 'bytes=0-1,5-6'), $fileAnswer('GET', '', 'bytes=200-100'),
+	$fileAnswer('GET', '', 'bytes=100-', '"anders"'), $fileAnswer('HEAD', '', 'bytes=100-', '"'.$fileTag.'"'),
+), 'whole, headers only, 304 for the tag and a weak tag, another tag gets the file; parts from, between, the last bytes, beyond the end cut, beyond the start 416; several ranges or a range that is none: whole; If-Range with another tag: whole');
+same('private, no-cache', VereineFileRules::answer('GET', 1, $fileTag, '', '', '')['headers']['Cache-Control'], 'a cache asks again every time');
 
 print 'Unit tests: OK ('.$assertions." assertions)\n";
 exit(0);

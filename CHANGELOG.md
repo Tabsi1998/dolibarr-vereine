@@ -7,6 +7,20 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-24
+
+Dokumente gibt es über die API jetzt auch als Datei – ohne base64, mit Fortsetzen abgebrochener Downloads.
+
+Nach dem Update ist nichts zu tun.
+
+### Neu
+
+- **Dokumente als Datei** (#244): `GET /vereine/documents/{id}/file` und `GET /vereine/me/documents/{id}/file`
+  liefern dieselben Bytes wie `…/pdf`, aber als PDF statt JSON mit base64. Mit `ETag` (die Prüfsumme
+  aus dem Katalog) und `If-None-Match` → `304`, `Range` → `206` zum Fortsetzen eines abgebrochenen
+  Downloads, `HEAD` für Größe und Prüfsumme. Wer die Datei bekommen darf, wird wie bei `…/pdf` vor jedem
+  Byte und vor einem `304` geprüft; es gibt keinen Weg an Dolibarrs API vorbei.
+
 ## [1.2.0] - 2026-09-24
 
 Das Website-Profil passt jetzt zu jedem Verein: Welche Angaben die Website über ein Mitglied bekommt, legt der Verein selbst fest – und welche davon das Mitglied im Webportal oder in einer App selbst pflegt.
@@ -2128,7 +2142,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.3.0
 [1.2.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.2.0
 [1.1.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.0.0

@@ -150,6 +150,19 @@ class Stack:
             expect(not problems, "the answer differs from docs/openapi.json:\n" + "\n".join(problems[:10]))
         return status, body
 
+    def fetch(self, path: str, key: str | None, method: str = "GET", headers: dict | None = None) -> tuple[int, dict, bytes]:
+        """Fetch a file of the API as it is (#244): status, headers and bytes; the status must be one docs/openapi.json lists."""
+        sent = {**({"DOLAPIKEY": key} if key else {}), **(headers or {})}
+        request = urllib.request.Request(f"{self.url}/api/index.php/{path.lstrip('/')}", method=method, headers=sent)
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                status, answer, raw = response.status, dict(response.headers.items()), response.read()
+        except urllib.error.HTTPError as error:
+            status, answer, raw = error.code, dict(error.headers.items()), error.read()
+        problems = self.openapi.check(method, path, status, None)
+        expect(not problems, "the answer differs from docs/openapi.json:\n" + "\n".join(problems[:10]))
+        return status, answer, raw
+
     def log(self) -> str:
         completed = self.run(self.docker, "logs", self.web, check=False, timeout=120)
         return completed.stdout + completed.stderr
@@ -6037,6 +6050,14 @@ def documents(stack: Stack) -> str:
     status, pdf = stack.api(f"vereine/me/documents/{members_doc}/pdf?subject=sub-docs", client)
     delivered = base64.b64decode(pdf["content"]) if status == 200 else b""
     expect(hashlib.sha256(delivered).hexdigest() == signed["sha256"] == pdf.get("sha256"), f"the PDF for the member: HTTP {status}")
+    # The same bytes as a file (#244), for the member and only with the ability.
+    mine_file = f"vereine/me/documents/{members_doc}/file?subject=sub-docs"
+    status, headers, raw = stack.fetch(mine_file, client)
+    expect(status == 200 and raw == delivered and headers.get("ETag") == f'"{signed["sha256"]}"', f"the file for the member: HTTP {status} {headers}")
+    status, headers, raw = stack.fetch(mine_file, client, method="HEAD")
+    expect(status == 200 and raw == b"" and headers.get("Content-Length") == str(len(delivered)), f"HEAD of the file for the member: HTTP {status} {headers}")
+    status, _, raw = stack.fetch(f"vereine/me/documents/{members_doc}/file?subject=sub-nodocs", client, headers={"If-None-Match": f'"{signed["sha256"]}"'})
+    expect(status == 403 and b"%PDF" not in raw, f"a binding without the ability got the file or a 304: HTTP {status}")
     status, public = stack.api("vereine/documents", stack.reader_key)
     expect(status == 200 and all(row["document_id"] != members_doc for row in public), f"a document for members is public: {public}")
     status, _ = stack.api(f"vereine/documents/{members_doc}/pdf", stack.reader_key)
@@ -6052,6 +6073,31 @@ def documents(stack: Stack) -> str:
     status, pdf = stack.api(f"vereine/documents/{public_doc}/pdf", stack.reader_key)
     expect(status == 200 and hashlib.sha256(base64.b64decode(pdf["content"])).hexdigest() == public[0]["sha256"], f"the public PDF: HTTP {status}")
 
+    # The public file as it is (#244): the tag is the checksum, 304 with it, a broken download goes on, HEAD without bytes.
+    public_file = f"vereine/documents/{public_doc}/file"
+    status, headers, whole = stack.fetch(public_file, stack.reader_key)
+    tag = f'"{public[0]["sha256"]}"'
+    expect(status == 200 and hashlib.sha256(whole).hexdigest() == public[0]["sha256"] and headers.get("ETag") == tag
+           and headers.get("Content-Type", "").startswith("application/pdf") and headers.get("Accept-Ranges") == "bytes",
+           f"the public file: HTTP {status} {headers}")
+    status, headers, raw = stack.fetch(public_file, stack.reader_key, headers={"If-None-Match": tag})
+    expect(status == 304 and raw == b"", f"the file again with its tag: HTTP {status}")
+    status, headers, raw = stack.fetch(public_file, stack.reader_key, headers={"Range": "bytes=100-", "If-Range": tag})
+    expect(status == 206 and raw == whole[100:] and headers.get("Content-Range") == f"bytes 100-{len(whole) - 1}/{len(whole)}",
+           f"the rest of a broken download: HTTP {status} {headers}")
+    status, _, raw = stack.fetch(public_file, stack.reader_key, headers={"Range": "bytes=100-", "If-Range": '"anders"'})
+    expect(status == 200 and raw == whole, f"a part of another revision was served: HTTP {status}")
+    status, headers, raw = stack.fetch(public_file, stack.reader_key, headers={"Range": f"bytes={len(whole)}-"})
+    expect(status == 416 and headers.get("Content-Range") == f"bytes */{len(whole)}" and raw == b"", f"a range beyond the end: HTTP {status} {headers}")
+    status, headers, raw = stack.fetch(public_file, stack.reader_key, method="HEAD")
+    expect(status == 200 and raw == b"" and headers.get("Content-Length") == str(len(whole)) and headers.get("ETag") == tag, f"HEAD: HTTP {status} {headers}")
+    # Neither bytes nor a 304 without the right, without a key, or for a document not published for the caller.
+    for key, what in ((stack.nobody_key, "a user without rights"), (None, "nobody")):
+        status, _, raw = stack.fetch(public_file, key, headers={"If-None-Match": tag})
+        expect(status in (401, 403) and b"%PDF" not in raw, f"{what} got the file or a 304: HTTP {status}")
+    status, _, raw = stack.fetch(f"vereine/documents/{members_doc}/file", stack.reader_key, headers={"If-None-Match": f'"{signed["sha256"]}"'})
+    expect(status == 404 and b"%PDF" not in raw, f"the public got a document for members as a file or a 304: HTTP {status}")
+
     # Withdrawn: gone at once, still in the files.
     publication = stack.value(f"SELECT rowid FROM llx_vereine_publication WHERE fk_document = {public_doc} AND withdrawn_at IS NULL")
     page = page_ok(browser.get(base), "the files before withdrawing")
@@ -6065,8 +6111,11 @@ def documents(stack: Stack) -> str:
     stack.shell(f"printf 'x' >> '{signed['file']}'")
     status, broken = stack.api(f"vereine/me/documents/{members_doc}/pdf?subject=sub-docs", client)
     expect(status == 500, f"a changed file was handed out: HTTP {status}")
+    status, _, raw = stack.fetch(f"vereine/me/documents/{members_doc}/file?subject=sub-docs", client)
+    expect(status == 500 and b"%PDF" not in raw, f"a changed file was handed out as a file: HTTP {status}")
     return ("nothing published by default; the rule sent the signed revision to members and the app got exactly those bytes, the public nothing; "
-            "published for the public by hand once though twice, withdrawn and gone, still in the files; a changed file is an error; no ability, no documents")
+            "published for the public by hand once though twice, withdrawn and gone, still in the files; a changed file is an error; no ability, no documents; "
+            "as a file with its tag: 304, a broken download went on, HEAD without bytes, never bytes or a 304 without the right")
 
 
 def statuteapi(stack: Stack) -> str:

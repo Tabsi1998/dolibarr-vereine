@@ -40,7 +40,7 @@ class VereineApiRules
 		}
 		foreach ($spec['paths'] as $path => $item) {
 			foreach ((array) $item as $method => $operation) {
-				if (!in_array($method, array('get', 'post', 'put', 'delete'), true) || !is_array($operation)) {
+				if (!in_array($method, array('get', 'head', 'post', 'put', 'delete'), true) || !is_array($operation)) {
 					continue;
 				}
 				$parameters = array();
