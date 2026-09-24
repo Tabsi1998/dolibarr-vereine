@@ -390,10 +390,12 @@ def enable(stack: Stack) -> str:
                     ["members", "vereine_duties", "/vereine/duties.php"],
                     ["members", "vereine_events", "/vereine/events.php"],
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
+                    ["members", "vereine_honours", "/vereine/honours.php"],
                     ["members", "vereine_meetings", "/vereine/meetings.php"],
                     ["members", "vereine_overpayments", "/vereine/overpayments.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"],
                     ["members", "vereine_resolutions", "/vereine/resolutions.php"],
+                    ["members", "vereine_statistics", "/vereine/statistics.php"],
                     ["members", "vereine_volunteers", "/vereine/volunteer.php"]],
            f"menu entries after enabling: {menu}")
     expect(stack.sql("SHOW TABLES LIKE 'llx_vereine_log'") == [["llx_vereine_log"]], "the log table was not created")
