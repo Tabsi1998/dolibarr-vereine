@@ -115,6 +115,19 @@ if ($action === 'invite') {
 		header('Location: '.$self.'#vereineprofiledirect');
 		exit;
 	}
+} elseif ($action === 'saveportal') {
+	dol_include_once('/vereine/class/vereineportal.class.php');
+	$abilities = array();
+	foreach (VereinePortal::OFFERED as $ability) {
+		if (GETPOSTISSET('portal_'.$ability)) {
+			$abilities[] = $ability;
+		}
+	}
+	if ((new VereinePortal($db))->save($abilities, $user) > 0) {
+		setEventMessages($langs->trans('SetupSaved'), null, 'mesgs');
+		header('Location: '.$self.'#vereineportal');
+		exit;
+	}
 } elseif ($action === 'search') {
 	$candidates = $access->candidates(GETPOST('email', 'alphanohtml'), GETPOST('ref', 'alphanohtml'));
 }
@@ -254,6 +267,22 @@ foreach (VereineProfileRules::DIRECT_ALLOWED as $field) {
 		.$langs->trans('VereineProfileField_'.$field).'</label> ';
 }
 print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('Save')).'"></form>';
+
+// Dolibarr's web portal with the page of the association (#25): the same services, for the member logged in there.
+dol_include_once('/vereine/class/vereineportal.class.php');
+$portalAbilities = VereinePortal::capabilities();
+$portalSupported = VereinePortal::supported(DOL_VERSION);
+print '<br>'.load_fiche_titre($langs->trans('VereinePortalSetupTitle'), '', '', 0, 'vereineportal');
+print '<div class="opacitymedium paddingbottom" data-portal-supported="'.($portalSupported ? 1 : 0).'">'.$langs->trans($portalSupported ? 'VereinePortalSetupHowTo' : 'VereinePortalUnsupported', DOL_VERSION).'</div>';
+if ($portalSupported) {
+	print '<form method="POST" action="'.$self.'#vereineportal" name="vereineportal"><input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="action" value="saveportal">';
+	foreach (VereinePortal::OFFERED as $ability) {
+		print '<label class="paddingright"><input type="checkbox" name="portal_'.$ability.'" value="1"'.(in_array($ability, $portalAbilities, true) ? ' checked' : '').'> '
+			.$langs->trans('VereineIdentityCapability_'.$ability).'</label> ';
+	}
+	print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('Save')).'"></form>';
+}
 
 print dol_get_fiche_end();
 llxFooter();

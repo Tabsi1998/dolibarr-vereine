@@ -146,6 +146,7 @@ class VereineLog
 	const PROFILE = 'profile';
 	const BALLOT = 'ballot';
 	const BALLOT_VOTE = 'ballot_vote';
+	const PORTAL = 'portal';
 
 	/**
 	 * Append one entry.

@@ -6322,6 +6322,82 @@ def ballotresult(stack: Stack) -> str:
             "confirmed twice: one vote of the meeting; an election made its term only when confirmed, once")
 
 
+def portal(stack: Stack) -> str:
+    """Dolibarr's web portal with the page of the association (#25): switched on per ability, the member logged in there sees the same
+    documents and ballots as through the API, never somebody else's, and a vote cast through an application cannot be cast again there."""
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/identities.php"
+    page = page_ok(browser.get(setup), "the identities")
+    if stack.version.startswith("22"):
+        expect('data-portal-supported="0"' in page.text and 'name="vereineportal"' not in page.text, "Dolibarr 22 offers a portal setting it cannot honour")
+        return "Dolibarr 22 has no place for pages of modules in its web portal: the setup says so and offers nothing"
+    page_ok(browser.submit(page.form(name="vereineportal"), {"portal_documents": "1", "portal_votes": "1"}), "switch the portal on")
+    expect(stack.const("VEREINE_PORTAL_CAPABILITIES") == "documents,votes", f"stored: {stack.const('VEREINE_PORTAL_CAPABILITIES')}")
+    enable_dolibarr_module(stack, "modWebPortal")
+
+    # A member of the assembly of the ballots, with a third party the portal account belongs to.
+    meeting = int(stack.value("SELECT MAX(fk_meeting) FROM llx_vereine_ballot") or 0)
+    member = stack.value(f"SELECT a.rowid FROM llx_adherent a INNER JOIN llx_vereine_meeting_invitation i ON i.fk_adherent = a.rowid AND i.fk_meeting = {meeting}"
+                         " WHERE a.statut = 1 AND a.fk_soc > 0 AND i.voting = 1 AND a.fk_soc NOT IN (SELECT fk_soc FROM llx_adherent WHERE rowid <> a.rowid AND fk_soc > 0)"
+                         " ORDER BY a.rowid LIMIT 1")
+    expect(member not in (None, ""), "no voting member of the assembly with a third party of its own")
+    account = stack.php_fixture("portalmember", RT_MEMBER_ID=member)
+
+    # A ballot open now; the member votes through an application first.
+    ballots = f"/custom/vereine/ballots.php?meeting={meeting}"
+    page = page_ok(browser.get(f"/custom/vereine/meetings.php?id={meeting}"), "the assembly")
+    page_ok(browser.submit(page.form(name="vereineattendance"), {f"attendance[{member}][state]": "present", f"attendance[{member}][arrived]": "00:00",
+                                                                  f"attendance[{member}][left]": ""}), "the member is there")
+    page = page_ok(browser.get(ballots), "the ballots")
+    page_ok(browser.submit(page.form(name="vereineballot"), {"item": "1", "kind": "resolution", "question": "Portal und App"}), "prepare a ballot")
+    ballot = int(stack.value(f"SELECT MAX(rowid) FROM llx_vereine_ballot WHERE fk_meeting = {meeting}") or 0)
+    for step in ("release", "open"):
+        page_ok(browser.submit(page_ok(browser.get(ballots), f"before {step}").form(name=f"vereineballot{step}{ballot}")), step)
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtportalapp", RT_CLIENT_KEY=client)
+    page = page_ok(browser.get(setup), "the identities before the invitation")
+    form = page.form(name="vereineidentityinvite")
+    fields = [(name, value) for name, value in form.values() if name not in ("client", "member_id", "application_id", "capabilities[]")]
+    fields += [("client", "rtportalapp"), ("member_id", member), ("application_id", "0"), ("capabilities[]", "documents"), ("capabilities[]", "votes")]
+    page = page_ok(browser.post(form.url(), fields), "invite")
+    code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+    status, _ = stack.api(f"vereine/identities/claim?subject=sub-portal&code={code}", client, method="POST")
+    expect(status == 200, f"binding: HTTP {status}")
+    status, listed = stack.api("vereine/me/ballots?subject=sub-portal", client)
+    right = next(row for row in listed if row["id"] == ballot)["rights"][0]["right_id"] if status == 200 else 0
+    status, _ = stack.api(f"vereine/me/ballots/{ballot}/votes?subject=sub-portal", client, method="POST", data={"right_id": right, "option": "yes"})
+    expect(status == 200, f"the vote through the application: HTTP {status}")
+
+    # The portal: log in as the member, the page of the association.
+    visitor = Browser(stack.url)
+    login = page_ok(visitor.get("/public/webportal/index.php"), "the login of the web portal")
+    page_ok(visitor.post("/public/webportal/index.php", [("token", token_of(login)), ("action_login", "login"), ("login", account["login"]),
+                                                         ("password", account["password"])]), "log in")
+    mine = page_ok(visitor.get("/public/webportal/index.php?controller=vereine"), "the page of the association")
+    expect(f'data-vereine-portal="{member}"' in mine.text and 'data-vereine-portal-section="meetings"' not in mine.text,
+           "the page is not the member's, or shows meetings that are switched off")
+    status, documents = stack.api("vereine/me/documents?subject=sub-portal", client)
+    shown = sorted(int(found) for found in re.findall(r'data-vereine-portal-document="(\d+)"', mine.text))
+    expect(status == 200 and shown == sorted(row["document_id"] for row in documents), f"documents: portal {shown}, API {[row['document_id'] for row in documents]}")
+    others = [int(row[0]) for row in stack.sql(f"SELECT DISTINCT fk_document FROM llx_vereine_publication WHERE audience = 'person' AND fk_adherent <> {member}")]
+    expect(not set(others) & set(shown), "the portal shows a document of somebody else")
+    expect(f'data-vereine-portal-right="{right}" data-vereine-portal-right-state="used"' in mine.text, "the portal does not show the vote cast through the application")
+    # The portal's links carry its token; a form for a used right it does not print, so the request is made by hand.
+    token = re.search(r"[?&;]token=([0-9a-zA-Z]+)", html.unescape(mine.text)).group(1)
+    refused = page_ok(visitor.post("/public/webportal/index.php?controller=vereine", [("token", token), ("action", "vote"), ("ballot", str(ballot)),
+                                                                                       ("right", str(right)), ("option", "no")]), "vote again in the portal")
+    votes = stack.value(f"SELECT COUNT(*) FROM llx_vereine_ballot_vote WHERE fk_ballot = {ballot}")
+    expect(votes == "1" and stack.value(f"SELECT option_code FROM llx_vereine_ballot_vote WHERE fk_ballot = {ballot}") == "yes", f"votes after the portal: {votes}")
+    # Switched off: no page, no menu entry.
+    page = page_ok(browser.get(setup), "the identities before switching off")
+    page_ok(browser.submit(page.form(name="vereineportal"), {}, drop=("portal_documents", "portal_votes")), "switch the portal off")
+    gone = visitor.get("/public/webportal/index.php?controller=vereine")
+    expect("data-vereine-portal=" not in gone.text, "the page stays after switching the portal off")
+    page_ok(browser.submit(page_ok(browser.get(ballots), "the ballots").form(name=f"vereineballotcancel{ballot}")), "call the ballot off")
+    return ("the member logged in to the web portal saw the documents the API gives, none of somebody else, and the vote cast through the "
+            "application; voting again in the portal counted nothing; switched off, the page is gone")
+
+
 def documentmore(stack: Stack) -> str:
     """Documents, the second part: a shortened version as a file of its own derived from the original, a document for one person only,
     publishing and withdrawing in the change feed, a signed copy out only once every signature is there (#239)."""
@@ -6629,6 +6705,7 @@ SCENARIOS = (
      documentmore, ("eventapi",)),
     ("ballotapi", "Ballots of a general assembly: two applications and paper, proxies, frozen rights, one right counts once", ballotapi, ("documentmore",)),
     ("ballotresult", "Counting ballots: proof as PDF, provisional until confirmed, confirmed once, an election's term once", ballotresult, ("ballotapi",)),
+    ("portal", "Dolibarr's web portal: the page of the association, the same documents and ballots as the API, no second vote", portal, ("ballotresult",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),

@@ -16,6 +16,12 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Turniersieg) oder Ehrenmitgliedschaft. Ein Ehrenmitglied wechselt in die Mitgliedsart, die der Verein
   dafür wählt, etwa eine ohne Beitrag. Zu jeder Ehrung gibt es eine **Urkunde als PDF** mit Linien für
   die Unterschriften; der Reiter *Verein* des Mitglieds nennt seine Ehrungen.
+- **Webportal: „Mein Verein“** (#25): Ab Dolibarr 23 zeigt Dolibarrs eigenes Webportal angemeldeten
+  Mitgliedern die Seite „Mein Verein“ mit Dokumenten, Sitzungen (mit Zu-/Absage) und Abstimmungen – je
+  nachdem, was der Verein unter *Einrichtung > Identitäten > Webportal* einschaltet. Die Seite nutzt dieselben
+  Dienste wie die API: dieselben Dokumente, dieselben Stimmrechte; eine über eine App abgegebene Stimme
+  zählt im Portal nicht nochmal. Das Portal bekommt keine Verwaltungsrechte und keinen API-Schlüssel.
+  Dolibarr 22 bietet dafür keinen Erweiterungspunkt; dort sagt die Einrichtung das und bietet nichts an.
 - **0 % mit Begründung für E-Rechnungen** (#45): Unter *Steuerprofile* legt „Codes anlegen“ drei eigene
   0-%-Codes im Umsatzsteuer-Wörterbuch an: `AT-NS` nicht steuerbar, `AT-KU` Kleinunternehmer, `AT-SP`
   Sportverein. Ab Dolibarr 24 trägt `AT-NS` den EU-Befreiungsgrund `VATEX-EU-O`; für Kleinunternehmer und

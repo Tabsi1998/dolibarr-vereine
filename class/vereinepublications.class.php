@@ -299,6 +299,25 @@ class VereinePublications
 	 */
 	public function pdf($documentId, $revision, array $actor)
 	{
+		$file = $this->file($documentId, $revision, $actor);
+		if (!is_array($file)) {
+			return $file;
+		}
+		$file['content'] = base64_encode($file['bytes']);
+		unset($file['bytes']);
+		return $file;
+	}
+
+	/**
+	 * The bytes of a published document for somebody, checked against the checksum kept for the revision; the web portal hands them out as they are (#25).
+	 *
+	 * @param int                 $documentId Document
+	 * @param int                 $revision   Revision, 0 for the one the catalog names
+	 * @param array<string,mixed> $actor      public, member, board, member_id
+	 * @return array{filename:string,content_type:string,filesize:int,sha256:string,bytes:string}|null|false Null when not published for them, false when the file is gone or changed
+	 */
+	public function file($documentId, $revision, array $actor)
+	{
 		global $conf;
 
 		$found = null;
@@ -318,7 +337,7 @@ class VereinePublications
 			return false;
 		}
 		return array('filename' => VereinePublicationRules::filename($found['kind'], (string) str_replace('-', '', $found['code']), $found['what']),
-			'content_type' => 'application/pdf', 'filesize' => strlen($content), 'sha256' => $found['sha256'], 'content' => base64_encode($content));
+			'content_type' => 'application/pdf', 'filesize' => strlen($content), 'sha256' => $found['sha256'], 'bytes' => $content);
 	}
 
 	/**

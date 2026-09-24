@@ -1898,6 +1898,40 @@ if ($stage === 'vatline') {
 	exit(0);
 }
 
+// A portal account for a member, as the association sets it up in Dolibarr's web portal (#25).
+if ($stage === 'portalmember') {
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/societeaccount.class.php';
+	$memberId = (int) rt_env('RT_MEMBER_ID');
+	$resql = $db->query("SELECT fk_soc FROM ".MAIN_DB_PREFIX."adherent WHERE rowid = ".$memberId);
+	$obj = $resql ? $db->fetch_object($resql) : null;
+	if (!$obj || (int) $obj->fk_soc <= 0) {
+		rt_fail('member '.$memberId.' has no third party');
+	}
+	// The user the portal acts as in Dolibarr.
+	$portalUser = new User($db);
+	if ($portalUser->fetch(0, 'rtportal') <= 0) {
+		$portalUser->login = 'rtportal';
+		$portalUser->lastname = 'Webportal';
+		if ($portalUser->create($admin) <= 0) {
+			rt_fail('portal user: '.$portalUser->error);
+		}
+	}
+	dolibarr_set_const($db, 'WEBPORTAL_USER_LOGGED', (string) $portalUser->id, 'chaine', 0, '', $conf->entity);
+	$password = bin2hex(random_bytes(8));
+	$account = new SocieteAccount($db);
+	$account->fk_soc = (int) $obj->fk_soc;
+	$account->login = 'rtportal'.$memberId;
+	$account->pass_crypted = dol_hash($password);
+	$account->site = 'dolibarr_portal';
+	$account->status = 1;
+	if ($account->create($admin) <= 0) {
+		rt_fail('portal account: '.$account->error.' '.implode(' ', $account->errors));
+	}
+	print json_encode(array('login' => $account->login, 'password' => $password))."\n";
+	exit(0);
+}
+
 // Where the module keeps the PDFs of the statutes (#158).
 if ($stage === 'statutedir') {
 	dol_include_once('/vereine/class/vereinestatutes.class.php');
@@ -1905,4 +1939,4 @@ if ($stage === 'statutedir') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers, inventory, runloans, signedcopy, signedrun, ballotconfirm, vatline, statutedir or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers, inventory, runloans, signedcopy, signedrun, ballotconfirm, vatline, portalmember, statutedir or reset');

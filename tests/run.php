@@ -91,6 +91,7 @@ require_once $root.'/class/vereinetextrepair.class.php';
 require_once $root.'/class/vereineattendancerules.class.php';
 require_once $root.'/class/vereinevoterules.class.php';
 require_once $root.'/class/vereineballotrules.class.php';
+require_once $root.'/class/vereineportal.class.php';
 require_once $root.'/class/vereineresolutionrules.class.php';
 require_once $root.'/class/vereinecircularrules.class.php';
 require_once $root.'/class/vereinemeetingdocrules.class.php';
@@ -1812,7 +1813,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked', 'honour', 'loan', 'loan_returned', 'loan_reminded', 'publication', 'meeting_response', 'motion', 'profile', 'ballot', 'ballot_vote'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked', 'honour', 'loan', 'loan_returned', 'loan_reminded', 'publication', 'meeting_response', 'motion', 'profile', 'ballot', 'ballot_vote', 'portal'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1895,6 +1896,8 @@ $prefixes = array(
 	'VereineBallotOption_' => array(VereineBallotRules::YES, VereineBallotRules::NO, VereineBallotRules::ABSTAIN),
 	'VereineBallotChannel_' => VereineBallotRules::CHANNELS,
 	'VereineBallotReason_' => VereineBallotRules::REASONS,
+	'VereinePortalResponse_' => array('yes', 'no', 'maybe'),
+	'VereinePortalNoRight_' => array('represented', 'no_voting_right', 'not_member'),
 	'VereineVatCode_' => array_column(VereineTaxRules::zeroCodes(), 'key'),
 	'VereineBallotResult_' => VereineBallotRules::RESULTS,
 	'VereineBallotOutcome_' => VereineBallotRules::OUTCOMES,
@@ -2989,6 +2992,13 @@ same(array('', 'not_found', 'not_found', 'not_open', 'closed', 'closed', 'closed
 	'a vote counts while open and before the hour, once, by the holder of the right in the assembly; the board enters paper ballots');
 same(array('counts' => array('yes' => 2, 'no' => 1, 'abstain' => 1), 'valid' => 3, 'abstain' => 1), VereineBallotRules::tally(array('yes', 'no', 'abstain'),
 	array('yes', 'no', 'yes', 'abstain', 'maybe')), 'abstentions are no valid votes cast; unknown codes do not count');
+
+// ------------------------------------------------------------- the web portal (#25)
+
+same(array('documents', 'votes'), VereinePortal::parse('votes, documents,admin,votes'), 'only offered abilities, in their order, once');
+same(array(), VereinePortal::parse(''), 'switched off by default');
+same(array(false, true, true), array(VereinePortal::supported('22.0.3'), VereinePortal::supported('23.0.0'), VereinePortal::supported('24.0.1')),
+	'the web portal takes pages of modules from Dolibarr 23 on');
 
 // ------------------------------------------------------------- 0 % with a reason for e-invoices (#45)
 
