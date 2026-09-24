@@ -7,6 +7,12 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-24
+
+Mitglieder machen mehr selbst: „Mein Verein“ im Webportal von Dolibarr kann jetzt alles, was bisher nur eine App konnte – Einwilligungen, eigene Daten und Austritt, Helferdienste, Konten bei Discord, Twitch & Co., Statuten und Anträge zur Generalversammlung. Dazu ein Website-Profil je Mitglied mit Foto über die API, nur mit Einwilligung.
+
+Nach dem Update das Modul einmal aus- und wieder einschalten: neue Tabelle für das Website-Profil.
+
 ### Neu
 
 - **Webportal: mehr für Mitglieder** (#257): „Mein Verein“ im Webportal von Dolibarr zeigt jetzt auch
@@ -2094,7 +2100,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.0.0
 [0.11.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.11.0-beta
 [0.10.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.10.0-beta
