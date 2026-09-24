@@ -18,7 +18,7 @@
 /**
  * \file    class/portal/vereine.controller.class.php
  * \ingroup vereine
- * \brief   The page "My association" in Dolibarr's web portal (#25): documents, meetings and ballots of the member logged in.
+ * \brief   The page "My association" in Dolibarr's web portal (#25, #257): documents, meetings, ballots, events, consents and own data of the member logged in.
  *
  * Loaded by Dolibarr's web portal through the hook initController (Dolibarr 23 and later). It holds no logic
  * of its own: documents come from VereinePublications, meetings from VereineMeetingPortal, ballots from
@@ -70,7 +70,7 @@ class VereinePortalController extends Controller
 		if (!$context->controllerInstance->checkAccess()) {
 			return -1;
 		}
-		$langs->loadLangs(array('members', 'vereine@vereine'));
+		$langs->loadLangs(array('members', 'companies', 'vereine@vereine'));
 		$context->title = $langs->trans('VereinePortalTitle');
 		$context->desc = $langs->trans('VereinePortalDesc');
 		$context->menu_active[] = 'vereine';
@@ -90,6 +90,42 @@ class VereinePortalController extends Controller
 			$result = $ballots->cast(GETPOSTINT('ballot'), GETPOSTINT('right'), GETPOST('option', 'aZ09'), $this->memberId, VereineBallotRules::CHANNEL_APP, VereinePortal::CLIENT,
 				'', $this->actor());
 			$done = $result > 0 ? '' : $langs->trans('VereineBallotRefused_'.($ballots->reason !== '' ? $ballots->reason : 'not_found'));
+		} elseif ($action === 'consent' && $this->allows('consents')) {
+			// The same decision as through a website, with the portal as its proof (#257).
+			dol_include_once('/vereine/class/vereineconsents.class.php');
+			$consents = new VereineConsents($this->db);
+			$texts = array();
+			foreach ($consents->currentTexts() as $code => $text) {
+				$texts[$code] = (int) $text['version'];
+			}
+			$checked = VereineConsentRules::decision(array('code' => GETPOST('code', 'aZ09'), 'decision' => GETPOST('decision', 'aZ09'), 'version' => GETPOSTINT('version'),
+				'granted_at' => dol_print_date(dol_now(), '%Y-%m-%d %H:%M:%S', 'tzserver'), 'form' => $langs->transnoentitiesnoconv('VereinePortalProof'), 'reference' => self::requestId()),
+				$texts, VereineConsentRules::current($consents->history($this->memberId)));
+			$done = !$checked['errors'] && $consents->decide($this->memberId, $checked['decision'], $this->actor()) !== null ? '' : $langs->trans('VereinePortalRefused');
+		} elseif ($action === 'change' && $this->allows('profile')) {
+			dol_include_once('/vereine/class/vereineprofiles.class.php');
+			$changes = array();
+			foreach (array_keys(VereineProfileRules::FIELDS) as $field) {
+				$changes[$field] = GETPOST($field, 'alphanohtml');
+			}
+			$profiles = new VereineProfiles($this->db);
+			$request = $profiles->submitChange($this->member(), array('external_id' => self::requestId(), 'version' => GETPOST('version', 'alphanohtml'), 'changes' => $changes),
+				VereinePortal::CLIENT, $this->actor());
+			$done = $request !== null ? '' : $langs->trans(in_array('conflict', $profiles->errors, true) ? 'VereinePortalConflict' : 'VereinePortalRefused');
+		} elseif ($action === 'exit' && $this->allows('profile') && GETPOST('confirm', 'aZ09') === '1') {
+			dol_include_once('/vereine/class/vereineprofiles.class.php');
+			$profiles = new VereineProfiles($this->db);
+			$notice = $profiles->submitExit($this->member(), array('external_id' => self::requestId(), 'wished_last_day' => GETPOST('wished_last_day', 'alphanohtml')),
+				VereinePortal::CLIENT, dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'), $this->actor());
+			$done = $notice !== null ? '' : $langs->trans('VereinePortalRefused');
+		} elseif ($action === 'shift' && $this->allows('events')) {
+			dol_include_once('/vereine/class/vereineeventportal.class.php');
+			$portal = new VereineEventPortal($this->db);
+			$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
+			$result = GETPOST('do', 'aZ09') === 'withdraw'
+				? $portal->withdraw($this->memberId, GETPOSTINT('event'), GETPOSTINT('shift'), $today, $this->actor())
+				: $portal->ask($this->memberId, GETPOSTINT('event'), GETPOSTINT('shift'), VereinePortal::CLIENT, $today, $this->actor());
+			$done = $result > 0 ? '' : $langs->trans('VereinePortalRefused');
 		}
 		if ($done !== null) {
 			$context->setEventMessages($done === '' ? $langs->trans('VereinePortalSaved') : $done, null, $done === '' ? 'mesgs' : 'errors');
@@ -123,6 +159,15 @@ class VereinePortalController extends Controller
 		}
 		if ($this->allows('votes')) {
 			$this->ballots();
+		}
+		if ($this->allows('events')) {
+			$this->events();
+		}
+		if ($this->allows('consents')) {
+			$this->consents();
+		}
+		if ($this->allows('profile')) {
+			$this->profile();
 		}
 		print '</main>';
 		$this->loadTemplate('footer');
@@ -252,6 +297,155 @@ class VereinePortalController extends Controller
 			print '</div>';
 		}
 		print '</article>';
+	}
+
+	/**
+	 * The member's consents: the state per purpose; agree with the full text of the version in force, withdraw with one click (#257).
+	 *
+	 * @return void
+	 */
+	private function consents()
+	{
+		global $langs;
+
+		dol_include_once('/vereine/class/vereineconsents.class.php');
+		$context = Context::getInstance();
+		$consents = new VereineConsents($this->db);
+		$texts = $consents->currentTexts();
+		print '<article data-vereine-portal-section="consents"><header><strong>'.$langs->trans('VereinePortalConsents').'</strong></header>';
+		$state = $consents->stateFor($this->memberId);
+		if (!$state) {
+			print '<p>'.$langs->trans('VereinePortalNothing').'</p>';
+		}
+		foreach ($state as $purpose) {
+			print '<div data-vereine-portal-consent="'.dol_escape_htmltag($purpose['code']).'" data-vereine-portal-consent-state="'.$purpose['state'].'"><p><strong>'
+				.dol_escape_htmltag($purpose['label']).'</strong> · '.$langs->trans('VereinePortalConsentState_'.$purpose['state']).'</p>';
+			if ($purpose['can_give'] && isset($texts[$purpose['code']])) {
+				$text = $texts[$purpose['code']];
+				print '<details><summary>'.$langs->trans('VereinePortalConsentRead').'</summary><p>'.nl2br(dol_escape_htmltag((string) $text['text'])).'</p></details>';
+				print '<form method="POST" action="'.$context->getControllerUrl('vereine', '', false).'" name="vereineportalgive'.dol_escape_htmltag($purpose['code']).'"><input type="hidden" name="token" value="'.newToken().'">';
+				print '<input type="hidden" name="action" value="consent"><input type="hidden" name="decision" value="given"><input type="hidden" name="code" value="'.dol_escape_htmltag($purpose['code']).'">';
+				print '<input type="hidden" name="version" value="'.((int) $text['version']).'"><button type="submit">'.$langs->trans('VereinePortalConsentGive').'</button></form>';
+			}
+			if ($purpose['can_withdraw']) {
+				print '<form method="POST" action="'.$context->getControllerUrl('vereine', '', false).'" name="vereineportalwithdraw'.dol_escape_htmltag($purpose['code']).'"><input type="hidden" name="token" value="'.newToken().'">';
+				print '<input type="hidden" name="action" value="consent"><input type="hidden" name="decision" value="withdrawn"><input type="hidden" name="code" value="'.dol_escape_htmltag($purpose['code']).'">';
+				print '<button type="submit" class="secondary">'.$langs->trans('VereinePortalConsentWithdraw').'</button></form>';
+			}
+			print '</div>';
+		}
+		print '</article>';
+	}
+
+	/**
+	 * The member's own data: the contact data, a change asked for, the requests so far, the notice of the exit (#257).
+	 *
+	 * @return void
+	 */
+	private function profile()
+	{
+		global $langs;
+
+		dol_include_once('/vereine/class/vereineprofiles.class.php');
+		$context = Context::getInstance();
+		$profiles = new VereineProfiles($this->db);
+		$member = $this->member();
+		$profile = $profiles->profile($member);
+		$self = $context->getControllerUrl('vereine', '', false);
+		print '<article data-vereine-portal-section="profile" data-vereine-portal-profile-version="'.dol_escape_htmltag($profile['version']).'"><header><strong>'
+			.$langs->trans('VereinePortalProfile').'</strong></header>';
+		print '<p>'.dol_escape_htmltag(trim($profile['firstname'].' '.$profile['lastname'])).' · '.dol_escape_htmltag($profile['member_type']).'</p>';
+		print '<form method="POST" action="'.$self.'" name="vereineportalprofile"><input type="hidden" name="token" value="'.newToken().'">';
+		print '<input type="hidden" name="action" value="change"><input type="hidden" name="version" value="'.dol_escape_htmltag($profile['version']).'">';
+		foreach (VereineProfileRules::FIELDS as $field => $length) {
+			print '<label>'.$langs->trans('VereineProfileField_'.$field).'<input type="text" name="'.$field.'" maxlength="'.((int) $length).'" value="'
+				.dol_escape_htmltag((string) $profile[$field]).'"></label>';
+		}
+		print '<small>'.$langs->trans('VereinePortalProfileHint').'</small><button type="submit">'.$langs->trans('VereinePortalProfileSend').'</button></form>';
+		$requests = $profiles->requests($this->memberId);
+		if ($requests) {
+			print '<p><strong>'.$langs->trans('VereinePortalRequests').'</strong></p>';
+		}
+		foreach ($requests as $request) {
+			$what = $request['kind'] === 'exit' ? $langs->trans('VereinePortalExitTitle') : implode(', ', array_map(function ($field) use ($langs) {
+				return $langs->trans('VereineProfileField_'.$field);
+			}, array_keys((array) $request['changes'])));
+			print '<p data-vereine-portal-request="'.dol_escape_htmltag($request['kind']).'" data-vereine-portal-request-status="'.dol_escape_htmltag($request['status']).'">'
+				.dol_escape_htmltag($what).' · '.$langs->trans('VereinePortalRequest_'.$request['status'])
+				.(!empty($request['reason']) ? ' · '.dol_escape_htmltag($request['reason']) : '').'</p>';
+		}
+		if ($profile['exit'] === null && $profile['status'] === 'active') {
+			print '<details><summary>'.$langs->trans('VereinePortalExitTitle').'</summary>';
+			print '<form method="POST" action="'.$self.'" name="vereineportalexit"><input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="exit"><label>'.$langs->trans('VereinePortalExitDay').'<input type="date" name="wished_last_day"></label>';
+			print '<label><input type="checkbox" name="confirm" value="1" required> '.$langs->trans('VereinePortalExitConfirm').'</label>';
+			print '<button type="submit" class="secondary">'.$langs->trans('VereinePortalExitSend').'</button></form></details>';
+		} elseif ($profile['exit'] !== null) {
+			print '<p data-vereine-portal-exit="'.dol_escape_htmltag($profile['exit']['last_day']).'">'.$langs->trans('VereinePortalExitPlanned', dol_escape_htmltag($profile['exit']['last_day'])).'</p>';
+		}
+		print '</article>';
+	}
+
+	/**
+	 * Events of the member with their helper shifts: ask for a shift, take back an unconfirmed request (#257).
+	 *
+	 * @return void
+	 */
+	private function events()
+	{
+		global $langs;
+
+		dol_include_once('/vereine/class/vereineeventportal.class.php');
+		$context = Context::getInstance();
+		$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
+		$events = (new VereineEventPortal($this->db))->events($today, $this->memberId);
+		print '<article data-vereine-portal-section="events"><header><strong>'.$langs->trans('VereinePortalEvents').'</strong></header>';
+		if (!$events) {
+			print '<p>'.$langs->trans('VereinePortalNothing').'</p>';
+		}
+		foreach ($events as $event) {
+			print '<div data-vereine-portal-event="'.$event['id'].'"><p><strong>'.dol_escape_htmltag($event['label']).'</strong> · '.dol_escape_htmltag($event['day'])
+				.($event['place'] !== '' ? ' · '.dol_escape_htmltag($event['place']) : '').'</p>';
+			foreach ($event['shifts'] as $shift) {
+				print '<form method="POST" action="'.$context->getControllerUrl('vereine', '', false).'" name="vereineportalshift'.$shift['id'].'" data-vereine-portal-shift="'.$shift['id']
+					.'" data-vereine-portal-shift-mine="'.dol_escape_htmltag($shift['mine']).'"><input type="hidden" name="token" value="'.newToken().'">';
+				print '<input type="hidden" name="action" value="shift"><input type="hidden" name="event" value="'.$event['id'].'"><input type="hidden" name="shift" value="'.$shift['id'].'">';
+				print dol_escape_htmltag($shift['label'].' · '.$shift['start'].'–'.$shift['end']).' · '.$langs->trans('VereinePortalShiftPlaces', $shift['taken'], $shift['capacity']);
+				if ($shift['mine'] === 'requested') {
+					print ' <input type="hidden" name="do" value="withdraw"><button type="submit" class="secondary">'.$langs->trans('VereinePortalShiftWithdraw').'</button>';
+				} elseif (in_array($shift['mine'], array('', 'cancelled'), true) && !$shift['full'] && $event['status'] !== 'cancelled') {
+					print ' <input type="hidden" name="do" value="ask"><button type="submit">'.$langs->trans('VereinePortalShiftAsk').'</button>';
+				} elseif ($shift['mine'] !== '') {
+					print ' · '.$langs->trans('VereinePortalShift_'.$shift['mine']);
+				}
+				print '</form>';
+			}
+			print '</div>';
+		}
+		print '</article>';
+	}
+
+	/**
+	 * The member the portal acts for, loaded as Dolibarr's member.
+	 *
+	 * @return Adherent
+	 */
+	private function member()
+	{
+		require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+		$member = new Adherent($this->db);
+		$member->fetch($this->memberId);
+		return $member;
+	}
+
+	/**
+	 * An id of a request of the portal, so a request sent twice is recognised.
+	 *
+	 * @return string
+	 */
+	private static function requestId()
+	{
+		return VereinePortal::CLIENT.'-'.bin2hex(random_bytes(8));
 	}
 
 	/**

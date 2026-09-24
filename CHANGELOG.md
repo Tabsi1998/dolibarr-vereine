@@ -7,6 +7,15 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Neu
+
+- **Webportal: mehr für Mitglieder** (#257): „Mein Verein“ im Webportal von Dolibarr zeigt jetzt auch
+  **Einwilligungen** (lesen, einwilligen, widerrufen – mit Nachweis „Webportal“), **Meine Daten**
+  (Kontaktdaten ändern – sofort oder über den Vorstand, wie eingestellt –, frühere Anträge mit Stand und
+  den **Austritt** erklären) und **Veranstaltungen und Helferdienste** (mithelfen, unbestätigte Anfrage
+  zurückziehen). Jeder Bereich ist unter *Externe Identitäten > Webportal* einzeln einschaltbar und nutzt
+  dieselben Dienste wie eine App.
+
 ## [1.0.0] - 2026-09-24
 
 Die erste stabile Version: alles, was ein österreichischer Verein über das Jahr braucht – Beiträge, Sitzungen und Generalversammlung mit Abstimmungen, Funktionen und Meldungen an die Behörde, Rechnungslegung, Spendenmeldung, Freiwilligenpauschale, Vereinsakte und Datenschutz – mit einer stabilen API (Version 2) für Website, App und das Webportal von Dolibarr, und einem bebilderten Handbuch.

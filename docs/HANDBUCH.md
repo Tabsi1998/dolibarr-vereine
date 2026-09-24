@@ -210,7 +210,8 @@ sie braucht, und einen eigenen API-Schlüssel (siehe README). Weitere Punkte:
 ### Webportal von Dolibarr
 
 Ab Dolibarr 23 können Mitglieder im **Webportal** von Dolibarr die Seite „Mein Verein“ sehen: Dokumente,
-Sitzungen mit Zu- oder Absage und Abstimmungen. Was dort erscheint, schaltet ihr unter *Einrichtung >
+Sitzungen mit Zu- oder Absage, Abstimmungen, Veranstaltungen mit Helferdiensten, Einwilligungen und ihre
+eigenen Daten samt Austritt. Was dort erscheint, schaltet ihr unter *Einrichtung >
 Externe Identitäten > Webportal von Dolibarr* je Dienst ein. Es gelten dieselben Regeln wie für eine App:
 nur die eigenen Dokumente, nur die eigenen Stimmrechte, und eine Stimme zählt nur einmal, egal ob über
 App, Portal oder Stimmzettel.
