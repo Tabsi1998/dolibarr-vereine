@@ -7,6 +7,21 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-24
+
+Mitglieder sehen ihre eigenen Rechnungen in der App oder auf der Website des Vereins – über ihre Bindung, freigegeben je Einladung.
+
+Nach dem Update ist nichts zu tun.
+
+### Neu
+
+- **Eigene Rechnungen über die Bindung** (#263): Neue Fähigkeit *Eigene Rechnungen* an der Einladung
+  (*Einrichtung > Externe Identitäten*), ab Werk aus. `GET /vereine/me/invoices` liefert dieselbe Liste wie
+  für die Website, `GET /vereine/me/invoices/{invoice}/pdf` das PDF einer eigenen Rechnung. Eine fremde
+  Rechnung, ein Entwurf oder eine unbekannte Rechnung ergibt `404`.
+- Das Rechnungs-PDF nennt jetzt auch seine Prüfsumme `sha256`, ebenso bei
+  `GET /vereine/members/{id}/invoices/{invoice}/pdf`.
+
 ## [1.3.0] - 2026-09-24
 
 Dokumente gibt es über die API jetzt auch als Datei – ohne base64, mit Fortsetzen abgebrochener Downloads.
@@ -2142,7 +2157,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.4.0
 [1.3.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.3.0
 [1.2.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.2.0
 [1.1.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.1.0

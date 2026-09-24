@@ -36,7 +36,7 @@ Modulversion und API-Version – ein günstiger Weg, die Verbindung zu testen.
 
 ```json
 {
-  "module_version": "1.3.0",
+  "module_version": "1.4.0",
   "api_version": 2,
   "server_time": "2026-09-17T08:00:00Z"
 }
@@ -732,10 +732,12 @@ Dokument-Download antwortet:
   "filename": "FA2608-0003.pdf",
   "content_type": "application/pdf",
   "filesize": 48213,
+  "sha256": "9c1f…",
   "content": "JVBERi0xLjcK..."
 }
 ```
 
+- `sha256` ist die Prüfsumme der Bytes (seit 1.4.0).
 - Die Rechnung muss zum Geschäftspartner des Mitglieds gehören und freigegeben
   sein. Die Rechnung eines anderen Mitglieds, ein Entwurf oder eine unbekannte
   Rechnung ergibt 404 – dieselbe Antwort, damit niemand erfährt, ob eine fremde
@@ -845,7 +847,8 @@ bestehender Schlüssel ein zusätzliches Recht.
    **Bindung** – bei **genau dieser Anwendung** und in **diesem Mandanten**.
 3. Die Bindung ist nicht widerrufen.
 4. Die Bindung trägt die **Fähigkeit**, um die es geht (`consents`, `applications`, `documents`,
-   `votes`). Alle sind aus, bis der Verein sie einschaltet.
+   `votes`, `accounts`, `meetings`, `profile`, `events`, `invoices`). Alle sind aus, bis der Verein sie
+   einschaltet.
 5. Das Objekt ist **das eigene**: das gebundene Mitglied oder der gebundene Antrag. Wer nach einem
    fremden fragt, wird abgewiesen, nicht umgeleitet.
 
@@ -1108,6 +1111,20 @@ was der Verein als geleistet bestätigt.
 
 `subject`, Fähigkeit `events`. Zieht eine noch **nicht bestätigte** Anfrage zurück. Einen bestätigten
 Dienst sagt die Person beim Verein ab (`409`).
+
+### GET /vereine/me/invoices
+
+`subject`, Fähigkeit `invoices`, optional `limit` (1–100) und `page`. Die eigenen Rechnungen: dieselbe Liste
+und dasselbe Format wie `GET /vereine/members/{id}/invoices` – freigegebene Rechnungen des Geschäftspartners
+des gebundenen Mitglieds, neueste zuerst, ohne Entwürfe; eine leere Liste, wenn das Mitglied keinen
+Geschäftspartner hat. Seit 1.4.0.
+
+### GET /vereine/me/invoices/{invoice}/pdf
+
+`subject`, Fähigkeit `invoices`. Das PDF einer eigenen Rechnung wie bei
+`GET /vereine/members/{id}/invoices/{invoice}/pdf`, mit `sha256`. Die Rechnung eines anderen, ein Entwurf
+oder eine unbekannte Rechnung ergibt `404` – dieselbe Antwort, damit niemand erfährt, ob eine fremde
+Rechnung existiert.
 
 ### GET /vereine/me/accounts
 

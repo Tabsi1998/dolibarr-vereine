@@ -3504,6 +3504,151 @@
           ]
         ]
       }
+    },
+    "/vereine/me/invoices": {
+      "get": {
+        "operationId": "getMyInvoices",
+        "summary": "Eigene Rechnungen der gebundenen Person, neueste zuerst",
+        "description": "Dieselbe Liste wie members/{id}/invoices für das gebundene Mitglied: freigegebene Rechnungen seines Geschäftspartners, ohne Entwürfe; leer ohne Geschäftspartner. Braucht die Fähigkeit invoices.",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Rechnungen je Seite, 100 ohne Angabe",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Seite, ab 0",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rechnungen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Invoice"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      }
+    },
+    "/vereine/me/invoices/{invoice}/pdf": {
+      "get": {
+        "operationId": "getMyInvoicePdf",
+        "summary": "PDF einer eigenen Rechnung der gebundenen Person",
+        "description": "Base64-kodiert, mit sha256. Die Rechnung eines anderen, ein Entwurf oder eine unbekannte Rechnung ergibt 404. Ein fehlendes PDF wird mit der Vorlage der Rechnung erzeugt. Braucht die Fähigkeit invoices.",
+        "parameters": [
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "description": "Rechnungs-ID, wie me/invoices sie listet",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Das PDF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoicePdf"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      }
     }
   },
   "components": {
@@ -4488,6 +4633,7 @@
           "filename",
           "content_type",
           "filesize",
+          "sha256",
           "content"
         ],
         "properties": {
@@ -4504,6 +4650,11 @@
           "filesize": {
             "type": "integer",
             "description": "Größe in Bytes nach dem Dekodieren"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Prüfsumme der Bytes"
           },
           "content": {
             "type": "string",
@@ -4925,7 +5076,8 @@
                 "accounts",
                 "meetings",
                 "profile",
-                "events"
+                "events",
+                "invoices"
               ]
             }
           },

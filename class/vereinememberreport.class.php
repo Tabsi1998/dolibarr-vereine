@@ -371,7 +371,7 @@ class VereineMemberReport
 	 *
 	 * @param int $id        Member id
 	 * @param int $invoiceId Invoice id
-	 * @return array{filename:string,content_type:string,filesize:int,content:string}|false|null
+	 * @return array{filename:string,content_type:string,filesize:int,sha256:string,content:string}|false|null
 	 *         Null when the member or a validated invoice of the member does not exist, false when the PDF cannot be built
 	 */
 	public function invoicePdf($id, $invoiceId)
@@ -412,6 +412,7 @@ class VereineMemberReport
 			'filename' => $reference.'.pdf',
 			'content_type' => 'application/pdf',
 			'filesize' => strlen($content),
+			'sha256' => hash('sha256', $content),
 			'content' => base64_encode($content),
 		);
 	}

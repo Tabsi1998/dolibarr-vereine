@@ -61,7 +61,10 @@ class VereineIdentityRules
 	/** The person's own events and helper shifts (#165). */
 	const CAPABILITY_EVENTS = 'events';
 
-	const CAPABILITIES = array('consents', 'applications', 'documents', 'votes', 'accounts', 'meetings', 'profile', 'events');
+	/** The person's own invoices: the list and the PDFs (#263). */
+	const CAPABILITY_INVOICES = 'invoices';
+
+	const CAPABILITIES = array('consents', 'applications', 'documents', 'votes', 'accounts', 'meetings', 'profile', 'events', 'invoices');
 
 	/** The binding came from a one-time invitation the person used. */
 	const PROOF_INVITATION = 'invitation';
