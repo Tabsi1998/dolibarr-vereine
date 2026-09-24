@@ -1221,6 +1221,14 @@ def websiteprofile(stack: Stack) -> str:
     status, _ = stack.api(f"vereine/members/{paid}/photo", key, check=False)
     expect(status == 404, f"photo after the withdrawal answered HTTP {status}")
     expect(stack.value(f"SELECT gamertag FROM llx_vereine_member_profile WHERE fk_adherent = {paid}") == "LionKing", "the withdrawal deleted the profile")
+
+    # Leave the setup of consents as found: later scenarios count the consent texts from zero.
+    setup = page_ok(browser.get("/custom/vereine/admin/consents.php"), "consent setup at the end")
+    page_ok(browser.submit(setup.form(name="vereinewebsiteprofileconsent"), {"website_profile_consent": ""}), "choose no consent again")
+    expect(stack.const("VEREINE_WEBSITE_PROFILE_CONSENT") in ("", None, "NULL"), "the consent for the website profile was not cleared")
+    stack.sql("DELETE FROM llx_vereine_consent WHERE code = 'profil'")
+    stack.sql("DELETE FROM llx_vereine_consent_text WHERE code = 'profil'")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_consent_text") == "0", "the consent text for the profile was not removed")
     return ("Website profile on the tab Association, the consent chosen in the setup; the API hands profile and photo out only "
             "with that consent, names it otherwise, and a withdrawal closes both")
 
