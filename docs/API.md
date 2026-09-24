@@ -36,7 +36,7 @@ Modulversion und API-Version – ein günstiger Weg, die Verbindung zu testen.
 
 ```json
 {
-  "module_version": "0.5.8-beta",
+  "module_version": "1.0.0",
   "api_version": 2,
   "server_time": "2026-09-17T08:00:00Z"
 }
@@ -118,11 +118,8 @@ Einrichtung des Moduls.
 
 | Feld | Inhalt |
 | --- | --- |
-| `country_profile` | Immer `AT`; veraltet, entfällt mit 1.0 |
-| `country_profile_complete` | Immer `true`; veraltet, entfällt mit 1.0 |
 | `register.kind` | Immer `ZVR` |
 | `register.number` | ZVR-Zahl (Ziffern); leer, wenn nicht eingetragen |
-| `register.court` | Immer leer; veraltet, entfällt mit 1.0 |
 | `authority` | Vereinsbehörde |
 | `founded` | `JJJJ-MM-TT` oder leer |
 | `fiscal_year_start_month` | 1 bis 12, aus den Unternehmensdaten von Dolibarr |
