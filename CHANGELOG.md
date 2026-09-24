@@ -7,6 +7,12 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.10.0-beta] - 2026-09-24
+
+Vereinsakte, Datenschutz und Anbindungen: fertige Dokumente als PDF/A mit Kennung und öffentlicher Echtheitsprüfung, Auskunft nach Art. 15 DSGVO und Löschen nach dem Austritt mit Fristen je Art der Daten, Beitragsrückstände aus dem Mahnwesen als Vorschlag für den Vorstand, Kanäle des Vereins und Konten der Mitglieder bei Discord, Twitch, YouTube & Co., eigene Felder im Antrag, geführte Einrichtung und ein Handbuch.
+
+Nach dem Update das Modul einmal aus- und wieder einschalten: neue Tabellen und Reiter.
+
 ### Neu
 
 - **Erste Schritte** (#126): Die Einrichtung beginnt mit einem neuen Reiter, der einen Verein in
@@ -1956,7 +1962,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.9.0-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.10.0-beta...HEAD
+[0.10.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.9.0-beta...v0.10.0-beta
 [0.9.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.9.0-beta
 [0.8.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.8.0-beta
 [0.7.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.7.1-beta
