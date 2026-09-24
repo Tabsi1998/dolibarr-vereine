@@ -329,10 +329,16 @@ def upgrade(stack: Stack) -> str:
                   f"VALUES (1, {profile_member}, 'UpLoewe', 'Seit 2019 dabei.', 'TFT, Schach', '', NOW())")
 
     upload(stack, stack.package)
+    # PHP keeps the compiled module for a moment after the files were replaced (opcache): switched off and on
+    # before that, Dolibarr would run the init of the release it upgrades from. An administrator switches later.
+    for attempt in range(10):
+        about = page_ok(stack.browser().get("/custom/vereine/admin/about.php"), "about before switching the new package on")
+        if stack.module_version in about.text:
+            break
+        time.sleep(1)
     switch_module(stack, "reset")
     switch_module(stack, "set")
-    # PHP keeps the compiled module descriptor for a moment after the files were replaced (opcache),
-    # so the about page may still name the version of the release it upgraded from.
+    # The about page may still name the version of the release it upgraded from for the same reason.
     for attempt in range(10):
         about = page_ok(stack.browser().get("/custom/vereine/admin/about.php"), "about after the upgrade")
         if stack.module_version in about.text:
