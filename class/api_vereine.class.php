@@ -525,11 +525,11 @@ class Vereine extends DolibarrApi
 	/**
 	 * Website profile of a member
 	 *
-	 * What the association publishes about the member on its website: gamertag, bio, games and platforms
-	 * from the tab Association of the member card, and the photo of the member card as checksum and size.
-	 * Only with the consent the association chose for it (setup of consents): without it the answer names
-	 * the consent, says given false and carries nothing personal. Needs the right to read member summaries
-	 * for a website.
+	 * What the association shows about the member on its website: the fields of the member it chose for
+	 * the profile (setup of consents), each with its label, type and value, and the photo of the member
+	 * card as checksum and size. Only with the consent the association chose for it: without it the answer
+	 * names the consent, says given false and carries nothing personal. Needs the right to read member
+	 * summaries for a website.
 	 *
 	 * @param int $id Member id
 	 * @return array Fields as documented in docs/API.md
@@ -1165,9 +1165,9 @@ class Vereine extends DolibarrApi
 	/**
 	 * The own website profile of the person the caller acts for
 	 *
-	 * Gamertag, short text, games and platforms as the person keeps them, also while the consent for
-	 * the website is not given, and whether it is: only with it the association's website shows them.
-	 * Only with the ability profile for this binding.
+	 * Every field of the website profile with its value and whether the person may change it, also while
+	 * the consent for the website is not given, and whether it is: only with it the association's website
+	 * shows them. Only with the ability profile for this binding.
 	 *
 	 * @param string $subject How the application calls the person
 	 * @return array Fields as documented in docs/API.md
@@ -1189,17 +1189,18 @@ class Vereine extends DolibarrApi
 	/**
 	 * Keep the own website profile of the person the caller acts for
 	 *
-	 * Only the fields sent change, the others stay; games and platforms as a list or as text. A field
-	 * longer than it may be is refused with its name. Kept whether or not the consent for the website
-	 * is given; the website learns of it through the change feed.
+	 * Body {"fields": {code: value}}. Only the fields sent change, the others stay; null empties a field.
+	 * A field outside the profile, one the association keeps or a value that does not fit its type is
+	 * refused with 400, the code of the field in error.field. Kept whether or not the consent for the
+	 * website is given; the website learns of it through the change feed.
 	 *
 	 * @param string $subject      How the application calls the person
-	 * @param array  $request_data gamertag, bio, games, platforms
+	 * @param array  $request_data fields: code => value
 	 * @return array The profile afterwards
 	 *
 	 * @url PUT me/website-profile
 	 *
-	 * @throws RestException 400 subject missing, or a field too long or no text
+	 * @throws RestException 400 subject missing, or a field refused (its code in error.field)
 	 * @throws RestException 403 Not allowed, no binding or the ability is off
 	 * @throws RestException 501 Module not enabled
 	 */
@@ -1209,9 +1210,11 @@ class Vereine extends DolibarrApi
 		$member = $this->profileMember((string) $subject);
 		dol_include_once('/vereine/class/vereinewebsiteprofiles.class.php');
 		$profiles = new VereineWebsiteProfiles($this->db);
-		$result = $profiles->change($member, $request_data, DolibarrApiAccess::$user);
+		$result = $profiles->change($member, is_array($request_data) && array_key_exists('fields', $request_data) ? $request_data['fields'] : null, DolibarrApiAccess::$user);
 		if ($result === 0) {
-			throw new RestException(400, implode('; ', $profiles->errors));
+			// The code of the first refused field in its own key, so an application marks it without reading the text.
+			$first = reset($profiles->errors);
+			throw new RestException(400, implode('; ', array_column($profiles->errors, 'message')), $first['field'] !== '' ? array('field' => $first['field']) : array());
 		}
 		if ($result < 0) {
 			dol_syslog(__METHOD__.' '.$profiles->error, LOG_ERR);

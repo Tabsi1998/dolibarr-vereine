@@ -18,13 +18,14 @@
 /**
  * \file    class/vereinewebsiteprofiles.class.php
  * \ingroup vereine
- * \brief   The website profile of a member (#255): kept by the board, read by the website with consent.
+ * \brief   The website profile of a member (#255, #260): fields the association chooses, read by the website with consent.
  *
- * The board writes gamertag, bio, games and platforms on the tab Association; the photo is the member
- * photo of Dolibarr's own member card. The API hands the profile and the photo out only when the member
- * gave the consent the association chose in the setup of consents - without it the answer names the
- * consent and nothing else. A saved profile counts as a change of the member, so a website that follows
- * the change feed or the webhooks reads it again.
+ * The fields are Dolibarr's own additional fields of the member: the association creates them (under Members or
+ * right in the setup of consents), chooses which of them make up the profile and which of them the member keeps
+ * in the web portal or an app; the board keeps the others on the member card. The photo is the member photo of
+ * Dolibarr's member card. The API hands the profile and the photo out only when the member gave the consent the
+ * association chose - without it the answer names the consent and nothing else. A change by the member counts as
+ * a change of the member, so a website that follows the change feed or the webhooks reads it again.
  */
 
 require_once __DIR__.'/vereinewebsiteprofilerules.class.php';
@@ -42,7 +43,7 @@ class VereineWebsiteProfiles
 	public $error = '';
 
 	/**
-	 * @var string[] Why a change was refused
+	 * @var array<int,array{field:string,message:string}> Why a change was refused, each with the code of its field
 	 */
 	public $errors = array();
 
@@ -87,6 +88,65 @@ class VereineWebsiteProfiles
 	}
 
 	/**
+	 * The fields of the member a profile can hold: Dolibarr's additional fields of the member a form can show.
+	 *
+	 * @return array<string,array<string,mixed>> Code => label, kind, options, max, integer, pos
+	 */
+	public function available()
+	{
+		dol_include_once('/vereine/class/vereinememberform.class.php');
+		return VereineMemberForm::memberExtraFieldSpecs($this->db);
+	}
+
+	/**
+	 * The fields of the profile, each with its label and options in the language of the user and whether the
+	 * member may change it.
+	 *
+	 * @return array<string,array<string,mixed>> Code => label, kind, options, max, integer, editable
+	 */
+	public function fields()
+	{
+		global $langs;
+
+		$specs = $this->available();
+		$fields = array();
+		foreach (VereineWebsiteProfileRules::fields(getDolGlobalString(VereineWebsiteProfileRules::FIELDS), array_keys($specs)) as $code => $editable) {
+			$spec = $specs[$code];
+			$spec['label'] = (string) $langs->transnoentitiesnoconv($spec['label']);
+			foreach ($spec['options'] as $option => $text) {
+				$spec['options'][$option] = (string) $langs->transnoentitiesnoconv($text);
+			}
+			$spec['editable'] = $editable;
+			$fields[$code] = $spec;
+		}
+		return $fields;
+	}
+
+	/**
+	 * Keep which fields make up the profile and which of them the member may change.
+	 *
+	 * @param mixed $chosen Codes of the fields in the profile
+	 * @param mixed $self   Codes the member may change
+	 * @param User  $user   Who
+	 * @return int 1 when saved, -1 on error
+	 */
+	public function saveFields($chosen, $self, $user)
+	{
+		global $conf;
+
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+
+		$setting = VereineWebsiteProfileRules::setting($chosen, $self, array_keys($this->available()));
+		if (dolibarr_set_const($this->db, VereineWebsiteProfileRules::FIELDS, $setting, 'chaine', 0, '', $conf->entity) < 0) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		$decoded = $setting !== '' ? json_decode($setting, true) : array();
+		VereineLog::add($this->db, $user, VereineLog::WEBSITE_PROFILE, 0, 0, 'fields: '.($decoded ? implode(', ', array_keys($decoded)) : '-'));
+		return 1;
+	}
+
+	/**
 	 * Whether the member gave the chosen consent: true, false, or null when none is chosen.
 	 *
 	 * @param int $memberId Member
@@ -109,76 +169,216 @@ class VereineWebsiteProfiles
 	}
 
 	/**
-	 * The stored profile of a member, every field a string, empty when nothing was kept.
+	 * The fields of the profile with the values of a member, as the API hands them out.
 	 *
-	 * @param int $memberId Member
-	 * @return array<string,string>
+	 * @param Adherent                          $member Member
+	 * @param array<string,array<string,mixed>> $fields Fields of the profile, see fields()
+	 * @return array<int,array<string,mixed>>
 	 */
-	public function load($memberId)
+	public function values($member, array $fields)
 	{
-		global $conf;
-
-		$out = array();
-		foreach (VereineWebsiteProfileRules::FIELDS as $field => $length) {
-			$out[$field] = '';
+		if ($fields && empty($member->array_options)) {
+			$member->fetch_optionals();
 		}
-		$sql = "SELECT gamertag, bio, games, platforms FROM ".MAIN_DB_PREFIX."vereine_member_profile";
-		$sql .= " WHERE entity = ".((int) $conf->entity)." AND fk_adherent = ".((int) $memberId);
-		$resql = $this->db->query($sql);
-		if ($resql) {
-			$obj = $this->db->fetch_object($resql);
-			if ($obj) {
-				foreach (array_keys($out) as $field) {
-					$out[$field] = (string) $obj->$field;
-				}
-			}
-			$this->db->free($resql);
+		$values = array();
+		foreach ($fields as $code => $spec) {
+			$raw = isset($member->array_options['options_'.$code]) ? $member->array_options['options_'.$code] : null;
+			$values[] = VereineWebsiteProfileRules::field($code, $spec, $raw);
 		}
-		return $out;
+		return $values;
 	}
 
 	/**
-	 * Keep the profile of a member and note the change for the website.
+	 * Keep a change the member makes to the own profile: only the fields sent change; a field outside the
+	 * profile, one the association keeps or a value that does not fit is refused with its code (#260).
 	 *
-	 * @param Adherent            $member  Member
-	 * @param array<string,mixed> $entered Field => value as entered
-	 * @param User                $user    Who
-	 * @return int 1 when saved, -1 on error
+	 * @param Adherent $member Member
+	 * @param mixed    $sent   Code => value as sent
+	 * @param User     $user   Who acts
+	 * @return int 1 when kept, 0 when refused (see errors), -1 on error
 	 */
-	public function save($member, array $entered, $user)
+	public function change($member, $sent, $user)
 	{
 		global $conf, $langs;
 
-		$fields = VereineWebsiteProfileRules::normalize($entered);
-		$memberId = (int) $member->id;
-		$entity = (int) $conf->entity;
-		$now = $this->db->idate(dol_now());
-		$existing = $this->db->query("SELECT rowid FROM ".MAIN_DB_PREFIX."vereine_member_profile WHERE entity = ".$entity." AND fk_adherent = ".$memberId);
-		$row = $existing ? $this->db->fetch_object($existing) : null;
-		if ($row) {
-			$sql = "UPDATE ".MAIN_DB_PREFIX."vereine_member_profile SET gamertag = '".$this->db->escape($fields['gamertag'])."'";
-			$sql .= ", bio = '".$this->db->escape($fields['bio'])."', games = '".$this->db->escape($fields['games'])."'";
-			$sql .= ", platforms = '".$this->db->escape($fields['platforms'])."', fk_user_modif = ".((int) $user->id);
-			$sql .= " WHERE rowid = ".((int) $row->rowid);
-		} else {
-			$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_member_profile (entity, fk_adherent, gamertag, bio, games, platforms, datec, fk_user_modif) VALUES (";
-			$sql .= $entity.", ".$memberId.", '".$this->db->escape($fields['gamertag'])."', '".$this->db->escape($fields['bio'])."'";
-			$sql .= ", '".$this->db->escape($fields['games'])."', '".$this->db->escape($fields['platforms'])."', '".$now."', ".((int) $user->id).")";
+		$this->errors = array();
+		$fields = $this->fields();
+		$checked = VereineWebsiteProfileRules::change($sent, $fields);
+		if ($checked['errors']) {
+			$this->errors = $checked['errors'];
+			return 0;
 		}
-		if (!$this->db->query($sql)) {
-			$this->error = $this->db->lasterror();
-			return -1;
+		if (!$checked['values']) {
+			return 1;
 		}
-		VereineLog::add($this->db, $user, VereineLog::WEBSITE_PROFILE, $memberId, 0, 'gamertag: '.($fields['gamertag'] !== '' ? $fields['gamertag'] : '-'));
+		if (empty($member->array_options)) {
+			$member->fetch_optionals();
+		}
+		$this->db->begin();
+		foreach ($checked['values'] as $code => $value) {
+			// A day of Dolibarr's fields is a moment, a yes or no a number.
+			if ($value !== null && $fields[$code]['kind'] === 'date' && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts)) {
+				$value = dol_mktime(12, 0, 0, (int) $parts[2], (int) $parts[3], (int) $parts[1]);
+			} elseif ($value !== null && $fields[$code]['kind'] === 'boolean') {
+				$value = (int) $value;
+			}
+			// Dolibarr leaves a field set to null as it was; an empty value empties it.
+			$member->array_options['options_'.$code] = $value === null ? '' : $value;
+			$member->errors = array();
+			if ($member->updateExtraField($code, '', $user) < 0) {
+				$this->db->rollback();
+				// Dolibarr refuses to empty a field it requires: that is the member's to fix, not an error.
+				if ($member->errors) {
+					$this->errors = array(array('field' => $code, 'message' => 'fields.'.$code.': '.implode(' ', (array) $member->errors)));
+					return 0;
+				}
+				$this->error = (string) $member->error;
+				return -1;
+			}
+		}
+		$this->db->commit();
+		VereineLog::add($this->db, $user, VereineLog::WEBSITE_PROFILE, (int) $member->id, 0, 'fields: '.implode(', ', array_keys($checked['values'])));
 		// The website follows the change feed and the webhooks: a new profile is a change of the member.
 		dol_include_once('/vereine/class/vereinechanges.class.php');
-		VereineChanges::record($this->db, VereineChangeRules::TYPE_MEMBERSHIP, $memberId, VereineChangeRules::KIND_UPDATED, $user);
+		VereineChanges::record($this->db, VereineChangeRules::TYPE_MEMBERSHIP, (int) $member->id, VereineChangeRules::KIND_UPDATED, $user);
 		if (isModEnabled('webhook')) {
 			dol_include_once('/vereine/class/vereinewebsiteevents.class.php');
 			$events = new VereineWebsiteEvents($this->db);
 			$events->notify('MEMBER_MODIFY', $member, $user, $langs, $conf);
 		}
 		return 1;
+	}
+
+	/**
+	 * Take the profiles of 1.1.0 over into fields of the member, once (#260).
+	 *
+	 * Each old field that holds something becomes a field of the member with the same code - gamertag, bio, games,
+	 * platforms - and joins the profile, kept by the board as before. A member who already has a value in a field
+	 * of that code keeps it. Then the old table goes: the values live on the member, where Dolibarr deletes them
+	 * together with the member.
+	 *
+	 * @param User $user Who enables the module
+	 * @return int Members taken over, -1 on error
+	 */
+	public function migrate($user)
+	{
+		global $conf;
+
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+		require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
+
+		if (getDolGlobalString(VereineWebsiteProfileRules::MIGRATED) !== '') {
+			return 0;
+		}
+		$table = MAIN_DB_PREFIX.'vereine_member_profile';
+		$tables = $this->db->DDLListTables($conf->db->name, $table);
+		if (!is_array($tables) || !in_array($table, $tables, true)) {
+			return 0;
+		}
+		$entity = (int) $conf->entity;
+		$used = array();
+		foreach (array_keys(VereineWebsiteProfileRules::OLD_FIELDS) as $old) {
+			$resql = $this->db->query("SELECT COUNT(*) as nb FROM ".$table." WHERE entity = ".$entity." AND ".$old." IS NOT NULL AND ".$old." <> ''");
+			$obj = $resql ? $this->db->fetch_object($resql) : null;
+			if ($obj && (int) $obj->nb > 0) {
+				$used[] = $old;
+			}
+		}
+
+		$extrafields = new ExtraFields($this->db);
+		$extrafields->fetch_name_optionals_label('adherent');
+		$attributes = isset($extrafields->attributes['adherent']) ? $extrafields->attributes['adherent'] : array();
+		$existing = array();
+		$position = 10;
+		foreach (isset($attributes['label']) && is_array($attributes['label']) ? $attributes['label'] : array() as $code => $label) {
+			$existing[(string) $code] = VereineApplicationFormRules::kindOf(isset($attributes['type'][$code]) ? (string) $attributes['type'][$code] : '');
+			$position = max($position, (isset($attributes['pos'][$code]) ? (int) $attributes['pos'][$code] : 0) + 10);
+		}
+		$plan = VereineWebsiteProfileRules::migration($used, $existing);
+		foreach ($plan as $step) {
+			if (!$step['create']) {
+				continue;
+			}
+			$type = VereineApplicationFormRules::DOLIBARR_TYPES[$step['kind']];
+			if ($extrafields->addExtraField($step['code'], $step['label'], $type[0], $position, $type[1], 'adherent', 0, 0, '', '', 1, '', '1', '', '', '', '', '1', 0, 1) <= 0) {
+				$this->error = 'field '.$step['code'].': '.$extrafields->error;
+				return -1;
+			}
+			$position += 10;
+		}
+
+		$specs = $this->available();
+		$members = 0;
+		$this->db->begin();
+		$sql = "SELECT p.fk_adherent, p.gamertag, p.bio, p.games, p.platforms FROM ".$table." as p";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."adherent as a ON a.rowid = p.fk_adherent WHERE p.entity = ".$entity;
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			$this->db->rollback();
+			return -1;
+		}
+		$rows = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$rows[] = $obj;
+		}
+		foreach ($rows as $obj) {
+			$memberId = (int) $obj->fk_adherent;
+			$found = $this->db->query("SELECT rowid FROM ".MAIN_DB_PREFIX."adherent_extrafields WHERE fk_object = ".$memberId);
+			if ($found && !$this->db->fetch_object($found) && !$this->db->query("INSERT INTO ".MAIN_DB_PREFIX."adherent_extrafields (fk_object) VALUES (".$memberId.")")) {
+				$this->error = $this->db->lasterror();
+				$this->db->rollback();
+				return -1;
+			}
+			$taken = false;
+			foreach ($plan as $old => $step) {
+				$value = trim((string) $obj->$old);
+				if ($value === '') {
+					continue;
+				}
+				// Cut to the field it goes to, as a field the association made may be shorter than the old one.
+				$max = $step['kind'] === 'textarea' ? VereineApplicationFormRules::TEXTAREA_MAX : VereineApplicationFormRules::EXTRA_MAX;
+				if (!empty($specs[$step['code']]['max']) && (int) $specs[$step['code']]['max'] < $max) {
+					$max = (int) $specs[$step['code']]['max'];
+				}
+				$column = $this->db->sanitize($step['code']);
+				$sql = "UPDATE ".MAIN_DB_PREFIX."adherent_extrafields SET ".$column." = '".$this->db->escape(dol_substr($value, 0, $max, 'UTF-8'))."'";
+				$sql .= " WHERE fk_object = ".$memberId." AND (".$column." IS NULL OR ".$column." = '')";
+				if (!$this->db->query($sql)) {
+					$this->error = $this->db->lasterror();
+					$this->db->rollback();
+					return -1;
+				}
+				$taken = true;
+			}
+			$members += $taken ? 1 : 0;
+		}
+		$chosen = VereineWebsiteProfileRules::fields(getDolGlobalString(VereineWebsiteProfileRules::FIELDS), array_keys($specs));
+		foreach ($plan as $step) {
+			if (!isset($chosen[$step['code']])) {
+				$chosen[$step['code']] = false;
+			}
+		}
+		$setting = VereineWebsiteProfileRules::setting(array_keys($chosen), array_keys(array_filter($chosen)), array_keys($specs));
+		if (dolibarr_set_const($this->db, VereineWebsiteProfileRules::FIELDS, $setting, 'chaine', 0, '', $entity) < 0
+			|| dolibarr_set_const($this->db, VereineWebsiteProfileRules::MIGRATED, dol_print_date(dol_now(), 'dayhourrfc', 'gmt'), 'chaine', 0, '', $entity) < 0
+			|| !$this->db->query("DELETE FROM ".$table." WHERE entity = ".$entity)) {
+			$this->error = $this->db->lasterror();
+			$this->db->rollback();
+			return -1;
+		}
+		$this->db->commit();
+		VereineLog::add($this->db, $user, VereineLog::WEBSITE_PROFILE, 0, 0, 'taken over from 1.1.0: '.$members.' members, fields: '
+			.($plan ? implode(', ', array_map(function ($step) {
+				return $step['code'];
+			}, $plan)) : '-'));
+		// The last entity takes the empty table away.
+		$left = $this->db->query("SELECT COUNT(*) as nb FROM ".$table);
+		$obj = $left ? $this->db->fetch_object($left) : null;
+		if ($obj && (int) $obj->nb === 0) {
+			$this->db->query("DROP TABLE ".$table);
+		}
+		return $members;
 	}
 
 	/**
@@ -207,7 +407,7 @@ class VereineWebsiteProfiles
 	}
 
 	/**
-	 * The profile as the API hands it out: with the consent everything, without it only its name.
+	 * The profile as the API hands it out: with the consent the fields and the photo, without it only its name.
 	 *
 	 * @param Adherent $member Member
 	 * @return array<string,mixed>
@@ -219,46 +419,25 @@ class VereineWebsiteProfiles
 			return $out;
 		}
 		$photo = $this->photoFile($member);
-		$photoView = null;
-		if ($photo) {
-			$photoView = array(
-				'sha256' => hash_file('sha256', $photo['path']), 'size' => (int) filesize($photo['path']),
-				'content_type' => $photo['content_type'], 'updated_at' => gmdate('Y-m-d\TH:i:s\Z', (int) filemtime($photo['path'])),
-			);
-		}
-		return $out + VereineWebsiteProfileRules::view($this->load((int) $member->id), $photoView);
+		$out['fields'] = $this->values($member, $this->fields());
+		$out['photo'] = VereineWebsiteProfileRules::photo($photo ? array(
+			'sha256' => hash_file('sha256', $photo['path']), 'size' => (int) filesize($photo['path']),
+			'content_type' => $photo['content_type'], 'updated_at' => gmdate('Y-m-d\TH:i:s\Z', (int) filemtime($photo['path'])),
+		) : null);
+		return $out;
 	}
 
 	/**
-	 * The profile as the member sees it: the own fields, also without the consent, and whether it is given (#260).
+	 * The profile as the member sees it: every field with its value, also without the consent, and whether
+	 * the consent is given (#260).
 	 *
 	 * @param Adherent $member Member
-	 * @return array{consent:string,given:bool,gamertag:string,bio:string,games:string[],platforms:string[]}
+	 * @return array{consent:string,given:bool,fields:array<int,array<string,mixed>>}
 	 */
 	public function ownView($member)
 	{
-		$view = VereineWebsiteProfileRules::view($this->load((int) $member->id), null);
-		unset($view['photo']);
-		return array('consent' => self::consentCode(), 'given' => $this->consentGiven((int) $member->id) === true) + $view;
-	}
-
-	/**
-	 * Keep a change the member makes to the own profile: the fields sent, checked; the others stay (#260).
-	 *
-	 * @param Adherent $member Member
-	 * @param mixed    $sent   Field => value as sent
-	 * @param User     $user   Who acts
-	 * @return int 1 when kept, 0 when refused (see errors), -1 on error
-	 */
-	public function change($member, $sent, $user)
-	{
-		$this->errors = array();
-		$checked = VereineWebsiteProfileRules::change($sent, $this->load((int) $member->id));
-		if ($checked['errors']) {
-			$this->errors = $checked['errors'];
-			return 0;
-		}
-		return $this->save($member, $checked['fields'], $user);
+		return array('consent' => self::consentCode(), 'given' => $this->consentGiven((int) $member->id) === true,
+			'fields' => $this->values($member, $this->fields()));
 	}
 
 	/**

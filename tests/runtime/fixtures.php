@@ -1390,16 +1390,30 @@ if ($stage === 'reset') {
 		$extrafields = new ExtraFields($db);
 		$extrafields->delete($name, 'adherent_type');
 	}
-	foreach (array('vereine_fee_exempt', 'vereine_fee_exempt_reason', 'vereine_fee_proof', 'vereine_fee_proof_until', 'vereine_fee_payer', 'vereine_birth_place') as $name) {
+	// The fields the website profile of 1.1.0 became (#260), and the module's own fields of the member.
+	foreach (array('gamertag', 'bio', 'games', 'platforms', 'vereine_fee_exempt', 'vereine_fee_exempt_reason', 'vereine_fee_proof', 'vereine_fee_proof_until', 'vereine_fee_payer', 'vereine_birth_place') as $name) {
 		$extrafields = new ExtraFields($db);
 		$extrafields->delete($name, 'adherent');
 	}
-	foreach (array('vereine_log', 'vereine_taxprofile', 'vereine_fee_discount', 'vereine_member_exit', 'vereine_consent_text', 'vereine_consent', 'vereine_application', 'vereine_function', 'vereine_function_term', 'vereine_function_report') as $table) {
+	foreach (array('vereine_log', 'vereine_taxprofile', 'vereine_fee_discount', 'vereine_member_exit', 'vereine_consent_text', 'vereine_consent', 'vereine_application', 'vereine_function', 'vereine_function_term', 'vereine_function_report', 'vereine_member_profile') as $table) {
 		if (!$db->query("DROP TABLE IF EXISTS ".MAIN_DB_PREFIX.$table)) {
 			rt_fail('drop table '.$table.': '.$db->lasterror());
 		}
 	}
 	print json_encode(array('reset' => 1))."\n";
+	exit(0);
+}
+
+if ($stage === 'memberextradrop') {
+	// Own fields of the member taken away again, as Members > Setup > Attributes does.
+	require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
+	foreach (array_filter(explode(',', (string) getenv('RT_FIELDS'))) as $name) {
+		$extrafields = new ExtraFields($db);
+		if ($extrafields->delete($name, 'adherent') < 0) {
+			rt_fail('delete extrafield '.$name.': '.$extrafields->error);
+		}
+	}
+	print json_encode(array('dropped' => 1))."\n";
 	exit(0);
 }
 

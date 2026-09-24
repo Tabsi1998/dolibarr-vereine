@@ -130,11 +130,22 @@ class VereinePortalController extends Controller
 		} elseif ($action === 'website' && $this->allows('profile')) {
 			// The member keeps the own website profile; the website shows it only with the consent (#260).
 			dol_include_once('/vereine/class/vereinewebsiteprofiles.class.php');
-			$fields = array();
-			foreach (array_keys(VereineWebsiteProfileRules::FIELDS) as $field) {
-				$fields[$field] = GETPOST($field, 'alphanohtml');
+			$profiles = new VereineWebsiteProfiles($this->db);
+			$sent = array();
+			foreach ($profiles->fields() as $code => $spec) {
+				if (!$spec['editable']) {
+					continue;
+				}
+				$name = 'website_'.$code;
+				if ($spec['kind'] === 'multi') {
+					$sent[$code] = GETPOST($name, 'array');
+				} elseif ($spec['kind'] === 'boolean') {
+					$sent[$code] = GETPOST($name, 'aZ09') === '1';
+				} else {
+					$sent[$code] = GETPOST($name, $spec['kind'] === 'textarea' ? 'nohtml' : 'alphanohtml');
+				}
 			}
-			$done = (new VereineWebsiteProfiles($this->db))->change($this->member(), $fields, $this->actor()) > 0 ? '' : $langs->trans('VereinePortalRefused');
+			$done = $profiles->change($this->member(), $sent, $this->actor()) > 0 ? '' : $langs->trans('VereinePortalRefused');
 		} elseif ($action === 'exit' && $this->allows('profile') && GETPOST('confirm', 'aZ09') === '1') {
 			dol_include_once('/vereine/class/vereineprofiles.class.php');
 			$profiles = new VereineProfiles($this->db);
@@ -428,7 +439,8 @@ class VereinePortalController extends Controller
 	}
 
 	/**
-	 * The own website profile: gamertag, short text, games and platforms, and whether the website may show them (#260).
+	 * The own website profile: the fields the association chose, the ones the member keeps to fill in, and whether
+	 * the website may show them (#260).
 	 *
 	 * @param string $self Address of the page
 	 * @return void
@@ -439,17 +451,95 @@ class VereinePortalController extends Controller
 
 		dol_include_once('/vereine/class/vereinewebsiteprofiles.class.php');
 		$view = (new VereineWebsiteProfiles($this->db))->ownView($this->member());
+		if (!$view['fields']) {
+			return;
+		}
 		print '<details data-vereine-portal-website="'.($view['given'] ? 'shown' : 'hidden').'"><summary>'.$langs->trans('VereinePortalWebsiteProfile').'</summary>';
 		print '<p><small>'.$langs->trans($view['consent'] === '' ? 'VereinePortalWebsiteOff' : ($view['given'] ? 'VereinePortalWebsiteShown' : 'VereinePortalWebsiteHidden')).'</small></p>';
-		print '<form method="POST" action="'.$self.'" name="vereineportalwebsite"><input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="website">';
-		foreach (VereineWebsiteProfileRules::FIELDS as $field => $length) {
-			$value = is_array($view[$field]) ? implode(', ', $view[$field]) : (string) $view[$field];
-			print '<label>'.$langs->trans('VereineWebsiteProfile'.ucfirst($field));
-			print $field === 'bio' ? '<textarea name="bio" rows="3" maxlength="'.((int) $length).'">'.dol_escape_htmltag($value).'</textarea>'
-				: '<input type="text" name="'.$field.'" maxlength="'.((int) $length).'" value="'.dol_escape_htmltag($value).'">';
-			print '</label>';
+		$editable = array();
+		foreach ($view['fields'] as $field) {
+			if ($field['editable']) {
+				$editable[] = $field;
+				continue;
+			}
+			print '<p>'.dol_escape_htmltag($field['label']).': '.dol_escape_htmltag(self::shownValue($field)).' <small>('.$langs->trans('VereinePortalWebsiteByAssociation').')</small></p>';
 		}
-		print '<button type="submit">'.$langs->trans('VereinePortalWebsiteSave').'</button></form></details>';
+		if ($editable) {
+			print '<form method="POST" action="'.$self.'" name="vereineportalwebsite"><input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="website">';
+			foreach ($editable as $field) {
+				print $this->websiteInput($field);
+			}
+			print '<button type="submit">'.$langs->trans('VereinePortalWebsiteSave').'</button></form>';
+		}
+		print '</details>';
+	}
+
+	/**
+	 * The input of one field of the website profile, by its kind.
+	 *
+	 * @param array<string,mixed> $field Field as the profile hands it out
+	 * @return string HTML
+	 */
+	private function websiteInput(array $field)
+	{
+		global $langs;
+
+		$name = 'website_'.$field['code'];
+		$value = $field['value'];
+		$label = dol_escape_htmltag($field['label']);
+		$max = isset($field['max_length']) ? ' maxlength="'.((int) $field['max_length']).'"' : '';
+		switch ($field['type']) {
+			case 'textarea':
+				return '<label>'.$label.'<textarea name="'.$name.'" rows="3"'.$max.'>'.dol_escape_htmltag((string) $value).'</textarea></label>';
+			case 'number':
+				return '<label>'.$label.'<input type="number" step="any" name="'.$name.'" value="'.dol_escape_htmltag((string) $value).'"></label>';
+			case 'date':
+				return '<label>'.$label.'<input type="date" name="'.$name.'" value="'.dol_escape_htmltag((string) $value).'"></label>';
+			case 'boolean':
+				return '<label><input type="checkbox" name="'.$name.'" value="1"'.($value ? ' checked' : '').'> '.$label.'</label>';
+			case 'select':
+				$html = '<label>'.$label.'<select name="'.$name.'"><option value="">'.$langs->trans('VereinePortalWebsiteNone').'</option>';
+				foreach ($field['options'] as $option) {
+					$html .= '<option value="'.dol_escape_htmltag($option['code']).'"'.($value === $option['code'] ? ' selected' : '').'>'.dol_escape_htmltag($option['label']).'</option>';
+				}
+				return $html.'</select></label>';
+			case 'multi':
+				$html = '<fieldset><legend>'.$label.'</legend>';
+				foreach ($field['options'] as $option) {
+					$html .= '<label><input type="checkbox" name="'.$name.'[]" value="'.dol_escape_htmltag($option['code']).'"'
+						.(is_array($value) && in_array($option['code'], $value, true) ? ' checked' : '').'> '.dol_escape_htmltag($option['label']).'</label>';
+				}
+				return $html.'</fieldset>';
+		}
+		return '<label>'.$label.'<input type="text" name="'.$name.'"'.$max.' value="'.dol_escape_htmltag((string) $value).'"></label>';
+	}
+
+	/**
+	 * A value of the website profile as text: options by their label, yes or no in words.
+	 *
+	 * @param array<string,mixed> $field Field as the profile hands it out
+	 * @return string
+	 */
+	private static function shownValue(array $field)
+	{
+		global $langs;
+
+		$value = $field['value'];
+		if ($value === null) {
+			return '–';
+		}
+		if (is_bool($value)) {
+			return $langs->transnoentitiesnoconv($value ? 'Yes' : 'No');
+		}
+		$labels = array();
+		foreach (isset($field['options']) ? $field['options'] : array() as $option) {
+			$labels[$option['code']] = $option['label'];
+		}
+		$shown = array();
+		foreach (is_array($value) ? $value : array($value) as $one) {
+			$shown[] = isset($labels[(string) $one]) ? $labels[(string) $one] : (string) $one;
+		}
+		return implode(', ', $shown);
 	}
 
 	/**

@@ -63,6 +63,8 @@ if (!$res) {
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once __DIR__.'/../lib/vereine.lib.php';
 require_once __DIR__.'/../class/vereineconsents.class.php';
+require_once __DIR__.'/../class/vereinememberform.class.php';
+require_once __DIR__.'/../class/vereinewebsiteprofiles.class.php';
 
 $langs->loadLangs(array('admin', 'vereine@vereine'));
 
@@ -83,7 +85,6 @@ $edit = array('code' => '', 'label' => '', 'text' => '');
  */
 
 if ($action === 'savewebsiteprofileconsent') {
-	dol_include_once('/vereine/class/vereinewebsiteprofiles.class.php');
 	$websiteProfiles = new VereineWebsiteProfiles($db);
 	if ($websiteProfiles->saveConsentCode(GETPOST('website_profile_consent', 'aZ09'), $user) < 0) {
 		setEventMessages($websiteProfiles->error, null, 'errors');
@@ -92,6 +93,40 @@ if ($action === 'savewebsiteprofileconsent') {
 	}
 	header('Location: '.$_SERVER['PHP_SELF']);
 	exit;
+} elseif ($action === 'savewebsiteprofilefields') {
+	// Which fields of the member make up the website profile, and which of them the member keeps (#260).
+	$websiteProfiles = new VereineWebsiteProfiles($db);
+	if ($websiteProfiles->saveFields(GETPOST('profile_fields', 'array'), GETPOST('profile_self', 'array'), $user) < 0) {
+		setEventMessages($websiteProfiles->error, null, 'errors');
+	} else {
+		setEventMessages($langs->trans('VereineWebsiteProfileFieldsSaved'), null, 'mesgs');
+	}
+	header('Location: '.$_SERVER['PHP_SELF'].'#vereinewebsiteprofilefields');
+	exit;
+} elseif ($action === 'newwebsiteprofilefield') {
+	// A field made right here is a field of the member in Dolibarr and joins the website profile at once (#260).
+	$errors = array();
+	$label = GETPOST('field_label', 'alphanohtml');
+	$code = VereineMemberForm::addField($db, $label, GETPOST('field_kind', 'aZ09'), GETPOST('field_options', 'nohtml'), $errors);
+	if ($code !== '') {
+		$websiteProfiles = new VereineWebsiteProfiles($db);
+		$chosen = array($code);
+		$self = GETPOST('field_self', 'aZ09') === '1' ? array($code) : array();
+		foreach ($websiteProfiles->fields() as $fieldCode => $spec) {
+			$chosen[] = $fieldCode;
+			if ($spec['editable']) {
+				$self[] = $fieldCode;
+			}
+		}
+		if ($websiteProfiles->saveFields($chosen, $self, $user) < 0) {
+			setEventMessages($websiteProfiles->error, null, 'errors');
+		} else {
+			setEventMessages($langs->trans('VereineWebsiteProfileFieldCreated', $label), null, 'mesgs');
+		}
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereinewebsiteprofilefields');
+		exit;
+	}
+	setEventMessages(null, array_map(array($langs, 'trans'), $errors), 'errors');
 } elseif ($action === 'savetext') {
 	$edit = array('code' => GETPOST('code', 'aZ09'), 'label' => GETPOST('label', 'alphanohtml'), 'text' => GETPOST('text', 'restricthtml'));
 	$result = $consents->saveText($edit['code'], $edit['label'], $edit['text'], $user);
@@ -173,7 +208,6 @@ foreach ($texts as $text) {
 print '</table></div><br>';
 
 // Which consent opens the website profile of a member (#255).
-dol_include_once('/vereine/class/vereinewebsiteprofiles.class.php');
 $websiteProfileConsent = VereineWebsiteProfiles::consentCode();
 print load_fiche_titre($langs->trans('VereineWebsiteProfileConsentSetting'), '', '');
 print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineWebsiteProfileConsentSettingHowTo').'</div>';
@@ -187,6 +221,51 @@ foreach ($current as $code => $text) {
 }
 print '</select> <input type="submit" class="button small" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'">';
 print '</form><br>';
+
+// The fields of the website profile: fields of the member the association defines, each kept by the board or by the member (#260).
+$websiteProfiles = new VereineWebsiteProfiles($db);
+$profileFields = $websiteProfiles->fields();
+$memberFields = $websiteProfiles->available();
+print load_fiche_titre($langs->trans('VereineWebsiteProfileFields'), '', '', 0, 'vereinewebsiteprofilefields');
+print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineWebsiteProfileFieldsHowTo').'</div>';
+if (!$memberFields) {
+	print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineWebsiteProfileFieldsNone').'</div>';
+} else {
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereinewebsiteprofilefields" name="vereinewebsiteprofilefields">';
+	print '<input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="action" value="savewebsiteprofilefields">';
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+	print '<tr class="liste_titre"><th>'.$langs->trans('VereineWebsiteProfileField').'</th><th>'.$langs->trans('VereineApplicationNewFieldKind').'</th>';
+	print '<th class="center">'.$langs->trans('VereineWebsiteProfileFieldShown').'</th><th class="center">'.$langs->trans('VereineWebsiteProfileFieldSelf').'</th></tr>';
+	foreach ($memberFields as $code => $spec) {
+		$state = !isset($profileFields[$code]) ? 'off' : ($profileFields[$code]['editable'] ? 'self' : 'board');
+		print '<tr class="oddeven" data-website-profile-field="'.dol_escape_htmltag($code).'" data-website-profile-state="'.$state.'">';
+		print '<td>'.dol_escape_htmltag($langs->transnoentitiesnoconv($spec['label'])).' <span class="opacitymedium small">('.dol_escape_htmltag($code).')</span></td>';
+		print '<td>'.$langs->trans('VereineApplicationKind_'.$spec['kind']).'</td>';
+		print '<td class="center"><input type="checkbox" name="profile_fields[]" value="'.dol_escape_htmltag($code).'"'.($state !== 'off' ? ' checked' : '').'></td>';
+		print '<td class="center"><input type="checkbox" name="profile_self[]" value="'.dol_escape_htmltag($code).'"'.($state === 'self' ? ' checked' : '').'></td></tr>';
+	}
+	print '</table></div>';
+	print '<div class="center paddingtop"><input type="submit" class="button small" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'"></div>';
+	print '</form>';
+}
+print '<div class="paddingtop"><strong>'.$langs->trans('VereineWebsiteProfileNewField').'</strong></div>';
+print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineWebsiteProfileNewFieldHelp').'</div>';
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereinewebsiteprofilefields" name="vereinewebsiteprofilenewfield">';
+print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="newwebsiteprofilefield">';
+print '<table class="border centpercent">';
+print '<tr><td class="titlefieldcreate fieldrequired"><label for="profile_field_label">'.$langs->trans('VereineApplicationNewFieldLabel').'</label></td>';
+print '<td><input type="text" id="profile_field_label" name="field_label" maxlength="100" class="minwidth300" value=""></td></tr>';
+print '<tr><td><label for="profile_field_kind">'.$langs->trans('VereineApplicationNewFieldKind').'</label></td><td><select id="profile_field_kind" name="field_kind" class="flat">';
+foreach (VereineApplicationFormRules::KINDS as $kind) {
+	print '<option value="'.$kind.'">'.$langs->trans('VereineApplicationKind_'.$kind).'</option>';
+}
+print '</select></td></tr>';
+print '<tr><td><label for="profile_field_options">'.$langs->trans('VereineApplicationNewFieldOptions').'</label><div class="opacitymedium small">'
+	.$langs->trans('VereineApplicationNewFieldOptionsHelp').'</div></td><td><textarea id="profile_field_options" name="field_options" rows="4" class="minwidth300"></textarea></td></tr>';
+print '<tr><td><label for="profile_field_self">'.$langs->trans('VereineWebsiteProfileNewFieldSelf').'</label></td>';
+print '<td><input type="checkbox" id="profile_field_self" name="field_self" value="1"></td></tr></table>';
+print '<div class="center paddingtop"><input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineApplicationNewFieldCreate')).'"></div></form><br>';
 
 print load_fiche_titre($langs->trans($edit['code'] !== '' && isset($shown[$edit['code']]) ? 'VereineConsentEdit' : 'VereineConsentNew'), '', '');
 print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereineconsenttext" id="vereineconsenttext">';

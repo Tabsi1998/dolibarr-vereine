@@ -9,16 +9,31 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [1.2.0] - 2026-09-24
 
-Mitglieder pflegen ihr Website-Profil selbst – im Webportal von Dolibarr oder über die App bzw. die Website des Vereins. Die Website zeigt es weiterhin nur mit Einwilligung.
+Das Website-Profil passt jetzt zu jedem Verein: Welche Angaben die Website über ein Mitglied bekommt, legt der Verein selbst fest – und welche davon das Mitglied im Webportal oder in einer App selbst pflegt.
 
-Nach dem Update ist nichts zu tun.
+Nach dem Update das Modul einmal aus- und wieder einschalten: Die Website-Profile aus 1.1.0 werden dabei übernommen. Wer eine eigene Website anbindet: `GET /vereine/members/{id}/profile` liefert die Felder jetzt als Liste `fields` (siehe API.md).
 
 ### Neu
 
-- **Website-Profil selbst pflegen** (#260): Mitglieder tragen Gamertag, Kurztext, Spiele und Plattformen
-  selbst ein – im Webportal unter „Meine Daten“ oder über eine App (`GET`/`PUT /vereine/me/website-profile`,
-  Fähigkeit *profile*). Die Website zeigt das Profil weiterhin nur mit der gewählten Einwilligung; das
-  Portal sagt dem Mitglied, ob sie erteilt ist.
+- **Eigene Felder im Website-Profil** (#260): Unter *Einrichtung > Vereine > Einwilligungen* wählt der
+  Verein Zusatzfelder des Mitglieds für das Website-Profil aus oder legt dort neue an – Text, langer
+  Text, Zahl, Datum, Ja/Nein, Auswahl, Mehrfachauswahl, wie beim Mitgliedsantrag. Je Feld legt er fest,
+  ob der Vorstand es auf der Mitgliedskarte pflegt oder das Mitglied selbst.
+- **Website-Profil selbst pflegen** (#260): Mitglieder ändern die Felder, die der Verein ihnen überlässt,
+  im Webportal unter „Meine Daten“ oder über eine App (`GET`/`PUT /vereine/me/website-profile`,
+  Fähigkeit *profile*). Ein Wert, der nicht passt, wird mit dem Kürzel des Feldes abgelehnt
+  (`error.field`), nichts wird abgeschnitten. Die Website zeigt das Profil weiterhin nur mit der
+  gewählten Einwilligung; das Portal sagt dem Mitglied, ob sie erteilt ist.
+
+### Geändert
+
+- **Website-Profil** (#260): `GET /vereine/members/{id}/profile` liefert statt der festen Felder
+  `gamertag`, `bio`, `games` und `platforms` die Liste `fields` – je Feld Kürzel, Bezeichnung, Art, Wert
+  und ob das Mitglied es pflegt. `photo` und `GET /vereine/members/{id}/photo` bleiben gleich. Beim
+  Update werden die Profile aus 1.1.0 zu Zusatzfeldern mit den Kürzeln `gamertag`, `bio`, `games` und
+  `platforms` (nur die, die irgendwo gefüllt waren), gepflegt vom Vorstand wie bisher. Hat ein Mitglied
+  in einem gleichnamigen Zusatzfeld schon einen Wert, bleibt dieser. Die Tabelle
+  `llx_vereine_member_profile` entfällt; die Werte hängen jetzt am Mitglied und gehen mit ihm.
 
 ## [1.1.0] - 2026-09-24
 
