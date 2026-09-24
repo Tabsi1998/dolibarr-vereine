@@ -530,16 +530,15 @@ def api(stack: Stack) -> str:
     status, body = stack.api("vereine/status", stack.reader_key)
     expect(status == 200, f"GET vereine/status answered HTTP {status}: {body}")
     server_time = body.pop("server_time", "") if isinstance(body, dict) else ""
-    expect(body == {"module_version": stack.module_version, "api_version": 1, "country_profile": "AT",
-                    "country_profile_complete": True}, f"GET vereine/status returned {body}")
+    expect(body == {"module_version": stack.module_version, "api_version": 2}, f"GET vereine/status returned {body}")
     drift = abs((datetime.datetime.now(datetime.timezone.utc)
                  - datetime.datetime.strptime(server_time, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)).total_seconds())
     expect(drift < 300, f"server_time {server_time} is {drift:.0f} s away from this computer's clock")
     status, body = stack.api("vereine/organization", stack.reader_key)
     expect(status == 200 and isinstance(body, dict), f"GET vereine/organization answered HTTP {status}: {body}")
     expected = {
-        "country_profile": "AT", "name": "Runtime Verein", "authority": "Landespolizeidirektion Tirol",
-        "register": {"kind": "ZVR", "number": "123456789", "court": ""}, "founded": "2019-03-01",
+        "name": "Runtime Verein", "authority": "Landespolizeidirektion Tirol",
+        "register": {"kind": "ZVR", "number": "123456789"}, "founded": "2019-03-01",
         "nonprofit": True, "fiscal_year_start_month": 1,
     }
     differing = {key: body.get(key) for key, value in expected.items() if body.get(key) != value}

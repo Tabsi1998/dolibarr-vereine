@@ -63,15 +63,10 @@ class VereineOrganization
 		$fiscalMonth = (int) $value($company, 'fiscal_month_start');
 
 		return array(
-			// Deprecated, kept for websites of API version 1 until 1.0: the module serves Austrian associations only.
-			'country_profile' => VereineAssociationRules::COUNTRY,
-			'country_profile_complete' => true,
 			'name' => $value($company, 'name'),
 			'register' => array(
 				'kind' => 'ZVR',
 				'number' => $value($settings, 'VEREINE_REGISTER_NUMBER'),
-				// Deprecated like country_profile; a register court exists only in Germany.
-				'court' => '',
 			),
 			'authority' => $value($settings, 'VEREINE_AUTHORITY'),
 			'address' => array(

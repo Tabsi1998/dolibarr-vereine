@@ -7,6 +7,13 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Geändert
+
+- **API-Version 2** (#252): `GET /vereine/status` und `GET /vereine/organization` liefern die seit
+  0.5 veralteten Felder `country_profile`, `country_profile_complete` und `register.court` nicht mehr –
+  das Modul ist nur für österreichische Vereine. `api_version` ist jetzt `2`. Wer eine eigene Website
+  anbindet: Liest sie eines dieser Felder, bitte streichen; alle anderen Felder bleiben gleich.
+
 ## [0.11.0-beta] - 2026-09-24
 
 Mitglieder und ihr Verein, auch unterwegs: Ehrungen, Jubiläen und Mitgliederstatistik, Geräte und Ausleihe, veröffentlichte Dokumente und Statuten, Sitzungen mit Zu-/Absage und Anträgen, eigene Daten und Austritt, Veranstaltungen mit Helferdiensten, Abstimmungen in der Generalversammlung über App oder Stimmzettel mit Nachweis – über die API und im Webportal von Dolibarr. Dazu 0 % mit Begründung für E-Rechnungen.

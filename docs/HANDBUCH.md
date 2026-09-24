@@ -8,17 +8,22 @@ und was der Verein für den Datenschutz braucht.
 Das Modul rechnet, erinnert und hält fest. Entscheiden müsst ihr selbst. Wo Gesetze vorkommen, steht
 die Quelle in [LEGAL-SOURCES.md](LEGAL-SOURCES.md). Das ist keine Rechts- oder Steuerberatung.
 
+Die Bilder zeigen einen Testverein mit erfundenen Namen. Sie liegen nur auf GitHub, nicht im ZIP des Moduls.
+
 ## Einrichten
 
 Nach dem Einschalten führt *Start > Einstellungen > Module > Vereine > Erste Schritte* durch alles,
-was ein Verein einstellen sollte. Die Seite erkennt an den Daten, was schon erledigt ist. Die
-übrigen Reiter der Einrichtung:
+was ein Verein einstellen sollte. Die Seite erkennt an den Daten, was schon erledigt ist.
+
+![Erste Schritte: was schon erledigt ist und was noch fehlt](bilder/erste-schritte.png)
+
+Die übrigen Reiter der Einrichtung:
 
 | Reiter | Was dort eingestellt wird |
 | --- | --- |
 | Verein | ZVR-Zahl, Vereinsbehörde, Vereinszweck |
 | Mitglieder und Partner | ob zu jedem Mitglied ein Geschäftspartner entsteht, Kategorien |
-| Steuerprofile | wie Einnahmen und Ausgaben steuerlich eingeordnet werden |
+| Steuerprofile | wie Einnahmen und Ausgaben steuerlich eingeordnet werden; die Codes für 0 % mit Begründung für E-Rechnungen |
 | Beiträge | Beitragsmodell je Mitgliedsart, Familien, Ermäßigungen, SEPA, Kündigungsfrist für Austritte |
 | Funktionen | Vorstand und andere Funktionen mit ihrer Funktionsperiode |
 | Statuten | Einladungsfristen, Beschlussfähigkeit, Mehrheiten, Stimmrechtsvertretung, Statutentext |
@@ -66,6 +71,8 @@ Wenig Rechte sind besser als viele: Wer nur lesen muss, bekommt nur Lesen.
 Alles liegt unter *Mitglieder > Verein*. Die Übersicht zeigt oben *Zu erledigen*: fällige
 Meldungen, Wahlen, Anträge, Unterschriften und Rückstände, das Dringendste zuerst.
 
+![Die Übersicht mit „Zu erledigen“](bilder/uebersicht.png)
+
 - **Beiträge**: *Beitragslauf* erstellt die Rechnungen des Zeitraums nach dem Beitragsmodell der
   Mitgliedsart. Zahlungen bucht ihr in Dolibarr wie immer. Eine Überzahlung meldet die Rechnung
   selbst, unter *Überzahlungen* ordnet ihr den Mehrbetrag zu.
@@ -75,6 +82,16 @@ Meldungen, Wahlen, Anträge, Unterschriften und Rückstände, das Dringendste zu
 - **Sitzungen**: aus einer Vorlage anlegen, einladen, Anwesenheit und Abstimmungen erfassen, das
   Protokoll schreiben und unterschreiben lassen. Beschlüsse landen im *Beschlussbuch*, Aufgaben
   daraus bei der zuständigen Person. Zwischen Sitzungen gibt es *Umlaufbeschlüsse*.
+- **Abstimmungen in der App**: In einer Generalversammlung können Mitglieder über ihre App oder das
+  Webportal abstimmen, der Vorstand trägt Stimmzettel ein. Unter *Sitzung > Abstimmungen in der App*:
+  anlegen, **Freigeben** (die Regeln werden festgehalten), am Versammlungstag **Öffnen** (die Stimmrechte
+  werden festgehalten, Vollmachten kommen aus der Anwesenheitsliste), **Schließen**, **Auswerten** (ein
+  Nachweis als PDF landet in der Vereinsakte) und zuletzt **Ergebnis bestätigen**. Erst die Bestätigung
+  trägt den Beschluss ins Beschlussbuch ein und löst die Folgen aus, etwa die Funktionsperiode nach einer
+  Wahl. Jedes Stimmrecht zählt genau einmal; über die App stimmt nur ab, wer laut Anwesenheitsliste da ist.
+
+  ![Abstimmung mit Stimmrechten, Vollmacht und Stand](bilder/abstimmungen.png)
+
 - **Funktionen**: wer welche Funktion hat und bis wann. Eine neue Bestellung meldet ihr binnen vier
   Wochen der Vereinsbehörde; das Schreiben dafür entsteht unter *Schreiben an die Behörde*.
 - **Fristen und Aufgaben**: der Kalender der wiederkehrenden Pflichten, etwa Rechnungsabschluss,
@@ -87,13 +104,24 @@ Meldungen, Wahlen, Anträge, Unterschriften und Rückstände, das Dringendste zu
   melden.
 - **Inventar und Ausleihe**: Geräte als Ressourcen anlegen, ausgeben und zurücknehmen, jeweils mit
   Zustand. An Überfälliges erinnert das Modul selbst.
+
+  ![Inventar und Ausleihe](bilder/inventar.png)
+
 - **Ehrungen und Jubiläen**: vor der Generalversammlung nachsehen, wer ein Jubiläum hat; die Ehrung
   festhalten und die Urkunde drucken. Geburtstage nur mit Einwilligung.
 - **Mitgliederstatistik**: Zahlen an einem Stichtag für den Verband, als Datei.
 - **Vereinsakte**: jedes fertige Dokument mit seiner Kennung. Dort gibst du Dokumente für Vorstand,
   Mitglieder oder Öffentlichkeit frei, von Hand oder je Dokumentart automatisch, sobald sie unterschrieben
   sind; eine angebundene App oder die Website holt sie dann über die API. Für eine Übergabe an einen neuen
-  Vorstand gibt es den Export eines Zeitraums als ZIP mit Inhaltsverzeichnis und Prüfsummen.
+  Vorstand gibt es den Export eines Zeitraums als ZIP mit Inhaltsverzeichnis und Prüfsummen. Eine
+  gekürzte Fassung, etwa ein Protokoll ohne Personalangelegenheiten, ladet ihr als eigene Datei hoch; das
+  Original bleibt unverändert.
+
+  ![Vereinsakte mit Veröffentlichungen](bilder/vereinsakte.png)
+- **Steuerprofile** (Einrichtung): welche Einnahme wie besteuert wird. Für die drei Arten von 0 % legt
+  „Codes anlegen“ eigene Einträge im Umsatzsteuer-Wörterbuch an, damit eine E-Rechnung den Grund nennen kann.
+
+  ![Steuerprofile](bilder/steuerprofile.png)
 
 ## Datenschutz
 
@@ -145,6 +173,8 @@ Verlauf, schaut ihr zusätzlich selbst durch.
 Nach dem Austritt zeigt der Reiter *Verein* unter *Löschen nach dem Austritt* je Art der Daten, was
 noch gespeichert ist und wann es fällig wird. Nichts verschwindet von selbst:
 
+![Löschen nach dem Austritt: je Art der Daten, was bleibt und was fällig ist](bilder/loeschen.png)
+
 1. Die Liste ansehen. *Jetzt fällig* heißt: Die Frist ist vorbei, und nichts hält die Daten.
 2. Gibt es einen Grund, noch nichts zu löschen, etwa ein laufendes Verfahren, sperrt ihr das Löschen
    mit einem kurzen Grund. Offene Rechnungen halten ohnehin alles an.
@@ -192,6 +222,8 @@ So richtet ihr es ein:
 2. Für jedes Mitglied, das das Portal nutzen soll, beim verknüpften Geschäftspartner ein Portal-Konto
    anlegen (Website-Konten, Seite „dolibarr_portal“).
 3. Hier die gewünschten Dienste einschalten.
+
+![Die Seite „Mein Verein“ im Webportal](bilder/webportal.png)
 
 Tritt jemand aus, sperrt ihr das Portal-Konto. Mitgliederdokumente sieht ein ehemaliges Mitglied ohnehin
 nicht mehr; persönliche Dokumente nur, solange sie veröffentlicht sind. In Dolibarr 22 bietet das
