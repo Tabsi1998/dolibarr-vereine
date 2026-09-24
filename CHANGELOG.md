@@ -18,6 +18,13 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 - **Webportal: Konten, Statuten, Anträge** (#258): **Meine Konten** (Discord, Twitch, YouTube & Co. eintragen,
   ändern, entfernen – bestätigen kann weiterhin nur eine App), die veröffentlichten **Statuten** als PDF
   und **Anträge zur Generalversammlung** im Bereich Sitzungen, mit der Frist der Statuten.
+- **Website-Profil je Mitglied** (#255): Auf der Mitgliedskarte, Reiter *Verein*, pflegt der Vorstand
+  Gamertag, Kurztext, Spiele und Plattformen, die der Verein auf seiner Website zeigt. `GET
+  /vereine/members/{id}/profile` liefert das Profil samt Foto der Mitgliedskarte als Prüfsumme, `GET
+  /vereine/members/{id}/photo` das Foto – beides nur, wenn das Mitglied die Einwilligung erteilt hat,
+  die unter *Einrichtung > Vereine > Einwilligungen* dafür gewählt ist (`GET /vereine/status` nennt sie
+  als `website_profile_consent`). Ein gespeichertes Profil zählt als Änderung des Mitglieds für
+  Änderungsfeed und Webhooks. Neue Tabelle `llx_vereine_member_profile`.
 
 ## [1.0.0] - 2026-09-24
 

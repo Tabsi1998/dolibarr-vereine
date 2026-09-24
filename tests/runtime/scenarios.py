@@ -1147,6 +1147,84 @@ def website(stack: Stack) -> str:
             "website user refused by Dolibarr's own API")
 
 
+def websiteprofile(stack: Stack) -> str:
+    """The board keeps a website profile per member; the API hands it and the photo out only with the chosen consent."""
+    notes = stack.notes["website"]
+    key, members = notes["key"], notes["members"]
+    paid, free = int(members["paid"]), int(members["free"])
+    browser = stack.browser()
+
+    # A consent text for the website profile, chosen in the setup of consents.
+    setup = page_ok(browser.get("/custom/vereine/admin/consents.php"), "consent setup")
+    page_ok(browser.submit(setup.form(name="vereineconsenttext"), {"code": "profil", "label": "Website-Profil", "text": "Der Verein darf mich auf der Website zeigen."}),
+            "create the consent text for the website profile")
+    setup = page_ok(browser.get("/custom/vereine/admin/consents.php"), "consent setup with the text")
+    expect('data-website-profile-consent=""' in setup.text, "the consent setup does not offer the choice for the website profile")
+    page_ok(browser.submit(setup.form(name="vereinewebsiteprofileconsent"), {"website_profile_consent": "profil"}), "choose the consent")
+    expect(stack.const("VEREINE_WEBSITE_PROFILE_CONSENT") == "profil", "the consent for the website profile was not stored")
+    status, body = stack.api("vereine/status", key)
+    expect(status == 200 and body.get("website_profile_consent") == "profil", f"status does not name the consent: {body}")
+
+    # Without the consent the API names it and carries nothing personal.
+    status, body = stack.api(f"vereine/members/{paid}/profile", key)
+    expect(status == 200 and body == {"consent": "profil", "given": False}, f"profile without consent: {body}")
+    status, _ = stack.api(f"vereine/members/{paid}/photo", key, check=False)
+    expect(status == 404, f"photo without consent answered HTTP {status}")
+
+    # The board records the consent on the member card and fills the profile.
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={paid}"), "tab Association")
+    expect('data-website-profile-consent="missing"' in tab.text and 'data-website-profile-photo="0"' in tab.text,
+           "the tab Association does not show the missing consent and the missing photo")
+    page_ok(browser.post(f"/custom/vereine/member_association.php?id={paid}", [("token", token_of(tab)), ("action", "recordconsent"),
+                                                                                  ("consent_code", "profil"), ("consent_source", "paper")]), "record the consent")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={paid}"), "tab Association with consent")
+    expect('data-website-profile-consent="given"' in tab.text, "the tab Association does not show the given consent")
+    page_ok(browser.submit(tab.form(name="vereinewebsiteprofile"), {"profile_gamertag": "  LionKing ", "profile_bio": "Spielt TFT.",
+                                                                        "profile_games": "TFT, Rocket League; Rocket League", "profile_platforms": "PC"}), "save the profile")
+    expect(stack.value(f"SELECT gamertag FROM llx_vereine_member_profile WHERE fk_adherent = {paid}") == "LionKing", "the profile was not stored")
+    status, body = stack.api(f"vereine/members/{paid}/profile", key)
+    expect(status == 200 and body == {"consent": "profil", "given": True, "gamertag": "LionKing", "bio": "Spielt TFT.",
+                                      "games": ["TFT", "Rocket League"], "platforms": ["PC"], "photo": None}, f"profile with consent: {body}")
+    logged = stack.value(f"SELECT COUNT(*) FROM llx_vereine_log WHERE fk_adherent = {paid} AND action = 'website_profile'")
+    expect(logged == "1", f"the log does not record the saved profile once: {logged}")
+    status, body = stack.api(f"vereine/changes?limit=50", key, check=False)
+    expect(status in (200, 403), f"changes answered HTTP {status}")
+
+    # A photo on the member card: the API hands it out with its checksum, and the file matches.
+    photo = stack.php_fixture("memberphoto", RT_MEMBER=str(paid))
+    status, body = stack.api(f"vereine/members/{paid}/profile", key)
+    expect(status == 200 and body["photo"] == {"sha256": photo["sha256"], "size": int(photo["size"]), "content_type": "image/png", "updated_at": body["photo"]["updated_at"]},
+           f"profile with photo: {body}")
+    status, image = stack.api(f"vereine/members/{paid}/photo", key)
+    expect(status == 200 and image["sha256"] == photo["sha256"] and image["content_type"] == "image/png" and image["filename"] == "rt-photo.png"
+           and hashlib.sha256(base64.b64decode(image["content"])).hexdigest() == photo["sha256"] and image["filesize"] == int(photo["size"]),
+           f"photo: {json.dumps({k: v for k, v in image.items() if k != 'content'}) if isinstance(image, dict) else image}")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={paid}"), "tab Association with photo")
+    expect('data-website-profile-photo="1"' in tab.text, "the tab Association does not show the photo")
+
+    # Another member without the consent, a reader without the website right, nobody.
+    status, body = stack.api(f"vereine/members/{free}/profile", key)
+    expect(status == 200 and body == {"consent": "profil", "given": False}, f"profile of a member without consent: {body}")
+    status, _ = stack.api(f"vereine/members/{paid}/profile", stack.reader_key, check=False)
+    expect(status == 403, f"a reader without the website right got the profile: HTTP {status}")
+    status, _ = stack.api(f"vereine/members/{paid}/photo", stack.nobody_key, check=False)
+    expect(status == 403, f"a user without rights got the photo: HTTP {status}")
+    status, _ = stack.api("vereine/members/999999/profile", key, check=False)
+    expect(status == 404, f"an unknown member answered HTTP {status}")
+
+    # Withdrawn: gone again, the profile stays kept for the day the consent comes back.
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={paid}"), "tab Association before the withdrawal")
+    page_ok(browser.post(f"/custom/vereine/member_association.php?id={paid}", [("token", token_of(tab)), ("action", "withdrawconsent"),
+                                                                                  ("consent_code", "profil"), ("consent_source", "paper")]), "withdraw the consent")
+    status, body = stack.api(f"vereine/members/{paid}/profile", key)
+    expect(status == 200 and body == {"consent": "profil", "given": False}, f"profile after the withdrawal: {body}")
+    status, _ = stack.api(f"vereine/members/{paid}/photo", key, check=False)
+    expect(status == 404, f"photo after the withdrawal answered HTTP {status}")
+    expect(stack.value(f"SELECT gamertag FROM llx_vereine_member_profile WHERE fk_adherent = {paid}") == "LionKing", "the withdrawal deleted the profile")
+    return ("Website profile on the tab Association, the consent chosen in the setup; the API hands profile and photo out only "
+            "with that consent, names it otherwise, and a withdrawal closes both")
+
+
 def websiteinvoices(stack: Stack) -> str:
     """A website user lists a member's invoices and gets the PDFs of that member's invoices only."""
     site = stack.notes["website"]
@@ -6694,6 +6772,7 @@ SCENARIOS = (
     ("thresholds", "Thresholds of a calendar year as traffic light on overview, home page and API", thresholds, ("invoicepdf",)),
     ("cashregister", "Cash register duty per sphere and the missing 13 % VAT rate", cashregister, ("thresholds",)),
     ("website", "Member summaries for a website: fee status, open invoices, lookup and rights", website, ("cashregister",)),
+    ("websiteprofile", "The website profile of a member and its photo leave only with the chosen consent", websiteprofile, ("website",)),
     ("websiteinvoices", "A member's invoices and PDFs for a website", websiteinvoices, ("website",)),
     ("websitesync", "A website sync gets all members and then only the changed ones", websitesync, ("websiteinvoices",)),
     ("websiteevents", "Webhooks tell a website which member changed, without personal data", websiteevents, ("websitesync",)),

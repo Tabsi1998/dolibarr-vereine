@@ -192,6 +192,15 @@ Nicht erfasst sind Dinge außerhalb des Moduls. Die Liste weist darauf hin: Date
 bleibt. Den Geschäftspartner könnt ihr in Dolibarr löschen oder anonymisieren, wenn seine
 Rechnungen älter als sieben Jahre sind.
 
+### Website-Profil eines Mitglieds
+
+Was der Verein über ein Mitglied auf seiner **eigenen Website** zeigt – Gamertag, Kurztext, Spiele und
+Plattformen – pflegt ihr auf der Mitgliedskarte im Reiter *Verein*, Abschnitt *Website-Profil*. Das
+Foto ist das Foto der Mitgliedskarte. Die Website holt das Profil nur, wenn das Mitglied der
+Einwilligung zugestimmt hat, die ihr unter *Einrichtung > Vereine > Einwilligungen* dafür wählt
+(etwa „Nennung auf der Website“); ein Widerruf wirkt beim nächsten Abruf. Was ihr hier leer lasst,
+pflegt die Website selbst – so muss nichts doppelt gepflegt werden, und die Person muss nichts tun.
+
 ### Externe Anwendungen
 
 Eine Website oder App bekommt immer einen **eigenen technischen Benutzer** mit genau den Rechten, die

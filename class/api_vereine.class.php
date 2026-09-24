@@ -25,6 +25,7 @@ use Luracast\Restler\RestException;
 
 require_once __DIR__.'/vereineassociationrules.class.php';
 require_once __DIR__.'/vereineorganization.class.php';
+require_once __DIR__.'/vereinewebsiteprofiles.class.php';
 
 /**
  * The association's data for websites and integrations.
@@ -72,6 +73,8 @@ class Vereine extends DolibarrApi
 			'api_version' => self::API_VERSION,
 			// Dolibarr's clock, for changed_since of a website sync.
 			'server_time' => gmdate('Y-m-d\TH:i:s\Z', dol_now()),
+			// The consent that opens the website profiles of members (#255); empty when none is chosen.
+			'website_profile_consent' => VereineWebsiteProfiles::consentCode(),
 		);
 	}
 
@@ -517,6 +520,57 @@ class Vereine extends DolibarrApi
 		dol_include_once('/vereine/class/vereineconsents.class.php');
 		$consents = new VereineConsents($this->db);
 		return $consents->stateFor((int) $id);
+	}
+
+	/**
+	 * Website profile of a member
+	 *
+	 * What the association publishes about the member on its website: gamertag, bio, games and platforms
+	 * from the tab Association of the member card, and the photo of the member card as checksum and size.
+	 * Only with the consent the association chose for it (setup of consents): without it the answer names
+	 * the consent, says given false and carries nothing personal. Needs the right to read member summaries
+	 * for a website.
+	 *
+	 * @param int $id Member id
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET members/{id}/profile
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such member
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMemberProfile($id)
+	{
+		$this->checkAccess();
+		$this->checkWebsiteRight();
+		return (new VereineWebsiteProfiles($this->db))->apiView($this->memberOrFail((int) $id));
+	}
+
+	/**
+	 * Photo of a member
+	 *
+	 * The photo of Dolibarr's member card, base64 with its checksum, only with the consent the association
+	 * chose for the website profile. Without consent or without photo the answer is 404, whichever it is.
+	 *
+	 * @param int $id Member id
+	 * @return array Fields filename, content_type, filesize, sha256, content
+	 *
+	 * @url GET members/{id}/photo
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such member, no consent or no photo
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMemberPhoto($id)
+	{
+		$this->checkAccess();
+		$this->checkWebsiteRight();
+		$photo = (new VereineWebsiteProfiles($this->db))->apiPhoto($this->memberOrFail((int) $id));
+		if ($photo === null) {
+			throw new RestException(404, 'No photo for this member the website may show');
+		}
+		return $photo;
 	}
 
 	/**
@@ -1976,6 +2030,25 @@ class Vereine extends DolibarrApi
 		if (!DolibarrApiAccess::$user->hasRight('vereine', 'sync', 'read')) {
 			throw new RestException(403, 'Not allowed: the user needs the right to follow the change feed');
 		}
+	}
+
+	/**
+	 * The member behind an id, or 404.
+	 *
+	 * @param int $id Member id
+	 * @return Adherent
+	 */
+	private function memberOrFail($id)
+	{
+		if ($this->memberReport()->summary((int) $id) === null) {
+			throw new RestException(404, 'No member with this id');
+		}
+		require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+		$member = new Adherent($this->db);
+		if ($member->fetch((int) $id) <= 0) {
+			throw new RestException(404, 'No member with this id');
+		}
+		return $member;
 	}
 
 	/**

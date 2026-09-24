@@ -666,6 +666,28 @@ if ($stage === 'cashpayments') {
 }
 
 // A website user with exactly the two documented rights, and one member per fee situation.
+if ($stage === 'memberphoto') {
+	// A photo on Dolibarr's member card (#255), written where the card keeps it.
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+	$member = new Adherent($db);
+	if ($member->fetch((int) rt_env('RT_MEMBER')) <= 0) {
+		rt_fail('member for the photo');
+	}
+	$dir = $conf->adherent->dir_output.'/'.get_exdir(0, 0, 0, 0, $member, 'member').'photos';
+	dol_mkdir($dir);
+	$png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
+	if (file_put_contents($dir.'/rt-photo.png', $png) === false) {
+		rt_fail('photo file');
+	}
+	$member->photo = 'rt-photo.png';
+	if ($member->update($admin) < 0) {
+		rt_fail('member photo: '.$member->error);
+	}
+	print json_encode(array('sha256' => hash('sha256', $png), 'size' => strlen($png)))."\n";
+	exit(0);
+}
+
 if ($stage === 'website') {
 	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
 	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent_type.class.php';
