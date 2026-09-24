@@ -1804,8 +1804,7 @@ if ($stage === 'runloans') {
 if ($stage === 'signedcopy') {
 	dol_include_once('/vereine/class/vereinearchive.class.php');
 	$row = null;
-	$resql = $db->query("SELECT d.rowid, d.kind, d.fk_object, f.relpath FROM ".MAIN_DB_PREFIX."vereine_document as d INNER JOIN ".MAIN_DB_PREFIX."vereine_document_file as f ON f.fk_document = d.rowid"
-		." WHERE d.rowid = ".((int) rt_env('RT_DOCUMENT_ID'))." ORDER BY f.rowid LIMIT 1");
+	$resql = $db->query("SELECT d.rowid, d.kind, d.fk_object, f.relpath FROM ".MAIN_DB_PREFIX."vereine_document as d INNER JOIN ".MAIN_DB_PREFIX."vereine_document_file as f ON f.fk_document = d.rowid WHERE d.rowid = ".((int) rt_env('RT_DOCUMENT_ID'))." ORDER BY f.rowid LIMIT 1");
 	$row = $resql ? $db->fetch_object($resql) : null;
 	if (!$row) {
 		rt_fail('no document '.rt_env('RT_DOCUMENT_ID'));
