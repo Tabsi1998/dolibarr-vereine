@@ -72,8 +72,9 @@ class modVereine extends DolibarrModules
 			'js' => array(),
 			// class/actions_vereine.class.php: the member card links third parties without a trigger;
 			// invoice cards report lines whose VAT rate differs from their tax profile; invoice PDFs
-			// get the tax profile notes and the register number; the e-mail template editor knows the module's types.
-			'hooks' => array('data' => array('membercard', 'invoicecard', 'invoicesuppliercard', 'pdfgeneration', 'emailtemplates'), 'entity' => '0'),
+			// get the tax profile notes and the register number; the e-mail template editor knows the module's types;
+			// Dolibarr's web portal (23 and later) gets the page of the association and its menu entry (#25).
+			'hooks' => array('data' => array('membercard', 'invoicecard', 'invoicesuppliercard', 'pdfgeneration', 'emailtemplates', 'webportaldao', 'webportal'), 'entity' => '0'),
 			'moduleforexternal' => 0,
 		);
 

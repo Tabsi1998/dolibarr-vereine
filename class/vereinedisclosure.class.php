@@ -145,9 +145,22 @@ class VereineDisclosure
 		}
 		$sections['invitations'] = $this->rows("SELECT m.title as meeting, m.meeting_day as day, i.channel, i.voting, i.sent_at FROM ".MAIN_DB_PREFIX."vereine_meeting_invitation as i INNER JOIN ".MAIN_DB_PREFIX."vereine_meeting as m ON m.rowid = i.fk_meeting WHERE i.entity = ".$entity." AND i.fk_adherent = ".$id." ORDER BY m.meeting_day");
 		$sections['attendance'] = $this->rows("SELECT m.title as meeting, m.meeting_day as day, a.state FROM ".MAIN_DB_PREFIX."vereine_meeting_attendance as a INNER JOIN ".MAIN_DB_PREFIX."vereine_meeting as m ON m.rowid = a.fk_meeting WHERE a.entity = ".$entity." AND a.fk_adherent = ".$id." ORDER BY m.meeting_day");
+		$sections['responses'] = $this->rows("SELECT m.title as meeting, m.meeting_day as day, r.response as state, r.responded_at as sent_at FROM ".MAIN_DB_PREFIX
+			."vereine_meeting_response as r INNER JOIN ".MAIN_DB_PREFIX."vereine_meeting as m ON m.rowid = r.fk_meeting WHERE r.entity = ".$entity." AND r.fk_adherent = ".$id." ORDER BY m.meeting_day");
+		$sections['motions'] = $this->rows("SELECT m.title as meeting, o.title as task, o.text as note, o.received_at as received, o.status as state FROM ".MAIN_DB_PREFIX
+			."vereine_motion as o INNER JOIN ".MAIN_DB_PREFIX."vereine_meeting as m ON m.rowid = o.fk_meeting WHERE o.entity = ".$entity." AND o.fk_adherent = ".$id." ORDER BY o.rowid");
+		$sections['requests'] = $this->rows("SELECT kind, payload as value, status as state, reason, received_at as received FROM ".MAIN_DB_PREFIX
+			."vereine_profile_request WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY rowid");
 		// Only the member's own votes of circular resolutions, which are not secret.
 		$sections['votes'] = $this->rows("SELECT c.title as resolution, v.choice, v.voted_at FROM ".MAIN_DB_PREFIX."vereine_circular_vote as v INNER JOIN ".MAIN_DB_PREFIX."vereine_circular as c ON c.rowid = v.fk_circular WHERE v.entity = ".$entity." AND v.fk_adherent = ".$id." ORDER BY v.rowid");
+		// Open ballots of general assemblies (#161): the member's own votes, also those a proxy holder cast for the member.
+		$sections['votes'] = array_merge($sections['votes'], $this->rows("SELECT b.question as resolution, v.option_code as choice, v.cast_at as voted_at FROM ".MAIN_DB_PREFIX
+			."vereine_ballot_vote as v INNER JOIN ".MAIN_DB_PREFIX."vereine_ballot_right as r ON r.rowid = v.fk_right INNER JOIN ".MAIN_DB_PREFIX
+			."vereine_ballot as b ON b.rowid = v.fk_ballot WHERE r.entity = ".$entity." AND r.fk_adherent = ".$id." ORDER BY v.rowid"));
 		$sections['signatures'] = $this->rows("SELECT s.doc_name as document, p.function_label as function, p.signed_at, p.way FROM ".MAIN_DB_PREFIX."vereine_signature_person as p INNER JOIN ".MAIN_DB_PREFIX."vereine_signature as s ON s.rowid = p.fk_signature WHERE p.fk_adherent = ".$id." AND s.entity = ".$entity." ORDER BY p.rowid");
+		// Documents published for this person alone (#239): which, since when, and whether withdrawn.
+		$sections['documents'] = $this->rows("SELECT d.title as document, d.kind, p.published_at as day, p.withdrawn_at as end FROM ".MAIN_DB_PREFIX."vereine_publication as p INNER JOIN "
+			.MAIN_DB_PREFIX."vereine_document as d ON d.rowid = p.fk_document WHERE p.entity = ".$entity." AND p.fk_adherent = ".$id." ORDER BY p.rowid");
 		$sections['tasks'] = $this->rows("SELECT label as task, deadline, done_at FROM ".MAIN_DB_PREFIX."vereine_resolution_task WHERE entity = ".$entity
 			." AND fk_adherent = ".$id." ORDER BY rowid");
 		$sections['duties'] = $this->rows("SELECT d.label as duty, t.fiscal_year as year, t.due_on, t.done_on FROM ".MAIN_DB_PREFIX."vereine_duty_task as t INNER JOIN ".MAIN_DB_PREFIX."vereine_duty as d ON d.rowid = t.fk_duty WHERE t.entity = ".$entity." AND t.fk_adherent = ".$id." ORDER BY t.due_on");

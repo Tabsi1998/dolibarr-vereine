@@ -140,6 +140,13 @@ class VereineLog
 	const LOAN = 'loan';
 	const LOAN_RETURNED = 'loan_returned';
 	const LOAN_REMINDED = 'loan_reminded';
+	const PUBLICATION = 'publication';
+	const MEETING_RESPONSE = 'meeting_response';
+	const MOTION = 'motion';
+	const PROFILE = 'profile';
+	const BALLOT = 'ballot';
+	const BALLOT_VOTE = 'ballot_vote';
+	const PORTAL = 'portal';
 
 	/**
 	 * Append one entry.

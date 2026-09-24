@@ -101,6 +101,43 @@ class VereineTaxRules
 	}
 
 	/**
+	 * The codes Dolibarr's VAT dictionary gets for the three kinds of 0 %, with the exemption reason of an e-invoice (#45).
+	 *
+	 * VATEX is the official list of EN 16931 for why a line carries no VAT. Not subject to VAT is VATEX-EU-O. The list
+	 * (version 7) has no code for the Austrian small business exemption, and none that covers § 6 (1) no. 14 UStG as a
+	 * whole; there the invoice names the reason as text, the note of the tax profile.
+	 *
+	 * @return array<string,array{key:string,vatex:string,note:string,treatments:string[]}> Code in the dictionary => what it stands for
+	 */
+	public static function zeroCodes()
+	{
+		return array(
+			'AT-NS' => array('key' => 'ns', 'vatex' => 'VATEX-EU-O', 'note' => 'nicht steuerbar (Vereine)',
+				'treatments' => array(self::TREATMENT_NONBUSINESS, self::TREATMENT_HOBBY)),
+			'AT-KU' => array('key' => 'ku', 'vatex' => '', 'note' => 'steuerfrei, Kleinunternehmer § 6 Abs. 1 Z 27 UStG (Vereine)',
+				'treatments' => array(self::TREATMENT_SMALL_BUSINESS)),
+			'AT-SP' => array('key' => 'sp', 'vatex' => '', 'note' => 'steuerfrei, Sportverein § 6 Abs. 1 Z 14 UStG (Vereine)',
+				'treatments' => array(self::TREATMENT_SPORT)),
+		);
+	}
+
+	/**
+	 * The dictionary code of a treatment, '' for a treatment with VAT.
+	 *
+	 * @param string $treatment Treatment code
+	 * @return string
+	 */
+	public static function zeroCodeOf($treatment)
+	{
+		foreach (self::zeroCodes() as $code => $entry) {
+			if (in_array((string) $treatment, $entry['treatments'], true)) {
+				return $code;
+			}
+		}
+		return '';
+	}
+
+	/**
 	 * Whether a treatment may be used in a sphere.
 	 *
 	 * The idealistic sphere has no supplies, so only "not subject to VAT" fits it, and

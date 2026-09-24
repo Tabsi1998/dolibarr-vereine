@@ -49,6 +49,52 @@ beim nächsten als `changed_since` verwenden (siehe unten). `country_profile` un
 `country_profile_complete` sind veraltet: immer `AT` und `true`, sie entfallen
 mit 1.0.
 
+## GET /vereine/documents
+
+Was der Verein für die **Öffentlichkeit** veröffentlicht hat, im selben Format wie
+`GET /vereine/me/documents`. Das PDF kommt von `GET /vereine/documents/{id}/pdf` (optional `revision`).
+Veröffentlicht wird unter *Mitglieder > Verein > Vereinsakte*: je Dokument von Hand oder je Dokumentart
+automatisch, sobald die unterschriebene Fassung da ist. Ab Werk ist nichts veröffentlicht.
+
+## GET /vereine/events
+
+Veranstaltungen ab heute, die der Verein als **öffentlich** markiert hat, etwa für die Startseite:
+
+```json
+[{"id": 4, "label": "Winter-Cup", "day": "2026-12-05", "end_day": "", "timezone": "Europe/Vienna",
+  "place": "Vereinsheim", "status": "planned", "visibility": "public",
+  "registration": {"kind": "external", "external_ref": "lionsquad.at"}}]
+```
+
+`registration` sagt, **wo** man sich anmeldet: `none`, `dolibarr` oder `external` mit der Anwendung, die
+die Anmeldung führt. Es gibt genau eine Anmeldestelle; das Modul bucht nie ein zweites Mal. Nie
+Teilnehmer, interne Aufgaben oder Geld.
+
+## GET /vereine/statutes
+
+Die Statuten, wenn der Verein sie unter *Einrichtung > Statuten* für die **Öffentlichkeit** freigibt
+(Standard: niemand). Optional `day=JJJJ-MM-TT` als Stichtag, sonst heute.
+
+```json
+{"state": "in_force",
+ "current": {"id": 3, "version": 2, "decided_on": "2026-03-14", "valid_from": "2026-04-20", "valid_to": "",
+             "state": "in_force", "source": "generated", "sha256": "9b1d…", "size": 48211},
+ "versions": [{"id": 5, "version": 3, "valid_from": "2027-01-01", "state": "future", "…": "…"},
+              {"id": 3, "version": 2, "state": "in_force", "…": "…"},
+              {"id": 1, "version": 1, "valid_to": "2026-04-19", "state": "repealed", "…": "…"}]}
+```
+
+- Nur **beschlossene** Fassungen, nie der Text, an dem der Vorstand noch arbeitet.
+- `state`: `in_force` (eine Fassung gilt), `none` (noch keine gilt), `ambiguous` (zwei Fassungen beginnen am
+  selben Tag – dann nennt die Antwort keine, statt eine zu erraten), `not_published`.
+- Das PDF einer Fassung: `GET /vereine/statutes/{id}/pdf`, geprüft gegen ihre Prüfsumme; fehlt die Datei
+  oder passt sie nicht, kommt `500`.
+- Für Mitglieder freigegeben: `GET /vereine/me/statutes?subject=…` und `GET /vereine/me/statutes/{id}/pdf`
+  mit der Fähigkeit `documents`, solange die Person aktives Mitglied ist.
+
+Wann eine Statutenänderung wirksam wird, trägt der Verein als „gültig ab“ ein: in der Regel, wenn die
+Vereinsbehörde nicht binnen vier Wochen widerspricht oder vorher zustimmt.
+
 ## GET /vereine/organization
 
 Der Verein, zum Beispiel für das Impressum einer Website. Name, Anschrift und
@@ -720,7 +766,7 @@ Der Vollabgleich. Eine Seite führt die IDs **einer** Objektart auf, sonst nicht
 
 | Parameter | Bedeutung |
 | --- | --- |
-| `object_type` | `membership`, `function`, `fee`, `application` oder `consent`. |
+| `object_type` | `membership`, `function`, `fee`, `application`, `consent` oder `document`. |
 | `after` | Weiter nach dieser ID, 0 zum Beginnen. |
 | `limit` | Objekte je Seite, 1 bis 500, ohne Angabe 100. |
 
@@ -816,6 +862,173 @@ abgelaufenem Code und wenn es für die Kennung bei dieser Anwendung schon eine B
 ### GET /vereine/me/application
 
 `subject`, braucht die Fähigkeit `applications`. Der Stand des eigenen Beitrittsantrags.
+
+### GET /vereine/me/documents
+
+`subject`, Fähigkeit `documents`. Was der Verein für die Person veröffentlicht hat: öffentliche
+Dokumente, die für Mitglieder, solange sie aktives Mitglied ist, die für den Vorstand, solange sie
+ihm angehört, und die **nur für sie** (`audience` `person`). Wer eine Person vertritt, etwa Eltern,
+sieht deren Dokumente über eine eigene Bindung für diese Person, die der Vorstand einlädt.
+
+Je Dokument **eine** Fassung: die der engsten Zielgruppe, in der die Person ist (für sie persönlich vor
+Vorstand vor Mitgliedern vor Öffentlichkeit), und darin die neueste. So sieht der Vorstand das
+Original, auch wenn für Mitglieder eine gekürzte Fassung veröffentlicht ist.
+
+```json
+[{"document_id": 12, "revision": 31, "derived_from": 0, "code": "QZLAS-8TMMD", "kind": "minutes", "title": "Protokoll Generalversammlung 2026",
+  "date": "2026-09-24T18:02:11+00:00", "what": "signed", "sha256": "3f9c…", "size": 81234, "audience": "members"}]
+```
+
+`what` `excerpt` ist eine **gekürzte Fassung**: eine eigene Datei mit eigener Prüfsumme, `derived_from`
+nennt die Fassung, aus der sie abgeleitet ist. Das Original bleibt unverändert. Ob sich ein Dokument
+geändert hat, sagt `sha256`: Eine Anwendung lädt das PDF nur, wenn sich die Prüfsumme geändert hat.
+Veröffentlichen, Ersetzen und Zurückziehen meldet der Änderungsfeed als `document` (`revoked`, wenn
+nichts mehr veröffentlicht ist).
+
+### GET /vereine/me/documents/{id}/pdf
+
+`subject`, Fähigkeit `documents`, optional `revision`. Antwort wie beim Rechnungs-PDF, dazu `sha256`:
+`{"filename", "content_type", "filesize", "sha256", "content"}` mit dem PDF base64-kodiert, unverändert
+samt Unterschriften. Bei jedem Abruf wird neu geprüft, ob die Person es sehen darf und ob es noch
+veröffentlicht ist. Sonst kommt `404`, ob es das Dokument gibt oder nicht. Fehlt die Datei oder passt
+ihre Prüfsumme nicht mehr zur Vereinsakte, kommt `500` statt anderer Bytes.
+
+### GET /vereine/me/meetings
+
+`subject`, Fähigkeit `meetings`. Jede Sitzung, zu der die Person **eingeladen** wurde, neueste zuerst.
+Eine Vorstandssitzung sieht nur, wer zu ihr eingeladen ist, nie ein Mitglied allein wegen der
+Mitgliedschaft.
+
+```json
+[{"id": 7, "kind": "general", "title": "Generalversammlung 2026", "day": "2026-10-24", "time": "18:00",
+  "timezone": "Europe/Vienna", "format": "hybrid", "place": "Vereinsheim", "access": "https://…",
+  "status": "invited", "agenda": ["Begrüßung", "…"], "voting": true, "response": "yes",
+  "responded_at": "2026-09-24T18:02:11+00:00", "motion_deadline": "2026-10-21", "motions": []}]
+```
+
+`access` bekommt nur, wer eingeladen ist, und nur bei online oder hybrid. `motion_deadline` ist der
+letzte Tag für rechtzeitige Anträge laut Statuten; bei Vorstandssitzungen leer.
+
+### PUT /vereine/me/meetings/{id}/response
+
+`subject`, Fähigkeit `meetings`, Body `{"response": "yes" | "no" | "maybe"}`. Zu- oder Absage, keine
+Anwesenheit und keine Stimme; dieselbe Antwort nochmal ändert nichts. Nach der Sitzung oder bei Absage
+kommt `409`.
+
+### POST /vereine/me/meetings/{id}/motions
+
+`subject`, Fähigkeit `meetings`, Body `{"external_id": "app-123", "title": "…", "text": "…"}`. Ein Antrag
+zur Tagesordnung einer Generalversammlung. Dieselbe `external_id` mit demselben Inhalt antwortet mit dem
+schon eingegangenen Antrag, mit anderem Inhalt `409`. Nach der Frist bleibt er als `late: true` stehen.
+Ob er auf die Tagesordnung kommt, entscheidet der Vorstand in Dolibarr (`status`: received, accepted,
+rejected); angenommen steht er als letzter Punkt auf der Tagesordnung.
+
+### GET /vereine/me/profile
+
+`subject`, Fähigkeit `profile`. Die eigenen Daten: Name, Geburtsdatum (nur lesen), Anschrift, Telefon,
+E-Mail, Mitgliedsart, Status, ein geplanter oder vollzogener Austritt. Dazu `version` (der Stand der
+Kontaktdaten) und `direct` (Felder, die der Verein sofort übernimmt).
+
+### POST /vereine/me/profile/changes
+
+`subject`, Fähigkeit `profile`, Body
+`{"external_id": "app-42", "version": "…aus GET me/profile…", "changes": {"address": "…", "zip": "…", "town": "…"}}`.
+Nur `address`, `zip`, `town`, `country_code`, `phone`, `phone_mobile`, `email`; alles andere wird abgewiesen.
+Hat sich der Stand seither geändert, kommt `409` statt eines stillen Überschreibens. Felder aus `direct`
+werden sofort übernommen (`status: applied`), sonst entscheidet der Vorstand in Dolibarr
+(`received` → `applied` oder `rejected` mit `reason`). Eine neue E-Mail-Adresse braucht immer den Vorstand.
+Dieselbe `external_id` mit demselben Inhalt antwortet mit demselben Auftrag.
+
+### GET /vereine/me/profile/changes
+
+`subject`, Fähigkeit `profile`. Eigene Änderungswünsche und Kündigung mit Stand; interne Notizen des
+Vorstands nie.
+
+### POST /vereine/me/exit
+
+`subject`, Fähigkeit `profile`, Body `{"external_id": "app-exit-1", "wished_last_day": "2026-12-31"}`
+(Wunsch optional). Die Kündigung geht mit heutigem Eingang ein; die Mitgliedschaft endet am Tag, den die
+Kündigungsregel des Vereins ergibt (`last_day`), oder später, wenn später gewünscht. Ein früherer Wunsch
+wird nicht übernommen (`wished_too_early: true`). Ist schon ein Austritt geplant, kommt `409`.
+
+### GET /vereine/me/ballots
+
+`subject`, Fähigkeit `votes`. Abstimmungen der Generalversammlungen, zu denen die Person eingeladen ist,
+ab der Freigabe durch die Versammlungsleitung:
+
+```json
+[{"id": 3, "meeting_id": 12, "meeting": "Generalversammlung 2026", "day": "2026-10-10", "item": 4, "kind": "resolution",
+  "question": "Entlastung des Vorstands", "status": "open", "closes": "19:30", "timezone": "Europe/Vienna",
+  "options": [{"code": "yes", "label": "Ja"}, {"code": "no", "label": "Nein"}, {"code": "abstain", "label": "Enthaltung"}],
+  "rights": [{"right_id": 41, "for": "self", "name": "", "state": "open", "reason": "own", "option": ""},
+             {"right_id": 42, "for": "proxy", "name": "Anna Muster", "state": "used", "reason": "proxy", "option": "yes"}]}]
+```
+
+Eine Abstimmung gehört immer zu einem Tagesordnungspunkt einer Generalversammlung; eine Umfrage allein ist
+keine Versammlung. `status`: `released` (angekündigt), `open`, `closed`, `evaluated`, `cancelled`.
+
+`rights` sind die Stimmrechte, die die Person nutzen kann: das eigene und die von Mitgliedern, die ihr
+eine schriftliche Vollmacht gegeben haben. Sie werden beim **Öffnen** festgehalten – aus Einladung
+(stimmberechtigt oder nicht), Mitgliedschaft am Versammlungstag und den Vollmachten der Anwesenheitsliste.
+Spätere Änderungen gelten für diese Abstimmung nicht. `reason`: `own`, `proxy`, `represented` (hat eine
+Vollmacht gegeben, der Vertreter stimmt), `no_voting_right`, `not_member`. Ein offener Beitrag nimmt kein
+Stimmrecht; das müssten die Statuten sagen.
+
+Wahlen: je Kandidat:in eine Option `c<Nummer>`, bei nur einer Kandidatur zusätzlich `no`; immer
+`abstain`. Die Codes ändern sich nie. Mehrere Plätze in einem Wahlgang und automatische Stichwahlen gibt
+es nicht: je Platz ein Wahlgang, eine Stichwahl als neue Abstimmung. Geheime Wahlen folgen (#162).
+
+### POST /vereine/me/ballots/{id}/votes
+
+`subject`, Fähigkeit `votes`, Body:
+
+```json
+{"right_id": 41, "option": "yes", "external_id": "app-vote-7f3a"}
+```
+
+Zählt nur, solange die Abstimmung offen ist (und vor `closes`) und die Person **laut Anwesenheitsliste in
+der Versammlung** ist. Jedes Stimmrecht zählt **einmal**, egal über welche Anwendung oder ob der Vorstand
+einen Stimmzettel einträgt. Dieselbe `external_id` beantwortet dieselbe Anfrage (`200`), auch nach einem
+Verbindungsabbruch; dieselbe Stimme ohne `external_id` nochmal ändert nichts. Antwort: die Abstimmung
+danach.
+
+| Code | Bedeutung |
+| --- | --- |
+| `400` | `right_id`/`option` fehlen oder die Option gibt es nicht (`option`) |
+| `404` | Die Abstimmung oder das Stimmrecht gehört nicht zur Person |
+| `409` | `not_open`, `closed`, `channel`, `used` (schon abgestimmt, auf welchem Weg auch immer), `not_present`, `external_id` (andere Stimme unter derselben Kennung) |
+
+Öffnen, Schließen, Auszählen und Absagen geschehen nur in Dolibarr durch die Versammlungsleitung; keine
+Anwendung kann das.
+
+`result` ist `null`, bis die Versammlungsleitung das Ergebnis in Dolibarr **bestätigt** hat; danach:
+
+```json
+{"revision": 1, "outcome": "passed", "passed": true, "counts": {"yes": 41, "no": 3, "abstain": 2}, "valid": 44, "abstain": 2, "winner": ""}
+```
+
+`outcome`: `passed`, `rejected`, `no_quorum` (nicht beschlussfähig beim Öffnen), `no_majority` (Wahl: niemand
+über der Hälfte der gültigen Stimmen – eine Stichwahl ist eine neue Abstimmung). `winner` ist bei einer Wahl
+der Code der gewählten Person.
+
+### GET /vereine/me/events
+
+`subject`, Fähigkeit `events`. Öffentliche Veranstaltungen und die für Mitglieder (in Dolibarr „nur für
+Mitglieder“), ab heute, je mit `shifts`: `id`, `label`, `day`, `start`, `end`, `capacity`, `taken`
+(bestätigt oder geleistet), `full` und `mine` (eigener Stand: leer, `requested`, `confirmed`, `done`,
+`cancelled`).
+
+### PUT /vereine/me/events/{id}/shifts/{shift}
+
+`subject`, Fähigkeit `events`. Fragt den Helferdienst an (`requested`); der Vorstand bestätigt ihn in
+Dolibarr. Nochmal anfragen ändert nichts. Voll, vorbei, abgesagt oder überschneidend mit einem anderen
+Dienst der Person: `409`. Selbst eingetragen ist kein Nachweis für die Freiwilligenpauschale; das zählt erst,
+was der Verein als geleistet bestätigt.
+
+### DELETE /vereine/me/events/{id}/shifts/{shift}
+
+`subject`, Fähigkeit `events`. Zieht eine noch **nicht bestätigte** Anfrage zurück. Einen bestätigten
+Dienst sagt die Person beim Verein ab (`409`).
 
 ### GET /vereine/me/accounts
 

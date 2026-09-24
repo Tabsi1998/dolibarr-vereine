@@ -67,6 +67,7 @@ require_once __DIR__.'/class/vereinemeetings.class.php';
 require_once __DIR__.'/class/vereineminutes.class.php';
 require_once __DIR__.'/class/vereineresolutions.class.php';
 require_once __DIR__.'/class/vereinearrears.class.php';
+require_once __DIR__.'/class/vereinemeetingportal.class.php';
 require_once __DIR__.'/class/vereinemeetingdocs.class.php';
 require_once __DIR__.'/class/vereinemail.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
@@ -373,6 +374,14 @@ if ($action === 'document') {
 		exit;
 	}
 	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $run === null ? array('VereineSignatureErrorNotOpen') : $signatures->errors), 'errors');
+} elseif ($action === 'decidemotion' && $canWrite) {
+	$portal = new VereineMeetingPortal($db);
+	if ($portal->decide(GETPOSTINT('motion'), GETPOST('state', 'aZ09'), $user) < 0) {
+		setEventMessages($portal->error, null, 'errors');
+	} else {
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id.'#vereinemeetingportal');
+		exit;
+	}
 } elseif ($action === 'letters') {
 	$file = VereineMeetings::lettersPath($id);
 	if ($meetings->fetch($id) === null || !is_file($file)) {
@@ -999,6 +1008,36 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 	if (is_file(VereineMeetings::lettersPath($meeting['id']))) {
 		print '<div class="paddingtop"><a href="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'&amp;action=letters&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineMeetingLetters').'</a></div>';
 	}
+	// What members answered through an application, and their motions for the agenda (#159).
+	$portal = (new VereineMeetingPortal($db))->forMeeting($meeting['id']);
+	if (array_sum($portal['responses']) > 0 || $portal['motions']) {
+		print '<br>'.load_fiche_titre($langs->trans('VereineMeetingPortalTitle'), '', '', 0, 'vereinemeetingportal');
+		print '<div class="paddingbottom" data-responses="'.$portal['responses']['yes'].'-'.$portal['responses']['no'].'-'.$portal['responses']['maybe'].'">'
+			.$langs->trans('VereineMeetingResponses', $portal['responses']['yes'], $portal['responses']['no'], $portal['responses']['maybe']).'</div>';
+		if ($portal['motions']) {
+			print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+			print '<tr class="liste_titre"><td>'.$langs->trans('VereineMotion').'</td><td>'.$langs->trans('Member').'</td><td>'.$langs->trans('VereineMotionReceived').'</td><td></td></tr>';
+			foreach ($portal['motions'] as $motion) {
+				print '<tr class="oddeven" data-motion="'.$motion['id'].'" data-motion-status="'.$motion['status'].'" data-motion-late="'.($motion['late'] ? 1 : 0).'">';
+				print '<td><strong>'.dol_escape_htmltag($motion['title']).'</strong><br><span class="small">'.dol_nl2br(dol_escape_htmltag($motion['text'])).'</span></td>';
+				print '<td>'.dol_escape_htmltag($motion['name']).'</td><td class="nowraponall">'.vereineFormatDay(substr($motion['received_at'], 0, 10))
+					.($motion['late'] ? ' '.dolGetBadge($langs->trans('VereineMotionLate'), '', 'warning') : '').'</td><td class="right nowraponall">';
+				if ($motion['status'] !== 'received') {
+					print $langs->trans('VereineMotionState_'.$motion['status']);
+				} elseif ($canWrite) {
+					foreach (array('accepted', 'rejected') as $state) {
+						print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'" name="vereinemotion'.$motion['id'].$state.'" class="inline-block">';
+						print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="decidemotion">';
+						print '<input type="hidden" name="motion" value="'.$motion['id'].'"><input type="hidden" name="state" value="'.$state.'">';
+						print '<input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('VereineMotionDecide_'.$state)).'"></form> ';
+					}
+				}
+				print '</td></tr>';
+			}
+			print '</table></div>';
+		}
+		print '<div class="opacitymedium small">'.$langs->trans('VereineMeetingPortalHowTo').'</div>';
+	}
 	// Attendance, proxies and quorum.
 	$attendance = $meetings->attendance($meeting['id']);
 	$at = GETPOST('at', 'alpha');
@@ -1065,7 +1104,9 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 	foreach ($functionStore->fetchAll(true) as $function) {
 		$catalogue[$function['id']] = $function['label'];
 	}
-	print '<br>'.load_fiche_titre($langs->trans('VereineVotes'), '', '', 0, 'vereinevotes');
+	$ballotLink = $meeting['kind'] !== VereineMeetingRules::KIND_BOARD ? '<a href="'.dol_buildpath('/vereine/ballots.php', 1).'?meeting='.$meeting['id'].'">'
+		.$langs->trans('VereineBallotsLink').'</a>' : '';
+	print '<br>'.load_fiche_titre($langs->trans('VereineVotes'), $ballotLink, '', 0, 'vereinevotes');
 	print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineVotesHowTo').'</div>';
 	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
 	print '<tr class="liste_titre"><td>'.$langs->trans('VereineVoteItem').'</td><td>'.$langs->trans('VereineVoteTitle').'</td><td>'.$langs->trans('VereineVoteCounts').'</td>';

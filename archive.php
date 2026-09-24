@@ -64,6 +64,7 @@ if (!$res) {
  */
 
 require_once __DIR__.'/class/vereinearchive.class.php';
+require_once __DIR__.'/class/vereinepublications.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('members', 'other', 'vereine@vereine'));
@@ -107,6 +108,51 @@ if ($action === 'export') {
 			readfile($file);
 			exit;
 		}
+	}
+} elseif ($action === 'publish' && $user->hasRight('adherent', 'creer')) {
+	// Publishing for the public is the administrator's; for members and board whoever runs the members.
+	$audience = GETPOST('audience', 'aZ09');
+	$publications = new VereinePublications($db);
+	$documentId = GETPOSTINT('document');
+	// The original unless a shortened version was chosen (#239).
+	$fileId = GETPOSTINT('file') > 0 ? GETPOSTINT('file') : $publications->bestFile($documentId);
+	$result = $audience === 'public' && empty($user->admin) ? 0 : $publications->publish($documentId, $fileId, $audience, $user, GETPOSTINT('member'));
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereinePublicationDone'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?year='.$year.'#vereinearchivedocuments');
+		exit;
+	}
+	setEventMessages($result < 0 ? $publications->error : null, $result < 0 ? null : ($publications->errors ? array_map(array($langs, 'trans'), $publications->errors)
+		: array($langs->trans('VereinePublicationErrorPublic'))), 'errors');
+} elseif ($action === 'excerpt' && $user->hasRight('adherent', 'creer')) {
+	$result = $archive->addExcerpt(GETPOSTINT('document'), isset($_FILES['excerpt']) && is_array($_FILES['excerpt']) ? $_FILES['excerpt'] : array(), $user);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineExcerptDone'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?year='.$year.'#vereinearchivedocuments');
+		exit;
+	}
+	setEventMessages($result < 0 ? $archive->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $archive->errors), 'errors');
+} elseif ($action === 'withdraw' && $user->hasRight('adherent', 'creer')) {
+	$publications = new VereinePublications($db);
+	if ($publications->withdraw(GETPOSTINT('publication'), $user) < 0) {
+		setEventMessages($publications->error, null, 'errors');
+	} else {
+		setEventMessages($langs->trans('VereinePublicationWithdrawn'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'?year='.$year.'#vereinearchivedocuments');
+		exit;
+	}
+} elseif ($action === 'publishrules' && !empty($user->admin)) {
+	$entered = array();
+	foreach (VereineArchiveRules::KINDS as $kind) {
+		$entered[$kind] = array('audience' => GETPOST('audience_'.$kind, 'aZ09'), 'auto' => GETPOSTISSET('auto_'.$kind));
+	}
+	$publications = new VereinePublications($db);
+	if ($publications->saveRules($entered, $user) < 0) {
+		setEventMessages($publications->error, null, 'errors');
+	} else {
+		setEventMessages($langs->trans('SetupSaved'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereinepublishrules');
+		exit;
 	}
 } elseif (($action === 'publicon' || $action === 'publicoff') && !empty($user->admin)) {
 	if ($archive->setPublic($action === 'publicon', $user) > 0) {
@@ -153,17 +199,88 @@ for ($option = $thisYear; $option >= $thisYear - 5; $option--) {
 print '</div>';
 print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-archive-documents="'.count($documents).'">';
 print '<tr class="liste_titre"><td>'.$langs->trans('Date').'</td><td>'.$langs->trans('Type').'</td><td>'.$langs->trans('Title').'</td>';
-print '<td>'.$langs->trans('VereineVerifyCode').'</td><td class="right">'.$langs->trans('VereineArchiveFiles').'</td></tr>';
+print '<td>'.$langs->trans('VereineVerifyCode').'</td><td class="right">'.$langs->trans('VereineArchiveFiles').'</td><td>'.$langs->trans('VereinePublicationTitle').'</td></tr>';
+$publications = new VereinePublications($db);
+$published = $publications->byDocument();
+$canPublish = $user->hasRight('adherent', 'creer');
+$audiences = array();
+foreach (VereinePublicationRules::AUDIENCES as $audience) {
+	if ($audience !== 'public' || !empty($user->admin)) {
+		$audiences[$audience] = $langs->trans('VereinePublicationAudience_'.$audience);
+	}
+}
+// One person only (#239): whoever acts for the person through a binding sees it too.
+$audiences[VereinePublicationRules::AUDIENCE_PERSON] = $langs->trans('VereinePublicationAudience_person');
+$people = array('0' => '');
+if ($canPublish) {
+	$resql = $db->query("SELECT rowid, firstname, lastname FROM ".MAIN_DB_PREFIX."adherent WHERE entity = ".((int) $conf->entity)." AND statut IN (1, 0) ORDER BY lastname, firstname");
+	while ($resql && ($obj = $db->fetch_object($resql))) {
+		$people[(int) $obj->rowid] = trim($obj->firstname.' '.$obj->lastname);
+	}
+}
 foreach ($documents as $document) {
 	print '<tr class="oddeven" data-archive-code="'.$document['code'].'" data-archive-kind="'.$document['kind'].'">';
 	print '<td class="nowraponall">'.dol_print_date($document['created'], 'day').'</td><td>'.$langs->trans('VereineArchiveKind_'.$document['kind']).'</td>';
 	print '<td>'.dol_escape_htmltag($document['title']).'</td><td class="nowraponall"><a href="'.VereineArchive::verifyUrl($document['code']).'">'
-		.VereineArchiveRules::format($document['code']).'</a></td><td class="right">'.$document['files'].'</td></tr>';
+		.VereineArchiveRules::format($document['code']).'</a></td><td class="right">'.$document['files'].'</td><td>';
+	// Who sees it, and the way to change that.
+	foreach (isset($published[$document['id']]) ? $published[$document['id']] : array() as $publication) {
+		print '<div data-publication="'.$publication['id'].'" data-publication-audience="'.$publication['audience'].'">'.$langs->trans('VereinePublicationAudience_'.$publication['audience'])
+			.($publication['member_id'] > 0 ? ': '.dol_escape_htmltag($publication['member']) : '')
+			.' <span class="opacitymedium small">('.$langs->trans('VereineArchiveFile_'.$publication['what']).')</span>';
+		if ($canPublish && ($publication['audience'] !== 'public' || !empty($user->admin))) {
+			print ' <form method="POST" action="'.$_SERVER['PHP_SELF'].'?year='.$year.'" name="vereinewithdraw'.$publication['id'].'" class="inline-block">';
+			print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="withdraw"><input type="hidden" name="publication" value="'.$publication['id'].'">';
+			print '<input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('VereinePublicationWithdraw')).'"></form>';
+		}
+		print '</div>';
+	}
+	if ($canPublish) {
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?year='.$year.'" name="vereinepublish'.$document['id'].'" class="paddingtop">';
+		print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="publish"><input type="hidden" name="document" value="'.$document['id'].'">';
+		print Form::selectarray('audience', $audiences, '', 0, 0, 0, '', 0, 0, 0, '', 'maxwidth150').' ';
+		print Form::selectarray('member', $people, '', 0, 0, 0, '', 0, 0, 0, '', 'maxwidth200').' ';
+		$versions = array('0' => $langs->trans('VereineExcerptOriginal'));
+		foreach ($publications->excerpts($document['id']) as $excerpt) {
+			$versions[$excerpt['id']] = $langs->trans('VereineArchiveFile_excerpt').' '.dol_print_date($excerpt['created'], 'dayhour');
+		}
+		if (count($versions) > 1) {
+			print Form::selectarray('file', $versions, '', 0, 0, 0, '', 0, 0, 0, '', 'maxwidth200').' ';
+		}
+		print '<input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('VereinePublicationPublish')).'"></form>';
+		// A shortened version for members or the public: a file of its own, the original stays (#239).
+		print '<form method="POST" enctype="multipart/form-data" action="'.$_SERVER['PHP_SELF'].'?year='.$year.'" name="vereineexcerpt'.$document['id'].'" class="paddingtop">';
+		print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="excerpt"><input type="hidden" name="document" value="'.$document['id'].'">';
+		print '<input type="file" name="excerpt" accept="application/pdf" class="maxwidth200"> ';
+		print '<input type="submit" class="button smallpaddingimp" value="'.dol_escape_htmltag($langs->trans('VereineExcerptUpload')).'"></form>';
+	}
+	print '</td></tr>';
 }
 if (!$documents) {
-	print '<tr class="oddeven"><td colspan="5"><span class="opacitymedium">'.$langs->trans('VereineArchiveNone').'</span></td></tr>';
+	print '<tr class="oddeven"><td colspan="6"><span class="opacitymedium">'.$langs->trans('VereineArchiveNone').'</span></td></tr>';
 }
 print '</table></div>';
+
+// Which kinds of documents go out by themselves once signed (#156).
+if (!empty($user->admin)) {
+	$rules = VereinePublications::rules();
+	print '<br>'.load_fiche_titre($langs->trans('VereinePublicationRulesTitle'), '', '', 0, 'vereinepublishrules');
+	print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereinePublicationRulesHowTo').'</div>';
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereinepublishrules">';
+	print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="publishrules">';
+	print '<table class="noborder centpercent"><tr class="liste_titre"><td>'.$langs->trans('Type').'</td><td>'.$langs->trans('VereinePublicationAudience').'</td>';
+	print '<td class="center">'.$langs->trans('VereinePublicationAuto').'</td></tr>';
+	$choices = array('' => $langs->trans('VereinePublicationAudience_none'));
+	foreach (VereinePublicationRules::AUDIENCES as $audience) {
+		$choices[$audience] = $langs->trans('VereinePublicationAudience_'.$audience);
+	}
+	foreach (VereineArchiveRules::KINDS as $kind) {
+		print '<tr class="oddeven" data-publish-rule="'.$kind.'"><td>'.$langs->trans('VereineArchiveKind_'.$kind).'</td>';
+		print '<td>'.Form::selectarray('audience_'.$kind, $choices, $rules[$kind]['audience'], 0, 0, 0, '', 0, 0, 0, '', 'minwidth150').'</td>';
+		print '<td class="center"><input type="checkbox" name="auto_'.$kind.'" value="1"'.($rules[$kind]['auto'] ? ' checked' : '').'></td></tr>';
+	}
+	print '</table><div class="center paddingtop"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('Save')).'"></div></form>';
+}
 
 llxFooter();
 $db->close();

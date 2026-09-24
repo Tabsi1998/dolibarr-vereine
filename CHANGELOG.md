@@ -16,6 +16,80 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Turniersieg) oder Ehrenmitgliedschaft. Ein Ehrenmitglied wechselt in die Mitgliedsart, die der Verein
   dafür wählt, etwa eine ohne Beitrag. Zu jeder Ehrung gibt es eine **Urkunde als PDF** mit Linien für
   die Unterschriften; der Reiter *Verein* des Mitglieds nennt seine Ehrungen.
+- **Webportal: „Mein Verein“** (#25): Ab Dolibarr 23 zeigt Dolibarrs eigenes Webportal angemeldeten
+  Mitgliedern die Seite „Mein Verein“ mit Dokumenten, Sitzungen (mit Zu-/Absage) und Abstimmungen – je
+  nachdem, was der Verein unter *Einrichtung > Identitäten > Webportal* einschaltet. Die Seite nutzt dieselben
+  Dienste wie die API: dieselben Dokumente, dieselben Stimmrechte; eine über eine App abgegebene Stimme
+  zählt im Portal nicht nochmal. Das Portal bekommt keine Verwaltungsrechte und keinen API-Schlüssel.
+  Dolibarr 22 bietet dafür keinen Erweiterungspunkt; dort sagt die Einrichtung das und bietet nichts an.
+- **0 % mit Begründung für E-Rechnungen** (#45): Unter *Steuerprofile* legt „Codes anlegen“ drei eigene
+  0-%-Codes im Umsatzsteuer-Wörterbuch an: `AT-NS` nicht steuerbar, `AT-KU` Kleinunternehmer, `AT-SP`
+  Sportverein. Ab Dolibarr 24 trägt `AT-NS` den EU-Befreiungsgrund `VATEX-EU-O`; für Kleinunternehmer und
+  Sportvereine hat die offizielle Liste keinen Code – dort bleibt der Rechnungshinweis des Profils der Grund.
+  Produkte mit einem solchen Steuerprofil übernehmen den Code (ohne Preisänderung), neue Rechnungszeilen
+  ebenso. So können E-Rechnungs-Module die Zeilen richtig kennzeichnen.
+- **Auswertung von Abstimmungen** (#163): Nach dem Schließen wertet die Versammlungsleitung aus. Die
+  Auswertung hält Frage, Regeln, Stimmrechte, Stimmen je Antwort, die Beschlussfähigkeit beim Öffnen und
+  das Ergebnis fest und erzeugt einen **Nachweis als PDF/A** mit Code und Prüfsumme in der Vereinsakte – ohne
+  die Stimme einer Person. Die Auswertung ist vorläufig; erst **„Ergebnis bestätigen“** trägt sie ins
+  Beschlussbuch ein und löst die Folgen aus (Funktionsperiode, neue Statutenfassung, Meldung an die Behörde),
+  genau einmal, auch bei doppeltem Klick. Neu auswerten geht vor der Bestätigung mit Grund; die frühere
+  Auswertung bleibt mit ihrem Nachweis. Mitglieder sehen das Ergebnis in der App erst nach der Bestätigung.
+- **Abstimmungen in der App** (#160, #161): Zu einem Tagesordnungspunkt einer Generalversammlung legt der
+  Vorstand unter *Sitzung > Abstimmungen in der App* eine Abstimmung an – Beschluss, Statutenänderung,
+  Auflösung oder Wahl mit Kandidat:innen (mit deren Zustimmung). **Freigeben** hält Mehrheit,
+  Vollmachtsregel und Statutenfassung fest; **Öffnen** am Versammlungstag hält die Stimmrechte fest:
+  eingeladen und stimmberechtigt, Mitglied am Versammlungstag, Vollmachten aus der Anwesenheitsliste.
+  Ein offener Beitrag nimmt kein Stimmrecht. Mitglieder stimmen über ihre App ab (`GET /vereine/me/ballots`,
+  `POST /vereine/me/ballots/{id}/votes`, Fähigkeit *votes*), aber nur, solange sie laut Anwesenheitsliste
+  in der Versammlung sind; wer eine Vollmacht hält, stimmt auch für die vertretene Person. Der Vorstand kann
+  Stimmzettel eintragen. **Jedes Stimmrecht zählt genau einmal** – egal über welche App oder auf Papier;
+  dieselbe Anfrage nach einem Verbindungsabbruch zählt nicht doppelt. Nach dem Schließen zeigt die Seite
+  die Stimmen. Auswertung mit Nachweis-PDF (#163) und geheime Wahlen (#162) folgen.
+- **Dokumente, zweiter Teil** (#239): In der Vereinsakte lässt sich je Dokument eine **gekürzte
+  Fassung** hochladen, etwa ein Protokoll ohne Personalangelegenheiten für die Mitglieder. Sie ist eine
+  eigene Datei mit eigener Prüfsumme und zeigt – auch bei der öffentlichen Echtheitsprüfung –, aus
+  welcher Fassung sie abgeleitet ist; das Original bleibt unverändert. Ein Dokument kann **nur für eine
+  Person** veröffentlicht werden (etwa eine persönliche Bestätigung); die App sieht es nur für diese
+  Person, und es steht in ihrer Datenauskunft. Wer mehrere Veröffentlichungen eines Dokuments sehen
+  darf, bekommt die der engsten Zielgruppe: der Vorstand das Original, Mitglieder die gekürzte Fassung.
+  Veröffentlichen, Ersetzen und Zurückziehen meldet der Änderungsfeed als `document`.
+- Eine **mit ID Austria unterschriebene Fassung** geht erst dann automatisch hinaus, wenn alle
+  Unterschriften da sind, die der Unterschriftslauf verlangt; bisher schon nach der ersten (#239, #151).
+- **Veranstaltungen in der App und auf der Website** (#165): Eine Veranstaltung ist jetzt intern, **nur für
+  Mitglieder** oder öffentlich. `GET /vereine/events` liefert der Website die öffentlichen, mit der
+  einen Stelle, bei der man sich anmeldet (keine, Dolibarr oder eine genannte externe Anwendung); nie
+  Teilnehmer, Aufgaben oder Geld. Eine App mit der Fähigkeit *events* sieht dazu die Veranstaltungen für
+  Mitglieder samt Helferdiensten, fragt einen Dienst an (der Vorstand bestätigt in Dolibarr) und zieht ihn
+  zurück, solange er nicht bestätigt ist. Überschneidende Dienste werden abgewiesen.
+- Wer bei einem Helferdienst schon einmal abgesagt war, kann wieder eingetragen werden; bisher scheiterte
+  das an einem zweiten Eintrag für dieselbe Person (#165).
+- **Eigene Daten in der App** (#164): Mit der Fähigkeit *profile* liest eine App die Daten der Person,
+  beantragt Änderungen der Kontaktdaten (nur Anschrift, Telefon, E-Mail – nie Mitgliedsart, Status,
+  Funktionen oder Bankdaten) und erklärt den Austritt. Unter *Externe Identitäten* wählt der Verein,
+  was sofort übernommen wird; alles andere, eine neue E-Mail-Adresse immer, entscheidet der Vorstand im
+  Reiter *Verein* mit einer Begründung für das Mitglied und einer Notiz nur für sich. Wer auf einem
+  veralteten Stand ändert, bekommt einen Konflikt statt eines stillen Überschreibens. Der Austritt endet
+  am Tag der Kündigungsregel; die App bekommt diesen Tag zurück.
+- **Sitzungen in der App** (#159): Eine App mit der neuen Fähigkeit *meetings* zeigt der Person jede
+  Sitzung, zu der sie eingeladen ist – nie eine Vorstandssitzung nur wegen der Mitgliedschaft –, mit
+  Tagesordnung, Ort oder Zugang, Stimmrecht und Antragsfrist. Die Person sagt zu oder ab (keine
+  Anwesenheit, keine Stimme) und stellt Anträge zur Tagesordnung einer Generalversammlung: genau einmal,
+  nach der Frist der Statuten als verspätet gekennzeichnet. Auf der Sitzung in Dolibarr siehst du die
+  Rückmeldungen und nimmst Anträge an (dann stehen sie auf der Tagesordnung) oder lehnst sie ab.
+- **Statuten über die API** (#158): Unter *Einrichtung > Statuten* gibst du die Statuten für Mitglieder
+  oder die Öffentlichkeit frei (Standard: niemand). `GET /vereine/statutes` (Website) und
+  `GET /vereine/me/statutes` (App) nennen jede beschlossene Fassung mit ihrem Stand am Stichtag
+  (gilt, kommt noch, aufgehoben) und die geltende, samt PDF, geprüft gegen die Prüfsumme. Beginnen zwei
+  Fassungen am selben Tag, sagt die Antwort das, statt eine zu erraten; der Entwurf ist nie dabei.
+- **Dokumente veröffentlichen** (#156, #157): In der Vereinsakte gibst du ein fertiges Dokument frei
+  für den **Vorstand**, die **Mitglieder** oder die **Öffentlichkeit** (nur Administratoren). Je
+  Dokumentart kannst du festlegen, dass die unterschriebene Fassung von selbst hinausgeht, etwa das
+  Protokoll der Generalversammlung für Mitglieder; Entwürfe nie. Ab Werk ist nichts veröffentlicht.
+  Dieselbe Fassung zweimal ergibt eine Veröffentlichung, eine neuere ersetzt die ältere, Zurückziehen
+  wirkt sofort, und die Datei bleibt in der Vereinsakte. Über die API holt eine App mit der Fähigkeit
+  *documents* die Dokumente der Person (`me/documents`), die Website die öffentlichen (`documents`),
+  jeweils als PDF, unverändert samt Unterschriften und geprüft gegen die Prüfsumme der Vereinsakte.
 - **Inventar und Ausleihe** (#26): Die Geräte des Vereins (PCs, Konsolen, Headsets, Zelte, Kassen) sind
   Dolibarrs Ressourcen. *Mitglieder > Verein > Inventar und Ausleihe* zeigt, was gerade wer hat, gibt
   ein Gerät mit Rückgabetag und Zustand aus und nimmt es mit Zustand zurück. Ein verliehenes Gerät lässt

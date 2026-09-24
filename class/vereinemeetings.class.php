@@ -572,6 +572,29 @@ class VereineMeetings
 		}
 		$majority = VereineVoteRules::majority($vote['kind'], $rules);
 		$result = VereineVoteRules::result($vote, $majority, $meeting['kind'], $rules);
+		return $this->applyVote($meeting, $vote, $majority, $result, $user, $outputlangs);
+	}
+
+	/**
+	 * Store a decided vote with what follows from it: the term of an elected member, a new version of the statutes with its
+	 * notice, the entry in the register. saveVote() checks what was entered first; a ballot calls it once it is confirmed (#163).
+	 *
+	 * @param array<string,mixed> $meeting     Meeting of fetch()
+	 * @param array<string,mixed> $vote        Normalized vote: kind, item, title, secret, yes, no, abstain, tie, time, function_id, candidate_id
+	 * @param string              $majority    Majority the vote needed
+	 * @param array<string,mixed> $result      Result of VereineVoteRules::result()
+	 * @param User                $user        Who stores
+	 * @param Translate           $outputlangs Language of letters
+	 * @return int Id of the vote, 0 when refused (see errors), -1 on error
+	 */
+	public function applyVote(array $meeting, array $vote, $majority, array $result, $user, $outputlangs)
+	{
+		global $conf;
+
+		require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+
+		$this->errors = array();
+		$statutes = new VereineStatutes($this->db);
 		$applied = '';
 		if ($result['passed'] && $vote['kind'] === VereineVoteRules::KIND_ELECTION) {
 			$member = new Adherent($this->db);
@@ -619,7 +642,7 @@ class VereineMeetings
 			}
 		}
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_meeting_vote (entity, fk_meeting, item, kind, title, secret, yes, no, abstain, tie, vote_time, majority, passed, fk_function, fk_candidate, applied, datec, fk_user_modif)";
-		$sql .= " VALUES (".((int) $conf->entity).", ".((int) $id).", ".((int) $vote['item']).", '".$this->db->escape($vote['kind'])."', '".$this->db->escape($vote['title'])."',";
+		$sql .= " VALUES (".((int) $conf->entity).", ".((int) $meeting['id']).", ".((int) $vote['item']).", '".$this->db->escape($vote['kind'])."', '".$this->db->escape($vote['title'])."',";
 		$sql .= " ".($vote['secret'] ? 1 : 0).", ".((int) $vote['yes']).", ".((int) $vote['no']).", ".((int) $vote['abstain']).", '".$this->db->escape($vote['tie'])."',";
 		$sql .= " '".$this->db->escape($vote['time'])."', '".$this->db->escape($majority)."', ".($result['passed'] ? 1 : 0).", ".((int) $vote['function_id']).",";
 		$sql .= " ".((int) $vote['candidate_id']).", '".$this->db->escape($applied)."', '".$this->db->idate(dol_now())."', ".((int) $user->id).")";

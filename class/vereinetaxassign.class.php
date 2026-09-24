@@ -160,7 +160,12 @@ class VereineTaxAssign
 		global $langs;
 
 		$profile = $this->profileOf($product);
-		if (!$profile || !VereineTaxRules::rateDeviates($product->tva_tx, $profile['rate'])) {
+		if (!$profile) {
+			return 0;
+		}
+		// A treatment at 0 % carries its code of the VAT dictionary too, so an e-invoice can name the reason (#45).
+		$code = (new VereineTaxProfiles($this->db))->productCodeOf($profile['treatment']);
+		if (!VereineTaxRules::rateDeviates($product->tva_tx, $profile['rate']) && ($code === '' || (string) $product->default_vat_code === $code)) {
 			return 0;
 		}
 		$langs->load('vereine@vereine');
@@ -171,7 +176,7 @@ class VereineTaxAssign
 		$base = $product->price_base_type === 'TTC' ? 'TTC' : 'HT';
 		$price = $base === 'TTC' ? $product->price_ttc : $product->price;
 		$minimum = $base === 'TTC' ? $product->price_min_ttc : $product->price_min;
-		if ($product->updatePrice($price, $base, $user, $profile['rate'], $minimum, 0, (int) $product->tva_npr) <= 0) {
+		if ($product->updatePrice($price, $base, $user, $profile['rate'], $minimum, 0, (int) $product->tva_npr, 0, 0, array(), $code) <= 0) {
 			$this->error = $product->error;
 			return -1;
 		}

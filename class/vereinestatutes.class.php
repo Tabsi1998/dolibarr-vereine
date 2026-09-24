@@ -34,6 +34,9 @@ class VereineStatutes
 	const CONST_RULES = 'VEREINE_STATUTE_RULES';
 	/** Text fields of the statutes as JSON. */
 	const CONST_TEXT = 'VEREINE_STATUTE_TEXT';
+
+	/** Who may read the statutes through the API (#158): empty for nobody, members or public. */
+	const AUDIENCE = 'VEREINE_STATUTES_AUDIENCE';
 	/** Largest uploaded PDF of statutes in bytes. */
 	const UPLOAD_MAX = 10485760;
 
@@ -509,6 +512,102 @@ class VereineStatutes
 			$html[] = implode('<br>', $lines);
 		}
 		return implode('<br><br>', $html);
+	}
+
+	/**
+	 * Who may read the statutes through the API: '', members or public.
+	 *
+	 * @return string
+	 */
+	public static function audience()
+	{
+		$audience = getDolGlobalString(self::AUDIENCE);
+		return in_array($audience, array('members', 'public'), true) ? $audience : '';
+	}
+
+	/**
+	 * Keep who may read the statutes through the API.
+	 *
+	 * @param string $audience '', members or public
+	 * @param User   $user     Who
+	 * @return int 1 when saved, -1 on error
+	 */
+	public function saveAudience($audience, $user)
+	{
+		global $conf;
+
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+
+		$audience = in_array($audience, array('members', 'public'), true) ? (string) $audience : '';
+		if (dolibarr_set_const($this->db, self::AUDIENCE, $audience, 'chaine', 0, '', $conf->entity) < 0) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		VereineLog::add($this->db, $user, VereineLog::STATUTE_VERSION, 0, 0, 'published for '.($audience !== '' ? $audience : 'nobody'));
+		return 1;
+	}
+
+	/**
+	 * The statutes as somebody may read them through the API: the versions with their state and which one is in force.
+	 *
+	 * @param array<string,bool> $actor public, member, board
+	 * @param string             $day   The day, YYYY-MM-DD
+	 * @return array{state:string,current:array<string,mixed>|null,versions:array<int,array<string,mixed>>}
+	 */
+	public function published(array $actor, $day)
+	{
+		require_once __DIR__.'/vereinestatuteversionrules.class.php';
+		require_once __DIR__.'/vereinepublicationrules.class.php';
+
+		$audience = self::audience();
+		if ($audience === '' || !VereinePublicationRules::sees($audience, $actor)) {
+			return array('state' => 'not_published', 'current' => null, 'versions' => array());
+		}
+		$onDay = VereineStatuteVersionRules::onDay($this->versions(), $day);
+		$versions = array();
+		$current = null;
+		foreach ($onDay['versions'] as $version) {
+			$file = self::directory().'/'.$version['filename'];
+			$entry = array('id' => (int) $version['id'], 'version' => (int) $version['version'], 'decided_on' => (string) $version['decided_on'],
+				'valid_from' => (string) $version['valid_from'], 'valid_to' => (string) $version['valid_to'], 'state' => (string) $version['state'],
+				'source' => (string) $version['source'], 'sha256' => (string) $version['sha256'], 'size' => is_file($file) ? (int) filesize($file) : 0);
+			$versions[] = $entry;
+			if ((int) $version['id'] === $onDay['current']) {
+				$current = $entry;
+			}
+		}
+		return array('state' => $onDay['state'], 'current' => $current, 'versions' => $versions);
+	}
+
+	/**
+	 * The PDF of a version for somebody who may read the statutes, checked against its checksum.
+	 *
+	 * @param int                $id    Version
+	 * @param array<string,bool> $actor public, member, board
+	 * @return array{filename:string,content_type:string,filesize:int,sha256:string,content:string}|null|false Null when not for them, false when the file is gone or changed
+	 */
+	public function publishedPdf($id, array $actor)
+	{
+		require_once __DIR__.'/vereinepublicationrules.class.php';
+
+		$audience = self::audience();
+		if ($audience === '' || !VereinePublicationRules::sees($audience, $actor)) {
+			return null;
+		}
+		foreach ($this->versions() as $version) {
+			if ($version['id'] !== (int) $id) {
+				continue;
+			}
+			$file = self::directory().'/'.$version['filename'];
+			$content = preg_match('/^statuten-v\d+-\d{4}-\d{2}-\d{2}\.pdf$/', $version['filename']) && is_file($file) ? file_get_contents($file) : false;
+			if ($content === false || hash('sha256', $content) !== $version['sha256']) {
+				$this->error = 'The file of version '.$version['version'].' is missing or was changed';
+				return false;
+			}
+			return array('filename' => $version['filename'], 'content_type' => 'application/pdf', 'filesize' => strlen($content), 'sha256' => $version['sha256'],
+				'content' => base64_encode($content));
+		}
+		return null;
 	}
 
 	/**

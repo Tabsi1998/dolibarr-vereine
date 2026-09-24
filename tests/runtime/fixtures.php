@@ -1800,4 +1800,147 @@ if ($stage === 'runloans') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers, inventory, runloans or reset');
+// A signed copy of a document of the association's files, as a finished signature run keeps it (#156).
+if ($stage === 'signedcopy') {
+	dol_include_once('/vereine/class/vereinearchive.class.php');
+	$row = null;
+	$resql = $db->query("SELECT d.rowid, d.kind, d.fk_object, f.relpath FROM ".MAIN_DB_PREFIX."vereine_document as d INNER JOIN ".MAIN_DB_PREFIX."vereine_document_file as f ON f.fk_document = d.rowid WHERE d.rowid = ".((int) rt_env('RT_DOCUMENT_ID'))." ORDER BY f.rowid LIMIT 1");
+	$row = $resql ? $db->fetch_object($resql) : null;
+	if (!$row) {
+		rt_fail('no document '.rt_env('RT_DOCUMENT_ID'));
+	}
+	$root = rtrim((string) $conf->vereine->dir_output, '/').'/';
+	$signed = $root.dirname((string) $row->relpath).'/signiert-'.((int) $row->rowid).'.pdf';
+	if (file_put_contents($signed, file_get_contents($root.(string) $row->relpath)."\n% signiert\n") === false) {
+		rt_fail('cannot write '.$signed);
+	}
+	$archive = new VereineArchive($db);
+	if ($archive->registerCopy((string) $row->kind, (int) $row->fk_object, $signed, 'signed') <= 0) {
+		rt_fail('signed copy: '.$archive->error);
+	}
+	print json_encode(array('file' => $signed, 'sha256' => hash_file('sha256', $signed)))."\n";
+	exit(0);
+}
+
+// A signed copy while the signature run still waits for somebody, then once it is done (#239, #151).
+if ($stage === 'signedrun') {
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+	dol_include_once('/vereine/class/vereinearchive.class.php');
+	dol_include_once('/vereine/class/vereinepublications.class.php');
+	$resql = $db->query("SELECT d.rowid, d.kind, d.fk_object, f.relpath FROM ".MAIN_DB_PREFIX."vereine_document as d INNER JOIN ".MAIN_DB_PREFIX."vereine_document_file as f ON f.fk_document = d.rowid WHERE d.rowid = ".((int) rt_env('RT_DOCUMENT_ID'))." ORDER BY f.rowid LIMIT 1");
+	$row = $resql ? $db->fetch_object($resql) : null;
+	if (!$row) {
+		rt_fail('no document '.rt_env('RT_DOCUMENT_ID'));
+	}
+	$rules = getDolGlobalString(VereinePublications::RULES);
+	$wanted = json_decode($rules !== '' ? $rules : '{}', true);
+	$wanted[(string) $row->kind] = array('audience' => 'members', 'auto' => true);
+	dolibarr_set_const($db, VereinePublications::RULES, (string) json_encode($wanted), 'chaine', 0, '', $conf->entity);
+	$count = function () use ($db, $row) {
+		$resql = $db->query("SELECT COUNT(*) as n FROM ".MAIN_DB_PREFIX."vereine_publication WHERE fk_document = ".((int) $row->rowid)." AND withdrawn_at IS NULL");
+		$obj = $resql ? $db->fetch_object($resql) : null;
+		return $obj ? (int) $obj->n : -1;
+	};
+	$before = $count();
+	$db->query("INSERT INTO ".MAIN_DB_PREFIX."vereine_signature (entity, kind, fk_object, doc_name, doc_sha, status, datec) VALUES (".((int) $conf->entity).", '".$db->escape((string) $row->kind)."', ".((int) $row->fk_object).", 'laufzeit.pdf', '".str_repeat('0', 64)."', 'open', '".$db->idate(dol_now())."')");
+	$run = (int) $db->last_insert_id(MAIN_DB_PREFIX.'vereine_signature');
+	$root = rtrim((string) $conf->vereine->dir_output, '/').'/';
+	$signed = $root.dirname((string) $row->relpath).'/teilweise-'.((int) $row->rowid).'.pdf';
+	file_put_contents($signed, file_get_contents($root.(string) $row->relpath)."\n% eine von zwei Unterschriften\n");
+	$archive = new VereineArchive($db);
+	$archive->registerCopy((string) $row->kind, (int) $row->fk_object, $signed, 'signed');
+	$open = $count();
+	$db->query("UPDATE ".MAIN_DB_PREFIX."vereine_signature SET status = 'done' WHERE rowid = ".$run);
+	$archive->registerCopy((string) $row->kind, (int) $row->fk_object, $signed, 'signed');
+	$done = $count();
+	// What the check leaves behind goes: the rule as it was, the run.
+	dolibarr_set_const($db, VereinePublications::RULES, $rules, 'chaine', 0, '', $conf->entity);
+	$db->query("UPDATE ".MAIN_DB_PREFIX."vereine_signature SET status = 'cancelled' WHERE rowid = ".$run);
+	print json_encode(array('before' => $before, 'open' => $open, 'done' => $done))."\n";
+	exit(0);
+}
+
+// Confirming a count once more, as a second click or a retry would (#163).
+if ($stage === 'ballotconfirm') {
+	dol_include_once('/vereine/class/vereineballots.class.php');
+	$langs->load('vereine@vereine');
+	$ballots = new VereineBallots($db);
+	print json_encode(array('result' => $ballots->confirm((int) rt_env('RT_BALLOT_ID'), $admin, $langs), 'errors' => $ballots->errors))."\n";
+	exit(0);
+}
+
+// An invoice line of a product as the fee run builds it: the rate Dolibarr gives for the product, with its code (#45).
+if ($stage === 'vatline') {
+	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+	$resql = $db->query("SELECT rowid FROM ".MAIN_DB_PREFIX."societe WHERE client IN (1, 3) AND status = 1 ORDER BY rowid LIMIT 1");
+	$obj = $resql ? $db->fetch_object($resql) : null;
+	if (!$obj) {
+		rt_fail('no customer');
+	}
+	$customer = new Societe($db);
+	$customer->fetch((int) $obj->rowid);
+	$invoice = new Facture($db);
+	$invoice->socid = $customer->id;
+	$invoice->date = dol_now();
+	$invoice->type = Facture::TYPE_STANDARD;
+	if ($invoice->create($admin) <= 0) {
+		rt_fail('invoice: '.$invoice->error);
+	}
+	$vat = get_default_tva($mysoc, $customer, (int) rt_env('RT_PRODUCT_ID'));
+	if ($invoice->addline('Laufzeit VATEX', 10, 1, $vat, 0, 0, (int) rt_env('RT_PRODUCT_ID')) <= 0) {
+		rt_fail('line: '.$invoice->error);
+	}
+	$resql = $db->query("SELECT tva_tx, vat_src_code FROM ".MAIN_DB_PREFIX."facturedet WHERE fk_facture = ".((int) $invoice->id));
+	$line = $resql ? $db->fetch_object($resql) : null;
+	$invoice->delete($admin);
+	print json_encode(array('vat' => (string) $vat, 'tva_tx' => $line ? (float) $line->tva_tx : -1, 'vat_src_code' => $line ? (string) $line->vat_src_code : ''))."\n";
+	exit(0);
+}
+
+// A portal account for a member, as the association sets it up in Dolibarr's web portal (#25).
+if ($stage === 'portalmember') {
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/societeaccount.class.php';
+	$memberId = (int) rt_env('RT_MEMBER_ID');
+	$resql = $db->query("SELECT fk_soc FROM ".MAIN_DB_PREFIX."adherent WHERE rowid = ".$memberId);
+	$obj = $resql ? $db->fetch_object($resql) : null;
+	if (!$obj || (int) $obj->fk_soc <= 0) {
+		rt_fail('member '.$memberId.' has no third party');
+	}
+	// The user the portal acts as in Dolibarr.
+	$portalUser = new User($db);
+	if ($portalUser->fetch(0, 'rtportal') <= 0) {
+		$portalUser->login = 'rtportal';
+		$portalUser->lastname = 'Webportal';
+		if ($portalUser->create($admin) <= 0) {
+			rt_fail('portal user: '.$portalUser->error);
+		}
+	}
+	dolibarr_set_const($db, 'WEBPORTAL_USER_LOGGED', (string) $portalUser->id, 'chaine', 0, '', $conf->entity);
+	$password = bin2hex(random_bytes(8));
+	$account = new SocieteAccount($db);
+	$account->fk_soc = (int) $obj->fk_soc;
+	$account->login = 'rtportal'.$memberId;
+	$account->pass_crypted = dol_hash($password);
+	$account->site = 'dolibarr_portal';
+	$account->status = 1;
+	if ($account->create($admin) <= 0) {
+		rt_fail('portal account: '.$account->error.' '.implode(' ', $account->errors));
+	}
+	// Dolibarr hashes an empty clear password on create; the hash of the real one is written afterwards.
+	if (!$db->query("UPDATE ".MAIN_DB_PREFIX."societe_account SET pass_crypted = '".$db->escape(dol_hash($password))."' WHERE rowid = ".((int) $account->id))) {
+		rt_fail('portal password: '.$db->lasterror());
+	}
+	print json_encode(array('login' => $account->login, 'password' => $password))."\n";
+	exit(0);
+}
+
+// Where the module keeps the PDFs of the statutes (#158).
+if ($stage === 'statutedir') {
+	dol_include_once('/vereine/class/vereinestatutes.class.php');
+	print json_encode(array('dir' => VereineStatutes::directory()))."\n";
+	exit(0);
+}
+
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers, inventory, runloans, signedcopy, signedrun, ballotconfirm, vatline, portalmember, statutedir or reset');

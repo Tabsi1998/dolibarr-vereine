@@ -104,6 +104,47 @@ class ActionsVereine
 	}
 
 	/**
+	 * Dolibarr's web portal (23 and later) gathers its pages: the module adds the page of the association (#25).
+	 *
+	 * @param array<string,mixed> $parameters  Hook parameters
+	 * @param Context             $object      Context of the portal
+	 * @param string              $action      Not used
+	 * @param HookManager         $hookmanager Hook manager
+	 * @return int 0, the portal's own pages stay
+	 */
+	public function initController($parameters, &$object, &$action, $hookmanager)
+	{
+		if (isModEnabled('vereine') && is_object($object) && method_exists($object, 'addControllerDefinition')) {
+			$object->addControllerDefinition('vereine', dol_buildpath('/vereine/class/portal/vereine.controller.class.php', 0), VereinePortalController::class);
+		}
+		return 0;
+	}
+
+	/**
+	 * The menu of the web portal names the page of the association for a member logged in, once the association switched it on (#25).
+	 *
+	 * @param array<string,mixed> $parameters  Hook parameters with the menu
+	 * @param Context             $object      Context of the portal
+	 * @param string              $action      Not used
+	 * @param HookManager         $hookmanager Hook manager
+	 * @return int 0, the portal adds the results to its menu
+	 */
+	public function printTopMenu($parameters, &$object, &$action, $hookmanager)
+	{
+		global $langs;
+
+		$this->results = array();
+		dol_include_once('/vereine/class/vereineportal.class.php');
+		if (!isModEnabled('vereine') || !is_object($object) || empty($object->logged_member) || (int) $object->logged_member->id <= 0 || !VereinePortal::capabilities()
+			|| !method_exists($object, 'getControllerUrl')) {
+			return 0;
+		}
+		$langs->load('vereine@vereine');
+		$this->results['vereine'] = array('id' => 'vereine', 'rank' => 105, 'url' => $object->getControllerUrl('vereine'), 'name' => $langs->trans('VereinePortalMenu'));
+		return 0;
+	}
+
+	/**
 	 * Before Dolibarr's actions on the member card: note the third party of a member about to be linked.
 	 *
 	 * @param array<string,mixed> $parameters  Hook parameters

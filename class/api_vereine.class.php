@@ -819,6 +819,564 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Documents published for the public
+	 *
+	 * Finished documents of the association's files that it published for the public, the newest
+	 * revision each: minutes, resolutions, reports, as the association chose. Nothing else, never a
+	 * draft, never a withdrawn one. The PDF comes from documents/{id}/pdf.
+	 *
+	 * @return array List as documented in docs/API.md
+	 *
+	 * @url GET documents
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getDocuments()
+	{
+		$this->checkAccess();
+		dol_include_once('/vereine/class/vereinepublications.class.php');
+		return (new VereinePublications($this->db))->catalog(array('public' => true));
+	}
+
+	/**
+	 * The PDF of a document published for the public
+	 *
+	 * The bytes of the published revision, unchanged, signatures included, checked against the checksum
+	 * kept in the association's files. An unknown, unpublished or withdrawn document is not found.
+	 *
+	 * @param int $id       Document
+	 * @param int $revision Revision, 0 for the one published now
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET documents/{id}/pdf
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such document
+	 * @throws RestException 500 The archived file is missing or was changed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getDocumentPdf($id, $revision = 0)
+	{
+		$this->checkAccess();
+		return $this->documentPdf((int) $id, (int) $revision, array('public' => true));
+	}
+
+	/**
+	 * Documents for the person the caller acts for
+	 *
+	 * What the association published for this person: public documents, those for members while the
+	 * person is an active member, those for the board while the person sits on it. Only with the
+	 * ability documents for this binding.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array List as documented in docs/API.md
+	 *
+	 * @url GET me/documents
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyDocuments($subject = '')
+	{
+		$this->checkAccess();
+		$actor = $this->documentActor((string) $subject);
+		return (new VereinePublications($this->db))->catalog($actor);
+	}
+
+	/**
+	 * The PDF of a document for the person the caller acts for
+	 *
+	 * Checked again on every call: whether the binding may, whether the person may, whether it is still
+	 * published. A document the person may not see is not found, whether it exists or not.
+	 *
+	 * @param int    $id       Document
+	 * @param string $subject  How the application calls the person
+	 * @param int    $revision Revision, 0 for the one published now
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET me/documents/{id}/pdf
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 No such document
+	 * @throws RestException 500 The archived file is missing or was changed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyDocumentPdf($id, $subject = '', $revision = 0)
+	{
+		$this->checkAccess();
+		return $this->documentPdf((int) $id, (int) $revision, $this->documentActor((string) $subject));
+	}
+
+	/**
+	 * The statutes, when the association publishes them for the public
+	 *
+	 * Every stored version with its state on the day: in force, future or repealed, and which one is in
+	 * force. Two versions beginning on the same day are ambiguous and none is named. The text the board is
+	 * still editing is never part of it. Nothing unless the association publishes the statutes for the public.
+	 *
+	 * @param string $day The day, YYYY-MM-DD; empty for today
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET statutes
+	 *
+	 * @throws RestException 400 The day is no day
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getStatutes($day = '')
+	{
+		$this->checkAccess();
+		return $this->statutesFor(array('public' => true), (string) $day);
+	}
+
+	/**
+	 * The PDF of a version of the statutes, when published for the public
+	 *
+	 * @param int $id Version
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET statutes/{id}/pdf
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such version for the caller
+	 * @throws RestException 500 The file is missing or was changed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getStatutePdf($id)
+	{
+		$this->checkAccess();
+		return $this->statutePdf((int) $id, array('public' => true));
+	}
+
+	/**
+	 * The statutes for the person the caller acts for
+	 *
+	 * The same as statutes, for statutes published for members while the person is an active member.
+	 * Only with the ability documents for this binding.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @param string $day     The day, YYYY-MM-DD; empty for today
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET me/statutes
+	 *
+	 * @throws RestException 400 subject missing or the day is no day
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyStatutes($subject = '', $day = '')
+	{
+		$this->checkAccess();
+		return $this->statutesFor($this->documentActor((string) $subject), (string) $day);
+	}
+
+	/**
+	 * The PDF of a version of the statutes for the person the caller acts for
+	 *
+	 * @param int    $id      Version
+	 * @param string $subject How the application calls the person
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET me/statutes/{id}/pdf
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 No such version for the caller
+	 * @throws RestException 500 The file is missing or was changed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyStatutePdf($id, $subject = '')
+	{
+		$this->checkAccess();
+		return $this->statutePdf((int) $id, $this->documentActor((string) $subject));
+	}
+
+	/**
+	 * Meetings of the person the caller acts for
+	 *
+	 * Every meeting the person was invited to, newest first: kind, day and time, place or access, the
+	 * agenda as invited, whether the person has a vote, their own answer and motions, and until when a
+	 * motion is in time. Never a meeting because of the membership alone: a board meeting stays with the
+	 * board. Only with the ability meetings for this binding.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array List as documented in docs/API.md
+	 *
+	 * @url GET me/meetings
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyMeetings($subject = '')
+	{
+		$this->checkAccess();
+		$memberId = $this->meetingMember((string) $subject);
+		return (new VereineMeetingPortal($this->db))->meetingsFor($memberId);
+	}
+
+	/**
+	 * Answer an invitation for the person the caller acts for
+	 *
+	 * Whether the person means to come: yes, no or maybe. It is no attendance and no vote; the same answer
+	 * again changes nothing.
+	 *
+	 * @param int    $id           Meeting
+	 * @param string $subject      How the application calls the person
+	 * @param array  $request_data response
+	 * @return array The meeting afterwards
+	 *
+	 * @url PUT me/meetings/{id}/response
+	 *
+	 * @throws RestException 400 subject missing or no such answer
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 Not invited to such a meeting
+	 * @throws RestException 409 The meeting is over or cancelled
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function putMyMeetingResponse($id, $subject = '', $request_data = null)
+	{
+		$this->checkAccess();
+		$memberId = $this->meetingMember((string) $subject);
+		$portal = new VereineMeetingPortal($this->db);
+		$response = is_array($request_data) && isset($request_data['response']) && is_scalar($request_data['response']) ? (string) $request_data['response'] : '';
+		$result = $portal->respond($memberId, (int) $id, $response, (string) DolibarrApiAccess::$user->login, dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+		if ($result <= 0) {
+			$this->portalRefused($portal, $result);
+		}
+		foreach ($portal->meetingsFor($memberId) as $meeting) {
+			if ($meeting['id'] === (int) $id) {
+				return $meeting;
+			}
+		}
+		throw new RestException(404, 'Not found');
+	}
+
+	/**
+	 * Send a motion for the agenda of a general assembly for the person the caller acts for
+	 *
+	 * The motion arrives once: the same external_id with the same content answers the same motion, with
+	 * other content it is refused. After the days the statutes set before the assembly it is kept as late.
+	 * Whether it goes on the agenda, the board decides in Dolibarr.
+	 *
+	 * @param int    $id           Meeting
+	 * @param string $subject      How the application calls the person
+	 * @param array  $request_data external_id, title, text
+	 * @return array The motion
+	 *
+	 * @url POST me/meetings/{id}/motions
+	 * @status 200
+	 *
+	 * @throws RestException 400 subject missing, the motion is incomplete, or the meeting is no general assembly
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 Not invited to such a meeting
+	 * @throws RestException 409 The meeting is over or cancelled, or the external_id holds another motion
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function postMyMeetingMotion($id, $subject = '', $request_data = null)
+	{
+		$this->checkAccess();
+		$memberId = $this->meetingMember((string) $subject);
+		$portal = new VereineMeetingPortal($this->db);
+		$motion = $portal->submitMotion($memberId, (int) $id, $request_data, (string) DolibarrApiAccess::$user->login, dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+		if ($motion === null) {
+			$this->portalRefused($portal, $portal->error !== '' ? -1 : 0);
+		}
+		return $motion;
+	}
+
+	/**
+	 * The own data of the person the caller acts for
+	 *
+	 * Name, contact data, member type, status and a planned or finished exit, with the version a change
+	 * must name and the fields that change at once. Only with the ability profile for this binding; the
+	 * summary for websites stays without address and birth.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET me/profile
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyProfile($subject = '')
+	{
+		$this->checkAccess();
+		$member = $this->profileMember((string) $subject);
+		return (new VereineProfiles($this->db))->profile($member);
+	}
+
+	/**
+	 * Ask for a change of the own contact data
+	 *
+	 * Only address, zip, town, country, phones and e-mail; nothing else can be changed this way. The
+	 * request names the version of GET me/profile; when the data changed since, it is a conflict. Fields
+	 * the association lets change at once are applied, everything else waits for the board. The same
+	 * external_id with the same content answers the same request.
+	 *
+	 * @param string $subject      How the application calls the person
+	 * @param array  $request_data external_id, version, changes
+	 * @return array The request
+	 *
+	 * @url POST me/profile/changes
+	 * @status 200
+	 *
+	 * @throws RestException 400 subject missing or the request is not valid
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 409 The data changed since, or the external_id holds another request
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function postMyProfileChange($subject = '', $request_data = null)
+	{
+		$this->checkAccess();
+		$member = $this->profileMember((string) $subject);
+		$profiles = new VereineProfiles($this->db);
+		$request = $profiles->submitChange($member, $request_data, (string) DolibarrApiAccess::$user->login, DolibarrApiAccess::$user);
+		if ($request === null) {
+			$this->profileRefused($profiles);
+		}
+		return $request;
+	}
+
+	/**
+	 * The own requests of the person the caller acts for
+	 *
+	 * Changes and notices of the exit, newest first, each with its state and, when the board said no,
+	 * the reason meant for the member. What the board notes for itself is never part of it.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array List as documented in docs/API.md
+	 *
+	 * @url GET me/profile/changes
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyProfileChanges($subject = '')
+	{
+		$this->checkAccess();
+		$member = $this->profileMember((string) $subject);
+		return (new VereineProfiles($this->db))->requests((int) $member->id);
+	}
+
+	/**
+	 * Give notice of the exit for the person the caller acts for
+	 *
+	 * Kept with the day it came; the membership ends on the day the notice rule of the association says,
+	 * or later when a later day is wished. The answer names that day. The same external_id again answers
+	 * the same notice.
+	 *
+	 * @param string $subject      How the application calls the person
+	 * @param array  $request_data external_id, wished_last_day
+	 * @return array The notice
+	 *
+	 * @url POST me/exit
+	 * @status 200
+	 *
+	 * @throws RestException 400 subject missing or the notice is not valid
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 409 An exit is already planned, the person is no active member, or the external_id holds another request
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function postMyExit($subject = '', $request_data = null)
+	{
+		$this->checkAccess();
+		$member = $this->profileMember((string) $subject);
+		$profiles = new VereineProfiles($this->db);
+		$notice = $profiles->submitExit($member, $request_data, (string) DolibarrApiAccess::$user->login, dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'), DolibarrApiAccess::$user);
+		if ($notice === null) {
+			$this->profileRefused($profiles);
+		}
+		return $notice;
+	}
+
+	/**
+	 * Ballots for the person the caller acts for
+	 *
+	 * Ballots of general assemblies the person was invited to, from their release on: question, options,
+	 * status, and the voting rights the person may use: the own one, and those of members who gave the
+	 * person a written proxy. A represented member sees why the own right is not there. Only with the
+	 * ability votes for this binding. Opening, closing and counting happen in Dolibarr.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array List as documented in docs/API.md
+	 *
+	 * @url GET me/ballots
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyBallots($subject = '')
+	{
+		$this->checkAccess();
+		$memberId = $this->ballotMember((string) $subject);
+		return (new VereineBallots($this->db))->forMember($memberId);
+	}
+
+	/**
+	 * Cast a vote for the person the caller acts for
+	 *
+	 * With one voting right of GET me/ballots and one option, while the ballot is open and the person is
+	 * in the assembly by the attendance. A right is used once, by any application or on paper. The same
+	 * external_id answers the same request; the same vote sent again without one changes nothing.
+	 *
+	 * @param int    $id           Ballot
+	 * @param string $subject      How the application calls the person
+	 * @param array  $request_data right_id, option, external_id
+	 * @return array The ballot afterwards
+	 *
+	 * @url POST me/ballots/{id}/votes
+	 * @status 200
+	 *
+	 * @throws RestException 400 subject, right_id or option missing, or an option the ballot does not have
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 No such ballot or right for the person
+	 * @throws RestException 409 Not open, closed, the right was used, not in the assembly, or the external_id holds another vote
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function postMyVote($id, $subject = '', $request_data = null)
+	{
+		$this->checkAccess();
+		$memberId = $this->ballotMember((string) $subject);
+		$data = is_array($request_data) ? $request_data : array();
+		$right = isset($data['right_id']) && is_numeric($data['right_id']) ? (int) $data['right_id'] : 0;
+		$option = isset($data['option']) && is_string($data['option']) ? trim($data['option']) : '';
+		$external = isset($data['external_id']) && is_scalar($data['external_id']) ? (string) $data['external_id'] : '';
+		if ($right < 1 || $option === '') {
+			throw new RestException(400, 'right_id and option are needed');
+		}
+		$ballots = new VereineBallots($this->db);
+		$result = $ballots->cast((int) $id, $right, $option, $memberId, VereineBallotRules::CHANNEL_APP, (string) DolibarrApiAccess::$user->login, $external, DolibarrApiAccess::$user);
+		if ($result < 0) {
+			dol_syslog(__METHOD__.' '.$ballots->error, LOG_ERR);
+			throw new RestException(500, 'The vote could not be kept');
+		}
+		if ($result === 0) {
+			if ($ballots->reason === 'not_found') {
+				throw new RestException(404, 'Not found');
+			}
+			throw new RestException($ballots->reason === 'option' ? 400 : 409, $ballots->reason);
+		}
+		foreach ($ballots->forMember($memberId) as $ballot) {
+			if ($ballot['id'] === (int) $id) {
+				return $ballot;
+			}
+		}
+		throw new RestException(404, 'Not found');
+	}
+
+	/**
+	 * Public events
+	 *
+	 * Events from today on that the association marked as public: name, days, place, state and where
+	 * people register (nowhere, in Dolibarr, or at one named external application). Never a list of
+	 * participants, internal tasks or money.
+	 *
+	 * @return array List as documented in docs/API.md
+	 *
+	 * @url GET events
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getEvents()
+	{
+		$this->checkAccess();
+		dol_include_once('/vereine/class/vereineeventportal.class.php');
+		return (new VereineEventPortal($this->db))->events(dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+	}
+
+	/**
+	 * Events and helper shifts for the person the caller acts for
+	 *
+	 * The public events and those for members, from today on, each with its helper shifts: how many
+	 * places are taken and the person's own state. Only with the ability events for this binding.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array List as documented in docs/API.md
+	 *
+	 * @url GET me/events
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyEvents($subject = '')
+	{
+		$this->checkAccess();
+		$memberId = $this->eventMember((string) $subject);
+		return (new VereineEventPortal($this->db))->events(dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'), $memberId);
+	}
+
+	/**
+	 * Ask for a helper shift for the person the caller acts for
+	 *
+	 * The request waits for the board, which confirms it in Dolibarr. Asking again changes nothing; a
+	 * shift overlapping another of the person is refused.
+	 *
+	 * @param int    $id      Event
+	 * @param int    $shift   Shift
+	 * @param string $subject How the application calls the person
+	 * @return array The event afterwards
+	 *
+	 * @url PUT me/events/{id}/shifts/{shift}
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 No such event or shift for the person
+	 * @throws RestException 409 The event is cancelled, the shift is over or full, or overlaps another
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function putMyShift($id, $shift, $subject = '')
+	{
+		$this->checkAccess();
+		$memberId = $this->eventMember((string) $subject);
+		$portal = new VereineEventPortal($this->db);
+		$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
+		$result = $portal->ask($memberId, (int) $id, (int) $shift, (string) DolibarrApiAccess::$user->login, $today, DolibarrApiAccess::$user);
+		if ($result <= 0) {
+			$this->eventRefused($portal, $result);
+		}
+		return $this->eventFor($portal, $memberId, (int) $id, $today);
+	}
+
+	/**
+	 * Take back a helper shift the board has not confirmed yet
+	 *
+	 * @param int    $id      Event
+	 * @param int    $shift   Shift
+	 * @param string $subject How the application calls the person
+	 * @return array The event afterwards
+	 *
+	 * @url DELETE me/events/{id}/shifts/{shift}
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 No such event or shift for the person
+	 * @throws RestException 409 The shift is confirmed, over or the event cancelled
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function deleteMyShift($id, $shift, $subject = '')
+	{
+		$this->checkAccess();
+		$memberId = $this->eventMember((string) $subject);
+		$portal = new VereineEventPortal($this->db);
+		$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
+		$result = $portal->withdraw($memberId, (int) $id, (int) $shift, $today, DolibarrApiAccess::$user);
+		if ($result <= 0) {
+			$this->eventRefused($portal, $result);
+		}
+		return $this->eventFor($portal, $memberId, (int) $id, $today);
+	}
+
+	/**
 	 * The accounts of the person the caller acts for
 	 *
 	 * The networks the association asks for and every other the member has, each with the name, where it
@@ -1086,6 +1644,261 @@ class Vereine extends DolibarrApi
 			throw new RestException(403, 'Not allowed: '.$result['reason']);
 		}
 		return $result['identity'];
+	}
+
+	/**
+	 * Who the caller acts for, for the publications: a member binding with the ability documents.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array{public:bool,member:bool,board:bool}
+	 *
+	 * @throws RestException
+	 */
+	private function documentActor($subject)
+	{
+		$this->checkIdentityRight();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		dol_include_once('/vereine/class/vereinepublications.class.php');
+		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_DOCUMENTS, 'member');
+		return (new VereinePublications($this->db))->actorFor((int) $identity['member_id']);
+	}
+
+	/**
+	 * The statutes as somebody may read them on a day.
+	 *
+	 * @param array<string,bool> $actor public, member, board
+	 * @param string             $day   The day, empty for today
+	 * @return array
+	 *
+	 * @throws RestException
+	 */
+	private function statutesFor(array $actor, $day)
+	{
+		if ($day === '') {
+			$day = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
+		}
+		if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $day, $parts) || !checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1])) {
+			throw new RestException(400, 'day must be YYYY-MM-DD');
+		}
+		dol_include_once('/vereine/class/vereinestatutes.class.php');
+		return (new VereineStatutes($this->db))->published($actor, $day);
+	}
+
+	/**
+	 * The PDF of a version of the statutes for somebody.
+	 *
+	 * @param int                $id    Version
+	 * @param array<string,bool> $actor public, member, board
+	 * @return array
+	 *
+	 * @throws RestException
+	 */
+	private function statutePdf($id, array $actor)
+	{
+		dol_include_once('/vereine/class/vereinestatutes.class.php');
+		$statutes = new VereineStatutes($this->db);
+		$pdf = $statutes->publishedPdf($id, $actor);
+		if ($pdf === null) {
+			throw new RestException(404, 'No such version');
+		}
+		if ($pdf === false) {
+			dol_syslog(__METHOD__.' '.$statutes->error, LOG_ERR);
+			throw new RestException(500, 'The file is missing or was changed');
+		}
+		return $pdf;
+	}
+
+	/**
+	 * The PDF of a published document for somebody.
+	 *
+	 * @param int                $id       Document
+	 * @param int                $revision Revision, 0 for the one published now
+	 * @param array<string,bool> $actor    public, member, board
+	 * @return array
+	 *
+	 * @throws RestException
+	 */
+	private function documentPdf($id, $revision, array $actor)
+	{
+		dol_include_once('/vereine/class/vereinepublications.class.php');
+		$publications = new VereinePublications($this->db);
+		$pdf = $publications->pdf($id, $revision, $actor);
+		if ($pdf === null) {
+			throw new RestException(404, 'No such document');
+		}
+		if ($pdf === false) {
+			dol_syslog(__METHOD__.' '.$publications->error, LOG_ERR);
+			throw new RestException(500, 'The archived file is missing or was changed');
+		}
+		return $pdf;
+	}
+
+	/**
+	 * The member the caller acts for, when the binding may vote for the person.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return int Member
+	 *
+	 * @throws RestException
+	 */
+	private function ballotMember($subject)
+	{
+		global $langs;
+
+		$this->checkIdentityRight();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		dol_include_once('/vereine/class/vereineballots.class.php');
+		$langs->load('vereine@vereine');
+		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_VOTES, 'member');
+		return (int) $identity['member_id'];
+	}
+
+	/**
+	 * The member the caller acts for, when the binding may handle the person's events.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return int Member
+	 *
+	 * @throws RestException
+	 */
+	private function eventMember($subject)
+	{
+		$this->checkIdentityRight();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		dol_include_once('/vereine/class/vereineeventportal.class.php');
+		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_EVENTS, 'member');
+		return (int) $identity['member_id'];
+	}
+
+	/**
+	 * One event as the member sees it.
+	 *
+	 * @param VereineEventPortal $portal   The service
+	 * @param int                $memberId Member
+	 * @param int                $eventId  Event
+	 * @param string             $today    Today
+	 * @return array
+	 *
+	 * @throws RestException
+	 */
+	private function eventFor($portal, $memberId, $eventId, $today)
+	{
+		foreach ($portal->events($today, $memberId) as $event) {
+			if ($event['id'] === $eventId) {
+				return $event;
+			}
+		}
+		throw new RestException(404, 'Not found');
+	}
+
+	/**
+	 * Turn what the event service refused into the answer of the API.
+	 *
+	 * @param VereineEventPortal $portal The service
+	 * @param int                $result What it returned
+	 * @return void
+	 *
+	 * @throws RestException
+	 */
+	private function eventRefused($portal, $result)
+	{
+		if ($result < 0) {
+			dol_syslog(__METHOD__.' '.$portal->error, LOG_ERR);
+			throw new RestException(500, 'The shift could not be kept');
+		}
+		if (in_array('not found', $portal->errors, true)) {
+			throw new RestException(404, 'Not found');
+		}
+		throw new RestException(409, implode('; ', $portal->errors));
+	}
+
+	/**
+	 * The member the caller acts for, when the binding may handle the person's own data.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return Adherent
+	 *
+	 * @throws RestException
+	 */
+	private function profileMember($subject)
+	{
+		$this->checkIdentityRight();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		dol_include_once('/vereine/class/vereineprofiles.class.php');
+		require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_PROFILE, 'member');
+		$member = new Adherent($this->db);
+		if ($member->fetch((int) $identity['member_id']) <= 0) {
+			throw new RestException(403, 'Not allowed: the binding has no member');
+		}
+		return $member;
+	}
+
+	/**
+	 * Turn what the service for own data refused into the answer of the API.
+	 *
+	 * @param VereineProfiles $profiles The service
+	 * @return void
+	 *
+	 * @throws RestException
+	 */
+	private function profileRefused($profiles)
+	{
+		if (!$profiles->errors) {
+			dol_syslog(__METHOD__.' '.$profiles->error, LOG_ERR);
+			throw new RestException(500, 'The request could not be kept');
+		}
+		if (in_array('conflict', $profiles->errors, true)) {
+			throw new RestException(409, 'The data changed since, or the external_id holds another request');
+		}
+		if (array_intersect(array('an exit is already planned', 'only an active member can give notice'), $profiles->errors)) {
+			throw new RestException(409, implode('; ', $profiles->errors));
+		}
+		throw new RestException(400, implode('; ', $profiles->errors));
+	}
+
+	/**
+	 * The member the caller acts for, when the binding may handle the person's meetings.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return int Member
+	 *
+	 * @throws RestException
+	 */
+	private function meetingMember($subject)
+	{
+		$this->checkIdentityRight();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		dol_include_once('/vereine/class/vereinemeetingportal.class.php');
+		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_MEETINGS, 'member');
+		return (int) $identity['member_id'];
+	}
+
+	/**
+	 * Turn what the meeting service refused into the answer of the API.
+	 *
+	 * @param VereineMeetingPortal $portal The service
+	 * @param int                  $result What it returned
+	 * @return void
+	 *
+	 * @throws RestException
+	 */
+	private function portalRefused($portal, $result)
+	{
+		if ($result < 0) {
+			dol_syslog(__METHOD__.' '.$portal->error, LOG_ERR);
+			throw new RestException(500, 'The answer could not be kept');
+		}
+		if (in_array('not found', $portal->errors, true)) {
+			throw new RestException(404, 'Not found');
+		}
+		if (in_array('the meeting is over or cancelled', $portal->errors, true)) {
+			throw new RestException(409, 'The meeting is over or cancelled');
+		}
+		if (in_array('conflict', $portal->errors, true)) {
+			throw new RestException(409, 'A motion with this external_id exists with other content');
+		}
+		throw new RestException(400, implode('; ', $portal->errors));
 	}
 
 	/**

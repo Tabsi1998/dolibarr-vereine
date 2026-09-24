@@ -79,6 +79,10 @@ require_once $root.'/class/vereinearrearrules.class.php';
 require_once $root.'/class/vereinesocialrules.class.php';
 require_once $root.'/class/vereinehonourrules.class.php';
 require_once $root.'/class/vereineloanrules.class.php';
+require_once $root.'/class/vereinepublicationrules.class.php';
+require_once $root.'/class/vereinestatuteversionrules.class.php';
+require_once $root.'/class/vereinemotionrules.class.php';
+require_once $root.'/class/vereineprofilerules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -86,6 +90,8 @@ require_once $root.'/class/vereinepdf.class.php';
 require_once $root.'/class/vereinetextrepair.class.php';
 require_once $root.'/class/vereineattendancerules.class.php';
 require_once $root.'/class/vereinevoterules.class.php';
+require_once $root.'/class/vereineballotrules.class.php';
+require_once $root.'/class/vereineportal.class.php';
 require_once $root.'/class/vereineresolutionrules.class.php';
 require_once $root.'/class/vereinecircularrules.class.php';
 require_once $root.'/class/vereinemeetingdocrules.class.php';
@@ -1807,7 +1813,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked', 'honour', 'loan', 'loan_returned', 'loan_reminded'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked', 'honour', 'loan', 'loan_returned', 'loan_reminded', 'publication', 'meeting_response', 'motion', 'profile', 'ballot', 'ballot_vote', 'portal'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1851,6 +1857,10 @@ $prefixes = array(
 	'VereineArrearState_' => VereineArrearRules::STATES,
 	'VereineStatisticsGender_' => array('woman', 'man', 'other', 'unknown'),
 	'VereineLoanState_' => array('available', 'out', 'overdue', 'returned'),
+	'VereinePublicationAudience_' => array('none', 'board', 'members', 'public', 'person'),
+	'VereineMotionState_' => array('accepted', 'rejected'),
+	'VereineProfileField_' => array_keys(VereineProfileRules::FIELDS),
+	'VereineMotionDecide_' => array('accepted', 'rejected'),
 	'VereineHonourKind_' => array('jubilee', 'honorary'),
 	'VereineErasureReason_' => array('keep_bookkeeping', 'keep_records', 'member', 'hold', 'open_invoices', 'functions', 'name'),
 	'VereineSetupStep_' => VereineSetupGuideRules::STEPS,
@@ -1882,6 +1892,16 @@ $prefixes = array(
 	'VereineAttendanceState_' => VereineAttendanceRules::STATES,
 	'VereineAttendanceHowTo_' => array('board', 'general'),
 	'VereineVoteKind_' => VereineVoteRules::KINDS,
+	'VereineBallotStatus_' => VereineBallotRules::STATUSES,
+	'VereineBallotOption_' => array(VereineBallotRules::YES, VereineBallotRules::NO, VereineBallotRules::ABSTAIN),
+	'VereineBallotChannel_' => VereineBallotRules::CHANNELS,
+	'VereineBallotReason_' => VereineBallotRules::REASONS,
+	'VereinePortalResponse_' => array('yes', 'no', 'maybe'),
+	'VereinePortalNoRight_' => array('represented', 'no_voting_right', 'not_member'),
+	'VereineVatCode_' => array_column(VereineTaxRules::zeroCodes(), 'key'),
+	'VereineBallotResult_' => VereineBallotRules::RESULTS,
+	'VereineBallotOutcome_' => VereineBallotRules::OUTCOMES,
+	'VereineBallotRefused_' => array('not_found', 'not_open', 'closed', 'channel', 'used', 'not_present', 'option', 'external_id'),
 	'VereineMinutesPlaceholder_' => VereineMinutesRules::PLACEHOLDERS,
 	'VereineMinutesItemKind_' => VereineMinutesRules::ITEM_KINDS,
 	'VereineMeetingStep_' => VereineMeetingRules::STEPS,
@@ -2919,6 +2939,187 @@ $sorted = VereineSocialRules::sortChannels(array(
 	array('network' => 'twitch', 'position' => 20, 'label' => 'CS2'),
 	array('network' => 'discord', 'position' => 30, 'label' => 'Server')), array('discord', 'twitch', 'youtube'));
 same(array('Hauptstream', 'CS2', 'Livestream', 'Server'), array_column($sorted, 'label'), 'the order of the association first, then the network');
+// ------------------------------------------------------------- ballots of a general assembly (#160, #161)
+
+same(array(true, true, false, false, true), array(VereineBallotRules::canMove('draft', 'released'), VereineBallotRules::canMove('open', 'closed'),
+	VereineBallotRules::canMove('draft', 'open'), VereineBallotRules::canMove('evaluated', 'cancelled'), VereineBallotRules::canMove('closed', 'cancelled')),
+	'released before open, nothing after the count');
+$people = array(7 => 'Anna Muster', 8 => 'Ben Beispiel');
+$functions = array(3 => 'Obfrau');
+$plain = VereineBallotRules::entered(array('item' => '2', 'kind' => 'resolution', 'question' => ' Entlastung ', 'channels' => array('app', 'paper', 'fax'), 'closes' => '19:30'),
+	$people, 4, $functions);
+same(array(array(), 'Entlastung', array('app', 'paper'), array('yes', 'no', 'abstain')), array($plain['errors'], $plain['ballot']['question'], $plain['ballot']['channels'],
+	array_column($plain['options'], 'code')), 'a resolution: yes, no, abstain; only known channels');
+$single = VereineBallotRules::entered(array('item' => '1', 'kind' => 'election', 'question' => 'Obfrau', 'channels' => array('app'), 'function_id' => '3',
+	'candidates' => array('7'), 'consent' => array('7')), $people, 4, $functions);
+same(array(array('c7', 'no', 'abstain'), true), array(array_column($single['options'], 'code'), $single['options'][0]['consent']), 'one candidate: for, against, abstain; with consent');
+same(array('VereineVoteErrorItem', 'VereineBallotErrorQuestion', 'VereineBallotErrorChannels', 'VereineBallotErrorCloses'),
+	VereineBallotRules::entered(array('item' => '9', 'question' => '', 'closes' => '25:00'), $people, 4, $functions)['errors'], 'item, question, channels and time are checked');
+same(array('VereineVoteErrorElection', 'VereineBallotErrorCandidate', 'VereineBallotErrorCandidates'), VereineBallotRules::entered(array('item' => '1', 'kind' => 'election',
+	'question' => 'Kassier', 'channels' => array('app'), 'function_id' => '4', 'candidates' => array('99')), $people, 4, $functions)['errors'], 'an unknown function and somebody who is no active member');
+same(array('VereineBallotErrorBoard'), VereineBallotRules::releaseProblems(array('status' => 'draft', 'secret' => false), $plain['options'], array('kind' => 'board', 'status' => 'invited')),
+	'no ballot through applications in a board meeting');
+same(array('VereineBallotErrorStatus', 'VereineBallotErrorConsent'), VereineBallotRules::releaseProblems(array('status' => 'open', 'secret' => false),
+	array(array('member_id' => 8, 'consent' => false)), array('kind' => 'general', 'status' => 'invited')), 'released once, and only with the consent of every candidate');
+$day = '2026-10-10';
+same(array('own', 'no_voting_right', 'not_member', 'not_member', 'own', 'proxy'), array(
+	VereineBallotRules::right(array('member_id' => 1, 'voting' => true), array('status' => 1, 'arrears' => 120.0), '', 0, $day)['reason'],
+	VereineBallotRules::right(array('member_id' => 2, 'voting' => false), array('status' => 1), '', 0, $day)['reason'],
+	VereineBallotRules::right(array('member_id' => 3, 'voting' => true), array('status' => 0), '', 0, $day)['reason'],
+	VereineBallotRules::right(array('member_id' => 4, 'voting' => true), array('status' => 1), '2026-10-09', 0, $day)['reason'],
+	VereineBallotRules::right(array('member_id' => 5, 'voting' => true), array('status' => 1), '2026-12-31', 0, $day)['reason'],
+	VereineBallotRules::right(array('member_id' => 6, 'voting' => true), array('status' => 1), '', 1, $day)['reason']),
+	'a voting right: unpaid fees keep it, a type without it has none, gone before the day none, an exit after the day keeps it, a proxy moves it');
+$present = array('state' => 'present', 'holder' => 0, 'arrived' => '18:00', 'left' => '');
+$attendance = array(1 => $present, 6 => array('state' => 'represented', 'holder' => 1, 'arrived' => '', 'left' => ''), 9 => array('state' => 'represented', 'holder' => 2, 'arrived' => '', 'left' => ''));
+same(array(6 => 1), VereineBallotRules::proxies('general', $attendance, array(1 => true, 6 => true, 9 => true, 2 => false), array('proxy' => true)),
+	'only a valid proxy: to a voting member who is present');
+same(array(), VereineBallotRules::proxies('general', $attendance, array(1 => true, 6 => true), array('proxy' => false)), 'no proxy when the statutes do not allow one');
+$open = array('status' => 'open', 'day' => $day, 'closes' => '19:30', 'channels' => array('app', 'paper'));
+$mine = array('eligible' => true, 'holder' => 1, 'used' => false);
+same(array('', 'not_found', 'not_found', 'not_open', 'closed', 'closed', 'closed', 'channel', 'used', 'not_present', ''), array(
+	VereineBallotRules::castProblem($open, $mine, 1, 'app', $day, '19:00', true),
+	VereineBallotRules::castProblem($open, null, 1, 'app', $day, '19:00', true),
+	VereineBallotRules::castProblem($open, $mine, 6, 'app', $day, '19:00', true),
+	VereineBallotRules::castProblem(array('status' => 'released') + $open, $mine, 1, 'app', $day, '19:00', true),
+	VereineBallotRules::castProblem(array('status' => 'closed') + $open, $mine, 1, 'app', $day, '19:00', true),
+	VereineBallotRules::castProblem($open, $mine, 1, 'app', '2026-10-11', '10:00', true),
+	VereineBallotRules::castProblem($open, $mine, 1, 'app', $day, '19:30', true),
+	VereineBallotRules::castProblem(array('channels' => array('paper')) + $open, $mine, 1, 'app', $day, '19:00', true),
+	VereineBallotRules::castProblem($open, array('used' => true) + $mine, 1, 'app', $day, '19:00', true),
+	VereineBallotRules::castProblem($open, $mine, 1, 'app', $day, '19:00', false),
+	VereineBallotRules::castProblem($open, $mine, 0, 'paper', $day, '19:00', false)),
+	'a vote counts while open and before the hour, once, by the holder of the right in the assembly; the board enters paper ballots');
+same(array('counts' => array('yes' => 2, 'no' => 1, 'abstain' => 1), 'valid' => 3, 'abstain' => 1), VereineBallotRules::tally(array('yes', 'no', 'abstain'),
+	array('yes', 'no', 'yes', 'abstain', 'maybe')), 'abstentions are no valid votes cast; unknown codes do not count');
+
+// ------------------------------------------------------------- the web portal (#25)
+
+same(array('documents', 'votes'), VereinePortal::parse('votes, documents,admin,votes'), 'only offered abilities, in their order, once');
+same(array(), VereinePortal::parse(''), 'switched off by default');
+same(array(false, true, true), array(VereinePortal::supported('22.0.3'), VereinePortal::supported('23.0.0'), VereinePortal::supported('24.0.1')),
+	'the web portal takes pages of modules from Dolibarr 23 on');
+
+// ------------------------------------------------------------- 0 % with a reason for e-invoices (#45)
+
+same(array('AT-NS', 'AT-NS', 'AT-KU', 'AT-SP', '', '', ''), array_map(array('VereineTaxRules', 'zeroCodeOf'), array(VereineTaxRules::TREATMENT_NONBUSINESS,
+	VereineTaxRules::TREATMENT_HOBBY, VereineTaxRules::TREATMENT_SMALL_BUSINESS, VereineTaxRules::TREATMENT_SPORT, VereineTaxRules::TREATMENT_REDUCED_10,
+	VereineTaxRules::TREATMENT_REDUCED_13, VereineTaxRules::TREATMENT_STANDARD_20)), 'every treatment at 0 %, and only those, has a code');
+same(array('AT-NS' => 'VATEX-EU-O', 'AT-KU' => '', 'AT-SP' => ''), array_map(function ($entry) {
+	return $entry['vatex'];
+}, VereineTaxRules::zeroCodes()), 'VATEX only where the official list has a code: not subject to VAT');
+foreach (VereineTaxRules::zeroCodes() as $code => $entry) {
+	expect(strlen($code) <= 10 && mb_strlen($entry['note'], 'UTF-8') <= 128, 'code '.$code.' fits the VAT dictionary');
+	expect(VereineTaxRules::rateOf($entry['treatments'][0]) === 0.0, 'code '.$code.' is for 0 %');
+}
+
+// ------------------------------------------------------------- counting a ballot (#163)
+
+$resolution = array('rules' => array('majority' => 'two_thirds'), 'options' => array(array('code' => 'yes', 'member_id' => 0), array('code' => 'no', 'member_id' => 0),
+	array('code' => 'abstain', 'member_id' => 0)));
+$reached = array('reached' => true);
+same(array('passed', 'rejected', 'no_quorum'), array(
+	VereineBallotRules::outcome($resolution, VereineBallotRules::tally(array('yes', 'no', 'abstain'), array('yes', 'yes', 'no', 'abstain', 'abstain')), $reached)['outcome'],
+	VereineBallotRules::outcome($resolution, VereineBallotRules::tally(array('yes', 'no', 'abstain'), array('yes', 'no')), $reached)['outcome'],
+	VereineBallotRules::outcome($resolution, VereineBallotRules::tally(array('yes', 'no', 'abstain'), array('yes', 'yes')), array('reached' => false))['outcome']),
+	'two thirds of the valid votes, abstentions apart; without the quorum nothing is decided');
+$election = array('rules' => array('majority' => 'simple'), 'options' => array(array('code' => 'c7', 'member_id' => 7), array('code' => 'c8', 'member_id' => 8),
+	array('code' => 'c9', 'member_id' => 9), array('code' => 'abstain', 'member_id' => 0)));
+$codes = array('c7', 'c8', 'c9', 'abstain');
+$won = VereineBallotRules::outcome($election, VereineBallotRules::tally($codes, array('c7', 'c7', 'c7', 'c8', 'c9', 'abstain')), $reached);
+same(array('passed', 'c7', 7, 3, 2), array($won['outcome'], $won['winner'], $won['candidate_id'], $won['yes'], $won['no']), 'more than half of the valid votes: elected');
+same(array('no_majority', 0), array(VereineBallotRules::outcome($election, VereineBallotRules::tally($codes, array('c7', 'c7', 'c8', 'c9')), $reached)['outcome'],
+	VereineBallotRules::outcome($election, VereineBallotRules::tally($codes, array('c7', 'c8')), $reached)['candidate_id']),
+	'half is not more than half, a tie elects nobody: a run-off is a ballot of its own');
+$alone = array('rules' => array('majority' => 'simple'), 'options' => array(array('code' => 'c7', 'member_id' => 7), array('code' => 'no', 'member_id' => 0),
+	array('code' => 'abstain', 'member_id' => 0)));
+same(array('passed', 'rejected'), array(VereineBallotRules::outcome($alone, VereineBallotRules::tally(array('c7', 'no', 'abstain'), array('c7', 'no', 'c7')), $reached)['outcome'],
+	VereineBallotRules::outcome($alone, VereineBallotRules::tally(array('c7', 'no', 'abstain'), array('c7', 'no')), $reached)['outcome']), 'one candidate: for against, a tie is no majority');
+
+// ------------------------------------------------------------- documents, the second part (#239)
+
+$member7 = array('public' => true, 'member' => true, 'board' => false, 'member_id' => 7);
+$board8 = array('public' => true, 'member' => true, 'board' => true, 'member_id' => 8);
+same(array(true, false, false), array(VereinePublicationRules::sees('person', $member7, 7), VereinePublicationRules::sees('person', $board8, 7),
+	VereinePublicationRules::sees('person', array('public' => true), 0)), 'a document for one person: that person only, not the board, not the public');
+$rows = array(
+	array('document_id' => 1, 'audience' => 'members', 'member_id' => 0, 'revision' => 12, 'created' => 200),
+	array('document_id' => 1, 'audience' => 'board', 'member_id' => 0, 'revision' => 10, 'created' => 100),
+	array('document_id' => 2, 'audience' => 'person', 'member_id' => 7, 'revision' => 20, 'created' => 150),
+	array('document_id' => 3, 'audience' => 'public', 'member_id' => 0, 'revision' => 30, 'created' => 300),
+	array('document_id' => 3, 'audience' => 'public', 'member_id' => 0, 'revision' => 31, 'created' => 300),
+);
+same(array(31, 12, 20), array_column(VereinePublicationRules::pick($rows, $member7), 'revision'), 'a member: the shortened version, their own document, the newest public one; newest first');
+same(array(31, 10), array_column(VereinePublicationRules::pick($rows, $board8), 'revision'), 'the board: the original, even when the shortened version is newer; not somebody else\'s document');
+same(array(31), array_column(VereinePublicationRules::pick($rows, array('public' => true)), 'revision'), 'the public: only what is public');
+same(array('VereinePublicationErrorFile', 'VereineExcerptErrorMissing', 'VereineExcerptErrorSize', 'VereineExcerptErrorKind', 'VereineExcerptErrorKind', ''),
+	array(VereineArchiveRules::excerptProblem(0, 'a.pdf', 10, '%PDF-', 100), VereineArchiveRules::excerptProblem(5, '', 0, '', 100),
+		VereineArchiveRules::excerptProblem(5, 'a.pdf', 101, '%PDF-', 100), VereineArchiveRules::excerptProblem(5, 'a.docx', 10, '%PDF-', 100),
+		VereineArchiveRules::excerptProblem(5, 'a.pdf', 10, 'PK', 100), VereineArchiveRules::excerptProblem(5, 'Kurz.PDF', 10, '%PDF-', 100)),
+	'a shortened version needs an original, a PDF, not too large');
+same(true, in_array('document', VereineChangeRules::TYPES, true), 'the change feed carries documents');
+
+// ------------------------------------------------------------- who sees an event (#165)
+
+same(array('internal', 'public', 'members', 'internal'), array(VereineEventRules::visibility(0), VereineEventRules::visibility('1'), VereineEventRules::visibility(2),
+	VereineEventRules::visibility(7)), 'stored 0, 1, 2: internal, public, members; anything else internal');
+same(array(0, 1, 2, 0, 0), array(VereineEventRules::storedVisibility('0'), VereineEventRules::storedVisibility('1'), VereineEventRules::storedVisibility('2'),
+	VereineEventRules::storedVisibility('3'), VereineEventRules::storedVisibility('public')), 'from the form only 0, 1 or 2');
+
+// ------------------------------------------------------------- own data through an application (#164)
+
+$now = array('address' => 'Alte Gasse 1', 'zip' => '6020', 'town' => 'Innsbruck', 'country_code' => 'AT', 'phone' => '', 'phone_mobile' => '', 'email' => 'a@example.org');
+$version = VereineProfileRules::version($now);
+$asked = VereineProfileRules::check(array('external_id' => 'app-1', 'version' => $version, 'changes' => array('address' => ' Neue Gasse 2 ', 'zip' => '6020', 'country_code' => 'at')), $now);
+same(array(array(), array('address' => 'Neue Gasse 2')), array($asked['errors'], $asked['changes']), 'only what differs, trimmed; the country as two capitals');
+same(array('address' => 'Neue Gasse 2', 'country_code' => 'AT', 'zip' => '6020'), $asked['asked'], 'what was asked stays, to recognise the same request after it was applied');
+$refused = VereineProfileRules::check(array('external_id' => 'app-2', 'version' => $version, 'changes' => array('statut' => '1', 'fk_soc' => '7', 'email' => 'kein')), $now);
+same(array('changes.statut cannot be changed this way', 'changes.fk_soc cannot be changed this way', 'changes.email is no valid address'), $refused['errors'],
+	'status, third party and a wrong address are refused');
+expect($version !== VereineProfileRules::version(array('address' => 'Neue Gasse 2') + $now), 'another address, another version');
+same(array(true, false, false), array(VereineProfileRules::direct(array('address' => 'x', 'zip' => 'y'), array('address', 'zip')),
+	VereineProfileRules::direct(array('address' => 'x', 'email' => 'e@x.org'), array('address', 'email')), VereineProfileRules::direct(array(), array('address'))),
+	'at once only when every field may, never an e-mail address');
+
+// ------------------------------------------------------------- answers and motions for meetings (#159)
+
+same('2026-10-21', VereineMotionRules::deadline('2026-10-24', 3), 'motions three days before the assembly');
+same('2026-10-24', VereineMotionRules::deadline('2026-10-24', 0), 'no days: up to the day itself');
+$motion = VereineMotionRules::check(array('external_id' => 'app-1', 'title' => "  Neue   Sparte\tValorant ", 'text' => "Zeile 1\r\nZeile 2"));
+same(array(array(), 'Neue Sparte Valorant', "Zeile 1\nZeile 2"), array($motion['errors'], $motion['motion']['title'], $motion['motion']['text']), 'a motion cleaned up');
+same(2, count(VereineMotionRules::check(array('external_id' => 'nicht erlaubt!', 'title' => ''))['errors']), 'no id, no title');
+expect(VereineMotionRules::fingerprint(array('title' => 'A', 'text' => 'B')) !== VereineMotionRules::fingerprint(array('title' => 'A', 'text' => 'C')),
+	'another text is another motion');
+
+// ------------------------------------------------------------- statutes on a day (#158)
+
+$stored = array(array('id' => 1, 'version' => 1, 'valid_from' => '2020-01-01'), array('id' => 3, 'version' => 2, 'valid_from' => '2026-04-20'),
+	array('id' => 5, 'version' => 3, 'valid_from' => '2027-01-01'));
+$onDay = VereineStatuteVersionRules::onDay($stored, '2026-09-24');
+same(array('in_force', 3), array($onDay['state'], $onDay['current']), 'version 2 is in force, version 3 still to come');
+same(array('future', 'in_force', 'repealed'), array_column($onDay['versions'], 'state'), 'newest first: future, in force, repealed');
+same(array('', '2026-12-31', '2026-04-19'), array_column($onDay['versions'], 'valid_to'), 'each version holds until the day before the next begins');
+same(array('in_force', 1), array(VereineStatuteVersionRules::onDay($stored, '2026-04-19')['state'], VereineStatuteVersionRules::onDay($stored, '2026-04-19')['current']),
+	'on the day before, version 1 still holds');
+same(array('none', 0), array(VereineStatuteVersionRules::onDay($stored, '2019-12-31')['state'], VereineStatuteVersionRules::onDay($stored, '2019-12-31')['current']),
+	'before the first, none holds');
+$twice = VereineStatuteVersionRules::onDay(array_merge($stored, array(array('id' => 4, 'version' => 4, 'valid_from' => '2026-04-20'))), '2026-09-24');
+same(array('ambiguous', 0), array($twice['state'], $twice['current']), 'two versions from the same day: ambiguous, none named, not the higher number');
+
+// ------------------------------------------------------------- publishing documents (#156, #157)
+
+$rules = VereinePublicationRules::rules('{"minutes":{"audience":"members","auto":true},"account":{"audience":"everybody","auto":true},"letter":{"audience":"","auto":true}}',
+	array('minutes', 'account', 'letter', 'payout'));
+same(array('minutes' => array('audience' => 'members', 'auto' => true), 'account' => array('audience' => '', 'auto' => false),
+	'letter' => array('audience' => '', 'auto' => false), 'payout' => array('audience' => '', 'auto' => false)), $rules,
+	'rules: a known audience only; without an audience nothing goes out by itself; an unknown kind publishes nothing');
+same(array('members', '', ''), array(VereinePublicationRules::autoAudience($rules, 'minutes', 'signed'), VereinePublicationRules::autoAudience($rules, 'minutes', 'built'),
+	VereinePublicationRules::autoAudience($rules, 'payout', 'signed')), 'a signed revision goes out by itself, a draft never');
+same(array(true, true, false, false, true), array(VereinePublicationRules::sees('public', array('public' => true)), VereinePublicationRules::sees('members', array('member' => true)),
+	VereinePublicationRules::sees('members', array('public' => true)), VereinePublicationRules::sees('board', array('member' => true)),
+	VereinePublicationRules::sees('board', array('member' => true, 'board' => true))), 'the public sees public ones, members theirs, the board its own');
+same('minutes-qzlas8tmmd-signed.pdf', VereinePublicationRules::filename('minutes', 'QZLAS8TMMD', 'signed'), 'a file name from kind, code and revision, nothing from the title');
+
 // ------------------------------------------------------------- lending equipment (#26)
 
 $lent = VereineLoanRules::check(array('resource_id' => '3', 'member_id' => '7', 'issued_on' => '2026-09-24', 'due_on' => '2026-10-08', 'condition' => ' vollständig '), '2026-09-24');

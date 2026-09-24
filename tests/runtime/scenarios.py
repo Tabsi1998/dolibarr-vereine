@@ -4417,6 +4417,42 @@ def taxcheck(stack: Stack) -> str:
             "only the profile field changed, invoice and line as before, logged; a line with a profile is not assigned again")
 
 
+def vatex(stack: Stack) -> str:
+    """0 % with a reason: three codes in Dolibarr's VAT dictionary, the e-invoice reason VATEX-EU-O for not subject to VAT on Dolibarr 24,
+    products of a profile at 0 % take their code, and so does the invoice line built from one (#45)."""
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/taxprofiles.php"
+    codes = ("SELECT t.code, t.taux, t.active FROM llx_c_tva as t INNER JOIN llx_c_country as c ON c.rowid = t.fk_pays"
+             " WHERE c.code = 'AT' AND t.code LIKE 'AT-%' ORDER BY t.code")
+    expect(stack.sql(codes) == [], "the dictionary had the codes before, the test proves nothing")
+    page = page_ok(browser.get(setup), "tax profiles without the codes")
+    expect('data-vatcodes="missing"' in page.text, "the setup does not offer the codes")
+    page_ok(browser.submit(page.form(name="vereinevatcodes")), "add the codes")
+    page = page_ok(browser.get(setup), "tax profiles with the codes")
+    page_ok(browser.post(setup, [("token", token_of(page)), ("action", "addvatcodes")]), "add the codes again")
+    rows = [(code, float(rate), active) for code, rate, active in stack.sql(codes)]
+    expect(rows == [("AT-KU", 0.0, "1"), ("AT-NS", 0.0, "1"), ("AT-SP", 0.0, "1")], f"the codes in the dictionary: {rows}")
+    column = stack.sql("SHOW COLUMNS FROM llx_c_tva LIKE 'einvoice_vatex'")
+    if column:
+        reasons = dict(stack.sql("SELECT t.code, COALESCE(t.einvoice_vatex, '') FROM llx_c_tva as t INNER JOIN llx_c_country as c ON c.rowid = t.fk_pays"
+                                 " WHERE c.code = 'AT' AND t.code LIKE 'AT-%'"))
+        expect(reasons == {"AT-NS": "VATEX-EU-O", "AT-KU": "", "AT-SP": ""} and 'data-vatex="available"' in page.text, f"the reasons kept: {reasons}")
+    else:
+        expect(not stack.version.startswith("24") and 'data-vatex="unavailable"' in page.text, f"Dolibarr {stack.version} without the VATEX column")
+
+    small = stack.value("SELECT p.rowid FROM llx_product as p INNER JOIN llx_product_extrafields as e ON e.fk_object = p.rowid INNER JOIN llx_vereine_taxprofile as t"
+                        " ON t.rowid = e.vereine_taxprofile WHERE t.treatment = 'small_business' ORDER BY p.rowid LIMIT 1")
+    fee = stack.value("SELECT p.rowid FROM llx_product as p INNER JOIN llx_product_extrafields as e ON e.fk_object = p.rowid INNER JOIN llx_vereine_taxprofile as t"
+                      " ON t.rowid = e.vereine_taxprofile WHERE t.treatment = 'nonbusiness' ORDER BY p.rowid LIMIT 1")
+    expect(small not in (None, "") and fee not in (None, ""), f"products for the test: small business {small}, fee {fee}")
+    kept = dict(stack.sql(f"SELECT rowid, COALESCE(default_vat_code, '') FROM llx_product WHERE rowid IN ({small}, {fee})"))
+    expect(kept == {small: "AT-KU", fee: "AT-NS"}, f"the codes of the products: {kept}")
+    line = stack.php_fixture("vatline", RT_PRODUCT_ID=small)
+    expect(line["tva_tx"] == 0 and line["vat_src_code"] == "AT-KU", f"the invoice line of the small business product: {line}")
+    return ("three codes for 0 % in the dictionary once though added twice, VATEX-EU-O for not subject to VAT where Dolibarr keeps it; "
+            "products of the profiles took AT-KU and AT-NS, and the invoice line built from one carries AT-KU")
+
+
 def audit(stack: Stack) -> str:
     """The audit of the auditors: bookings and invoices of the year with hints, ticked samples, the checklist, the report with signatures."""
     year = int(stack.today()[:4])
@@ -5477,8 +5513,10 @@ def erasure(stack: Stack) -> str:
     page = page_ok(browser.get(f"{tab}&action=erase&token={token_of(page_ok(browser.get(tab), 'the tab to erase'))}"), "the question before erasing")
     expect("rückgängig" in html.unescape(page.text), "no question before erasing")
     last_log = int(stack.value("SELECT IFNULL(MAX(rowid), 0) FROM llx_vereine_log") or 0)
-    feed = f"SELECT COUNT(*) FROM llx_vereine_change WHERE object_type = 'membership' AND object_id = {member} AND change_kind = 'updated'"
-    changes = int(stack.value(feed) or 0)
+    # Two changes of a member in the same second are one entry of the feed; the erasure counts from its own second on.
+    since = stack.value("SELECT DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-%d %H:%i:%s')")
+    feed = (f"SELECT COUNT(*) FROM llx_vereine_change WHERE object_type = 'membership' AND object_id = {member} AND change_kind = 'updated'"
+            f" AND occurred_at >= '{since}'")
     page_ok(browser.post(tab, [("token", token_of(page)), ("action", "confirm_erase"), ("confirm", "yes")]), "erase what is due")
     kept = stack.sql(f"SELECT lastname, IFNULL(email, '-'), IFNULL(address, '-'), IFNULL(birth, '-') FROM llx_adherent WHERE rowid = {member}")
     expect(kept == [["Vergessen", "-", "-", "-"]], f"the member after the first run: {kept}")
@@ -5494,7 +5532,7 @@ def erasure(stack: Stack) -> str:
     expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_log WHERE fk_adherent = {member} AND action = 'erasure'") == "1", "the run was not logged")
     run = json.loads(stack.value(f"SELECT done FROM llx_vereine_erasure WHERE fk_adherent = {member} AND kind = 'run'") or "{}")
     expect(set(run) == {"identities", "contact", "invitations", "consents", "disclosures", "log"} and "Vergessen" not in json.dumps(run), f"the run kept: {run}")
-    expect(int(stack.value(feed) or 0) > changes, "the change feed did not learn about the erasure")
+    expect(int(stack.value(feed) or 0) > 0, "the change feed did not learn about the erasure")
     status, summary = stack.api(f"vereine/members/{member}/summary", key)
     expect(status == 200, f"the summary of the erased member: HTTP {status} {summary}")
 
@@ -5811,6 +5849,700 @@ def inventory(stack: Stack) -> str:
             "late, one reminder to the borrower only, none the next day; the to-do list counts without a name; back with its state, available again")
 
 
+def documents(stack: Stack) -> str:
+    """Publishing documents: nothing by default, a signed revision goes out by itself for members, by hand for the public, once;
+    withdrawn is gone; the app of a member and the website get exactly what is theirs; a changed file is an error (#156, #157)."""
+    browser = stack.browser()
+    base = "/custom/vereine/archive.php"
+    documents_ = stack.sql("SELECT d.rowid, d.kind FROM llx_vereine_document d WHERE EXISTS (SELECT 1 FROM llx_vereine_document_file f WHERE f.fk_document = d.rowid)"
+                           " AND d.kind <> 'statute' ORDER BY d.rowid LIMIT 2")
+    expect(len(documents_) == 2, f"the files have too few documents for the test: {documents_}")
+    (members_doc, members_kind), (public_doc, public_kind) = ((int(row[0]), row[1]) for row in documents_)
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_publication") == "0", "something was published before anybody said so")
+
+    # The app of an active member, bound with the ability documents; another binding without it.
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtdocs", RT_CLIENT_KEY=client)
+    member, other = (int(row[0]) for row in stack.sql("SELECT rowid FROM llx_adherent WHERE statut = 1 ORDER BY rowid LIMIT 2"))
+    for subject, capability, person in (("sub-docs", "documents", member), ("sub-nodocs", "consents", other)):
+        page = page_ok(browser.get("/custom/vereine/admin/identities.php"), "the identities")
+        page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtdocs", "member_id": str(person), "application_id": "0",
+                                                                                 "capabilities[]": capability}), f"invite for {capability}")
+        code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+        status, bound = stack.api(f"vereine/identities/claim?subject={subject}&code={code}", client, method="POST")
+        expect(status == 200, f"binding {subject}: HTTP {status} {bound}")
+    status, mine = stack.api("vereine/me/documents?subject=sub-docs", client)
+    expect(status == 200 and mine == [], f"the member sees documents nobody published: HTTP {status} {mine}")
+    status, refused = stack.api("vereine/me/documents?subject=sub-nodocs", client)
+    expect(status == 403, f"a binding without the ability read documents: HTTP {status}")
+
+    # A rule: the kind goes out for members by itself once signed.
+    page = page_ok(browser.get(base), "the files")
+    page_ok(browser.submit(page.form(name="vereinepublishrules"), {f"audience_{members_kind}": "members", f"auto_{members_kind}": "1"}), "the rule")
+    signed = stack.php_fixture("signedcopy", RT_DOCUMENT_ID=str(members_doc))
+    status, mine = stack.api("vereine/me/documents?subject=sub-docs", client)
+    entry = next((row for row in mine if row["document_id"] == members_doc), None) if status == 200 else None
+    expect(entry is not None and entry["what"] == "signed" and entry["sha256"] == signed["sha256"] and entry["audience"] == "members",
+           f"the signed revision did not go out for members: HTTP {status} {mine}")
+    status, pdf = stack.api(f"vereine/me/documents/{members_doc}/pdf?subject=sub-docs", client)
+    delivered = base64.b64decode(pdf["content"]) if status == 200 else b""
+    expect(hashlib.sha256(delivered).hexdigest() == signed["sha256"] == pdf.get("sha256"), f"the PDF for the member: HTTP {status}")
+    status, public = stack.api("vereine/documents", stack.reader_key)
+    expect(status == 200 and all(row["document_id"] != members_doc for row in public), f"a document for members is public: {public}")
+    status, _ = stack.api(f"vereine/documents/{members_doc}/pdf", stack.reader_key)
+    expect(status == 404, f"the public got a document for members: HTTP {status}")
+
+    # By hand for the public, twice: one publication.
+    for _ in range(2):
+        page = page_ok(browser.get(base), "the files before publishing")
+        page_ok(browser.submit(page.form(name=f"vereinepublish{public_doc}"), {"audience": "public"}), "publish for the public")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_publication WHERE fk_document = {public_doc}") == "1", "publishing twice made two publications")
+    status, public = stack.api("vereine/documents", stack.reader_key)
+    expect(status == 200 and [row["document_id"] for row in public] == [public_doc], f"the public list: {public}")
+    status, pdf = stack.api(f"vereine/documents/{public_doc}/pdf", stack.reader_key)
+    expect(status == 200 and hashlib.sha256(base64.b64decode(pdf["content"])).hexdigest() == public[0]["sha256"], f"the public PDF: HTTP {status}")
+
+    # Withdrawn: gone at once, still in the files.
+    publication = stack.value(f"SELECT rowid FROM llx_vereine_publication WHERE fk_document = {public_doc} AND withdrawn_at IS NULL")
+    page = page_ok(browser.get(base), "the files before withdrawing")
+    page_ok(browser.submit(page.form(name=f"vereinewithdraw{publication}")), "withdraw")
+    status, public = stack.api("vereine/documents", stack.reader_key)
+    status_pdf, _ = stack.api(f"vereine/documents/{public_doc}/pdf", stack.reader_key)
+    expect(status == 200 and public == [] and status_pdf == 404, f"after withdrawing: {public}, PDF HTTP {status_pdf}")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_document_file WHERE fk_document = {public_doc}") != "0", "withdrawing removed the file from the files")
+
+    # A file changed on the disk is an error, never other bytes.
+    stack.shell(f"printf 'x' >> '{signed['file']}'")
+    status, broken = stack.api(f"vereine/me/documents/{members_doc}/pdf?subject=sub-docs", client)
+    expect(status == 500, f"a changed file was handed out: HTTP {status}")
+    return ("nothing published by default; the rule sent the signed revision to members and the app got exactly those bytes, the public nothing; "
+            "published for the public by hand once though twice, withdrawn and gone, still in the files; a changed file is an error; no ability, no documents")
+
+
+def statuteapi(stack: Stack) -> str:
+    """The statutes through the API: nothing unless published, for members only the app, for the public the website; the version in
+    force, a future one, two from the same day ambiguous, a missing file an error (#158)."""
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/statutes.php"
+    today = datetime.date.fromisoformat(stack.today())
+    page = page_ok(browser.get(setup), "statutes")
+    decided = (today - datetime.timedelta(days=40)).isoformat()
+    page_ok(browser.submit(page.form(name="vereinestatuteversion"), {"decided_on": decided, "valid_from": decided, "note": "API-Test"}, drop=("notify",)),
+            "a version in force")
+    newest = stack.sql("SELECT rowid, version, filename FROM llx_vereine_statute ORDER BY version DESC LIMIT 1")[0]
+    # Earlier checks leave versions that begin today; a day between ours and theirs has exactly one in force.
+    probe = (today - datetime.timedelta(days=20)).isoformat()
+    status, public = stack.api("vereine/statutes", stack.reader_key)
+    expect(status == 200 and public == {"state": "not_published", "current": None, "versions": []}, f"statutes before publishing: {public}")
+
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtstatutes", RT_CLIENT_KEY=client)
+    member = int(stack.value("SELECT rowid FROM llx_adherent WHERE statut = 1 ORDER BY rowid LIMIT 1"))
+    page = page_ok(browser.get("/custom/vereine/admin/identities.php"), "the identities")
+    page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtstatutes", "member_id": str(member), "application_id": "0",
+                                                                             "capabilities[]": "documents"}), "invite")
+    code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+    status, bound = stack.api(f"vereine/identities/claim?subject=sub-statutes&code={code}", client, method="POST")
+    expect(status == 200, f"binding: HTTP {status} {bound}")
+
+    # For members: the app reads them, the website does not.
+    page = page_ok(browser.get(setup), "statutes before the audience")
+    page_ok(browser.submit(page.form(name="vereinestatuteaudience"), {"audience": "members"}), "for members")
+    status, mine = stack.api(f"vereine/me/statutes?subject=sub-statutes&day={probe}", client)
+    expect(status == 200 and mine["state"] == "in_force" and mine["current"]["id"] == int(newest[0]), f"the member's statutes: HTTP {status} {mine}")
+    status, public = stack.api(f"vereine/statutes?day={probe}", stack.reader_key)
+    expect(public["state"] == "not_published", f"statutes for members were public: {public}")
+    status, pdf = stack.api(f"vereine/me/statutes/{newest[0]}/pdf?subject=sub-statutes", client)
+    expect(status == 200 and hashlib.sha256(base64.b64decode(pdf["content"])).hexdigest() == mine["current"]["sha256"], f"the member's PDF: HTTP {status}")
+
+    # For the public: the website reads them; a future version and two from the same day.
+    page = page_ok(browser.get(setup), "statutes before the public")
+    page_ok(browser.submit(page.form(name="vereinestatuteaudience"), {"audience": "public"}), "for the public")
+    future = (today + datetime.timedelta(days=60)).isoformat()
+    directory = stack.php_fixture("statutedir")["dir"]
+    copied = f"statuten-v98-{future}.pdf"
+    stack.shell(f"cp '{directory}/{newest[2]}' '{directory}/{copied}'")
+    sha = stack.value(f"SELECT sha256 FROM llx_vereine_statute WHERE rowid = {newest[0]}")
+    stack.sql(f"INSERT INTO llx_vereine_statute (entity, version, decided_on, valid_from, source, filename, sha256, note, datec) VALUES (1, 98, '{stack.today()}', '{future}',"
+              f" 'uploaded', '{copied}', '{sha}', 'Test', NOW())")
+    status, public = stack.api(f"vereine/statutes?day={probe}", stack.reader_key)
+    states = {row["version"]: row["state"] for row in public.get("versions", [])}
+    expect(status == 200 and public["state"] == "in_force" and states.get(98) == "future" and states.get(int(newest[1])) == "in_force",
+           f"with a future version: {public}")
+    status, pdf = stack.api(f"vereine/statutes/{newest[0]}/pdf", stack.reader_key)
+    expect(status == 200, f"the public PDF: HTTP {status}")
+    stack.sql(f"UPDATE llx_vereine_statute SET valid_from = (SELECT valid_from FROM (SELECT valid_from FROM llx_vereine_statute WHERE rowid = {newest[0]}) AS v) WHERE version = 98")
+    status, public = stack.api(f"vereine/statutes?day={probe}", stack.reader_key)
+    expect(public["state"] == "ambiguous" and public["current"] is None, f"two versions from the same day: {public}")
+    stack.shell(f"rm -f '{directory}/{copied}'")
+    status, broken = stack.api("vereine/statutes/" + stack.value("SELECT rowid FROM llx_vereine_statute WHERE version = 98") + "/pdf", stack.reader_key)
+    expect(status == 500, f"a missing file was answered with HTTP {status}")
+    stack.sql("DELETE FROM llx_vereine_statute WHERE version = 98")
+    page = page_ok(browser.get(setup), "statutes at the end")
+    page_ok(browser.submit(page.form(name="vereinestatuteaudience"), {"audience": ""}), "nobody again")
+    return ("nothing before publishing; for members the app read the version in force and its PDF, the website nothing; for the public the website "
+            "read them with a future version; two from the same day ambiguous without a guess; a missing file an error")
+
+
+def meetingapi(stack: Stack) -> str:
+    """Meetings through the API: only the ones the person is invited to, an answer that is no attendance, a motion once and late
+    after the deadline, the board decides, cancelled means no more answers (#159)."""
+    browser = stack.browser()
+    base = "/custom/vereine/meetings.php"
+    today = datetime.date.fromisoformat(stack.today())
+
+    def create(template: str, fields: dict) -> int:
+        page = page_ok(browser.get(f"{base}?template={template}"), f"a new {template} meeting")
+        page_ok(browser.submit(page.form(name="vereinemeeting"), fields), f"store the {template} meeting")
+        meeting = int(stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting") or 0)
+        page_ok(browser.submit(page_ok(browser.get(f"{base}?id={meeting}"), "the meeting").form(name="vereinemeetinginvite"), {"checked": "1"}), "invite")
+        return meeting
+
+    general = create("general", {"day": (today + datetime.timedelta(days=30)).isoformat(), "time": "18:00", "format": "hybrid", "place": "Vereinsheim",
+                                 "access": "https://meet.example.org/gv", "title": "Generalversammlung API"})
+    board = create("board", {"day": (today + datetime.timedelta(days=10)).isoformat(), "time": "19:00", "format": "physical", "place": "Vereinsheim",
+                             "title": "Vorstandssitzung API"})
+    expect(stack.value(f"SELECT status FROM llx_vereine_meeting WHERE rowid = {general}") == "invited", "the general assembly was not invited")
+    member = stack.value(f"SELECT i.fk_adherent FROM llx_vereine_meeting_invitation i WHERE i.fk_meeting = {general} AND i.fk_adherent NOT IN "
+                         f"(SELECT fk_adherent FROM llx_vereine_meeting_invitation WHERE fk_meeting = {board}) ORDER BY i.fk_adherent LIMIT 1")
+    expect(member not in (None, ""), "every member invited to the assembly is on the board")
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtmeet", RT_CLIENT_KEY=client)
+    for subject, capability in (("sub-meet", "meetings"), ("sub-nomeet", "consents")):
+        page = page_ok(browser.get("/custom/vereine/admin/identities.php"), "the identities")
+        page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtmeet", "member_id": member, "application_id": "0",
+                                                                                 "capabilities[]": capability}), f"invite for {capability}")
+        code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+        status, bound = stack.api(f"vereine/identities/claim?subject={subject}&code={code}", client, method="POST")
+        expect(status == 200, f"binding {subject}: HTTP {status} {bound}")
+    status, refused = stack.api("vereine/me/meetings?subject=sub-nomeet", client)
+    expect(status == 403, f"a binding without the ability read meetings: HTTP {status}")
+
+    status, mine = stack.api("vereine/me/meetings?subject=sub-meet", client)
+    ids = [meeting["id"] for meeting in mine] if status == 200 else []
+    expect(general in ids and board not in ids, f"the member's meetings: {ids}, assembly {general}, board {board}")
+    assembly = next(meeting for meeting in mine if meeting["id"] == general)
+    motion_days = int(json.loads(stack.const("VEREINE_STATUTE_RULES") or "{}").get("motion_days", 3))
+    expect(assembly["access"] == "https://meet.example.org/gv" and assembly["agenda"] and assembly["motion_deadline"]
+           == (today + datetime.timedelta(days=30 - motion_days)).isoformat(), f"the assembly for the member: {assembly}")
+
+    # An answer twice: one answer, no attendance.
+    attendance = f"SELECT COUNT(*) FROM llx_vereine_meeting_attendance WHERE fk_meeting = {general} AND fk_adherent = {member}"
+    before = stack.value(attendance)
+    for _ in range(2):
+        status, answered = stack.api(f"vereine/me/meetings/{general}/response?subject=sub-meet", client, method="PUT", data={"response": "yes"})
+    expect(status == 200 and answered["response"] == "yes" and stack.value(f"SELECT COUNT(*) FROM llx_vereine_meeting_response WHERE fk_meeting = {general}") == "1"
+           and stack.value(attendance) == before, f"the answer: HTTP {status}, attendance {before} -> {stack.value(attendance)}")
+    status, _ = stack.api(f"vereine/me/meetings/{board}/response?subject=sub-meet", client, method="PUT", data={"response": "yes"})
+    expect(status == 404, f"an answer to a board meeting the member is not invited to: HTTP {status}")
+
+    # A motion once; the same id with another text is refused; after the deadline it is late.
+    motion = {"external_id": "app-motion-1", "title": "Neue Sparte Valorant", "text": "Die Generalversammlung möge eine Sparte Valorant gründen."}
+    for _ in range(2):
+        status, sent = stack.api(f"vereine/me/meetings/{general}/motions?subject=sub-meet", client, method="POST", data=motion)
+    expect(status == 200 and sent["status"] == "received" and sent["late"] is False
+           and stack.value(f"SELECT COUNT(*) FROM llx_vereine_motion WHERE fk_meeting = {general}") == "1", f"the motion: HTTP {status} {sent}")
+    status, _ = stack.api(f"vereine/me/meetings/{general}/motions?subject=sub-meet", client, method="POST", data={**motion, "text": "anders"})
+    expect(status == 409, f"another motion under the same id: HTTP {status}")
+    stack.sql(f"UPDATE llx_vereine_meeting SET meeting_day = '{(today + datetime.timedelta(days=1)).isoformat()}' WHERE rowid = {general}")
+    status, late = stack.api(f"vereine/me/meetings/{general}/motions?subject=sub-meet", client, method="POST",
+                             data={"external_id": "app-motion-2", "title": "Spät", "text": ""})
+    expect(status == 200 and late["late"] is True, f"a motion after the deadline: HTTP {status} {late}")
+    stack.sql(f"UPDATE llx_vereine_meeting SET meeting_day = '{(today + datetime.timedelta(days=30)).isoformat()}' WHERE rowid = {general}")
+
+    # The board decides in Dolibarr; accepted, it is the last item of the agenda.
+    first = stack.value(f"SELECT rowid FROM llx_vereine_motion WHERE external_id = 'app-motion-1'")
+    page = page_ok(browser.get(f"{base}?id={general}"), "the assembly with motions")
+    expect(f'data-motion="{first}" data-motion-status="received"' in page.text and 'data-responses="1-0-0"' in page.text, "the meeting page does not show the motions")
+    page_ok(browser.submit(page.form(name=f"vereinemotion{first}accepted")), "accept the motion")
+    status, mine = stack.api("vereine/me/meetings?subject=sub-meet", client)
+    assembly = next(meeting for meeting in mine if meeting["id"] == general)
+    accepted = next(row for row in assembly["motions"] if row["external_id"] == "app-motion-1")
+    expect(accepted["status"] == "accepted" and "Neue Sparte Valorant" in assembly["agenda"][-1], f"after accepting: {accepted}, agenda {assembly['agenda']}")
+
+    # Cancelled: no more answers.
+    stack.sql(f"UPDATE llx_vereine_meeting SET status = 'cancelled' WHERE rowid = {general}")
+    status, _ = stack.api(f"vereine/me/meetings/{general}/response?subject=sub-meet", client, method="PUT", data={"response": "no"})
+    expect(status == 409, f"an answer to a cancelled meeting: HTTP {status}")
+    return ("the member saw the assembly with its access and deadline, never the board meeting; answered twice, one answer, no attendance; "
+            "a motion once, another under the same id refused, a late one kept as late; accepted in Dolibarr it closed the agenda; cancelled, no more answers")
+
+
+def profileapi(stack: Stack) -> str:
+    """Own data through the API: read, a change of the address at once, an e-mail address that waits for the board, a conflict instead of
+    overwriting, nothing else writable, the notice of the exit on the day of the rule (#164)."""
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/identities.php"
+    page = page_ok(browser.get(setup), "the identities")
+    page_ok(browser.submit(page.form(name="vereineprofiledirect"), {"direct_address": "1", "direct_zip": "1", "direct_town": "1"}), "address at once")
+    expect(stack.const("VEREINE_PROFILE_DIRECT") == "address,zip,town", f"stored: {stack.const('VEREINE_PROFILE_DIRECT')}")
+    member = stack.value("SELECT rowid FROM llx_adherent WHERE statut = 1 AND rowid NOT IN (SELECT fk_adherent FROM llx_vereine_member_exit WHERE status = 'planned')"
+                         " ORDER BY rowid DESC LIMIT 1")
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtprofile", RT_CLIENT_KEY=client)
+    page = page_ok(browser.get(setup), "the identities before the invitation")
+    page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtprofile", "member_id": member, "application_id": "0",
+                                                                             "capabilities[]": "profile"}), "invite")
+    code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+    status, bound = stack.api(f"vereine/identities/claim?subject=sub-profile&code={code}", client, method="POST")
+    expect(status == 200, f"binding: HTTP {status} {bound}")
+    status, profile = stack.api("vereine/me/profile?subject=sub-profile", client)
+    expect(status == 200 and profile["member_id"] == int(member) and profile["direct"] == ["address", "zip", "town"], f"the own data: HTTP {status} {profile}")
+
+    # The address changes at once, twice the same request is one.
+    change = {"external_id": "app-change-1", "version": profile["version"], "changes": {"address": "Neue Gasse 7", "zip": "6020", "town": "Innsbruck"}}
+    for _ in range(2):
+        status, applied = stack.api("vereine/me/profile/changes?subject=sub-profile", client, method="POST", data=change)
+    expect(status == 200 and applied["status"] == "applied" and stack.value(f"SELECT address FROM llx_adherent WHERE rowid = {member}") == "Neue Gasse 7"
+           and stack.value("SELECT COUNT(*) FROM llx_vereine_profile_request WHERE external_id = 'app-change-1'") == "1", f"the change: HTTP {status} {applied}")
+    # The old version is now a conflict; the status and the third party cannot be written.
+    status, _ = stack.api("vereine/me/profile/changes?subject=sub-profile", client, method="POST",
+                          data={"external_id": "app-change-2", "version": profile["version"], "changes": {"town": "Hall"}})
+    expect(status == 409, f"a change on an old version: HTTP {status}")
+    status, profile = stack.api("vereine/me/profile?subject=sub-profile", client)
+    status, refused = stack.api("vereine/me/profile/changes?subject=sub-profile", client, method="POST",
+                                data={"external_id": "app-change-3", "version": profile["version"], "changes": {"statut": "-2", "fk_soc": "1"}})
+    expect(status == 400 and stack.value(f"SELECT statut FROM llx_adherent WHERE rowid = {member}") == "1", f"status written through the app: HTTP {status}")
+
+    # A new e-mail address waits for the board; the board rejects it with a word for the member and a note of its own.
+    old_email = stack.value(f"SELECT email FROM llx_adherent WHERE rowid = {member}")
+    status, waiting = stack.api("vereine/me/profile/changes?subject=sub-profile", client, method="POST",
+                                data={"external_id": "app-change-4", "version": profile["version"], "changes": {"email": "neu.adresse@runtime-verein.test"}})
+    expect(status == 200 and waiting["status"] == "received" and stack.value(f"SELECT email FROM llx_adherent WHERE rowid = {member}") == old_email,
+           f"a new e-mail address was taken at once: {waiting}")
+    request = stack.value("SELECT rowid FROM llx_vereine_profile_request WHERE external_id = 'app-change-4'")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={member}"), "the member's tab")
+    expect(f'data-profile-request="{request}" data-profile-outdated="0"' in tab.text, "the member's tab does not show the waiting change")
+    page_ok(browser.submit(tab.form(name=f"vereineprofilerequest{request}"), {"reason": "Bitte persönlich bestätigen", "note": "intern: Anruf offen"},
+                           button=("action", "rejectprofile")), "reject the change")
+    status, requests = stack.api("vereine/me/profile/changes?subject=sub-profile", client)
+    rejected = next(row for row in requests if row["external_id"] == "app-change-4")
+    expect(rejected["status"] == "rejected" and rejected["reason"] == "Bitte persönlich bestätigen" and "intern" not in json.dumps(requests),
+           f"the member's view of the rejected change: {rejected}")
+
+    # The notice of the exit ends on the day of the rule.
+    status, notice = stack.api("vereine/me/exit?subject=sub-profile", client, method="POST", data={"external_id": "app-exit-1", "wished_last_day": "2000-01-01"})
+    stored = stack.sql(f"SELECT reason, notice_day, last_day, status FROM llx_vereine_member_exit WHERE fk_adherent = {member} ORDER BY rowid DESC LIMIT 1")
+    expect(status == 200 and stored and stored[0][0] == "resignation" and notice["last_day"] == stored[0][2] and notice["wished_too_early"] is True
+           and notice["notice_day"] == stack.today(), f"the notice: HTTP {status} {notice}, stored {stored}")
+    status, again = stack.api("vereine/me/exit?subject=sub-profile", client, method="POST", data={"external_id": "app-exit-1", "wished_last_day": "2000-01-01"})
+    expect(status == 200 and again["last_day"] == notice["last_day"], f"the same notice again: HTTP {status}")
+    status, _ = stack.api("vereine/me/exit?subject=sub-profile", client, method="POST", data={"external_id": "app-exit-2"})
+    expect(status == 409, f"a second notice: HTTP {status}")
+    if stored[0][3] == "planned":
+        stack.sql(f"UPDATE llx_vereine_member_exit SET status = 'cancelled' WHERE fk_adherent = {member} AND status = 'planned'")
+    return (f"address changed at once and once; an old version a conflict; status and third party not writable; a new e-mail address waited for "
+            f"the board, rejected with a reason and without the internal note; the notice ends on {notice['last_day']} by the rule, a second one refused")
+
+
+def ballotapi(stack: Stack) -> str:
+    """Ballots of a general assembly through two applications and on paper: rules frozen at release, rights at opening, a proxy votes
+    for the represented member, whoever left cannot vote, one right counts once whichever way, the same request twice is one (#160, #161)."""
+    browser = stack.browser()
+    base = "/custom/vereine/meetings.php"
+    today = stack.today()
+    page = page_ok(browser.get(f"{base}?template=general"), "a new general assembly")
+    page_ok(browser.submit(page.form(name="vereinemeeting"), {"day": (datetime.date.fromisoformat(today) + datetime.timedelta(days=30)).isoformat(), "time": "18:00",
+                                                               "format": "hybrid", "place": "Vereinsheim", "access": "https://meet.example.org/abstimmung",
+                                                               "title": "Generalversammlung Abstimmung"}), "store the assembly")
+    meeting = int(stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting") or 0)
+    page_ok(browser.submit(page_ok(browser.get(f"{base}?id={meeting}"), "the assembly").form(name="vereinemeetinginvite"), {"checked": "1"}), "invite")
+    # The invitation went out in time; the assembly is today.
+    stack.sql(f"UPDATE llx_vereine_meeting SET meeting_day = '{today}' WHERE rowid = {meeting}")
+    voters = [int(row[0]) for row in stack.sql(f"SELECT i.fk_adherent FROM llx_vereine_meeting_invitation i INNER JOIN llx_adherent a ON a.rowid = i.fk_adherent"
+                                                f" WHERE i.fk_meeting = {meeting} AND i.voting = 1 AND a.statut = 1 AND i.fk_adherent NOT IN"
+                                                " (SELECT fk_adherent FROM llx_vereine_member_exit WHERE status <> 'cancelled') ORDER BY i.fk_adherent LIMIT 4")]
+    expect(len(voters) == 4, f"too few voting members for the test: {voters}")
+    anna, ben, carla, emil = voters
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the assembly before the attendance")
+    page_ok(browser.submit(page.form(name="vereineattendance"), {
+        f"attendance[{anna}][state]": "present", f"attendance[{anna}][arrived]": "00:00",
+        f"attendance[{ben}][state]": "represented", f"attendance[{ben}][holder]": str(anna),
+        f"attendance[{carla}][state]": "present", f"attendance[{carla}][left]": "00:00",
+        f"attendance[{emil}][state]": "present", f"attendance[{emil}][arrived]": "00:00"}), "the attendance")
+    expect(stack.value(f"SELECT fk_holder FROM llx_vereine_meeting_attendance WHERE fk_meeting = {meeting} AND fk_adherent = {ben}") == str(anna),
+           "the proxy of the attendance was not stored")
+
+    ballots = f"/custom/vereine/ballots.php?meeting={meeting}"
+    page = page_ok(browser.get(ballots), "the ballots")
+    page_ok(browser.submit(page.form(name="vereineballot"), {"item": "1", "kind": "resolution", "question": "Entlastung des Vorstands"}), "prepare a ballot")
+    ballot = int(stack.value(f"SELECT MAX(rowid) FROM llx_vereine_ballot WHERE fk_meeting = {meeting}") or 0)
+    expect(ballot > 0, "no ballot was prepared")
+
+    clients = {"rtvote1": secrets.token_hex(16), "rtvote2": secrets.token_hex(16)}
+    for login, key in clients.items():
+        stack.php_fixture("apiclient", RT_LOGIN=login, RT_CLIENT_KEY=key)
+    for login, subject, person in (("rtvote1", "sub-anna", anna), ("rtvote2", "sub-anna-2", anna), ("rtvote1", "sub-ben", ben), ("rtvote1", "sub-carla", carla),
+                                   ("rtvote2", "sub-emil", emil)):
+        page = page_ok(browser.get("/custom/vereine/admin/identities.php"), "the identities")
+        page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": login, "member_id": str(person), "application_id": "0",
+                                                                                 "capabilities[]": "votes"}), f"invite {subject}")
+        code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+        status, _ = stack.api(f"vereine/identities/claim?subject={subject}&code={code}", clients[login], method="POST")
+        expect(status == 200, f"binding {subject}: HTTP {status}")
+
+    def mine(login: str, subject: str) -> dict:
+        status, listed = stack.api(f"vereine/me/ballots?subject={subject}", clients[login])
+        expect(status == 200, f"the ballots of {subject}: HTTP {status}")
+        return next((row for row in listed if row["id"] == ballot), {})
+
+    def vote(login: str, subject: str, data: dict) -> tuple[int, object]:
+        return stack.api(f"vereine/me/ballots/{ballot}/votes?subject={subject}", clients[login], method="POST", data=data)
+
+    expect(mine("rtvote1", "sub-anna") == {}, "a draft is visible in the application")
+    page_ok(browser.submit(page_ok(browser.get(ballots), "the ballots").form(name=f"vereineballotrelease{ballot}")), "release")
+    rules = json.loads(stack.value(f"SELECT rules FROM llx_vereine_ballot WHERE rowid = {ballot}") or "{}")
+    expect(rules.get("majority") == "simple" and rules.get("proxy") is True and rules.get("day") == today, f"the frozen rules: {rules}")
+    shown = mine("rtvote1", "sub-anna")
+    expect(shown.get("status") == "released" and shown.get("rights") == [] and [o["code"] for o in shown.get("options", [])] == ["yes", "no", "abstain"],
+           f"the released ballot: {shown}")
+    status, _ = vote("rtvote1", "sub-anna", {"right_id": 1, "option": "yes"})
+    expect(status in (404, 409), f"a vote before opening: HTTP {status}")
+
+    page_ok(browser.submit(page_ok(browser.get(ballots), "the ballots").form(name=f"vereineballotopen{ballot}")), "open")
+    # Proxies are frozen at opening: Ben coming himself later changes nothing for this ballot.
+    stack.sql(f"UPDATE llx_vereine_meeting_attendance SET state = 'present', fk_holder = 0, arrived = '00:00' WHERE fk_meeting = {meeting} AND fk_adherent = {ben}")
+    shown = mine("rtvote1", "sub-anna")
+    rights = {row["for"]: row for row in shown.get("rights", [])}
+    expect(shown.get("status") == "open" and set(rights) == {"self", "proxy"} and rights["proxy"]["state"] == "open", f"Anna's rights: {shown.get('rights')}")
+    represented = mine("rtvote1", "sub-ben").get("rights", [])
+    expect(represented == [{"right_id": 0, "for": "self", "name": "", "state": "none", "reason": "represented", "option": ""}], f"Ben's rights: {represented}")
+
+    own, proxy = rights["self"]["right_id"], rights["proxy"]["right_id"]
+    for _ in range(2):
+        status, after = vote("rtvote1", "sub-anna", {"right_id": own, "option": "yes", "external_id": "anna-1"})
+    expect(status == 200, f"Anna's vote: HTTP {status} {after}")
+    status, _ = vote("rtvote2", "sub-anna-2", {"right_id": own, "option": "no", "external_id": "anna-2"})
+    expect(status == 409, f"the same right through the second application: HTTP {status}")
+    status, _ = vote("rtvote1", "sub-anna", {"right_id": proxy, "option": "maybe"})
+    expect(status == 400, f"an option the ballot does not have: HTTP {status}")
+    status, after = vote("rtvote1", "sub-anna", {"right_id": proxy, "option": "no", "external_id": "anna-for-ben"})
+    expect(status == 200 and {row["for"]: row["option"] for row in after["rights"]} == {"self": "yes", "proxy": "no"}, f"Anna for Ben: HTTP {status}")
+    status, _ = vote("rtvote1", "sub-ben", {"right_id": proxy, "option": "yes"})
+    expect(status == 404, f"Ben used the right his proxy holds: HTTP {status}")
+    carla_right = mine("rtvote1", "sub-carla")["rights"][0]["right_id"]
+    status, refused = vote("rtvote1", "sub-carla", {"right_id": carla_right, "option": "yes"})
+    expect(status == 409, f"Carla voted although she left: HTTP {status} {refused}")
+
+    # The board enters Emil's paper ballot; his application finds the right used.
+    emil_right = mine("rtvote2", "sub-emil")["rights"][0]["right_id"]
+    page = page_ok(browser.get(ballots), "the ballots before the paper ballot")
+    page_ok(browser.submit(page.form(name=f"vereineballotpaper{ballot}"), {"right": str(emil_right), "option": "abstain"}), "enter a paper ballot")
+    status, _ = vote("rtvote2", "sub-emil", {"right_id": emil_right, "option": "yes"})
+    expect(status == 409, f"a paper ballot and then the application: HTTP {status}")
+    counted = stack.sql(f"SELECT channel, COUNT(*) FROM llx_vereine_ballot_vote WHERE fk_ballot = {ballot} GROUP BY channel ORDER BY channel")
+    expect(counted == [["app", "2"], ["paper", "1"]], f"the votes kept: {counted}")
+
+    page_ok(browser.submit(page_ok(browser.get(ballots), "the ballots").form(name=f"vereineballotclose{ballot}")), "close")
+    status, _ = vote("rtvote1", "sub-carla", {"right_id": carla_right, "option": "yes"})
+    expect(status == 409, f"a vote after closing: HTTP {status}")
+    page = page_ok(browser.get(ballots), "the closed ballot")
+    counts = dict(re.findall(r'data-ballot-count="([a-z0-9]+)">[^<]*?: (\d+)<', page.text))
+    expect(counts == {"yes": "1", "no": "1", "abstain": "1"} and 'data-ballot-valid="2"' in page.text, f"the count: {counts}")
+    return ("released with frozen rules, opened with frozen rights: Anna voted for herself once though sent twice and for Ben by his proxy, "
+            "the second application found her right used, Ben could not vote himself, Carla who left was refused, Emil's paper ballot "
+            "counted once; closed: yes 1, no 1, abstain 1, two valid votes")
+
+
+def ballotresult(stack: Stack) -> str:
+    """Counting ballots: a snapshot with a proof as PDF in the files, nothing follows before whoever chairs confirms, confirming twice
+    makes one vote of the meeting, one entry in the register and one term of office; members see the result only once confirmed (#163)."""
+    browser = stack.browser()
+    meeting = int(stack.value("SELECT MAX(fk_meeting) FROM llx_vereine_ballot") or 0)
+    first = int(stack.value(f"SELECT MIN(rowid) FROM llx_vereine_ballot WHERE fk_meeting = {meeting}") or 0)
+    ballots = f"/custom/vereine/ballots.php?meeting={meeting}"
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtcount", RT_CLIENT_KEY=client)
+    anna = int(stack.value(f"SELECT fk_holder FROM llx_vereine_ballot_right WHERE fk_ballot = {first} AND reason = 'proxy' LIMIT 1") or 0)
+    page = page_ok(browser.get("/custom/vereine/admin/identities.php"), "the identities")
+    page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtcount", "member_id": str(anna), "application_id": "0", "capabilities[]": "votes"}), "invite")
+    code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+    status, _ = stack.api(f"vereine/identities/claim?subject=sub-count&code={code}", client, method="POST")
+    expect(status == 200, f"binding: HTTP {status}")
+
+    def seen(ballot: int) -> dict:
+        status, listed = stack.api("vereine/me/ballots?subject=sub-count", client)
+        expect(status == 200, f"the ballots: HTTP {status}")
+        return next((row for row in listed if row["id"] == ballot), {})
+
+    # The first ballot, closed: counted, a proof in the files, still provisional.
+    votes = f"SELECT COUNT(*) FROM llx_vereine_meeting_vote WHERE fk_meeting = {meeting}"
+    before = stack.value(votes)
+    page_ok(browser.submit(page_ok(browser.get(ballots), "the ballots").form(name=f"vereineballotevaluate{first}")), "count")
+    counted = stack.sql(f"SELECT rowid, status, filename, doc_sha FROM llx_vereine_ballot_result WHERE fk_ballot = {first}")
+    expect(len(counted) == 1 and counted[0][1] == "provisional" and counted[0][2] and len(counted[0][3]) == 64, f"the count: {counted}")
+    result_id, filename, sha = counted[0][0], counted[0][2], counted[0][3]
+    data = base64.b64decode(stack.shell(f"base64 '/var/www/documents/vereine/ballots/{filename}'").stdout)
+    text = pdf_bytes_text(data)
+    expect(hashlib.sha256(data).hexdigest() == sha and "Entlastung des Vorstands" in text and "Nachweis der Abstimmung" in text,
+           "the proof is not the PDF of the count")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_document WHERE kind = 'ballot' AND fk_object = {result_id}") == "1", "the proof is not in the files")
+    expect(stack.value(votes) == before and seen(first).get("result") is None, "a provisional count went into the meeting or to the members")
+    # Counted again with a reason: the first count stays with its proof.
+    page = page_ok(browser.get(ballots), "the ballots before counting again")
+    page_ok(browser.submit(page.form(name=f"vereineballotreevaluate{first}"), {"reason": "Anwesenheit berichtigt"}), "count again")
+    states = stack.sql(f"SELECT revision, status, reason FROM llx_vereine_ballot_result WHERE fk_ballot = {first} ORDER BY revision")
+    expect(states == [["1", "superseded", ""], ["2", "provisional", "Anwesenheit berichtigt"]], f"counted again: {states}")
+    page_ok(browser.submit(page_ok(browser.get(ballots), "the ballots before confirming").form(name=f"vereineballotconfirm{first}")), "confirm")
+    again = stack.php_fixture("ballotconfirm", RT_BALLOT_ID=str(first))
+    expect(again["result"] == 2 and stack.value(votes) == str(int(before) + 1), f"confirming twice: {again}, votes {stack.value(votes)} after {before}")
+    result = seen(first).get("result") or {}
+    expect(result.get("revision") == 2 and result.get("counts", {}).get("yes") == 1 and result.get("valid") == 2, f"the members' result: {result}")
+
+    # An election: nothing before it is confirmed, then one term.
+    agenda = page_ok(browser.get(f"/custom/vereine/meetings.php?id={meeting}"), "the assembly")
+    voting = [int(row[0]) for row in stack.sql(f"SELECT fk_adherent FROM llx_vereine_meeting_invitation WHERE fk_meeting = {meeting} AND voting = 1")]
+    changes = {}
+    for member in voting:
+        changes[f"attendance[{member}][state]"] = "present"
+        changes[f"attendance[{member}][arrived]"] = "00:00"
+        changes[f"attendance[{member}][left]"] = ""
+    page_ok(browser.submit(agenda.form(name="vereineattendance"), changes), "everybody is there")
+    function = stack.value("SELECT rowid FROM llx_vereine_function WHERE entity = 1 AND active = 1 AND represents = 0 ORDER BY rowid LIMIT 1")
+    terms = f"SELECT COUNT(*) FROM llx_vereine_function_term WHERE fk_function = {function} AND fk_adherent = {anna}"
+    terms_before = stack.value(terms)
+    page = page_ok(browser.get(ballots), "the ballots before the election")
+    page_ok(browser.submit(page.form(name="vereineballot"), {"item": "1", "kind": "election", "question": "Wahl Laufzeit", "function_id": str(function),
+                                                             "candidates[]": str(anna), "consent": "1"}), "prepare the election")
+    election = int(stack.value(f"SELECT MAX(rowid) FROM llx_vereine_ballot WHERE fk_meeting = {meeting}") or 0)
+    for step in ("release", "open"):
+        page_ok(browser.submit(page_ok(browser.get(ballots), f"before {step}").form(name=f"vereineballot{step}{election}")), step)
+    rights = [row for row in seen(election).get("rights", []) if row["state"] == "open"]
+    for right in rights:
+        status, _ = stack.api(f"vereine/me/ballots/{election}/votes?subject=sub-count", client, method="POST", data={"right_id": right["right_id"], "option": f"c{anna}"})
+        expect(status == 200, f"a vote in the election: HTTP {status}")
+    for step in ("close", "evaluate"):
+        page_ok(browser.submit(page_ok(browser.get(ballots), f"before {step}").form(name=f"vereineballot{step}{election}")), step)
+    outcome = stack.value(f"SELECT status FROM llx_vereine_ballot_result WHERE fk_ballot = {election}")
+    expect(outcome == "provisional" and stack.value(terms) == terms_before, "the election changed the functions before it was confirmed")
+    page_ok(browser.submit(page_ok(browser.get(ballots), "the election before confirming").form(name=f"vereineballotconfirm{election}")), "confirm the election")
+    stack.php_fixture("ballotconfirm", RT_BALLOT_ID=str(election))
+    expect(stack.value(terms) == str(int(terms_before) + 1), f"the term of the elected member: {stack.value(terms)} after {terms_before}")
+    won = seen(election).get("result") or {}
+    expect(won.get("outcome") == "passed" and won.get("winner") == f"c{anna}", f"the election for the members: {won}")
+    return ("counted with a proof as PDF/A in the files, provisional and invisible to members; counted again with a reason, the first count kept; "
+            "confirmed twice: one vote of the meeting; an election made its term only when confirmed, once")
+
+
+def portal(stack: Stack) -> str:
+    """Dolibarr's web portal with the page of the association (#25): switched on per ability, the member logged in there sees the same
+    documents and ballots as through the API, never somebody else's, and a vote cast through an application cannot be cast again there."""
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/identities.php"
+    page = page_ok(browser.get(setup), "the identities")
+    if stack.version.startswith("22"):
+        expect('data-portal-supported="0"' in page.text and 'name="vereineportal"' not in page.text, "Dolibarr 22 offers a portal setting it cannot honour")
+        return "Dolibarr 22 has no place for pages of modules in its web portal: the setup says so and offers nothing"
+    page_ok(browser.submit(page.form(name="vereineportal"), {"portal_documents": "1", "portal_votes": "1"}), "switch the portal on")
+    expect(stack.const("VEREINE_PORTAL_CAPABILITIES") == "documents,votes", f"stored: {stack.const('VEREINE_PORTAL_CAPABILITIES')}")
+    enable_dolibarr_module(stack, "modWebPortal")
+
+    # A member of the assembly of the ballots, with a third party the portal account belongs to.
+    meeting = int(stack.value("SELECT MAX(fk_meeting) FROM llx_vereine_ballot") or 0)
+    member = stack.value(f"SELECT a.rowid FROM llx_adherent a INNER JOIN llx_vereine_meeting_invitation i ON i.fk_adherent = a.rowid AND i.fk_meeting = {meeting}"
+                         " WHERE a.statut = 1 AND a.fk_soc > 0 AND i.voting = 1 AND a.fk_soc NOT IN (SELECT fk_soc FROM llx_adherent WHERE rowid <> a.rowid AND fk_soc > 0)"
+                         " ORDER BY a.rowid LIMIT 1")
+    expect(member not in (None, ""), "no voting member of the assembly with a third party of its own")
+    account = stack.php_fixture("portalmember", RT_MEMBER_ID=member)
+
+    # A ballot open now; the member votes through an application first.
+    ballots = f"/custom/vereine/ballots.php?meeting={meeting}"
+    page = page_ok(browser.get(f"/custom/vereine/meetings.php?id={meeting}"), "the assembly")
+    page_ok(browser.submit(page.form(name="vereineattendance"), {f"attendance[{member}][state]": "present", f"attendance[{member}][arrived]": "00:00",
+                                                                  f"attendance[{member}][left]": ""}), "the member is there")
+    page = page_ok(browser.get(ballots), "the ballots")
+    page_ok(browser.submit(page.form(name="vereineballot"), {"item": "1", "kind": "resolution", "question": "Portal und App"}), "prepare a ballot")
+    ballot = int(stack.value(f"SELECT MAX(rowid) FROM llx_vereine_ballot WHERE fk_meeting = {meeting}") or 0)
+    for step in ("release", "open"):
+        page_ok(browser.submit(page_ok(browser.get(ballots), f"before {step}").form(name=f"vereineballot{step}{ballot}")), step)
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtportalapp", RT_CLIENT_KEY=client)
+    page = page_ok(browser.get(setup), "the identities before the invitation")
+    form = page.form(name="vereineidentityinvite")
+    fields = [(name, value) for name, value in form.values() if name not in ("client", "member_id", "application_id", "capabilities[]")]
+    fields += [("client", "rtportalapp"), ("member_id", member), ("application_id", "0"), ("capabilities[]", "documents"), ("capabilities[]", "votes")]
+    page = page_ok(browser.post(form.url(), fields), "invite")
+    code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+    status, _ = stack.api(f"vereine/identities/claim?subject=sub-portal&code={code}", client, method="POST")
+    expect(status == 200, f"binding: HTTP {status}")
+    status, listed = stack.api("vereine/me/ballots?subject=sub-portal", client)
+    right = next(row for row in listed if row["id"] == ballot)["rights"][0]["right_id"] if status == 200 else 0
+    status, _ = stack.api(f"vereine/me/ballots/{ballot}/votes?subject=sub-portal", client, method="POST", data={"right_id": right, "option": "yes"})
+    expect(status == 200, f"the vote through the application: HTTP {status}")
+
+    # The portal: log in as the member, the page of the association.
+    visitor = Browser(stack.url)
+    login = page_ok(visitor.get("/public/webportal/index.php"), "the login of the web portal")
+    page_ok(visitor.post("/public/webportal/index.php", [("token", token_of(login)), ("action_login", "login"), ("login", account["login"]),
+                                                         ("password", account["password"])]), "log in")
+    mine = page_ok(visitor.get("/public/webportal/index.php?controller=vereine"), "the page of the association")
+    seen = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html.unescape(re.sub(r"(?s)<(script|style)[^>]*>.*?</>", " ", mine.text))))[:900]
+    expect(f'data-vereine-portal="{member}"' in mine.text and 'data-vereine-portal-section="meetings"' not in mine.text,
+           f"the page is not the member's, or shows meetings that are switched off; the portal showed: {seen}")
+    status, documents = stack.api("vereine/me/documents?subject=sub-portal", client)
+    shown = sorted(int(found) for found in re.findall(r'data-vereine-portal-document="(\d+)"', mine.text))
+    expect(status == 200 and shown == sorted(row["document_id"] for row in documents), f"documents: portal {shown}, API {[row['document_id'] for row in documents]}")
+    others = [int(row[0]) for row in stack.sql(f"SELECT DISTINCT fk_document FROM llx_vereine_publication WHERE audience = 'person' AND fk_adherent <> {member}")]
+    expect(not set(others) & set(shown), "the portal shows a document of somebody else")
+    expect(f'data-vereine-portal-right="{right}" data-vereine-portal-right-state="used"' in mine.text, "the portal does not show the vote cast through the application")
+    # The portal's links carry its token; a form for a used right it does not print, so the request is made by hand.
+    token = re.search(r"[?&;]token=([0-9a-zA-Z]+)", html.unescape(mine.text)).group(1)
+    refused = page_ok(visitor.post("/public/webportal/index.php?controller=vereine", [("token", token), ("action", "vote"), ("ballot", str(ballot)),
+                                                                                       ("right", str(right)), ("option", "no")]), "vote again in the portal")
+    expect("schon abgestimmt" in html.unescape(refused.text), "the portal does not say that the right was used")
+    votes = stack.value(f"SELECT COUNT(*) FROM llx_vereine_ballot_vote WHERE fk_ballot = {ballot}")
+    expect(votes == "1" and stack.value(f"SELECT option_code FROM llx_vereine_ballot_vote WHERE fk_ballot = {ballot}") == "yes", f"votes after the portal: {votes}")
+    # Switched off: no page, no menu entry.
+    page = page_ok(browser.get(setup), "the identities before switching off")
+    page_ok(browser.submit(page.form(name="vereineportal"), {}, drop=("portal_documents", "portal_votes")), "switch the portal off")
+    gone = visitor.get("/public/webportal/index.php?controller=vereine")
+    expect("data-vereine-portal=" not in gone.text, "the page stays after switching the portal off")
+    page_ok(browser.submit(page_ok(browser.get(ballots), "the ballots").form(name=f"vereineballotcancel{ballot}")), "call the ballot off")
+    return ("the member logged in to the web portal saw the documents the API gives, none of somebody else, and the vote cast through the "
+            "application; voting again in the portal counted nothing; switched off, the page is gone")
+
+
+def documentmore(stack: Stack) -> str:
+    """Documents, the second part: a shortened version as a file of its own derived from the original, a document for one person only,
+    publishing and withdrawing in the change feed, a signed copy out only once every signature is there (#239)."""
+    browser = stack.browser()
+    base = "/custom/vereine/archive.php?year=0"
+    plain = stack.sql("SELECT d.rowid FROM llx_vereine_document d WHERE d.kind <> 'statute' AND EXISTS (SELECT 1 FROM llx_vereine_document_file f WHERE f.fk_document = d.rowid)"
+                      " AND NOT EXISTS (SELECT 1 FROM llx_vereine_document_file f WHERE f.fk_document = d.rowid AND f.what <> 'built')"
+                      " AND NOT EXISTS (SELECT 1 FROM llx_vereine_publication p WHERE p.fk_document = d.rowid AND p.withdrawn_at IS NULL) ORDER BY d.rowid DESC LIMIT 3")
+    expect(len(plain) == 3, f"the files have too few documents for the test: {plain}")
+    doc, personal, signed_doc = (int(row[0]) for row in plain)
+    original_id, original_sha = stack.sql(f"SELECT rowid, sha256 FROM llx_vereine_document_file WHERE fk_document = {doc} ORDER BY rowid DESC LIMIT 1")[0]
+    feed_from = int(stack.value("SELECT COALESCE(MAX(rowid), 0) FROM llx_vereine_change"))
+
+    # A shortened version: a PDF of its own, marked as derived; a Word file and the original itself are refused.
+    excerpt = b"%PDF-1.4\n% gekuerzte Fassung fuer Mitglieder\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
+    for name, content in (("gekuerzt.docx", b"PK\x03\x04 kein PDF"), ("gekuerzt.pdf", excerpt)):
+        page = page_ok(browser.get(base), "the files before the shortened version")
+        page_ok(browser.post_multipart(base, [("token", token_of(page)), ("action", "excerpt"), ("document", str(doc))], [("excerpt", name, content)]),
+                f"upload {name}")
+    rows = stack.sql(f"SELECT rowid, sha256, fk_parent FROM llx_vereine_document_file WHERE fk_document = {doc} AND what = 'excerpt'")
+    expect(len(rows) == 1 and rows[0][1] == hashlib.sha256(excerpt).hexdigest() and rows[0][2] == original_id,
+           f"the shortened version is not one file derived from the original: {rows}")
+    excerpt_id = int(rows[0][0])
+    expect(stack.value(f"SELECT sha256 FROM llx_vereine_document_file WHERE rowid = {original_id}") == original_sha, "the original changed")
+    code = stack.value(f"SELECT code FROM llx_vereine_document WHERE rowid = {doc}")
+    check = page_ok(browser.get(f"/custom/vereine/public/verify.php?code={code}"), "the check of the code")
+    expect('data-verify-what="excerpt"' in check.text and original_sha[:16] in check.text, "the check does not show the shortened version as derived")
+
+    # The shortened version for members, the original for the board; one document for one person only.
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtdocmore", RT_CLIENT_KEY=client)
+    member, other = (int(row[0]) for row in stack.sql("SELECT rowid FROM llx_adherent WHERE statut = 1 AND rowid NOT IN (SELECT t.fk_adherent FROM llx_vereine_function_term t"
+                                                      " INNER JOIN llx_vereine_function f ON f.rowid = t.fk_function WHERE f.board = 1) ORDER BY rowid LIMIT 2"))
+    for subject, person in (("sub-more-1", member), ("sub-more-2", other)):
+        page = page_ok(browser.get("/custom/vereine/admin/identities.php"), "the identities")
+        page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtdocmore", "member_id": str(person), "application_id": "0",
+                                                                                 "capabilities[]": "documents"}), "invite")
+        invite = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+        status, _ = stack.api(f"vereine/identities/claim?subject={subject}&code={invite}", client, method="POST")
+        expect(status == 200, f"binding {subject}: HTTP {status}")
+    for document, changes in ((doc, {"audience": "members", "file": str(excerpt_id)}), (doc, {"audience": "board"}),
+                              (personal, {"audience": "person", "member": str(member)})):
+        page = page_ok(browser.get(base), "the files before publishing")
+        page_ok(browser.submit(page.form(name=f"vereinepublish{document}"), changes), f"publish {changes}")
+    status, first = stack.api("vereine/me/documents?subject=sub-more-1", client)
+    status_other, second = stack.api("vereine/me/documents?subject=sub-more-2", client)
+    mine = {row["document_id"]: row for row in first} if status == 200 else {}
+    theirs = {row["document_id"]: row for row in second} if status_other == 200 else {}
+    expect(doc in mine and mine[doc]["revision"] == excerpt_id and mine[doc]["what"] == "excerpt" and mine[doc]["derived_from"] == int(original_id),
+           f"the member does not get the shortened version: {mine.get(doc)}")
+    expect(personal in mine and mine[personal]["audience"] == "person" and personal not in theirs and doc in theirs,
+           f"the document for one person: {sorted(mine)} / {sorted(theirs)}")
+    status, public = stack.api("vereine/documents", stack.reader_key)
+    expect(status == 200 and all(row["document_id"] not in (doc, personal) for row in public), "a document for members or one person is public")
+    status, _ = stack.api(f"vereine/me/documents/{personal}/pdf?subject=sub-more-2", client)
+    expect(status == 404, f"another member got the document for one person: HTTP {status}")
+    status, pdf = stack.api(f"vereine/me/documents/{doc}/pdf?subject=sub-more-1", client)
+    expect(status == 200 and base64.b64decode(pdf["content"]) == excerpt, f"the PDF of the shortened version: HTTP {status}")
+
+    # Withdrawn: the person's document is gone; the feed said published, and revoked when nothing is left.
+    publication = stack.value(f"SELECT rowid FROM llx_vereine_publication WHERE fk_document = {personal} AND withdrawn_at IS NULL")
+    page = page_ok(browser.get(base), "the files before withdrawing")
+    page_ok(browser.submit(page.form(name=f"vereinewithdraw{publication}")), "withdraw the document for one person")
+    status, first = stack.api("vereine/me/documents?subject=sub-more-1", client)
+    expect(status == 200 and all(row["document_id"] != personal for row in first), "the withdrawn document is still there")
+    feed = stack.sql(f"SELECT object_id, change_kind FROM llx_vereine_change WHERE rowid > {feed_from} AND object_type = 'document' ORDER BY rowid")
+    expect([str(doc), "created"] in feed and [str(doc), "updated"] in feed and [str(personal), "created"] in feed and feed[-1] == [str(personal), "revoked"],
+           f"the change feed: {feed}")
+    stack.sql(f"UPDATE llx_vereine_publication SET withdrawn_at = NOW(), reason = 'withdrawn' WHERE fk_document = {doc} AND withdrawn_at IS NULL")
+
+    # A signed copy waits while the run still needs a signature.
+    counted = stack.php_fixture("signedrun", RT_DOCUMENT_ID=str(signed_doc))
+    expect(counted["open"] == counted["before"] and counted["done"] == counted["before"] + 1, f"a signed copy went out before every signature: {counted}")
+    stack.sql(f"UPDATE llx_vereine_publication SET withdrawn_at = NOW(), reason = 'withdrawn' WHERE fk_document = {signed_doc} AND withdrawn_at IS NULL")
+    return ("a shortened version as a file of its own, derived from the original that stayed; members got it, the board the original; a document for "
+            "one person reached only that person and went with its withdrawal; the feed said published and revoked; a signed copy waited for the last signature")
+
+
+def eventapi(stack: Stack) -> str:
+    """Events through the API: public ones for the website, members' ones for the app, never internal ones; a shift asked for once,
+    withdrawn while unconfirmed, a confirmed one not; one place of registration (#165)."""
+    browser = stack.browser()
+    base = "/custom/vereine/events.php"
+    today = datetime.date.fromisoformat(stack.today())
+    day = (today + datetime.timedelta(days=21)).isoformat()
+    ids = {}
+    for label, visibility, registration, ref in (("LAN intern", "0", "none", ""), ("LAN Mitglieder", "2", "none", ""),
+                                                 ("LAN offen", "1", "external", "lionsquad.at")):
+        page = page_ok(browser.get(base), "the events")
+        page_ok(browser.submit(page.form(name="vereineevent"), {"label": label, "event_day": day, "place": "Vereinsheim", "public": visibility,
+                                                                "registration": registration, "external_ref": ref}), f"create {label}")
+        ids[label] = int(stack.value(f"SELECT rowid FROM llx_vereine_event WHERE label = '{label}' ORDER BY rowid DESC LIMIT 1") or 0)
+    members_event = ids["LAN Mitglieder"]
+    page = page_ok(browser.get(f"{base}?id={members_event}"), "the members' event")
+    expect('data-event-visibility="members"' in page.text, "the event is not marked for members")
+    for label, start, end in (("Aufbau", "08:00", "10:00"), ("Kassa", "09:00", "12:00")):
+        page = page_ok(browser.get(f"{base}?id={members_event}"), "the event before a shift")
+        page_ok(browser.submit(page.form(name="vereineshift"), {"shift_label": label, "shift_day": day, "start_time": start, "end_time": end, "capacity": "1"}),
+                f"add the shift {label}")
+    shifts = {row[1]: int(row[0]) for row in stack.sql(f"SELECT rowid, label FROM llx_vereine_event_shift WHERE fk_event = {members_event}")}
+
+    status, public = stack.api("vereine/events", stack.reader_key)
+    labels = {row["label"]: row for row in public} if status == 200 else {}
+    expect("LAN offen" in labels and "LAN Mitglieder" not in labels and "LAN intern" not in labels
+           and labels["LAN offen"]["registration"] == {"kind": "external", "external_ref": "lionsquad.at"}, f"the public events: {public}")
+
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtevents", RT_CLIENT_KEY=client)
+    member = stack.value("SELECT rowid FROM llx_adherent WHERE statut = 1 ORDER BY rowid LIMIT 1")
+    page = page_ok(browser.get("/custom/vereine/admin/identities.php"), "the identities")
+    page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtevents", "member_id": member, "application_id": "0",
+                                                                             "capabilities[]": "events"}), "invite")
+    code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+    status, bound = stack.api(f"vereine/identities/claim?subject=sub-events&code={code}", client, method="POST")
+    expect(status == 200, f"binding: HTTP {status} {bound}")
+    status, mine = stack.api("vereine/me/events?subject=sub-events", client)
+    seen = {row["label"]: row for row in mine} if status == 200 else {}
+    expect("LAN Mitglieder" in seen and "LAN offen" in seen and "LAN intern" not in seen and len(seen["LAN Mitglieder"]["shifts"]) == 2,
+           f"the member's events: {list(seen)}")
+
+    path = f"vereine/me/events/{members_event}/shifts/{shifts['Aufbau']}?subject=sub-events"
+    for _ in range(2):
+        status, event = stack.api(path, client, method="PUT")
+    entries = stack.value(f"SELECT COUNT(*) FROM llx_vereine_event_shift_entry WHERE fk_shift = {shifts['Aufbau']} AND fk_adherent = {member} AND status <> 'cancelled'")
+    mine_now = next(row["mine"] for row in event["shifts"] if row["id"] == shifts["Aufbau"]) if status == 200 else ""
+    expect(status == 200 and mine_now == "requested" and entries == "1", f"asked twice: HTTP {status}, {mine_now}, {entries} entries")
+    status, _ = stack.api(f"vereine/me/events/{members_event}/shifts/{shifts['Kassa']}?subject=sub-events", client, method="PUT")
+    expect(status == 409, f"an overlapping shift was taken: HTTP {status}")
+    status, event = stack.api(path, client, method="DELETE")
+    expect(status == 200 and next(row["mine"] for row in event["shifts"] if row["id"] == shifts["Aufbau"]) == "cancelled", f"withdrawn: HTTP {status}")
+    status, event = stack.api(path, client, method="PUT")
+    expect(status == 200 and next(row["mine"] for row in event["shifts"] if row["id"] == shifts["Aufbau"]) == "requested", f"asked again after withdrawing: HTTP {status}")
+    stack.sql(f"UPDATE llx_vereine_event_shift_entry SET status = 'confirmed' WHERE fk_shift = {shifts['Aufbau']} AND fk_adherent = {member} AND status = 'requested'")
+    status, _ = stack.api(path, client, method="DELETE")
+    expect(status == 409, f"a confirmed shift was withdrawn through the app: HTTP {status}")
+    status, _ = stack.api(f"vereine/me/events/{ids['LAN intern']}/shifts/{shifts['Aufbau']}?subject=sub-events", client, method="PUT")
+    expect(status == 404, f"a shift through an internal event: HTTP {status}")
+    return ("the website saw only the public event with its external registration; the app saw public and members' events, never the internal one; "
+            "a shift asked twice is one request, an overlapping one refused, withdrawn while unconfirmed and asked again, a confirmed one not")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -5947,7 +6679,8 @@ SCENARIOS = (
     ("qes", "ID Austria: signature service in the setup, two people sign one PDF, cancel, a way back used twice, a changed PDF", qes, ("agreements",)),
     ("placeholders", "Placeholders: association data in Dolibarr's e-mail templates, the module's e-mails as templates, one list with examples", placeholders, ("qes",)),
     ("taxcheck", "Older invoice lines without a tax profile: suggestions from facts, a preview, assigning only the profile", taxcheck, ("placeholders",)),
-    ("audit", "The audit of the auditors: bookings and invoices with hints, samples, checklist, report with signatures", audit, ("taxcheck",)),
+    ("vatex", "0 % with a reason: codes in the VAT dictionary, VATEX for not subject to VAT, products and lines take them", vatex, ("taxcheck",)),
+    ("audit", "The audit of the auditors: bookings and invoices with hints, samples, checklist, report with signatures", audit, ("vatex",)),
     ("account", "Income and expenditure account: the money of the year by area, agreeing with the bank, statement of assets, PDF, signatures", account, ("audit",)),
     ("duties", "The calendar of duties: catalogue of the law, days of the year, agenda tasks, handover after a change of office", duties, ("account",)),
     ("events", "Events from templates: a project of Dolibarr with its tasks, the checklist, a template that changes later", events, ("duties",)),
@@ -5967,6 +6700,16 @@ SCENARIOS = (
      ("identities", "applicationfields")),
     ("honours", "Honours and statistics: jubilee once, birthdays with consent, honorary member, certificate, members on a day as a file", honours, ("social",)),
     ("inventory", "Equipment and loans: lend with state, no second loan, late reminder once to the borrower, return, reservation", inventory, ("honours",)),
+    ("documents", "Publishing documents: rule for signed ones, by hand for the public, withdrawn gone, app and website see theirs", documents, ("inventory",)),
+    ("statuteapi", "Statutes through the API: published or not, in force, future, ambiguous, missing file", statuteapi, ("documents",)),
+    ("meetingapi", "Meetings through the API: only invited ones, answer, motion once and late, board decides, cancelled", meetingapi, ("statuteapi",)),
+    ("profileapi", "Own data through the API: change at once or for the board, conflict, nothing else writable, notice of the exit", profileapi, ("meetingapi",)),
+    ("eventapi", "Events through the API: public for the website, members' for the app, shifts asked and withdrawn", eventapi, ("profileapi",)),
+    ("documentmore", "Documents: a shortened version derived from the original, one person only, the change feed, signed copies when complete",
+     documentmore, ("eventapi",)),
+    ("ballotapi", "Ballots of a general assembly: two applications and paper, proxies, frozen rights, one right counts once", ballotapi, ("documentmore",)),
+    ("ballotresult", "Counting ballots: proof as PDF, provisional until confirmed, confirmed once, an election's term once", ballotresult, ("ballotapi",)),
+    ("portal", "Dolibarr's web portal: the page of the association, the same documents and ballots as the API, no second vote", portal, ("ballotresult",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),
