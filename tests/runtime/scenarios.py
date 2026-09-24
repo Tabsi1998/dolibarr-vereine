@@ -5513,8 +5513,10 @@ def erasure(stack: Stack) -> str:
     page = page_ok(browser.get(f"{tab}&action=erase&token={token_of(page_ok(browser.get(tab), 'the tab to erase'))}"), "the question before erasing")
     expect("rückgängig" in html.unescape(page.text), "no question before erasing")
     last_log = int(stack.value("SELECT IFNULL(MAX(rowid), 0) FROM llx_vereine_log") or 0)
-    feed = f"SELECT COUNT(*) FROM llx_vereine_change WHERE object_type = 'membership' AND object_id = {member} AND change_kind = 'updated'"
-    changes = int(stack.value(feed) or 0)
+    # Two changes of a member in the same second are one entry of the feed; the erasure counts from its own second on.
+    since = stack.value("SELECT DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-%d %H:%i:%s')")
+    feed = (f"SELECT COUNT(*) FROM llx_vereine_change WHERE object_type = 'membership' AND object_id = {member} AND change_kind = 'updated'"
+            f" AND occurred_at >= '{since}'")
     page_ok(browser.post(tab, [("token", token_of(page)), ("action", "confirm_erase"), ("confirm", "yes")]), "erase what is due")
     kept = stack.sql(f"SELECT lastname, IFNULL(email, '-'), IFNULL(address, '-'), IFNULL(birth, '-') FROM llx_adherent WHERE rowid = {member}")
     expect(kept == [["Vergessen", "-", "-", "-"]], f"the member after the first run: {kept}")
@@ -5530,7 +5532,7 @@ def erasure(stack: Stack) -> str:
     expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_log WHERE fk_adherent = {member} AND action = 'erasure'") == "1", "the run was not logged")
     run = json.loads(stack.value(f"SELECT done FROM llx_vereine_erasure WHERE fk_adherent = {member} AND kind = 'run'") or "{}")
     expect(set(run) == {"identities", "contact", "invitations", "consents", "disclosures", "log"} and "Vergessen" not in json.dumps(run), f"the run kept: {run}")
-    expect(int(stack.value(feed) or 0) > changes, "the change feed did not learn about the erasure")
+    expect(int(stack.value(feed) or 0) > 0, "the change feed did not learn about the erasure")
     status, summary = stack.api(f"vereine/members/{member}/summary", key)
     expect(status == 200, f"the summary of the erased member: HTTP {status} {summary}")
 
