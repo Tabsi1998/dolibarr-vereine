@@ -76,6 +76,7 @@ require_once __DIR__.'/class/vereinearrears.class.php';
 require_once __DIR__.'/class/vereinesocial.class.php';
 require_once __DIR__.'/class/vereinehonours.class.php';
 require_once __DIR__.'/class/vereineloans.class.php';
+require_once __DIR__.'/class/vereineprofiles.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('companies', 'members', 'bills', 'categories', 'vereine@vereine'));
@@ -267,6 +268,19 @@ if (($action === 'erasurehold' || $action === 'erasurerelease') && $canErase) {
 		exit;
 	}
 	setEventMessages($result < 0 ? $erasure->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $erasure->errors), 'errors');
+}
+// A change of the own data asked for through an application (#164): the board applies or rejects it.
+if (($action === 'applyprofile' || $action === 'rejectprofile') && $canExit) {
+	$profiles = new VereineProfiles($db);
+	$result = $profiles->decide(GETPOSTINT('request'), $action === 'applyprofile', GETPOST('reason', 'alphanohtml'), GETPOST('note', 'alphanohtml'), $user);
+	if ($result < 0) {
+		setEventMessages($profiles->error, null, 'errors');
+	} elseif ($result === 0 && $profiles->errors) {
+		setEventMessages(null, array_map(array($langs, 'trans'), $profiles->errors), 'errors');
+	} else {
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereineprofilerequests');
+		exit;
+	}
 }
 if (($action === 'cancelexit' || $action === 'carryoutexit') && $canExit) {
 	foreach ($exits->planned(array((int) $object->id)) as $exit) {
@@ -611,6 +625,35 @@ foreach ($memberResolutions as $entry) {
 	print '<td>'.$langs->trans($entry['passed'] ? 'VereineResolutionPassed' : 'VereineResolutionRejected').'</td></tr>';
 }
 print '</table></div><br>';
+
+// Changes of the own data the member asked for through an application (#164).
+$profileRequests = (new VereineProfiles($db))->pending((int) $object->id);
+if ($profileRequests) {
+	print load_fiche_titre($langs->trans('VereineProfileRequestsTitle'), '', '', 0, 'vereineprofilerequests');
+	foreach ($profileRequests as $request) {
+		print '<div class="paddingbottom" data-profile-request="'.$request['id'].'" data-profile-outdated="'.($request['outdated'] ? 1 : 0).'"><table class="noborder centpercent">';
+		print '<tr class="liste_titre"><td>'.$langs->trans('VereineProfileField').'</td><td>'.$langs->trans('VereineProfileNow').'</td><td>'.$langs->trans('VereineProfileWanted').'</td></tr>';
+		foreach ($request['changes'] as $field => $value) {
+			print '<tr class="oddeven"><td>'.$langs->trans('VereineProfileField_'.$field).'</td><td>'.dol_escape_htmltag($request['now'][$field]).'</td><td><strong>'.dol_escape_htmltag($value).'</strong></td></tr>';
+		}
+		print '</table>';
+		if ($request['outdated']) {
+			print '<div class="warning">'.$langs->trans('VereineProfileErrorOutdated').'</div>';
+		}
+		if ($canExit) {
+			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'" name="vereineprofilerequest'.$request['id'].'" class="paddingtop">';
+			print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="request" value="'.$request['id'].'">';
+			print '<input type="text" name="reason" size="30" maxlength="255" placeholder="'.dol_escape_htmltag($langs->trans('VereineProfileReasonPlaceholder')).'"> ';
+			print '<input type="text" name="note" size="30" maxlength="255" placeholder="'.dol_escape_htmltag($langs->trans('VereineProfileNotePlaceholder')).'"> ';
+			if (!$request['outdated']) {
+				print '<button type="submit" name="action" value="applyprofile" class="button small">'.$langs->trans('VereineProfileApply').'</button> ';
+			}
+			print '<button type="submit" name="action" value="rejectprofile" class="button small">'.$langs->trans('VereineProfileReject').'</button></form>';
+		}
+		print '</div>';
+	}
+	print '<br>';
+}
 
 // Equipment the member borrowed (#26).
 $memberLoans = (new VereineLoans($db))->loans((int) $object->id, 20);

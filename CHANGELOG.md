@@ -16,6 +16,13 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Turniersieg) oder Ehrenmitgliedschaft. Ein Ehrenmitglied wechselt in die Mitgliedsart, die der Verein
   dafür wählt, etwa eine ohne Beitrag. Zu jeder Ehrung gibt es eine **Urkunde als PDF** mit Linien für
   die Unterschriften; der Reiter *Verein* des Mitglieds nennt seine Ehrungen.
+- **Eigene Daten in der App** (#164): Mit der Fähigkeit *profile* liest eine App die Daten der Person,
+  beantragt Änderungen der Kontaktdaten (nur Anschrift, Telefon, E-Mail – nie Mitgliedsart, Status,
+  Funktionen oder Bankdaten) und erklärt den Austritt. Unter *Externe Identitäten* wählt der Verein,
+  was sofort übernommen wird; alles andere, eine neue E-Mail-Adresse immer, entscheidet der Vorstand im
+  Reiter *Verein* mit einer Begründung für das Mitglied und einer Notiz nur für sich. Wer auf einem
+  veralteten Stand ändert, bekommt einen Konflikt statt eines stillen Überschreibens. Der Austritt endet
+  am Tag der Kündigungsregel; die App bekommt diesen Tag zurück.
 - **Sitzungen in der App** (#159): Eine App mit der neuen Fähigkeit *meetings* zeigt der Person jede
   Sitzung, zu der sie eingeladen ist – nie eine Vorstandssitzung nur wegen der Mitgliedschaft –, mit
   Tagesordnung, Ort oder Zugang, Stimmrecht und Antragsfrist. Die Person sagt zu oder ab (keine

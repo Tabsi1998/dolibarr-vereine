@@ -102,6 +102,19 @@ if ($action === 'invite') {
 		exit;
 	}
 	setEventMessages($access->error, array_map(array($langs, 'trans'), $access->errors), 'errors');
+} elseif ($action === 'savedirect') {
+	dol_include_once('/vereine/class/vereineprofiles.class.php');
+	$fields = array();
+	foreach (VereineProfileRules::DIRECT_ALLOWED as $field) {
+		if (GETPOSTISSET('direct_'.$field)) {
+			$fields[] = $field;
+		}
+	}
+	if ((new VereineProfiles($db))->saveDirect($fields, $user) > 0) {
+		setEventMessages($langs->trans('SetupSaved'), null, 'mesgs');
+		header('Location: '.$self.'#vereineprofiledirect');
+		exit;
+	}
 } elseif ($action === 'search') {
 	$candidates = $access->candidates(GETPOST('email', 'alphanohtml'), GETPOST('ref', 'alphanohtml'));
 }
@@ -228,6 +241,19 @@ if (!$invitations) {
 	print '<tr class="oddeven"><td colspan="4"><span class="opacitymedium" data-identity-noinvite="1">'.$langs->trans('VereineIdentityNoInvite').'</span></td></tr>';
 }
 print '</table></div>';
+
+// Which own data a member's change through an application takes at once; everything else waits for the board (#164).
+dol_include_once('/vereine/class/vereineprofiles.class.php');
+$direct = VereineProfiles::directFields();
+print '<br>'.load_fiche_titre($langs->trans('VereineProfileDirectTitle'), '', '', 0, 'vereineprofiledirect');
+print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineProfileDirectHowTo').'</div>';
+print '<form method="POST" action="'.$self.'#vereineprofiledirect" name="vereineprofiledirect"><input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="savedirect">';
+foreach (VereineProfileRules::DIRECT_ALLOWED as $field) {
+	print '<label class="paddingright"><input type="checkbox" name="direct_'.$field.'" value="1"'.(in_array($field, $direct, true) ? ' checked' : '').'> '
+		.$langs->trans('VereineProfileField_'.$field).'</label> ';
+}
+print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('Save')).'"></form>';
 
 print dol_get_fiche_end();
 llxFooter();

@@ -116,6 +116,13 @@ class VereineWaiting
 			$add('arrear', '', $langs->transnoentities('VereineTodoArrears', $arrearCount), dol_buildpath('/vereine/meetings.php', 1).'?template=board#vereinemeetingnew');
 		}
 
+		// Changes of own data that wait for the board; the list names nobody (#164).
+		require_once __DIR__.'/vereineprofiles.class.php';
+		$waitingChanges = count((new VereineProfiles($this->db))->pending());
+		if ($waitingChanges > 0) {
+			$add('profile', '', $langs->transnoentities('VereineTodoProfiles', $waitingChanges), dol_buildpath('/vereine/partners.php', 1));
+		}
+
 		// Equipment that is late; the list names nobody (#26).
 		require_once __DIR__.'/vereineloans.class.php';
 		$lateLoans = (new VereineLoans($this->db))->overdue($today);

@@ -6030,6 +6030,73 @@ def meetingapi(stack: Stack) -> str:
             "a motion once, another under the same id refused, a late one kept as late; accepted in Dolibarr it closed the agenda; cancelled, no more answers")
 
 
+def profileapi(stack: Stack) -> str:
+    """Own data through the API: read, a change of the address at once, an e-mail address that waits for the board, a conflict instead of
+    overwriting, nothing else writable, the notice of the exit on the day of the rule (#164)."""
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/identities.php"
+    page = page_ok(browser.get(setup), "the identities")
+    page_ok(browser.submit(page.form(name="vereineprofiledirect"), {"direct_address": "1", "direct_zip": "1", "direct_town": "1"}), "address at once")
+    expect(stack.const("VEREINE_PROFILE_DIRECT") == "address,zip,town", f"stored: {stack.const('VEREINE_PROFILE_DIRECT')}")
+    member = stack.value("SELECT rowid FROM llx_adherent WHERE statut = 1 AND rowid NOT IN (SELECT fk_adherent FROM llx_vereine_member_exit WHERE status = 'planned')"
+                         " ORDER BY rowid DESC LIMIT 1")
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtprofile", RT_CLIENT_KEY=client)
+    page = page_ok(browser.get(setup), "the identities before the invitation")
+    page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtprofile", "member_id": member, "application_id": "0",
+                                                                             "capabilities[]": "profile"}), "invite")
+    code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+    status, bound = stack.api(f"vereine/identities/claim?subject=sub-profile&code={code}", client, method="POST")
+    expect(status == 200, f"binding: HTTP {status} {bound}")
+    status, profile = stack.api("vereine/me/profile?subject=sub-profile", client)
+    expect(status == 200 and profile["member_id"] == int(member) and profile["direct"] == ["address", "zip", "town"], f"the own data: HTTP {status} {profile}")
+
+    # The address changes at once, twice the same request is one.
+    change = {"external_id": "app-change-1", "version": profile["version"], "changes": {"address": "Neue Gasse 7", "zip": "6020", "town": "Innsbruck"}}
+    for _ in range(2):
+        status, applied = stack.api("vereine/me/profile/changes?subject=sub-profile", client, method="POST", data=change)
+    expect(status == 200 and applied["status"] == "applied" and stack.value(f"SELECT address FROM llx_adherent WHERE rowid = {member}") == "Neue Gasse 7"
+           and stack.value("SELECT COUNT(*) FROM llx_vereine_profile_request WHERE external_id = 'app-change-1'") == "1", f"the change: HTTP {status} {applied}")
+    # The old version is now a conflict; the status and the third party cannot be written.
+    status, _ = stack.api("vereine/me/profile/changes?subject=sub-profile", client, method="POST",
+                          data={"external_id": "app-change-2", "version": profile["version"], "changes": {"town": "Hall"}})
+    expect(status == 409, f"a change on an old version: HTTP {status}")
+    status, profile = stack.api("vereine/me/profile?subject=sub-profile", client)
+    status, refused = stack.api("vereine/me/profile/changes?subject=sub-profile", client, method="POST",
+                                data={"external_id": "app-change-3", "version": profile["version"], "changes": {"statut": "-2", "fk_soc": "1"}})
+    expect(status == 400 and stack.value(f"SELECT statut FROM llx_adherent WHERE rowid = {member}") == "1", f"status written through the app: HTTP {status}")
+
+    # A new e-mail address waits for the board; the board rejects it with a word for the member and a note of its own.
+    old_email = stack.value(f"SELECT email FROM llx_adherent WHERE rowid = {member}")
+    status, waiting = stack.api("vereine/me/profile/changes?subject=sub-profile", client, method="POST",
+                                data={"external_id": "app-change-4", "version": profile["version"], "changes": {"email": "neu.adresse@runtime-verein.test"}})
+    expect(status == 200 and waiting["status"] == "received" and stack.value(f"SELECT email FROM llx_adherent WHERE rowid = {member}") == old_email,
+           f"a new e-mail address was taken at once: {waiting}")
+    request = stack.value("SELECT rowid FROM llx_vereine_profile_request WHERE external_id = 'app-change-4'")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={member}"), "the member's tab")
+    expect(f'data-profile-request="{request}" data-profile-outdated="0"' in tab.text, "the member's tab does not show the waiting change")
+    page_ok(browser.submit(tab.form(name=f"vereineprofilerequest{request}"), {"reason": "Bitte persönlich bestätigen", "note": "intern: Anruf offen"},
+                           button=("action", "rejectprofile")), "reject the change")
+    status, requests = stack.api("vereine/me/profile/changes?subject=sub-profile", client)
+    rejected = next(row for row in requests if row["external_id"] == "app-change-4")
+    expect(rejected["status"] == "rejected" and rejected["reason"] == "Bitte persönlich bestätigen" and "intern" not in json.dumps(requests),
+           f"the member's view of the rejected change: {rejected}")
+
+    # The notice of the exit ends on the day of the rule.
+    status, notice = stack.api("vereine/me/exit?subject=sub-profile", client, method="POST", data={"external_id": "app-exit-1", "wished_last_day": "2000-01-01"})
+    stored = stack.sql(f"SELECT reason, notice_day, last_day, status FROM llx_vereine_member_exit WHERE fk_adherent = {member} ORDER BY rowid DESC LIMIT 1")
+    expect(status == 200 and stored and stored[0][0] == "resignation" and notice["last_day"] == stored[0][2] and notice["wished_too_early"] is True
+           and notice["notice_day"] == stack.today(), f"the notice: HTTP {status} {notice}, stored {stored}")
+    status, again = stack.api("vereine/me/exit?subject=sub-profile", client, method="POST", data={"external_id": "app-exit-1", "wished_last_day": "2000-01-01"})
+    expect(status == 200 and again["last_day"] == notice["last_day"], f"the same notice again: HTTP {status}")
+    status, _ = stack.api("vereine/me/exit?subject=sub-profile", client, method="POST", data={"external_id": "app-exit-2"})
+    expect(status == 409, f"a second notice: HTTP {status}")
+    if stored[0][3] == "planned":
+        stack.sql(f"UPDATE llx_vereine_member_exit SET status = 'cancelled' WHERE fk_adherent = {member} AND status = 'planned'")
+    return (f"address changed at once and once; an old version a conflict; status and third party not writable; a new e-mail address waited for "
+            f"the board, rejected with a reason and without the internal note; the notice ends on {notice['last_day']} by the rule, a second one refused")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -6189,6 +6256,7 @@ SCENARIOS = (
     ("documents", "Publishing documents: rule for signed ones, by hand for the public, withdrawn gone, app and website see theirs", documents, ("inventory",)),
     ("statuteapi", "Statutes through the API: published or not, in force, future, ambiguous, missing file", statuteapi, ("documents",)),
     ("meetingapi", "Meetings through the API: only invited ones, answer, motion once and late, board decides, cancelled", meetingapi, ("statuteapi",)),
+    ("profileapi", "Own data through the API: change at once or for the board, conflict, nothing else writable, notice of the exit", profileapi, ("meetingapi",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),

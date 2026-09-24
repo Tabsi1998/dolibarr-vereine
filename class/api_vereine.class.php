@@ -1089,6 +1089,114 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * The own data of the person the caller acts for
+	 *
+	 * Name, contact data, member type, status and a planned or finished exit, with the version a change
+	 * must name and the fields that change at once. Only with the ability profile for this binding; the
+	 * summary for websites stays without address and birth.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET me/profile
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyProfile($subject = '')
+	{
+		$this->checkAccess();
+		$member = $this->profileMember((string) $subject);
+		return (new VereineProfiles($this->db))->profile($member);
+	}
+
+	/**
+	 * Ask for a change of the own contact data
+	 *
+	 * Only address, zip, town, country, phones and e-mail; nothing else can be changed this way. The
+	 * request names the version of GET me/profile; when the data changed since, it is a conflict. Fields
+	 * the association lets change at once are applied, everything else waits for the board. The same
+	 * external_id with the same content answers the same request.
+	 *
+	 * @param string $subject      How the application calls the person
+	 * @param array  $request_data external_id, version, changes
+	 * @return array The request
+	 *
+	 * @url POST me/profile/changes
+	 * @status 200
+	 *
+	 * @throws RestException 400 subject missing or the request is not valid
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 409 The data changed since, or the external_id holds another request
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function postMyProfileChange($subject = '', $request_data = null)
+	{
+		$this->checkAccess();
+		$member = $this->profileMember((string) $subject);
+		$profiles = new VereineProfiles($this->db);
+		$request = $profiles->submitChange($member, $request_data, (string) DolibarrApiAccess::$user->login, DolibarrApiAccess::$user);
+		if ($request === null) {
+			$this->profileRefused($profiles);
+		}
+		return $request;
+	}
+
+	/**
+	 * The own requests of the person the caller acts for
+	 *
+	 * Changes and notices of the exit, newest first, each with its state and, when the board said no,
+	 * the reason meant for the member. What the board notes for itself is never part of it.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array List as documented in docs/API.md
+	 *
+	 * @url GET me/profile/changes
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyProfileChanges($subject = '')
+	{
+		$this->checkAccess();
+		$member = $this->profileMember((string) $subject);
+		return (new VereineProfiles($this->db))->requests((int) $member->id);
+	}
+
+	/**
+	 * Give notice of the exit for the person the caller acts for
+	 *
+	 * Kept with the day it came; the membership ends on the day the notice rule of the association says,
+	 * or later when a later day is wished. The answer names that day. The same external_id again answers
+	 * the same notice.
+	 *
+	 * @param string $subject      How the application calls the person
+	 * @param array  $request_data external_id, wished_last_day
+	 * @return array The notice
+	 *
+	 * @url POST me/exit
+	 * @status 200
+	 *
+	 * @throws RestException 400 subject missing or the notice is not valid
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 409 An exit is already planned, the person is no active member, or the external_id holds another request
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function postMyExit($subject = '', $request_data = null)
+	{
+		$this->checkAccess();
+		$member = $this->profileMember((string) $subject);
+		$profiles = new VereineProfiles($this->db);
+		$notice = $profiles->submitExit($member, $request_data, (string) DolibarrApiAccess::$user->login, dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'), DolibarrApiAccess::$user);
+		if ($notice === null) {
+			$this->profileRefused($profiles);
+		}
+		return $notice;
+	}
+
+	/**
 	 * The accounts of the person the caller acts for
 	 *
 	 * The networks the association asks for and every other the member has, each with the name, where it
@@ -1443,6 +1551,51 @@ class Vereine extends DolibarrApi
 			throw new RestException(500, 'The archived file is missing or was changed');
 		}
 		return $pdf;
+	}
+
+	/**
+	 * The member the caller acts for, when the binding may handle the person's own data.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return Adherent
+	 *
+	 * @throws RestException
+	 */
+	private function profileMember($subject)
+	{
+		$this->checkIdentityRight();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		dol_include_once('/vereine/class/vereineprofiles.class.php');
+		require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_PROFILE, 'member');
+		$member = new Adherent($this->db);
+		if ($member->fetch((int) $identity['member_id']) <= 0) {
+			throw new RestException(403, 'Not allowed: the binding has no member');
+		}
+		return $member;
+	}
+
+	/**
+	 * Turn what the service for own data refused into the answer of the API.
+	 *
+	 * @param VereineProfiles $profiles The service
+	 * @return void
+	 *
+	 * @throws RestException
+	 */
+	private function profileRefused($profiles)
+	{
+		if (!$profiles->errors) {
+			dol_syslog(__METHOD__.' '.$profiles->error, LOG_ERR);
+			throw new RestException(500, 'The request could not be kept');
+		}
+		if (in_array('conflict', $profiles->errors, true)) {
+			throw new RestException(409, 'The data changed since, or the external_id holds another request');
+		}
+		if (array_intersect(array('an exit is already planned', 'only an active member can give notice'), $profiles->errors)) {
+			throw new RestException(409, implode('; ', $profiles->errors));
+		}
+		throw new RestException(400, implode('; ', $profiles->errors));
 	}
 
 	/**

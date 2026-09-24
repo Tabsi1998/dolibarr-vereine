@@ -143,6 +143,7 @@ class VereineLog
 	const PUBLICATION = 'publication';
 	const MEETING_RESPONSE = 'meeting_response';
 	const MOTION = 'motion';
+	const PROFILE = 'profile';
 
 	/**
 	 * Append one entry.

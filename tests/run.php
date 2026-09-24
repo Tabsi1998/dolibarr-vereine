@@ -82,6 +82,7 @@ require_once $root.'/class/vereineloanrules.class.php';
 require_once $root.'/class/vereinepublicationrules.class.php';
 require_once $root.'/class/vereinestatuteversionrules.class.php';
 require_once $root.'/class/vereinemotionrules.class.php';
+require_once $root.'/class/vereineprofilerules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1810,7 +1811,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked', 'honour', 'loan', 'loan_returned', 'loan_reminded', 'publication', 'meeting_response', 'motion'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked', 'honour', 'loan', 'loan_returned', 'loan_reminded', 'publication', 'meeting_response', 'motion', 'profile'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1856,6 +1857,7 @@ $prefixes = array(
 	'VereineLoanState_' => array('available', 'out', 'overdue', 'returned'),
 	'VereinePublicationAudience_' => array('none', 'board', 'members', 'public'),
 	'VereineMotionState_' => array('accepted', 'rejected'),
+	'VereineProfileField_' => array_keys(VereineProfileRules::FIELDS),
 	'VereineMotionDecide_' => array('accepted', 'rejected'),
 	'VereineHonourKind_' => array('jubilee', 'honorary'),
 	'VereineErasureReason_' => array('keep_bookkeeping', 'keep_records', 'member', 'hold', 'open_invoices', 'functions', 'name'),
@@ -2925,6 +2927,20 @@ $sorted = VereineSocialRules::sortChannels(array(
 	array('network' => 'twitch', 'position' => 20, 'label' => 'CS2'),
 	array('network' => 'discord', 'position' => 30, 'label' => 'Server')), array('discord', 'twitch', 'youtube'));
 same(array('Hauptstream', 'CS2', 'Livestream', 'Server'), array_column($sorted, 'label'), 'the order of the association first, then the network');
+// ------------------------------------------------------------- own data through an application (#164)
+
+$now = array('address' => 'Alte Gasse 1', 'zip' => '6020', 'town' => 'Innsbruck', 'country_code' => 'AT', 'phone' => '', 'phone_mobile' => '', 'email' => 'a@example.org');
+$version = VereineProfileRules::version($now);
+$asked = VereineProfileRules::check(array('external_id' => 'app-1', 'version' => $version, 'changes' => array('address' => ' Neue Gasse 2 ', 'zip' => '6020', 'country_code' => 'at')), $now);
+same(array(array(), array('address' => 'Neue Gasse 2')), array($asked['errors'], $asked['changes']), 'only what differs, trimmed; the country as two capitals');
+$refused = VereineProfileRules::check(array('external_id' => 'app-2', 'version' => $version, 'changes' => array('statut' => '1', 'fk_soc' => '7', 'email' => 'kein')), $now);
+same(array('changes.statut cannot be changed this way', 'changes.fk_soc cannot be changed this way', 'changes.email is no valid address'), $refused['errors'],
+	'status, third party and a wrong address are refused');
+expect($version !== VereineProfileRules::version(array('address' => 'Neue Gasse 2') + $now), 'another address, another version');
+same(array(true, false, false), array(VereineProfileRules::direct(array('address' => 'x', 'zip' => 'y'), array('address', 'zip')),
+	VereineProfileRules::direct(array('address' => 'x', 'email' => 'e@x.org'), array('address', 'email')), VereineProfileRules::direct(array(), array('address'))),
+	'at once only when every field may, never an e-mail address');
+
 // ------------------------------------------------------------- answers and motions for meetings (#159)
 
 same('2026-10-21', VereineMotionRules::deadline('2026-10-24', 3), 'motions three days before the assembly');

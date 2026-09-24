@@ -55,7 +55,10 @@ class VereineIdentityRules
 	/** The person's own meetings: see them, answer, send a motion (#159). */
 	const CAPABILITY_MEETINGS = 'meetings';
 
-	const CAPABILITIES = array('consents', 'applications', 'documents', 'votes', 'accounts', 'meetings');
+	/** The person's own data: read them, ask for a change, give notice of the exit (#164). */
+	const CAPABILITY_PROFILE = 'profile';
+
+	const CAPABILITIES = array('consents', 'applications', 'documents', 'votes', 'accounts', 'meetings', 'profile');
 
 	/** The binding came from a one-time invitation the person used. */
 	const PROOF_INVITATION = 'invitation';
