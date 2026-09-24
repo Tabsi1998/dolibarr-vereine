@@ -391,6 +391,7 @@ def enable(stack: Stack) -> str:
                     ["members", "vereine_events", "/vereine/events.php"],
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
                     ["members", "vereine_honours", "/vereine/honours.php"],
+                    ["members", "vereine_inventory", "/vereine/inventory.php"],
                     ["members", "vereine_meetings", "/vereine/meetings.php"],
                     ["members", "vereine_overpayments", "/vereine/overpayments.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"],
