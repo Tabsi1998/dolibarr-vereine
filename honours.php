@@ -209,7 +209,7 @@ foreach ($given as $honour) {
 		: ($honour['kind'] === 'award' ? dol_escape_htmltag($honour['label']) : $langs->trans('VereineHonourKind_honorary'));
 	print '<tr class="oddeven" data-honour="'.$honour['id'].'" data-honour-kind="'.$honour['kind'].'"><td>'.vereineFormatDay($honour['given_on']).'</td>';
 	print '<td>'.dol_escape_htmltag($honour['name']).'</td><td>'.$what.'</td>';
-	print '<td class="right"><a href="'.$here.'&action=certificate&id='.$honour['id'].'&token='.newToken().'">'.img_pdf().' '.$langs->trans('VereineHonourCertificate').'</a></td></tr>';
+	print '<td class="right"><a href="'.$here.'&action=certificate&id='.$honour['id'].'&token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineHonourCertificate').'</a></td></tr>';
 }
 if (!$given) {
 	print '<tr class="oddeven"><td colspan="4"><span class="opacitymedium">'.$langs->trans('VereineHonourNone').'</span></td></tr>';
