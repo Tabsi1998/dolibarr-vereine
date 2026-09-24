@@ -169,7 +169,12 @@ class VereineArchive
 			}
 			$id = (int) $this->db->last_insert_id(MAIN_DB_PREFIX.'vereine_document');
 		}
-		return $this->addFile($id, $file, $what) < 0 ? -1 : $id;
+		$fileId = $this->addFile($id, $file, $what);
+		if ($fileId < 0) {
+			return -1;
+		}
+		$this->published($id, $fileId, $kind, $what);
+		return $id;
 	}
 
 	/**
@@ -194,7 +199,12 @@ class VereineArchive
 		if (!$obj) {
 			return 0;
 		}
-		return $this->addFile((int) $obj->rowid, $file, $what) < 0 ? -1 : 1;
+		$fileId = $this->addFile((int) $obj->rowid, $file, $what);
+		if ($fileId < 0) {
+			return -1;
+		}
+		$this->published((int) $obj->rowid, $fileId, $kind, $what);
+		return 1;
 	}
 
 	/**
@@ -203,7 +213,7 @@ class VereineArchive
 	 * @param int    $documentId Document
 	 * @param string $file       The file
 	 * @param string $what       One of VereineArchiveRules::FILES
-	 * @return int 1 when kept or known, -1 on error
+	 * @return int The revision, kept now or known already, -1 on error
 	 */
 	private function addFile($documentId, $file, $what)
 	{
@@ -217,8 +227,9 @@ class VereineArchive
 		$root = rtrim((string) $conf->vereine->dir_output, '/').'/';
 		$relative = strpos($file, $root) === 0 ? substr($file, strlen($root)) : basename($file);
 		$resql = $this->db->query("SELECT rowid FROM ".MAIN_DB_PREFIX."vereine_document_file WHERE fk_document = ".((int) $documentId)." AND sha256 = '".$this->db->escape($sha)."'");
-		if ($resql && $this->db->fetch_object($resql)) {
-			return 1;
+		$known = $resql ? $this->db->fetch_object($resql) : null;
+		if ($known) {
+			return (int) $known->rowid;
 		}
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_document_file (fk_document, sha256, relpath, what, datec) VALUES (".((int) $documentId).",";
 		$sql .= " '".$this->db->escape($sha)."', '".$this->db->escape($relative)."', '".$this->db->escape($what)."', '".$this->db->idate(dol_now())."')";
@@ -226,7 +237,27 @@ class VereineArchive
 			$this->error = $this->db->lasterror();
 			return -1;
 		}
-		return 1;
+		return (int) $this->db->last_insert_id(MAIN_DB_PREFIX.'vereine_document_file');
+	}
+
+	/**
+	 * A new revision goes out when the rule of its kind says so (#156); a problem there never stops the files.
+	 *
+	 * @param int    $documentId Document
+	 * @param int    $fileId     Revision
+	 * @param string $kind       Kind of the document
+	 * @param string $what       built, signed or scan
+	 * @return void
+	 */
+	private function published($documentId, $fileId, $kind, $what)
+	{
+		global $user;
+
+		require_once __DIR__.'/vereinepublications.class.php';
+		$publications = new VereinePublications($this->db);
+		if ($publications->onFile((int) $documentId, (int) $fileId, (string) $kind, (string) $what, $user) < 0) {
+			dol_syslog('VereineArchive: publishing revision '.((int) $fileId).': '.$publications->error, LOG_WARNING);
+		}
 	}
 
 	/**
@@ -397,7 +428,7 @@ class VereineArchive
 	{
 		global $conf;
 
-		$sql = "SELECT d.code, d.kind, d.title, d.datec, COUNT(f.rowid) as files FROM ".MAIN_DB_PREFIX."vereine_document as d";
+		$sql = "SELECT d.rowid, d.code, d.kind, d.title, d.datec, COUNT(f.rowid) as files FROM ".MAIN_DB_PREFIX."vereine_document as d";
 		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."vereine_document_file as f ON f.fk_document = d.rowid WHERE d.entity = ".((int) $conf->entity);
 		if ((int) $year > 0) {
 			$sql .= " AND d.datec BETWEEN '".((int) $year)."-01-01 00:00:00' AND '".((int) $year)."-12-31 23:59:59'";
@@ -406,7 +437,7 @@ class VereineArchive
 		$documents = array();
 		$resql = $this->db->query($sql);
 		while ($resql && ($obj = $this->db->fetch_object($resql))) {
-			$documents[] = array('code' => (string) $obj->code, 'kind' => (string) $obj->kind, 'title' => (string) $obj->title,
+			$documents[] = array('id' => (int) $obj->rowid, 'code' => (string) $obj->code, 'kind' => (string) $obj->kind, 'title' => (string) $obj->title,
 				'created' => $this->db->jdate($obj->datec), 'files' => (int) $obj->files);
 		}
 		return $documents;

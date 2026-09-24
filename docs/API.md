@@ -49,6 +49,13 @@ beim nächsten als `changed_since` verwenden (siehe unten). `country_profile` un
 `country_profile_complete` sind veraltet: immer `AT` und `true`, sie entfallen
 mit 1.0.
 
+## GET /vereine/documents
+
+Was der Verein für die **Öffentlichkeit** veröffentlicht hat, im selben Format wie
+`GET /vereine/me/documents`. Das PDF kommt von `GET /vereine/documents/{id}/pdf` (optional `revision`).
+Veröffentlicht wird unter *Mitglieder > Verein > Vereinsakte*: je Dokument von Hand oder je Dokumentart
+automatisch, sobald die unterschriebene Fassung da ist. Ab Werk ist nichts veröffentlicht.
+
 ## GET /vereine/organization
 
 Der Verein, zum Beispiel für das Impressum einer Website. Name, Anschrift und
@@ -816,6 +823,25 @@ abgelaufenem Code und wenn es für die Kennung bei dieser Anwendung schon eine B
 ### GET /vereine/me/application
 
 `subject`, braucht die Fähigkeit `applications`. Der Stand des eigenen Beitrittsantrags.
+
+### GET /vereine/me/documents
+
+`subject`, Fähigkeit `documents`. Was der Verein für die Person veröffentlicht hat: öffentliche
+Dokumente, die für Mitglieder, solange sie aktives Mitglied ist, und die für den Vorstand, solange sie
+ihm angehört. Je Dokument die neueste veröffentlichte Fassung.
+
+```json
+[{"document_id": 12, "revision": 31, "code": "QZLAS-8TMMD", "kind": "minutes", "title": "Protokoll Generalversammlung 2026",
+  "date": "2026-09-24T18:02:11+00:00", "what": "signed", "sha256": "3f9c…", "size": 81234, "audience": "members"}]
+```
+
+### GET /vereine/me/documents/{id}/pdf
+
+`subject`, Fähigkeit `documents`, optional `revision`. Antwort wie beim Rechnungs-PDF, dazu `sha256`:
+`{"filename", "content_type", "filesize", "sha256", "content"}` mit dem PDF base64-kodiert, unverändert
+samt Unterschriften. Bei jedem Abruf wird neu geprüft, ob die Person es sehen darf und ob es noch
+veröffentlicht ist. Sonst kommt `404`, ob es das Dokument gibt oder nicht. Fehlt die Datei oder passt
+ihre Prüfsumme nicht mehr zur Vereinsakte, kommt `500` statt anderer Bytes.
 
 ### GET /vereine/me/accounts
 
