@@ -734,6 +734,70 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Invoices of the person the caller acts for
+	 *
+	 * The same list as members/{id}/invoices for the bound member: the validated invoices of the member's
+	 * third party, newest first, without drafts; empty without third party. Only with the ability invoices
+	 * for this binding.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @param int    $limit   Invoices per page, 1 to 100
+	 * @param int    $page    Page, starting at 0
+	 * @return array List of invoices as documented in docs/API.md
+	 *
+	 * @url GET me/invoices
+	 *
+	 * @throws RestException 400 subject missing or limit invalid
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyInvoices($subject = '', $limit = 100, $page = 0)
+	{
+		$this->checkAccess();
+		$memberId = $this->invoiceMember((string) $subject);
+		if ((int) $limit < 1 || (int) $limit > 100 || (int) $page < 0) {
+			throw new RestException(400, 'The limit must be between 1 and 100 and the page 0 or more');
+		}
+		$invoices = $this->memberReport()->memberInvoices($memberId, (int) $limit, (int) $page);
+		if ($invoices === null) {
+			throw new RestException(403, 'Not allowed: the binding has no member');
+		}
+		return $invoices;
+	}
+
+	/**
+	 * PDF of an invoice of the person the caller acts for
+	 *
+	 * As members/{id}/invoices/{invoice}/pdf for the bound member, with the checksum. Another person's
+	 * invoice, a draft or an invoice that does not exist answers 404 alike. Only with the ability invoices
+	 * for this binding.
+	 *
+	 * @param int    $invoice Invoice id, as listed by me/invoices
+	 * @param string $subject How the application calls the person
+	 * @return array Fields filename, content_type, filesize, sha256, content
+	 *
+	 * @url GET me/invoices/{invoice}/pdf
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 No such invoice of the person
+	 * @throws RestException 500 The PDF could not be built
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyInvoicePdf($invoice, $subject = '')
+	{
+		$this->checkAccess();
+		$pdf = $this->memberReport()->invoicePdf($this->invoiceMember((string) $subject), (int) $invoice);
+		if ($pdf === null) {
+			throw new RestException(404, 'No such invoice of this person');
+		}
+		if ($pdf === false) {
+			throw new RestException(500, 'The PDF could not be built');
+		}
+		return $pdf;
+	}
+
+	/**
 	 * Changes since a cursor
 	 *
 	 * What changed about the objects an external application may follow: membership, functions, fees,
@@ -1738,7 +1802,6 @@ class Vereine extends DolibarrApi
 	public function getMyConsents($subject = '')
 	{
 		$this->checkAccess();
-		$this->checkIdentityRight();
 		dol_include_once('/vereine/class/vereineidentityrules.class.php');
 		$identity = $this->allowed((string) $subject, VereineIdentityRules::CAPABILITY_CONSENTS, 'member');
 		dol_include_once('/vereine/class/vereineconsents.class.php');
@@ -1765,7 +1828,6 @@ class Vereine extends DolibarrApi
 	public function getMyApplication($subject = '')
 	{
 		$this->checkAccess();
-		$this->checkIdentityRight();
 		dol_include_once('/vereine/class/vereineidentityrules.class.php');
 		$identity = $this->allowed((string) $subject, VereineIdentityRules::CAPABILITY_APPLICATIONS, 'application');
 		dol_include_once('/vereine/class/vereineapplications.class.php');
@@ -1844,14 +1906,52 @@ class Vereine extends DolibarrApi
 	private function allowed($subject, $capability, $objectType)
 	{
 		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		// A client with the right to act for members names the member itself; it vouches for who the person is (#264).
+		$memberId = GETPOSTINT('member_id');
+		if ($memberId > 0) {
+			return $this->namedMember($memberId, (string) $subject, (string) $capability, (string) $objectType);
+		}
+		$this->checkIdentityRight();
 		if ((string) $subject === '') {
-			throw new RestException(400, 'subject is needed');
+			throw new RestException(400, 'subject or member_id is needed');
 		}
 		$result = $this->access()->check(DolibarrApiAccess::$user, (string) $subject, (string) $capability, (string) $objectType);
 		if (!$result['ok']) {
 			throw new RestException(403, 'Not allowed: '.$result['reason']);
 		}
 		return $result['identity'];
+	}
+
+	/**
+	 * The member a client names by id, when it has the right to act for members - or to vote for them (#264).
+	 *
+	 * The client vouches for who the person is; what the member may see and do is checked as for a binding.
+	 *
+	 * @param int    $memberId   Member
+	 * @param string $subject    Must be empty: one of the two names the person
+	 * @param string $capability What the call does
+	 * @param string $objectType member or application
+	 * @return array{member_id:int,application_id:int}
+	 *
+	 * @throws RestException
+	 */
+	private function namedMember($memberId, $subject, $capability, $objectType)
+	{
+		if ($subject !== '') {
+			throw new RestException(400, 'Give subject or member_id, not both');
+		}
+		if ($objectType !== 'member') {
+			throw new RestException(400, 'member_id names a member; an application is followed by its subject');
+		}
+		$vote = $capability === VereineIdentityRules::CAPABILITY_VOTES;
+		if (!DolibarrApiAccess::$user->hasRight('vereine', 'members', $vote ? 'vote' : 'act')) {
+			throw new RestException(403, 'Not allowed: the user needs the right to '.($vote ? 'vote' : 'act').' for members');
+		}
+		$resql = $this->db->query("SELECT rowid FROM ".MAIN_DB_PREFIX."adherent WHERE rowid = ".((int) $memberId)." AND entity IN (".getEntity('adherent').")");
+		if (!$resql || !$this->db->fetch_object($resql)) {
+			throw new RestException(404, 'No member with this id');
+		}
+		return array('member_id' => (int) $memberId, 'application_id' => 0);
 	}
 
 	/**
@@ -1864,7 +1964,6 @@ class Vereine extends DolibarrApi
 	 */
 	private function documentActor($subject)
 	{
-		$this->checkIdentityRight();
 		dol_include_once('/vereine/class/vereineidentityrules.class.php');
 		dol_include_once('/vereine/class/vereinepublications.class.php');
 		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_DOCUMENTS, 'member');
@@ -2010,7 +2109,6 @@ class Vereine extends DolibarrApi
 	{
 		global $langs;
 
-		$this->checkIdentityRight();
 		dol_include_once('/vereine/class/vereineidentityrules.class.php');
 		dol_include_once('/vereine/class/vereineballots.class.php');
 		$langs->load('vereine@vereine');
@@ -2028,10 +2126,24 @@ class Vereine extends DolibarrApi
 	 */
 	private function eventMember($subject)
 	{
-		$this->checkIdentityRight();
 		dol_include_once('/vereine/class/vereineidentityrules.class.php');
 		dol_include_once('/vereine/class/vereineeventportal.class.php');
 		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_EVENTS, 'member');
+		return (int) $identity['member_id'];
+	}
+
+	/**
+	 * The member the caller acts for, when the binding may read the person's invoices (#263).
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return int Member
+	 *
+	 * @throws RestException
+	 */
+	private function invoiceMember($subject)
+	{
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_INVOICES, 'member');
 		return (int) $identity['member_id'];
 	}
 
@@ -2087,7 +2199,6 @@ class Vereine extends DolibarrApi
 	 */
 	private function profileMember($subject)
 	{
-		$this->checkIdentityRight();
 		dol_include_once('/vereine/class/vereineidentityrules.class.php');
 		dol_include_once('/vereine/class/vereineprofiles.class.php');
 		require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
@@ -2132,7 +2243,6 @@ class Vereine extends DolibarrApi
 	 */
 	private function meetingMember($subject)
 	{
-		$this->checkIdentityRight();
 		dol_include_once('/vereine/class/vereineidentityrules.class.php');
 		dol_include_once('/vereine/class/vereinemeetingportal.class.php');
 		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_MEETINGS, 'member');
@@ -2176,7 +2286,6 @@ class Vereine extends DolibarrApi
 	 */
 	private function boundMember($subject)
 	{
-		$this->checkIdentityRight();
 		dol_include_once('/vereine/class/vereineidentityrules.class.php');
 		dol_include_once('/vereine/class/vereinesocial.class.php');
 		require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';

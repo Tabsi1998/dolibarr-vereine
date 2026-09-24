@@ -423,7 +423,8 @@ def enable(stack: Stack) -> str:
     rights = stack.sql("SELECT id, perms, subperms FROM llx_rights_def WHERE module = 'vereine' AND entity = 1 ORDER BY id")
     expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"], ["49210003", "website", "read"],
                       ["49210004", "application", "write"], ["49210005", "sync", "read"],
-                      ["49210006", "identity", "use"], ["49210007", "donation", "write"]], f"rights after enabling: {rights}")
+                      ["49210006", "identity", "use"], ["49210007", "donation", "write"],
+                      ["49210008", "members", "act"], ["49210009", "members", "vote"]], f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_account", "/vereine/account.php"],
                     ["members", "vereine_application", "/vereine/application.php"],
@@ -6328,6 +6329,57 @@ def profileapi(stack: Stack) -> str:
     status, own = stack.api("vereine/me/website-profile?subject=sub-profile", client, method="PUT", data={"fields": {"gamertag": None}})
     expect(status == 200 and own["fields"][0]["value"] is None and stack.value(f"SELECT gamertag FROM llx_adherent_extrafields WHERE fk_object = {member}") in (None, "", "NULL"),
            f"emptying the gamer tag: HTTP {status} {own}")
+
+    # Own invoices through a binding with the ability invoices (#263): the list the website gets, the PDF with its checksum, nothing foreign.
+    site = stack.notes["website"]
+    payer = str(site["members"]["paid"])
+    page = page_ok(browser.get(setup), "the identities before the invitation for invoices")
+    page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtprofile", "member_id": payer, "application_id": "0",
+                                                                             "capabilities[]": "invoices"}), "invite for invoices")
+    code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+    status, bound = stack.api(f"vereine/identities/claim?subject=sub-invoices&code={code}", client, method="POST")
+    expect(status == 200, f"binding for invoices: HTTP {status} {bound}")
+    status, website_list = stack.api(f"vereine/members/{payer}/invoices", site["key"])
+    status_own, own_list = stack.api("vereine/me/invoices?subject=sub-invoices", client)
+    expect(status == status_own == 200 and own_list == website_list and len(own_list) >= 2, f"the own invoices: HTTP {status_own} {own_list}")
+    status, paged = stack.api("vereine/me/invoices?subject=sub-invoices&limit=1&page=1", client)
+    expect(status == 200 and paged == website_list[1:2], f"the own invoices, second page: HTTP {status} {paged}")
+    status, pdf = stack.api(f"vereine/me/invoices/{own_list[0]['id']}/pdf?subject=sub-invoices", client)
+    content = base64.b64decode(pdf["content"]) if status == 200 else b""
+    expect(content.startswith(b"%PDF") and hashlib.sha256(content).hexdigest() == pdf["sha256"] and pdf["filesize"] == len(content),
+           f"the PDF of an own invoice: HTTP {status}")
+    foreign = stack.value(f"SELECT rowid FROM llx_facture WHERE fk_statut > 0 AND fk_soc <> (SELECT fk_soc FROM llx_adherent WHERE rowid = {payer}) LIMIT 1")
+    draft = stack.value(f"SELECT rowid FROM llx_facture WHERE fk_statut = 0 LIMIT 1")
+    for invoice, what in ((foreign, "another person's invoice"), (draft, "a draft"), ("99999999", "an unknown invoice")):
+        if invoice:
+            status, _ = stack.api(f"vereine/me/invoices/{invoice}/pdf?subject=sub-invoices", client)
+            expect(status == 404, f"{what} answered HTTP {status}")
+    for path in ("vereine/me/invoices?subject=sub-profile", f"vereine/me/invoices/{own_list[0]['id']}/pdf?subject=sub-profile"):
+        status, _ = stack.api(path, client)
+        expect(status == 403, f"a binding without the ability invoices read {path}: HTTP {status}")
+
+    # Without a binding (#264): a client with the right to act for members names the member by id; voting is a right of its own.
+    direct = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtdirect", RT_CLIENT_KEY=direct, RT_EXTRA_RIGHTS="members/act")
+    status, by_id = stack.api(f"vereine/me/invoices?member_id={payer}", direct)
+    expect(status == 200 and by_id == website_list, f"the invoices by member id: HTTP {status} {by_id}")
+    status, pdf = stack.api(f"vereine/me/invoices/{own_list[0]['id']}/pdf?member_id={payer}", direct)
+    expect(status == 200 and hashlib.sha256(base64.b64decode(pdf["content"])).hexdigest() == pdf["sha256"], f"a PDF by member id: HTTP {status}")
+    status, by_id = stack.api(f"vereine/me/profile?member_id={member}", direct)
+    expect(status == 200 and by_id["member_id"] == int(member), f"the own data by member id: HTTP {status} {by_id}")
+    status, by_id = stack.api(f"vereine/me/website-profile?member_id={member}", direct, method="PUT", data={"fields": {"gamertag": "Direkt"}})
+    expect(status == 200 and stack.value(f"SELECT gamertag FROM llx_adherent_extrafields WHERE fk_object = {member}") == "Direkt",
+           f"the website profile by member id: HTTP {status} {by_id}")
+    for path, key, expected, what in ((f"vereine/me/ballots?member_id={member}", direct, 403, "ballots without the right to vote"),
+                                      (f"vereine/me/invoices?member_id={payer}", client, 403, "a client with bindings only"),
+                                      ("vereine/me/invoices?member_id=99999999", direct, 404, "an unknown member"),
+                                      (f"vereine/me/invoices?member_id={payer}&subject=sub-invoices", direct, 400, "subject and member id together")):
+        status, _ = stack.api(path, key)
+        expect(status == expected, f"{what}: HTTP {status}, expected {expected}")
+    voter = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtvoter", RT_CLIENT_KEY=voter, RT_EXTRA_RIGHTS="members/vote")
+    status, ballots = stack.api(f"vereine/me/ballots?member_id={member}", voter)
+    expect(status == 200 and isinstance(ballots, list), f"ballots with the right to vote: HTTP {status} {ballots}")
 
     # A new e-mail address waits for the board; the board rejects it with a word for the member and a note of its own.
     old_email = stack.value(f"SELECT email FROM llx_adherent WHERE rowid = {member}")

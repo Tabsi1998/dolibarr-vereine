@@ -592,6 +592,8 @@ VereineLog_fee_direct_debit=Lastschrift angefordert
 # Einwilligungen und Beitrittsanträge
 #
 Permission49210004=Beitrittsanträge über die API anlegen: Mitglied im Entwurf mit Einwilligungen
+Permission49210008=Über die API im Namen jedes Mitglieds handeln (per Mitglieds-ID): eigene Daten, Dokumente, Rechnungen, Sitzungen, Veranstaltungen, Konten, Einwilligungen
+Permission49210009=Über die API im Namen jedes Mitglieds abstimmen (per Mitglieds-ID)
 VereineSetupTabConsents=Einwilligungen
 VereineConsentHowToWhy=<strong>Wofür:</strong> Für manches braucht der Verein eine Einwilligung, zum Beispiel für Fotos auf der Website oder den Newsletter. Der Verein muss nachweisen können, dass und wozu jemand eingewilligt hat (Art. 7 Abs. 1 DSGVO).
 VereineConsentHowToVersion=<strong>Version:</strong> Jeder Text hat eine Version. Wer Text oder Bezeichnung ändert, legt eine neue Version an. Frühere Einwilligungen behalten die Version, der zugestimmt wurde.
@@ -1209,6 +1211,8 @@ VereineApiEndpoint_postMemberConsent=Einwilligung erteilen oder widerrufen; wide
 VereineApiEndpoint_getMemberLookup=Mitglied über Mitgliedsnummer oder E-Mail-Adresse finden, etwa zum Verknüpfen eines Website-Kontos.
 VereineApiEndpoint_getMemberInvoices=Rechnungen eines Mitglieds, neueste zuerst.
 VereineApiEndpoint_getMemberInvoicePdf=PDF einer Rechnung des Mitglieds.
+VereineApiEndpoint_getMyInvoices=Eigene Rechnungen der gebundenen Person.
+VereineApiEndpoint_getMyInvoicePdf=PDF einer eigenen Rechnung der gebundenen Person.
 VereineApiUsers=Benutzer mit API-Schlüssel
 VereineApiUsersHelp=Welche Benutzer einen API-Schlüssel haben und welche Schnittstellen sie damit aufrufen können, mit Rechten direkt oder über Gruppen. Der Schlüssel selbst wird nie angezeigt.
 VereineApiUsersNone=Kein Benutzer hat einen API-Schlüssel.
@@ -3464,6 +3468,7 @@ VereineApiEndpoint_getMyProfileChanges=Eigene Änderungswünsche und Kündigung 
 VereineApiEndpoint_postMyExit=Austritt der gebundenen Person erklären.
 VereineEventMembersOnly=nur für Mitglieder (App)
 VereineIdentityCapability_events=Eigene Veranstaltungen und Helferdienste
+VereineIdentityCapability_invoices=Eigene Rechnungen: Liste und PDF
 VereineApiEndpoint_getEvents=Öffentliche Veranstaltungen ab heute.
 VereineApiEndpoint_getMyEvents=Veranstaltungen und Helferdienste für die gebundene Person.
 VereineApiEndpoint_putMyShift=Helferdienst für die gebundene Person anfragen.

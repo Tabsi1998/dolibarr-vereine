@@ -1294,11 +1294,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -1337,7 +1347,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -1441,11 +1452,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -1474,6 +1495,9 @@
           },
           "501": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-vereine-rights": [
@@ -1481,7 +1505,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -1505,11 +1530,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -1567,6 +1602,9 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-vereine-rights": [
@@ -1574,7 +1612,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       },
@@ -1596,11 +1635,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -1632,6 +1681,9 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-vereine-rights": [
@@ -1639,7 +1691,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -1938,11 +1991,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -1971,6 +2034,9 @@
           },
           "501": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-vereine-rights": [
@@ -1978,7 +2044,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -2001,11 +2068,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           },
           {
@@ -2053,7 +2130,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -2076,11 +2154,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           },
           {
@@ -2173,7 +2261,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       },
@@ -2194,11 +2283,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           },
           {
@@ -2275,7 +2374,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -2386,11 +2486,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           },
           {
@@ -2425,6 +2535,9 @@
           },
           "501": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-vereine-rights": [
@@ -2432,7 +2545,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -2455,11 +2569,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -2498,7 +2622,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -2512,11 +2637,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -2545,6 +2680,9 @@
           },
           "501": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-vereine-rights": [
@@ -2552,7 +2690,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -2575,11 +2714,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -2641,7 +2790,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -2664,11 +2814,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -2735,7 +2895,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -2749,11 +2910,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -2779,6 +2950,9 @@
           },
           "501": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-vereine-rights": [
@@ -2786,7 +2960,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -2800,11 +2975,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -2833,6 +3018,9 @@
           },
           "501": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-vereine-rights": [
@@ -2840,7 +3028,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       },
@@ -2852,11 +3041,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -2912,6 +3111,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-vereine-rights": [
@@ -2919,7 +3121,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -2933,11 +3136,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -2988,6 +3201,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-vereine-rights": [
@@ -2995,7 +3211,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -3045,11 +3262,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -3078,6 +3305,9 @@
           },
           "501": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-vereine-rights": [
@@ -3085,7 +3315,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -3117,11 +3348,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -3160,7 +3401,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       },
@@ -3190,11 +3432,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -3233,7 +3485,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -3247,11 +3500,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern abzustimmen. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -3280,6 +3543,9 @@
           },
           "501": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-vereine-rights": [
@@ -3287,7 +3553,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:vote"
           ]
         ]
       }
@@ -3310,11 +3577,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern abzustimmen. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -3380,7 +3657,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:vote"
           ]
         ]
       }
@@ -3394,11 +3672,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -3424,6 +3712,9 @@
           },
           "501": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-vereine-rights": [
@@ -3431,7 +3722,8 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       },
@@ -3443,11 +3735,21 @@
           {
             "name": "subject",
             "in": "query",
-            "required": true,
-            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
             "schema": {
               "type": "string",
               "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -3493,6 +3795,9 @@
           },
           "501": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-vereine-rights": [
@@ -3500,7 +3805,175 @@
             "vereine:association:read"
           ],
           [
-            "vereine:identity:use"
+            "vereine:identity:use",
+            "vereine:members:act"
+          ]
+        ]
+      }
+    },
+    "/vereine/me/invoices": {
+      "get": {
+        "operationId": "getMyInvoices",
+        "summary": "Eigene Rechnungen der gebundenen Person, neueste zuerst",
+        "description": "Dieselbe Liste wie members/{id}/invoices für das gebundene Mitglied: freigegebene Rechnungen seines Geschäftspartners, ohne Entwürfe; leer ohne Geschäftspartner. Braucht die Fähigkeit invoices.",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Rechnungen je Seite, 100 ohne Angabe",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Seite, ab 0",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rechnungen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Invoice"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use",
+            "vereine:members:act"
+          ]
+        ]
+      }
+    },
+    "/vereine/me/invoices/{invoice}/pdf": {
+      "get": {
+        "operationId": "getMyInvoicePdf",
+        "summary": "PDF einer eigenen Rechnung der gebundenen Person",
+        "description": "Base64-kodiert, mit sha256. Die Rechnung eines anderen, ein Entwurf oder eine unbekannte Rechnung ergibt 404. Ein fehlendes PDF wird mit der Vorlage der Rechnung erzeugt. Braucht die Fähigkeit invoices.",
+        "parameters": [
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "description": "Rechnungs-ID, wie me/invoices sie listet",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": false,
+            "description": "Kennung der Person bei dieser Anwendung (gebundene Identität); stabil, nie eine E-Mail-Adresse allein. Oder statt dessen member_id",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID, für eine Anwendung mit dem Recht, im Namen von Mitgliedern zu handeln. Die Anwendung verbürgt sich selbst dafür, wer die Person ist",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Das PDF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoicePdf"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use",
+            "vereine:members:act"
           ]
         ]
       }
@@ -4488,6 +4961,7 @@
           "filename",
           "content_type",
           "filesize",
+          "sha256",
           "content"
         ],
         "properties": {
@@ -4504,6 +4978,11 @@
           "filesize": {
             "type": "integer",
             "description": "Größe in Bytes nach dem Dekodieren"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Prüfsumme der Bytes"
           },
           "content": {
             "type": "string",
@@ -4925,7 +5404,8 @@
                 "accounts",
                 "meetings",
                 "profile",
-                "events"
+                "events",
+                "invoices"
               ]
             }
           },
