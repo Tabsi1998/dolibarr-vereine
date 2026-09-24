@@ -592,6 +592,8 @@ VereineLog_fee_direct_debit=Lastschrift angefordert
 # Einwilligungen und Beitrittsanträge
 #
 Permission49210004=Beitrittsanträge über die API anlegen: Mitglied im Entwurf mit Einwilligungen
+Permission49210008=Über die API im Namen jedes Mitglieds handeln (per Mitglieds-ID): eigene Daten, Dokumente, Rechnungen, Sitzungen, Veranstaltungen, Konten, Einwilligungen
+Permission49210009=Über die API im Namen jedes Mitglieds abstimmen (per Mitglieds-ID)
 VereineSetupTabConsents=Einwilligungen
 VereineConsentHowToWhy=<strong>Wofür:</strong> Für manches braucht der Verein eine Einwilligung, zum Beispiel für Fotos auf der Website oder den Newsletter. Der Verein muss nachweisen können, dass und wozu jemand eingewilligt hat (Art. 7 Abs. 1 DSGVO).
 VereineConsentHowToVersion=<strong>Version:</strong> Jeder Text hat eine Version. Wer Text oder Bezeichnung ändert, legt eine neue Version an. Frühere Einwilligungen behalten die Version, der zugestimmt wurde.

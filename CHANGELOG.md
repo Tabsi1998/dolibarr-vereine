@@ -9,12 +9,19 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [1.4.0] - 2026-09-24
 
-Mitglieder sehen ihre eigenen Rechnungen in der App oder auf der Website des Vereins – über ihre Bindung, freigegeben je Einladung.
+Websites und Apps, die ihre Mitglieder selbst kennen, handeln jetzt direkt per Mitglieds-ID – ohne Einladungscode und ohne Bindung, gesteuert über zwei Rechte in Dolibarr. Dazu eigene Rechnungen über die API.
 
 Nach dem Update ist nichts zu tun.
 
 ### Neu
 
+- **Ohne Einladungscode: per Mitglieds-ID** (#264): Jeder `me/`-Endpunkt (eigene Daten, Website-Profil,
+  Dokumente, Rechnungen, Sitzungen, Veranstaltungen, Konten, Einwilligungen, Abstimmungen) nimmt statt
+  `subject` auch `member_id`. Dafür bekommt der API-Benutzer der Website das neue Recht *Über die API im
+  Namen jedes Mitglieds handeln*; Abstimmen braucht zusätzlich *… im Namen jedes Mitglieds abstimmen*.
+  Die Website verbürgt sich damit selbst dafür, wer die Person ist; was das Mitglied sehen und tun darf,
+  prüft das Modul wie bisher. Einladung und Bindung bleiben für Anwendungen, denen der Verein nicht alle
+  Mitglieder anvertraut.
 - **Eigene Rechnungen über die Bindung** (#263): Neue Fähigkeit *Eigene Rechnungen* an der Einladung
   (*Einrichtung > Externe Identitäten*), ab Werk aus. `GET /vereine/me/invoices` liefert dieselbe Liste wie
   für die Website, `GET /vereine/me/invoices/{invoice}/pdf` das PDF einer eigenen Rechnung. Eine fremde

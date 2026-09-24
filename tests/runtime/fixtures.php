@@ -1543,9 +1543,14 @@ if ($stage === 'apiclient') {
 	if ($client->update($admin) <= 0) {
 		rt_fail('API key for '.$login.': '.$client->error);
 	}
-	foreach (array(array('association', 'read'), array('identity', 'use')) as $right) {
-		$sql = "SELECT id FROM ".MAIN_DB_PREFIX."rights_def WHERE module = 'vereine' AND perms = '".$right[0]."'";
-		$sql .= " AND subperms = '".$right[1]."' AND entity = 1";
+	$rights = array(array('association', 'read'), array('identity', 'use'));
+	// A client may get more, such as the right to act for members by member id (#264): perms/subperms, comma separated.
+	foreach (array_filter(explode(',', (string) getenv('RT_EXTRA_RIGHTS'))) as $extra) {
+		$rights[] = explode('/', $extra, 2);
+	}
+	foreach ($rights as $right) {
+		$sql = "SELECT id FROM ".MAIN_DB_PREFIX."rights_def WHERE module = 'vereine' AND perms = '".$db->escape($right[0])."'";
+		$sql .= " AND subperms = '".$db->escape($right[1])."' AND entity = 1";
 		$rightId = (int) rt_value($db, $sql);
 		if ($rightId <= 0 || $client->addrights($rightId) < 0) {
 			rt_fail('granting vereine/'.$right[0].'/'.$right[1].' to '.$login.': '.$client->error);

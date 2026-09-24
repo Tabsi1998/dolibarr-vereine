@@ -201,6 +201,18 @@ class modVereine extends DolibarrModules
 		$this->rights[$r][4] = 'donation';
 		$this->rights[$r][5] = 'write';
 		$r++;
+		// A website or app that knows its members itself acts for them by member id, without a binding (#264).
+		$this->rights[$r][0] = $this->numero.'08';
+		$this->rights[$r][1] = 'Act through the API for any member by member id: own data, documents, invoices, meetings, events, accounts, consents';
+		$this->rights[$r][4] = 'members';
+		$this->rights[$r][5] = 'act';
+		$r++;
+		// Voting for a member is a right of its own, so an association decides it on purpose.
+		$this->rights[$r][0] = $this->numero.'09';
+		$this->rights[$r][1] = 'Vote through the API for any member by member id';
+		$this->rights[$r][4] = 'members';
+		$this->rights[$r][5] = 'vote';
+		$r++;
 
 		$this->menu = array();
 		$r = 0;

@@ -6357,6 +6357,28 @@ def profileapi(stack: Stack) -> str:
         status, _ = stack.api(path, client)
         expect(status == 403, f"a binding without the ability invoices read {path}: HTTP {status}")
 
+    # Without a binding (#264): a client with the right to act for members names the member by id; voting is a right of its own.
+    direct = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtdirect", RT_CLIENT_KEY=direct, RT_EXTRA_RIGHTS="members/act")
+    status, by_id = stack.api(f"vereine/me/invoices?member_id={payer}", direct)
+    expect(status == 200 and by_id == website_list, f"the invoices by member id: HTTP {status} {by_id}")
+    status, pdf = stack.api(f"vereine/me/invoices/{own_list[0]['id']}/pdf?member_id={payer}", direct)
+    expect(status == 200 and hashlib.sha256(base64.b64decode(pdf["content"])).hexdigest() == pdf["sha256"], f"a PDF by member id: HTTP {status}")
+    status, by_id = stack.api(f"vereine/me/profile?member_id={member}", direct)
+    expect(status == 200 and by_id["member_id"] == int(member), f"the own data by member id: HTTP {status} {by_id}")
+    status, by_id = stack.api(f"vereine/me/website-profile?member_id={member}", direct, method="PUT", data={"fields": {"gamertag": "Direkt"}})
+    expect(status == 200 and stack.value(f"SELECT gamertag FROM llx_adherent_extrafields WHERE fk_object = {member}") == "Direkt",
+           f"the website profile by member id: HTTP {status} {by_id}")
+    for path, key, expected, what in ((f"vereine/me/ballots?member_id={member}", direct, 403, "ballots without the right to vote"),
+                                      (f"vereine/me/invoices?member_id={payer}", client, 403, "a client with bindings only"),
+                                      ("vereine/me/invoices?member_id=99999999", direct, 404, "an unknown member"),
+                                      (f"vereine/me/invoices?member_id={payer}&subject=sub-invoices", direct, 400, "subject and member id together")):
+        status, _ = stack.api(path, key)
+        expect(status == expected, f"{what}: HTTP {status}, expected {expected}")
+    stack.php_fixture("apiclient", RT_LOGIN="rtdirect", RT_CLIENT_KEY=direct, RT_EXTRA_RIGHTS="members/vote")
+    status, ballots = stack.api(f"vereine/me/ballots?member_id={member}", direct)
+    expect(status == 200 and isinstance(ballots, list), f"ballots with the right to vote: HTTP {status} {ballots}")
+
     # A new e-mail address waits for the board; the board rejects it with a word for the member and a note of its own.
     old_email = stack.value(f"SELECT email FROM llx_adherent WHERE rowid = {member}")
     status, waiting = stack.api("vereine/me/profile/changes?subject=sub-profile", client, method="POST",

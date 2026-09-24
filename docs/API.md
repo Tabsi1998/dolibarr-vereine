@@ -852,6 +852,24 @@ bestehender Schlüssel ein zusätzliches Recht.
 5. Das Objekt ist **das eigene**: das gebundene Mitglied oder der gebundene Antrag. Wer nach einem
    fremden fragt, wird abgewiesen, nicht umgeleitet.
 
+### Ohne Bindung: per Mitglieds-ID
+
+Eine Website oder App, die ihre Mitglieder selbst kennt (Login auf der Website, Zuordnung durch den
+Vorstand …), braucht keine Einladung und keine Bindung (seit 1.4.0). Jeder `me/`-Endpunkt nimmt statt
+`subject` auch **`member_id`** – etwa `GET /vereine/me/invoices?member_id=12` oder
+`PUT /vereine/me/website-profile?member_id=12`. Dafür braucht der API-Benutzer das Recht
+**„Über die API im Namen jedes Mitglieds handeln“**; Abstimmen (`me/ballots`) braucht zusätzlich
+**„… im Namen jedes Mitglieds abstimmen“**. Beides vergibt der Verein unter *Benutzer > Berechtigungen*.
+
+- Die Anwendung verbürgt sich selbst dafür, wer die Person ist – wer den API-Schlüssel hat, kann für
+  **jedes** Mitglied handeln. Den Schlüssel also wie ein Passwort des Vorstands behandeln.
+- Was das Mitglied sehen und tun darf, prüft das Modul wie bei einer Bindung: Dokumente nur für aktive
+  Mitglieder bzw. den Vorstand, fremde Rechnungen `404`, eine Stimme je Stimmrecht usw.
+- `subject` und `member_id` zusammen: `400`. Unbekanntes Mitglied: `404`. Ohne Recht: `403`.
+  `me/application` (ein Antrag vor der Mitgliedschaft) geht weiter nur über `subject`.
+- Der Weg über Einladung und Bindung bleibt für Anwendungen, denen der Verein nicht alle Mitglieder
+  anvertraut.
+
 **Was nie als Nachweis gilt.** Ein `verified=true` der Anwendung, eine E-Mail-Adresse oder eine
 Mitgliedsnummer. Eine Familie teilt sich eine Adresse, eine Nummer lässt sich raten. Beides
 liefert in der Verwaltung nur **Kandidaten**, die ein Mensch ansieht.
