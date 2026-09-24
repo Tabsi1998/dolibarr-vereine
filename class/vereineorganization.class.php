@@ -50,8 +50,9 @@ class VereineOrganization
 	/**
 	 * The association's data, as the overview shows it and the API returns it.
 	 *
-	 * @param array<string,string> $settings Module constants, see SETTINGS
-	 * @param array<string,string> $company  Dolibarr company data: name, address, zip, town, country_code, email, phone, url, fiscal_month_start
+	 * @param array<string,string>           $settings Module constants, see SETTINGS
+	 * @param array<string,string>           $company  Dolibarr company data: name, address, zip, town, country_code, email, phone, url, fiscal_month_start
+	 * @param array<int,array<string,mixed>> $channels Public channels of the association from VereineSocial::channels() (#233)
 	 * @return array<string,mixed>
 	 */
 	public static function build(array $settings, array $company, array $channels = array())
