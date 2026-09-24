@@ -31,7 +31,7 @@ class VereineDisclosureRules
 
 	/** Sections of the copy, in the order of the document. New data of the module get their section here. */
 	const SECTIONS = array('member', 'extra', 'subscriptions', 'invoices', 'consents', 'applications', 'functions', 'honours', 'exits', 'identities', 'accounts',
-		'invitations', 'attendance', 'votes', 'signatures', 'tasks', 'duties', 'shifts', 'volunteer', 'donations', 'arrears', 'log');
+		'invitations', 'attendance', 'votes', 'signatures', 'tasks', 'duties', 'shifts', 'volunteer', 'donations', 'arrears', 'loans', 'log');
 
 	/**
 	 * A request as entered: the day it came in, how the person was checked, a short note.

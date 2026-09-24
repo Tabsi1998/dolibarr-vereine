@@ -1755,4 +1755,49 @@ if ($stage === 'honourmembers') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers or reset');
+// Equipment (#26): Dolibarr's module Resources on, a PC and a headset, the PC reserved for an event in a week.
+if ($stage === 'inventory') {
+	require_once DOL_DOCUMENT_ROOT.'/comm/action/class/actioncomm.class.php';
+	$result = activateModule('modResource');
+	if (!empty($result['errors'])) {
+		rt_fail('activating modResource failed: '.implode(' | ', (array) $result['errors']));
+	}
+	require_once DOL_DOCUMENT_ROOT.'/resource/class/dolresource.class.php';
+	$ids = array();
+	foreach (array('pc' => array('PC-01', 'INV-2026-001'), 'headset' => array('Headset-07', 'INV-2026-007')) as $key => $data) {
+		$resource = new Dolresource($db);
+		$resource->ref = $data[0];
+		$resource->asset_number = $data[1];
+		$resource->description = 'Runtime';
+		if ($resource->create($admin) <= 0) {
+			rt_fail('resource '.$data[0].': '.$resource->error.' '.implode(' | ', (array) $resource->errors));
+		}
+		$ids[$key] = (int) $resource->id;
+	}
+	$event = new ActionComm($db);
+	$event->type_code = 'AC_OTH';
+	$event->label = 'LAN-Party';
+	$event->datep = dol_time_plus_duree(dol_now(), 7, 'd');
+	$event->datef = dol_time_plus_duree($event->datep, 6, 'h');
+	$event->userownerid = (int) $admin->id;
+	$event->percentage = -1;
+	if ($event->create($admin) <= 0) {
+		rt_fail('event: '.$event->error);
+	}
+	if (!$db->query("INSERT INTO ".MAIN_DB_PREFIX."element_resources (element_id, element_type, resource_id, resource_type, busy, mandatory) VALUES (".((int) $event->id).", 'action', ".$ids['pc'].", 'dolresource', 1, 0)")) {
+		rt_fail('reservation: '.$db->lasterror());
+	}
+	print json_encode(array('resources' => $ids, 'event' => (int) $event->id))."\n";
+	exit(0);
+}
+
+// The scheduled job for late loans, as Dolibarr's cron runs it.
+if ($stage === 'runloans') {
+	dol_include_once('/vereine/class/vereineloans.class.php');
+	$loans = new VereineLoans($db);
+	$failed = $loans->runDue();
+	print json_encode(array('failed' => $failed, 'output' => $loans->output))."\n";
+	exit(0);
+}
+
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers, inventory, runloans or reset');

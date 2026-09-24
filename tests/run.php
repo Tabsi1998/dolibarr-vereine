@@ -78,6 +78,7 @@ require_once $root.'/class/vereineerasurerules.class.php';
 require_once $root.'/class/vereinearrearrules.class.php';
 require_once $root.'/class/vereinesocialrules.class.php';
 require_once $root.'/class/vereinehonourrules.class.php';
+require_once $root.'/class/vereineloanrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1806,7 +1807,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked', 'honour'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked', 'honour', 'loan', 'loan_returned', 'loan_reminded'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1849,6 +1850,7 @@ $prefixes = array(
 	'VereineErasureState_' => array('due', 'waiting', 'kept', 'held', 'none', 'member'),
 	'VereineArrearState_' => VereineArrearRules::STATES,
 	'VereineStatisticsGender_' => array('woman', 'man', 'other', 'unknown'),
+	'VereineLoanState_' => array('available', 'out', 'overdue', 'returned'),
 	'VereineHonourKind_' => array('jubilee', 'honorary'),
 	'VereineErasureReason_' => array('keep_bookkeeping', 'keep_records', 'member', 'hold', 'open_invoices', 'functions', 'name'),
 	'VereineSetupStep_' => VereineSetupGuideRules::STEPS,
@@ -2836,7 +2838,7 @@ expect(count(VereineDisclosure::fieldWords()) > 60, 'every field of the copy has
 $periods = VereineErasureRules::periods(array('consents' => '5', 'volunteer' => '2', 'tasks' => 'x'));
 same(array(5, 7, 1), array($periods['consents'], $periods['volunteer'], $periods['tasks']), 'a chosen period counts only where the association may choose, and only as a number');
 same(null, $periods['records'], 'club records are kept without limit');
-same(array('consents', 'log'), VereineErasureRules::checkPeriods(array('consents' => '31', 'log' => '', 'contact' => '0', 'tasks' => '1', 'invitations' => '1', 'applications' => '3', 'arrears' => '3', 'disclosures' => '3'))['errors'],
+same(array('consents', 'log'), VereineErasureRules::checkPeriods(array('consents' => '31', 'log' => '', 'contact' => '0', 'tasks' => '1', 'invitations' => '1', 'applications' => '3', 'arrears' => '3', 'loans' => '1', 'disclosures' => '3'))['errors'],
 	'more than thirty years or nothing is refused');
 same('2033-12-31', VereineErasureRules::until(VereineErasureRules::START_YEAR, '2026-03-01', 7), 'bookkeeping: seven years from the end of the year');
 same('2029-03-01', VereineErasureRules::until(VereineErasureRules::START_EXIT, '2028-02-29', 1), 'a leap day ends a day later in a year without one');
@@ -2917,6 +2919,17 @@ $sorted = VereineSocialRules::sortChannels(array(
 	array('network' => 'twitch', 'position' => 20, 'label' => 'CS2'),
 	array('network' => 'discord', 'position' => 30, 'label' => 'Server')), array('discord', 'twitch', 'youtube'));
 same(array('Hauptstream', 'CS2', 'Livestream', 'Server'), array_column($sorted, 'label'), 'the order of the association first, then the network');
+// ------------------------------------------------------------- lending equipment (#26)
+
+$lent = VereineLoanRules::check(array('resource_id' => '3', 'member_id' => '7', 'issued_on' => '2026-09-24', 'due_on' => '2026-10-08', 'condition' => ' vollständig '), '2026-09-24');
+same(array(array(), 'vollständig'), array($lent['errors'], $lent['loan']['condition']), 'a loan with equipment, member and days');
+same(array('VereineLoanErrorResource', 'VereineLoanErrorMember', 'VereineLoanErrorIssued', 'VereineLoanErrorDue'),
+	VereineLoanRules::check(array('issued_on' => '2026-09-30', 'due_on' => '2026-09-29'), '2026-09-24')['errors'], 'nothing chosen, handed out in the future, back before it left');
+same(array('out', 'out', 'overdue', 'returned'), array(VereineLoanRules::state('2026-10-08', '', '2026-09-24'), VereineLoanRules::state('2026-09-24', '', '2026-09-24'),
+	VereineLoanRules::state('2026-09-23', '', '2026-09-24'), VereineLoanRules::state('2026-09-23', '2026-09-24', '2026-09-24')), 'out until the day it is due, then late, back when back');
+same(array(true, false, true, false), array(VereineLoanRules::remind('2026-09-20', '', '', '2026-09-24'), VereineLoanRules::remind('2026-09-20', '', '2026-09-20', '2026-09-24'),
+	VereineLoanRules::remind('2026-09-01', '', '2026-09-17', '2026-09-24'), VereineLoanRules::remind('2026-10-01', '', '', '2026-09-24')), 'reminded when late, again a week later, never before it is due');
+
 // ------------------------------------------------------------- honours and statistics (#27, #28)
 
 same(array(10, 20, 25), VereineHonourRules::numbers('25, 10;20 10 abc 0 200'), 'milestones: whole numbers from 1 to 120, sorted, once');

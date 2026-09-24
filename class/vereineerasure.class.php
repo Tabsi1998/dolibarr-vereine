@@ -184,6 +184,9 @@ class VereineErasure
 		$found['consents'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_consent WHERE entity = ".$entity." AND fk_adherent = ".$id), 'last' => '', 'due' => 0);
 		$found['applications'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_application WHERE entity = ".$entity." AND fk_adherent = ".$id)
 			+ count($this->files($member, '/^mitgliedsantrag-.*\.pdf$/')), 'last' => '', 'due' => 0);
+		// Equipment that came back; what is still out is a claim of the association and stays.
+		$found['loans'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_loan WHERE entity = ".$entity." AND fk_adherent = ".$id." AND returned_on IS NOT NULL"),
+			'last' => '', 'due' => 0);
 		$found['arrears'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_arrear WHERE entity = ".$entity." AND fk_adherent = ".$id), 'last' => '', 'due' => 0);
 		$cut = $this->cutoff($today, $periods['disclosures']);
 		$found['disclosures'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_disclosure WHERE entity = ".$entity." AND fk_adherent = ".$id),
@@ -276,6 +279,8 @@ class VereineErasure
 				$pdfs = $this->files($member, '/^mitgliedsantrag-.*\.pdf$/');
 				$files = array_merge($files, $pdfs);
 				$changed = $this->change("DELETE FROM ".$p."vereine_application WHERE entity = ".$entity." AND fk_adherent = ".$id) + count($pdfs);
+			} elseif ($kind === 'loans') {
+				$changed = $this->change("DELETE FROM ".$p."vereine_loan WHERE entity = ".$entity." AND fk_adherent = ".$id." AND returned_on IS NOT NULL");
 			} elseif ($kind === 'arrears') {
 				$changed = $this->change("DELETE FROM ".$p."vereine_arrear WHERE entity = ".$entity." AND fk_adherent = ".$id);
 			} elseif ($kind === 'disclosures') {

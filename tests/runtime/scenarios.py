@@ -391,6 +391,7 @@ def enable(stack: Stack) -> str:
                     ["members", "vereine_events", "/vereine/events.php"],
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
                     ["members", "vereine_honours", "/vereine/honours.php"],
+                    ["members", "vereine_inventory", "/vereine/inventory.php"],
                     ["members", "vereine_meetings", "/vereine/meetings.php"],
                     ["members", "vereine_overpayments", "/vereine/overpayments.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"],
@@ -5438,7 +5439,7 @@ def erasure(stack: Stack) -> str:
     browser = stack.browser()
     key = stack.notes["website"]["key"]
     setup = page_ok(browser.get("/custom/vereine/admin/privacy.php"), "data protection setup")
-    expect('data-erasure-kinds="14"' in setup.text and 'data-erasure-kind="bookkeeping" data-erasure-years="7"' in setup.text,
+    expect('data-erasure-kinds="15"' in setup.text and 'data-erasure-kind="bookkeeping" data-erasure-years="7"' in setup.text,
            "the setup does not list the kinds with their periods")
     refused = page_ok(browser.submit(setup.form(name="vereineprivacy"), {"years_consents": "40"}), "40 years for consents")
     expect(stack.const("VEREINE_ERASURE_PERIODS") is None and "0 bis 30" in html.unescape(refused.text), "40 years were stored or not explained")
@@ -5510,7 +5511,7 @@ def erasure(stack: Stack) -> str:
     name = stack.sql(f"SELECT lastname, IFNULL(firstname, '-'), IFNULL(login, '-') FROM llx_adherent WHERE rowid = {member}")
     expect(name == [["Anonymisiert", "-", "-"]], f"the name after the second run: {name}")
     expect(stack.value(f"SELECT COUNT(*) FROM llx_subscription WHERE fk_adherent = {member}") == "1", "the fee was touched")
-    return (f"14 kinds listed, 40 years refused; the member gone four years ago had {sum(1 for state in before.values() if state == 'due')} kinds due; "
+    return (f"15 kinds listed, 40 years refused; the member gone four years ago had {sum(1 for state in before.values() if state == 'due')} kinds due; "
             "on hold nothing went; the run emptied contact data, took the binding back, deleted consent with scan, access record and log, "
             "kept the invitation's name, told the change feed; a second run did nothing; the name went once the fee was past seven years")
 
@@ -5757,6 +5758,59 @@ def honours(stack: Stack) -> str:
             f"member type; the certificate names her and the ten years; {total} members on {today} by type, gender, age and division, as CSV without names")
 
 
+def inventory(stack: Stack) -> str:
+    """Equipment of the association in Dolibarr's resources: lend with state, no second loan, late and reminded once a week to the
+    borrower only, back with state, the reservation for an event shown (#26)."""
+    browser = stack.browser()
+    base = "/custom/vereine/inventory.php"
+    expect(denied(stack.browser("rtnobody").get(base)), "a user without rights opens the inventory")
+    page = page_ok(browser.get(base), "inventory without the module Resources")
+    expect('data-inventory="module-off"' in page.text or "Ressourcen" in html.unescape(page.text), "the inventory does not say the module Resources is off")
+    fixture = stack.php_fixture("inventory")
+    pc, headset = fixture["resources"]["pc"], fixture["resources"]["headset"]
+    page = page_ok(browser.get(base), "inventory")
+    expect(f'data-resource="{pc}" data-loan-state="available"' in page.text and f'data-resource="{headset}" data-loan-state="available"' in page.text,
+           "the equipment is not listed as available")
+    expect("LAN-Party" in page.text, "the reservation of the PC for the event is not shown")
+    member, email = stack.sql("SELECT rowid, email FROM llx_adherent WHERE statut = 1 AND COALESCE(email, '') <> '' ORDER BY rowid LIMIT 1")[0]
+    today = stack.today()
+    page_ok(browser.submit(page.form(name="vereinelend"), {"resource": str(headset), "member": member, "issued_on": today, "due_on": today,
+                                                          "condition": "vollständig, mit Mikrofon"}), "lend the headset")
+    page = page_ok(browser.get(base), "inventory after lending")
+    expect(f'data-resource="{headset}" data-loan-state="out"' in page.text, "the headset is not shown as lent")
+    refused = page_ok(browser.submit(page.form(name="vereinelend"), {"resource": str(headset), "member": member, "issued_on": today, "due_on": today}),
+                      "lend the headset again")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_loan WHERE fk_resource = {headset}") == "1", "the headset was lent twice")
+
+    # Late: a reminder to the borrower's own address, and not again the next day.
+    stack.sql(f"UPDATE llx_vereine_loan SET issued_on = DATE_SUB(issued_on, INTERVAL 20 DAY), due_on = DATE_SUB(due_on, INTERVAL 6 DAY) WHERE fk_resource = {headset}")
+    page = page_ok(browser.get(base), "inventory with a late loan")
+    expect(f'data-resource="{headset}" data-loan-state="overdue"' in page.text, "the late loan is not shown as overdue")
+    todo = re.search(r'data-todo-kind="loan".*?</tr>', page_ok(browser.get("/custom/vereine/vereineindex.php"), "overview").text, re.S)
+    name = stack.value(f"SELECT CONCAT(firstname, ' ', lastname) FROM llx_adherent WHERE rowid = {member}")
+    expect(todo is not None and name not in html.unescape(todo.group(0)), "the to-do list does not count the late loan, or names the borrower")
+    mailpit = stack.mailpit()
+    mailpit.clear()
+    first = stack.php_fixture("runloans")
+    second = stack.php_fixture("runloans")
+    reminders = [message for message in mailpit.messages() if "zurückgeben" in (message.get("Subject") or "")]
+    addresses = sorted({to["Address"].lower() for message in reminders for to in message.get("To") or []})
+    expect(first.get("failed") == 0 and len(reminders) == 1 and addresses == [email.lower()],
+           f"reminders: {len(reminders)} to {addresses}, expected one to {email}; jobs {first}, {second}")
+
+    page = page_ok(browser.get(base), "inventory before the return")
+    loan = stack.value(f"SELECT rowid FROM llx_vereine_loan WHERE fk_resource = {headset}")
+    page_ok(browser.submit(page.form(name=f"vereinegiveback{loan}"), {"returned_on": today, "condition": "Kabel geknickt"}), "take the headset back")
+    kept = stack.sql(f"SELECT returned_on IS NOT NULL, condition_out, condition_in FROM llx_vereine_loan WHERE rowid = {loan}")
+    expect(kept == [["1", "vollständig, mit Mikrofon", "Kabel geknickt"]], f"the loan after the return: {kept}")
+    page = page_ok(browser.get(base), "inventory after the return")
+    expect(f'data-resource="{headset}" data-loan-state="available"' in page.text, "the headset is not available again")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={member}"), "the borrower's tab")
+    expect('data-member-loan="returned"' in tab.text, "the member's tab does not show the loan")
+    return ("PC and headset from Dolibarr's resources, the PC reserved for the LAN-Party; the headset lent with its state, not twice; "
+            "late, one reminder to the borrower only, none the next day; the to-do list counts without a name; back with its state, available again")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -5912,6 +5966,7 @@ SCENARIOS = (
     ("social", "Channels of the association and accounts of members: order, own network, application, confirmation by an app", social,
      ("identities", "applicationfields")),
     ("honours", "Honours and statistics: jubilee once, birthdays with consent, honorary member, certificate, members on a day as a file", honours, ("social",)),
+    ("inventory", "Equipment and loans: lend with state, no second loan, late reminder once to the borrower, return, reservation", inventory, ("honours",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),

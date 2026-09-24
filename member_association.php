@@ -75,6 +75,7 @@ require_once __DIR__.'/class/vereineerasure.class.php';
 require_once __DIR__.'/class/vereinearrears.class.php';
 require_once __DIR__.'/class/vereinesocial.class.php';
 require_once __DIR__.'/class/vereinehonours.class.php';
+require_once __DIR__.'/class/vereineloans.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('companies', 'members', 'bills', 'categories', 'vereine@vereine'));
@@ -610,6 +611,19 @@ foreach ($memberResolutions as $entry) {
 	print '<td>'.$langs->trans($entry['passed'] ? 'VereineResolutionPassed' : 'VereineResolutionRejected').'</td></tr>';
 }
 print '</table></div><br>';
+
+// Equipment the member borrowed (#26).
+$memberLoans = (new VereineLoans($db))->loans((int) $object->id, 20);
+if ($memberLoans) {
+	print load_fiche_titre($langs->trans('VereineLoanMemberTitle'), '', '', 0, 'vereineloans');
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+	foreach ($memberLoans as $loan) {
+		$state = VereineLoanRules::state($loan['due_on'], $loan['returned_on'], $today);
+		print '<tr class="oddeven" data-member-loan="'.$state.'"><td>'.dol_escape_htmltag($loan['ref']).'</td><td class="nowraponall">'.vereineFormatDay($loan['issued_on']).' – '
+			.vereineFormatDay($loan['returned_on'] !== '' ? $loan['returned_on'] : $loan['due_on']).'</td><td>'.$langs->trans('VereineLoanState_'.$state).'</td></tr>';
+	}
+	print '</table></div><br>';
+}
 
 // Honours the member was given (#27).
 $memberHonours = (new VereineHonours($db))->honours((int) $object->id);
