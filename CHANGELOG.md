@@ -16,6 +16,14 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Turniersieg) oder Ehrenmitgliedschaft. Ein Ehrenmitglied wechselt in die Mitgliedsart, die der Verein
   dafür wählt, etwa eine ohne Beitrag. Zu jeder Ehrung gibt es eine **Urkunde als PDF** mit Linien für
   die Unterschriften; der Reiter *Verein* des Mitglieds nennt seine Ehrungen.
+- **Veranstaltungen in der App und auf der Website** (#165): Eine Veranstaltung ist jetzt intern, **nur für
+  Mitglieder** oder öffentlich. `GET /vereine/events` liefert der Website die öffentlichen, mit der
+  einen Stelle, bei der man sich anmeldet (keine, Dolibarr oder eine genannte externe Anwendung); nie
+  Teilnehmer, Aufgaben oder Geld. Eine App mit der Fähigkeit *events* sieht dazu die Veranstaltungen für
+  Mitglieder samt Helferdiensten, fragt einen Dienst an (der Vorstand bestätigt in Dolibarr) und zieht ihn
+  zurück, solange er nicht bestätigt ist. Überschneidende Dienste werden abgewiesen.
+- Wer bei einem Helferdienst schon einmal abgesagt war, kann wieder eingetragen werden; bisher scheiterte
+  das an einem zweiten Eintrag für dieselbe Person (#165).
 - **Eigene Daten in der App** (#164): Mit der Fähigkeit *profile* liest eine App die Daten der Person,
   beantragt Änderungen der Kontaktdaten (nur Anschrift, Telefon, E-Mail – nie Mitgliedsart, Status,
   Funktionen oder Bankdaten) und erklärt den Austritt. Unter *Externe Identitäten* wählt der Verein,

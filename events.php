@@ -100,7 +100,7 @@ $self = $_SERVER['PHP_SELF'].($id > 0 ? '?id='.$id : '');
 if ($action === 'create' && $mayManage) {
 	$entered = array('label' => GETPOST('label', 'alphanohtml'), 'event_day' => GETPOST('event_day', 'alphanohtml'),
 		'end_day' => GETPOST('end_day', 'alphanohtml'), 'place' => GETPOST('place', 'alphanohtml'),
-		'public' => GETPOST('public', 'aZ09') === '1', 'registration' => GETPOST('registration', 'aZ09'),
+		'public' => VereineEventRules::storedVisibility(GETPOST('public', 'aZ09')), 'registration' => GETPOST('registration', 'aZ09'),
 		'external_ref' => GETPOST('external_ref', 'alphanohtml'), 'note' => GETPOST('note', 'restricthtml'));
 	$created = $events->createFromTemplate(GETPOSTINT('template'), $entered, $today, $user);
 	if ($created > 0) {
@@ -259,7 +259,8 @@ if ($event === null) {
 		print ' '.$langs->trans('VereineEventEndDay').' <input type="date" name="end_day" value=""></td></tr>';
 		print '<tr><td>'.$langs->trans('VereineEventPlace').'</td><td><input type="text" name="place" size="40" maxlength="255" value=""></td></tr>';
 		print '<tr><td>'.$langs->trans('VereineEventPublic').'</td><td><select name="public" class="flat">';
-		print '<option value="0">'.$langs->trans('VereineEventInternal').'</option><option value="1">'.$langs->trans('VereineEventPublicYes').'</option>';
+		print '<option value="0">'.$langs->trans('VereineEventInternal').'</option><option value="2">'.$langs->trans('VereineEventMembersOnly').'</option>';
+		print '<option value="1">'.$langs->trans('VereineEventPublicYes').'</option>';
 		print '</select></td></tr>';
 		print '<tr><td>'.$langs->trans('VereineEventRegistration').'</td><td><select name="registration" class="flat">';
 		foreach (VereineEventRules::REGISTRATIONS as $kind) {
@@ -276,12 +277,13 @@ if ($event === null) {
 	$progress = VereineEventRules::progress($checklist, $today);
 	print load_fiche_titre(dol_escape_htmltag($event['label']), '<a href="'.$_SERVER['PHP_SELF'].'">'.$langs->trans('VereineEventBack').'</a>', 'fa-calendar-alt');
 	print '<div class="paddingbottom" data-event="'.((int) $event['id']).'" data-event-status="'.$event['status'].'"';
-	print ' data-event-registration="'.$event['registration'].'" data-event-public="'.($event['public'] ? 1 : 0).'">';
+	print ' data-event-registration="'.$event['registration'].'" data-event-public="'.($event['public'] ? 1 : 0).'" data-event-visibility="'.$event['visibility'].'">';
 	print '<strong>'.vereineFormatDay($event['event_day']).($event['end_day'] !== '' ? ' – '.vereineFormatDay($event['end_day']) : '').'</strong>';
 	if ($event['place'] !== '') {
 		print ' · '.dol_escape_htmltag($event['place']);
 	}
-	print ' · '.$langs->trans('VereineEventRegistration_'.$event['registration']);
+	$seen = array('internal' => 'VereineEventInternal', 'public' => 'VereineEventPublicYes', 'members' => 'VereineEventMembersOnly');
+	print ' · '.$langs->trans($seen[$event['visibility']]).' · '.$langs->trans('VereineEventRegistration_'.$event['registration']);
 	if ($event['external_ref'] !== '') {
 		print ' ('.dol_escape_htmltag($event['external_ref']).')';
 	}

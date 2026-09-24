@@ -47,6 +47,15 @@ class VereineEventRules
 	/** An event that was called off. */
 	const STATUS_CANCELLED = 'cancelled';
 
+	/** Only the association sees the event (stored as 0 in public). */
+	const VISIBILITY_INTERNAL = 'internal';
+	/** Anybody, a website too (stored as 1). */
+	const VISIBILITY_PUBLIC = 'public';
+	/** Members through their application (stored as 2) (#165). */
+	const VISIBILITY_MEMBERS = 'members';
+	/** Stored value => who sees it. */
+	const VISIBILITIES = array(0 => 'internal', 1 => 'public', 2 => 'members');
+
 	/** Every status an event may have. */
 	const STATUSES = array('planned', 'done', 'cancelled');
 
@@ -173,6 +182,28 @@ class VereineEventRules
 			$errors[] = 'VereineEventErrorOffset';
 		}
 		return $errors;
+	}
+
+	/**
+	 * Who sees an event, from what is stored.
+	 *
+	 * @param mixed $stored 0, 1 or 2
+	 * @return string internal, public or members
+	 */
+	public static function visibility($stored)
+	{
+		return isset(self::VISIBILITIES[(int) $stored]) ? self::VISIBILITIES[(int) $stored] : self::VISIBILITY_INTERNAL;
+	}
+
+	/**
+	 * The value to store for who sees an event, from the form: 0, 1 or 2; anything else is internal.
+	 *
+	 * @param mixed $entered As entered
+	 * @return int
+	 */
+	public static function storedVisibility($entered)
+	{
+		return is_scalar($entered) && preg_match('/^[0-2]$/', (string) $entered) ? (int) $entered : 0;
 	}
 
 	/**
