@@ -131,7 +131,12 @@ if ((string) $entered !== '' && $found === null) {
 	}
 	print '<p>'.dol_escape_htmltag($langs->transnoentities('VereineVerifySums')).'</p><ul class="small">';
 	foreach ($found['files'] as $file) {
-		print '<li><code>'.dol_escape_htmltag($file['sha256']).'</code> '.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineArchiveFile_'.$file['what'])).'</li>';
+		print '<li data-verify-what="'.dol_escape_htmltag($file['what']).'"><code>'.dol_escape_htmltag($file['sha256']).'</code> '
+			.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineArchiveFile_'.$file['what']));
+		if ($file['derived_from'] !== '') {
+			print ' · '.dol_escape_htmltag($langs->transnoentities('VereineArchiveDerivedFrom', substr($file['derived_from'], 0, 16)));
+		}
+		print '</li>';
 	}
 	print '</ul></div>';
 	if ($compared !== '') {

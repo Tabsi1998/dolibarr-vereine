@@ -34,6 +34,12 @@ class VereinePublicationRules
 	/** Who a document can be published for, from the narrowest. */
 	const AUDIENCES = array('board', 'members', 'public');
 
+	/** One person only, and whoever acts for that person through a binding (#239); never by a rule. */
+	const AUDIENCE_PERSON = 'person';
+
+	/** Which publication somebody gets when several are for them: the narrowest first, it is the fullest. */
+	const RANK = array('person' => 0, 'board' => 1, 'members' => 2, 'public' => 3);
+
 	/** Revisions a rule may publish by itself: signed ones only. */
 	const AUTO_FILES = array('signed', 'scan');
 
@@ -76,11 +82,15 @@ class VereinePublicationRules
 	 * Whether somebody sees a publication.
 	 *
 	 * @param string              $audience Audience of the publication
-	 * @param array<string,bool>  $actor    public (anybody), member (an active member), board (on the board now)
+	 * @param array<string,mixed> $actor    public (anybody), member (an active member), board (on the board now), member_id
+	 * @param int                 $memberId The person a publication for one person is for
 	 * @return bool
 	 */
-	public static function sees($audience, array $actor)
+	public static function sees($audience, array $actor, $memberId = 0)
 	{
+		if ($audience === self::AUDIENCE_PERSON) {
+			return (int) $memberId > 0 && isset($actor['member_id']) && (int) $actor['member_id'] === (int) $memberId;
+		}
 		if ($audience === 'public') {
 			return true;
 		}
@@ -88,6 +98,38 @@ class VereinePublicationRules
 			return !empty($actor['member']);
 		}
 		return $audience === 'board' && !empty($actor['board']);
+	}
+
+	/**
+	 * What somebody gets of the publications: one per document, the narrowest audience they are in, then the newest revision;
+	 * the list with the newest first.
+	 *
+	 * @param array<int,array<string,mixed>> $rows  Publications in force with document_id, audience, member_id, revision, created
+	 * @param array<string,mixed>            $actor public, member, board, member_id
+	 * @return array<int,array<string,mixed>>
+	 */
+	public static function pick(array $rows, array $actor)
+	{
+		$chosen = array();
+		foreach ($rows as $row) {
+			if (!self::sees((string) $row['audience'], $actor, (int) $row['member_id'])) {
+				continue;
+			}
+			$document = (int) $row['document_id'];
+			$rank = isset(self::RANK[$row['audience']]) ? self::RANK[$row['audience']] : 9;
+			if (isset($chosen[$document])) {
+				$held = $chosen[$document];
+				$heldRank = self::RANK[$held['audience']];
+				if ($heldRank < $rank || ($heldRank === $rank && array((int) $held['created'], (int) $held['revision']) >= array((int) $row['created'], (int) $row['revision']))) {
+					continue;
+				}
+			}
+			$chosen[$document] = $row;
+		}
+		usort($chosen, function ($a, $b) {
+			return array((int) $b['created'], (int) $b['revision']) <=> array((int) $a['created'], (int) $a['revision']);
+		});
+		return $chosen;
 	}
 
 	/**

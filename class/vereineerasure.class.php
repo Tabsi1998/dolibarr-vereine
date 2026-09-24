@@ -212,6 +212,7 @@ class VereineErasure
 			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_meeting_attendance WHERE entity = ".$entity." AND fk_adherent = ".$id)
 			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_circular_vote WHERE entity = ".$entity." AND fk_adherent = ".$id)
 			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_honour WHERE entity = ".$entity." AND fk_adherent = ".$id)
+			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_publication WHERE entity = ".$entity." AND fk_adherent = ".$id)
 			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_motion WHERE entity = ".$entity." AND fk_adherent = ".$id), 'last' => '', 'due' => 0);
 		$found['name'] = array('count' => (string) $member->lastname === self::ANONYMOUS && (string) $member->firstname === '' && (string) $member->login === '' ? 0 : 1,
 			'last' => '', 'due' => 0);

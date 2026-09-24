@@ -13,12 +13,14 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- Every file of a finished document with its SHA-256: as built, signed with ID Austria, the signed paper as a scan (#123).
+-- Every file of a finished document with its SHA-256: as built, signed with ID Austria, the signed paper as a scan (#123),
+-- or a shortened version derived from another revision (#239), which fk_parent names.
 CREATE TABLE llx_vereine_document_file(
 	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
 	fk_document INTEGER NOT NULL,
 	sha256 VARCHAR(64) NOT NULL,
 	relpath VARCHAR(255) NOT NULL,
 	what VARCHAR(16) DEFAULT 'built' NOT NULL,
+	fk_parent INTEGER,
 	datec DATETIME NOT NULL
 ) ENGINE=innodb;

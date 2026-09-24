@@ -6097,6 +6097,84 @@ def profileapi(stack: Stack) -> str:
             f"the board, rejected with a reason and without the internal note; the notice ends on {notice['last_day']} by the rule, a second one refused")
 
 
+def documentmore(stack: Stack) -> str:
+    """Documents, the second part: a shortened version as a file of its own derived from the original, a document for one person only,
+    publishing and withdrawing in the change feed, a signed copy out only once every signature is there (#239)."""
+    browser = stack.browser()
+    base = "/custom/vereine/archive.php?year=0"
+    plain = stack.sql("SELECT d.rowid FROM llx_vereine_document d WHERE d.kind <> 'statute' AND EXISTS (SELECT 1 FROM llx_vereine_document_file f WHERE f.fk_document = d.rowid)"
+                      " AND NOT EXISTS (SELECT 1 FROM llx_vereine_document_file f WHERE f.fk_document = d.rowid AND f.what <> 'built')"
+                      " AND NOT EXISTS (SELECT 1 FROM llx_vereine_publication p WHERE p.fk_document = d.rowid AND p.withdrawn_at IS NULL) ORDER BY d.rowid DESC LIMIT 3")
+    expect(len(plain) == 3, f"the files have too few documents for the test: {plain}")
+    doc, personal, signed_doc = (int(row[0]) for row in plain)
+    original_id, original_sha = stack.sql(f"SELECT rowid, sha256 FROM llx_vereine_document_file WHERE fk_document = {doc} ORDER BY rowid DESC LIMIT 1")[0]
+    feed_from = int(stack.value("SELECT COALESCE(MAX(rowid), 0) FROM llx_vereine_change"))
+
+    # A shortened version: a PDF of its own, marked as derived; a Word file and the original itself are refused.
+    excerpt = b"%PDF-1.4\n% gekuerzte Fassung fuer Mitglieder\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
+    for name, content in (("gekuerzt.docx", b"PK\x03\x04 kein PDF"), ("gekuerzt.pdf", excerpt)):
+        page = page_ok(browser.get(base), "the files before the shortened version")
+        page_ok(browser.post_multipart(base, [("token", token_of(page)), ("action", "excerpt"), ("document", str(doc))], [("excerpt", name, content)]),
+                f"upload {name}")
+    rows = stack.sql(f"SELECT rowid, sha256, fk_parent FROM llx_vereine_document_file WHERE fk_document = {doc} AND what = 'excerpt'")
+    expect(len(rows) == 1 and rows[0][1] == hashlib.sha256(excerpt).hexdigest() and rows[0][2] == original_id,
+           f"the shortened version is not one file derived from the original: {rows}")
+    excerpt_id = int(rows[0][0])
+    expect(stack.value(f"SELECT sha256 FROM llx_vereine_document_file WHERE rowid = {original_id}") == original_sha, "the original changed")
+    code = stack.value(f"SELECT code FROM llx_vereine_document WHERE rowid = {doc}")
+    check = page_ok(browser.get(f"/custom/vereine/public/verify.php?code={code}"), "the check of the code")
+    expect('data-verify-what="excerpt"' in check.text and original_sha[:16] in check.text, "the check does not show the shortened version as derived")
+
+    # The shortened version for members, the original for the board; one document for one person only.
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtdocmore", RT_CLIENT_KEY=client)
+    member, other = (int(row[0]) for row in stack.sql("SELECT rowid FROM llx_adherent WHERE statut = 1 AND rowid NOT IN (SELECT t.fk_adherent FROM llx_vereine_function_term t"
+                                                      " INNER JOIN llx_vereine_function f ON f.rowid = t.fk_function WHERE f.board = 1) ORDER BY rowid LIMIT 2"))
+    for subject, person in (("sub-more-1", member), ("sub-more-2", other)):
+        page = page_ok(browser.get("/custom/vereine/admin/identities.php"), "the identities")
+        page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtdocmore", "member_id": str(person), "application_id": "0",
+                                                                                 "capabilities[]": "documents"}), "invite")
+        invite = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+        status, _ = stack.api(f"vereine/identities/claim?subject={subject}&code={invite}", client, method="POST")
+        expect(status == 200, f"binding {subject}: HTTP {status}")
+    for document, changes in ((doc, {"audience": "members", "file": str(excerpt_id)}), (doc, {"audience": "board"}),
+                              (personal, {"audience": "person", "member": str(member)})):
+        page = page_ok(browser.get(base), "the files before publishing")
+        page_ok(browser.submit(page.form(name=f"vereinepublish{document}"), changes), f"publish {changes}")
+    status, first = stack.api("vereine/me/documents?subject=sub-more-1", client)
+    status_other, second = stack.api("vereine/me/documents?subject=sub-more-2", client)
+    mine = {row["document_id"]: row for row in first} if status == 200 else {}
+    theirs = {row["document_id"]: row for row in second} if status_other == 200 else {}
+    expect(doc in mine and mine[doc]["revision"] == excerpt_id and mine[doc]["what"] == "excerpt" and mine[doc]["derived_from"] == int(original_id),
+           f"the member does not get the shortened version: {mine.get(doc)}")
+    expect(personal in mine and mine[personal]["audience"] == "person" and personal not in theirs and doc in theirs,
+           f"the document for one person: {sorted(mine)} / {sorted(theirs)}")
+    status, public = stack.api("vereine/documents", stack.reader_key)
+    expect(status == 200 and all(row["document_id"] not in (doc, personal) for row in public), "a document for members or one person is public")
+    status, _ = stack.api(f"vereine/me/documents/{personal}/pdf?subject=sub-more-2", client)
+    expect(status == 404, f"another member got the document for one person: HTTP {status}")
+    status, pdf = stack.api(f"vereine/me/documents/{doc}/pdf?subject=sub-more-1", client)
+    expect(status == 200 and base64.b64decode(pdf["content"]) == excerpt, f"the PDF of the shortened version: HTTP {status}")
+
+    # Withdrawn: the person's document is gone; the feed said published, and revoked when nothing is left.
+    publication = stack.value(f"SELECT rowid FROM llx_vereine_publication WHERE fk_document = {personal} AND withdrawn_at IS NULL")
+    page = page_ok(browser.get(base), "the files before withdrawing")
+    page_ok(browser.submit(page.form(name=f"vereinewithdraw{publication}")), "withdraw the document for one person")
+    status, first = stack.api("vereine/me/documents?subject=sub-more-1", client)
+    expect(status == 200 and all(row["document_id"] != personal for row in first), "the withdrawn document is still there")
+    feed = stack.sql(f"SELECT object_id, change_kind FROM llx_vereine_change WHERE rowid > {feed_from} AND object_type = 'document' ORDER BY rowid")
+    expect([str(doc), "created"] in feed and [str(doc), "updated"] in feed and [str(personal), "created"] in feed and feed[-1] == [str(personal), "revoked"],
+           f"the change feed: {feed}")
+    stack.sql(f"UPDATE llx_vereine_publication SET withdrawn_at = NOW(), reason = 'withdrawn' WHERE fk_document = {doc} AND withdrawn_at IS NULL")
+
+    # A signed copy waits while the run still needs a signature.
+    counted = stack.php_fixture("signedrun", RT_DOCUMENT_ID=str(signed_doc))
+    expect(counted["open"] == counted["before"] and counted["done"] == counted["before"] + 1, f"a signed copy went out before every signature: {counted}")
+    stack.sql(f"UPDATE llx_vereine_publication SET withdrawn_at = NOW(), reason = 'withdrawn' WHERE fk_document = {signed_doc} AND withdrawn_at IS NULL")
+    return ("a shortened version as a file of its own, derived from the original that stayed; members got it, the board the original; a document for "
+            "one person reached only that person and went with its withdrawal; the feed said published and revoked; a signed copy waited for the last signature")
+
+
 def eventapi(stack: Stack) -> str:
     """Events through the API: public ones for the website, members' ones for the app, never internal ones; a shift asked for once,
     withdrawn while unconfirmed, a confirmed one not; one place of registration (#165)."""
@@ -6321,6 +6399,8 @@ SCENARIOS = (
     ("meetingapi", "Meetings through the API: only invited ones, answer, motion once and late, board decides, cancelled", meetingapi, ("statuteapi",)),
     ("profileapi", "Own data through the API: change at once or for the board, conflict, nothing else writable, notice of the exit", profileapi, ("meetingapi",)),
     ("eventapi", "Events through the API: public for the website, members' for the app, shifts asked and withdrawn", eventapi, ("profileapi",)),
+    ("documentmore", "Documents: a shortened version derived from the original, one person only, the change feed, signed copies when complete",
+     documentmore, ("eventapi",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),

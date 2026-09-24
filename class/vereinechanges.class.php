@@ -284,6 +284,11 @@ class VereineChanges
 			VereineChangeRules::TYPE_APPLICATION => 'vereine_application',
 			VereineChangeRules::TYPE_CONSENT => 'vereine_consent',
 		);
+		if ($type === VereineChangeRules::TYPE_DOCUMENT) {
+			// Only documents published now; what is not published is nobody's business outside.
+			$sql = "SELECT DISTINCT fk_document as rowid FROM ".MAIN_DB_PREFIX."vereine_publication WHERE entity = ".((int) $entity)." AND withdrawn_at IS NULL";
+			return $sql." AND fk_document > ".((int) $after)." ORDER BY fk_document LIMIT ".((int) $limit);
+		}
 		if (!isset($tables[$type])) {
 			// A fee is not an object of its own; it is read at the member it belongs to.
 			return null;

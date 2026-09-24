@@ -35,7 +35,10 @@ class VereineArchiveRules
 	const KINDS = array('minutes', 'resolution', 'audit_report', 'account', 'payout', 'statute', 'letter');
 
 	/** Kinds of files of a document: as built, signed with ID Austria, the signed paper as a scan. */
-	const FILES = array('built', 'signed', 'scan');
+	const FILES = array('built', 'signed', 'scan', 'excerpt');
+
+	/** A shortened version for members or the public, a file of its own derived from another revision (#239). */
+	const FILE_EXCERPT = 'excerpt';
 
 	/**
 	 * A new code from random bytes.
@@ -138,5 +141,29 @@ class VereineArchiveRules
 			$lines .= $entry['sha256'].'  '.$entry['name']."\n";
 		}
 		return $lines;
+	}
+
+	/**
+	 * What is wrong with an uploaded shortened version, '' when it can be kept.
+	 *
+	 * @param int    $parent The revision it shortens, 0 when the document has none
+	 * @param string $name   Name of the uploaded file
+	 * @param int    $size   Its size
+	 * @param string $head   Its first five bytes
+	 * @param int    $max    The largest size
+	 * @return string Language key
+	 */
+	public static function excerptProblem($parent, $name, $size, $head, $max)
+	{
+		if ((int) $parent <= 0) {
+			return 'VereinePublicationErrorFile';
+		}
+		if ((string) $name === '' || (int) $size <= 0) {
+			return 'VereineExcerptErrorMissing';
+		}
+		if ((int) $size > (int) $max) {
+			return 'VereineExcerptErrorSize';
+		}
+		return strtolower((string) pathinfo((string) $name, PATHINFO_EXTENSION)) === 'pdf' && (string) $head === '%PDF-' ? '' : 'VereineExcerptErrorKind';
 	}
 }

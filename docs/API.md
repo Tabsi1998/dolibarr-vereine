@@ -766,7 +766,7 @@ Der Vollabgleich. Eine Seite führt die IDs **einer** Objektart auf, sonst nicht
 
 | Parameter | Bedeutung |
 | --- | --- |
-| `object_type` | `membership`, `function`, `fee`, `application` oder `consent`. |
+| `object_type` | `membership`, `function`, `fee`, `application`, `consent` oder `document`. |
 | `after` | Weiter nach dieser ID, 0 zum Beginnen. |
 | `limit` | Objekte je Seite, 1 bis 500, ohne Angabe 100. |
 
@@ -866,13 +866,24 @@ abgelaufenem Code und wenn es für die Kennung bei dieser Anwendung schon eine B
 ### GET /vereine/me/documents
 
 `subject`, Fähigkeit `documents`. Was der Verein für die Person veröffentlicht hat: öffentliche
-Dokumente, die für Mitglieder, solange sie aktives Mitglied ist, und die für den Vorstand, solange sie
-ihm angehört. Je Dokument die neueste veröffentlichte Fassung.
+Dokumente, die für Mitglieder, solange sie aktives Mitglied ist, die für den Vorstand, solange sie
+ihm angehört, und die **nur für sie** (`audience` `person`). Wer eine Person vertritt, etwa Eltern,
+sieht deren Dokumente über eine eigene Bindung für diese Person, die der Vorstand einlädt.
+
+Je Dokument **eine** Fassung: die der engsten Zielgruppe, in der die Person ist (für sie persönlich vor
+Vorstand vor Mitgliedern vor Öffentlichkeit), und darin die neueste. So sieht der Vorstand das
+Original, auch wenn für Mitglieder eine gekürzte Fassung veröffentlicht ist.
 
 ```json
-[{"document_id": 12, "revision": 31, "code": "QZLAS-8TMMD", "kind": "minutes", "title": "Protokoll Generalversammlung 2026",
+[{"document_id": 12, "revision": 31, "derived_from": 0, "code": "QZLAS-8TMMD", "kind": "minutes", "title": "Protokoll Generalversammlung 2026",
   "date": "2026-09-24T18:02:11+00:00", "what": "signed", "sha256": "3f9c…", "size": 81234, "audience": "members"}]
 ```
+
+`what` `excerpt` ist eine **gekürzte Fassung**: eine eigene Datei mit eigener Prüfsumme, `derived_from`
+nennt die Fassung, aus der sie abgeleitet ist. Das Original bleibt unverändert. Ob sich ein Dokument
+geändert hat, sagt `sha256`: Eine Anwendung lädt das PDF nur, wenn sich die Prüfsumme geändert hat.
+Veröffentlichen, Ersetzen und Zurückziehen meldet der Änderungsfeed als `document` (`revoked`, wenn
+nichts mehr veröffentlicht ist).
 
 ### GET /vereine/me/documents/{id}/pdf
 

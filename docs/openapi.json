@@ -997,7 +997,7 @@
             "name": "object_type",
             "in": "query",
             "required": false,
-            "description": "Objektart: membership, function, fee, application oder consent",
+            "description": "Objektart: membership, function, fee, application, consent oder document",
             "schema": {
               "type": "string",
               "enum": [
@@ -1005,7 +1005,8 @@
                 "function",
                 "fee",
                 "application",
-                "consent"
+                "consent",
+                "document"
               ]
             }
           },
@@ -4040,7 +4041,8 @@
               "function",
               "fee",
               "application",
-              "consent"
+              "consent",
+              "document"
             ]
           },
           "object_id": {
@@ -4429,6 +4431,7 @@
         "required": [
           "document_id",
           "revision",
+          "derived_from",
           "code",
           "kind",
           "title",
@@ -4445,6 +4448,10 @@
           "revision": {
             "type": "integer",
             "description": "Die veröffentlichte Fassung; für den Abruf des PDF"
+          },
+          "derived_from": {
+            "type": "integer",
+            "description": "Bei einer gekürzten Fassung die Fassung, aus der sie abgeleitet ist; sonst 0"
           },
           "code": {
             "type": "string",
@@ -4474,9 +4481,10 @@
             "enum": [
               "built",
               "signed",
-              "scan"
+              "scan",
+              "excerpt"
             ],
-            "description": "erstellt, unterschrieben oder Scan des unterschriebenen Papiers"
+            "description": "erstellt, unterschrieben, Scan des unterschriebenen Papiers oder gekürzte Fassung (excerpt)"
           },
           "sha256": {
             "type": "string",
@@ -4491,7 +4499,8 @@
             "enum": [
               "board",
               "members",
-              "public"
+              "public",
+              "person"
             ]
           }
         }

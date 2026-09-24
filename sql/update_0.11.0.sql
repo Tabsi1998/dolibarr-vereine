@@ -13,18 +13,6 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- One revision of a document of the association's files published for an audience (#156): the board, the
--- members, the public, or one person (#239, fk_adherent); withdrawn or replaced, it stays as a record.
-CREATE TABLE llx_vereine_publication(
-	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
-	entity INTEGER DEFAULT 1 NOT NULL,
-	fk_document INTEGER NOT NULL,
-	fk_file INTEGER NOT NULL,
-	audience VARCHAR(16) NOT NULL,
-	fk_adherent INTEGER DEFAULT 0 NOT NULL,
-	published_at DATETIME NOT NULL,
-	fk_user INTEGER,
-	withdrawn_at DATETIME,
-	fk_user_withdrawn INTEGER,
-	reason VARCHAR(16)
-) ENGINE=innodb;
+-- 0.11.0: a shortened version names the revision it is derived from; a publication may be for one person (#239).
+ALTER TABLE llx_vereine_document_file ADD COLUMN fk_parent INTEGER AFTER what;
+ALTER TABLE llx_vereine_publication ADD COLUMN fk_adherent INTEGER DEFAULT 0 NOT NULL AFTER audience;
