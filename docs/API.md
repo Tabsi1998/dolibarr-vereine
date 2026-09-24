@@ -56,6 +56,20 @@ Was der Verein für die **Öffentlichkeit** veröffentlicht hat, im selben Forma
 Veröffentlicht wird unter *Mitglieder > Verein > Vereinsakte*: je Dokument von Hand oder je Dokumentart
 automatisch, sobald die unterschriebene Fassung da ist. Ab Werk ist nichts veröffentlicht.
 
+## GET /vereine/events
+
+Veranstaltungen ab heute, die der Verein als **öffentlich** markiert hat, etwa für die Startseite:
+
+```json
+[{"id": 4, "label": "Winter-Cup", "day": "2026-12-05", "end_day": "", "timezone": "Europe/Vienna",
+  "place": "Vereinsheim", "status": "planned", "visibility": "public",
+  "registration": {"kind": "external", "external_ref": "lionsquad.at"}}]
+```
+
+`registration` sagt, **wo** man sich anmeldet: `none`, `dolibarr` oder `external` mit der Anwendung, die
+die Anmeldung führt. Es gibt genau eine Anmeldestelle; das Modul bucht nie ein zweites Mal. Nie
+Teilnehmer, interne Aufgaben oder Geld.
+
 ## GET /vereine/statutes
 
 Die Statuten, wenn der Verein sie unter *Einrichtung > Statuten* für die **Öffentlichkeit** freigibt
@@ -925,6 +939,25 @@ Vorstands nie.
 (Wunsch optional). Die Kündigung geht mit heutigem Eingang ein; die Mitgliedschaft endet am Tag, den die
 Kündigungsregel des Vereins ergibt (`last_day`), oder später, wenn später gewünscht. Ein früherer Wunsch
 wird nicht übernommen (`wished_too_early: true`). Ist schon ein Austritt geplant, kommt `409`.
+
+### GET /vereine/me/events
+
+`subject`, Fähigkeit `events`. Öffentliche Veranstaltungen und die für Mitglieder (in Dolibarr „nur für
+Mitglieder“), ab heute, je mit `shifts`: `id`, `label`, `day`, `start`, `end`, `capacity`, `taken`
+(bestätigt oder geleistet), `full` und `mine` (eigener Stand: leer, `requested`, `confirmed`, `done`,
+`cancelled`).
+
+### PUT /vereine/me/events/{id}/shifts/{shift}
+
+`subject`, Fähigkeit `events`. Fragt den Helferdienst an (`requested`); der Vorstand bestätigt ihn in
+Dolibarr. Nochmal anfragen ändert nichts. Voll, vorbei, abgesagt oder überschneidend mit einem anderen
+Dienst der Person: `409`. Selbst eingetragen ist kein Nachweis für die Freiwilligenpauschale; das zählt erst,
+was der Verein als geleistet bestätigt.
+
+### DELETE /vereine/me/events/{id}/shifts/{shift}
+
+`subject`, Fähigkeit `events`. Zieht eine noch **nicht bestätigte** Anfrage zurück. Einen bestätigten
+Dienst sagt die Person beim Verein ab (`409`).
 
 ### GET /vereine/me/accounts
 

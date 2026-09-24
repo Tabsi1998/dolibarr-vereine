@@ -2484,6 +2484,244 @@
           ]
         ]
       }
+    },
+    "/vereine/events": {
+      "get": {
+        "operationId": "getEvents",
+        "summary": "Öffentliche Veranstaltungen ab heute",
+        "description": "Nur als öffentlich markierte; nie Teilnehmer, interne Aufgaben oder Geld.",
+        "responses": {
+          "200": {
+            "description": "Veranstaltungen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PublicEvent"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ]
+        ]
+      }
+    },
+    "/vereine/me/events": {
+      "get": {
+        "operationId": "getMyEvents",
+        "summary": "Veranstaltungen und Helferdienste für die gebundene Person",
+        "description": "Öffentliche und für Mitglieder, ab heute, mit Helferdiensten. Braucht die Fähigkeit events.",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Veranstaltungen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MyEvent"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      }
+    },
+    "/vereine/me/events/{id}/shifts/{shift}": {
+      "put": {
+        "operationId": "putMyShift",
+        "summary": "Helferdienst anfragen",
+        "description": "Wartet auf die Bestätigung in Dolibarr; nochmal anfragen ändert nichts.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Veranstaltung",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "shift",
+            "in": "path",
+            "required": true,
+            "description": "Helferdienst",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Die Veranstaltung danach",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyEvent"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      },
+      "delete": {
+        "operationId": "deleteMyShift",
+        "summary": "Unbestätigten Helferdienst zurückziehen",
+        "description": "Ein bestätigter Dienst wird mit dem Verein abgesagt.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Veranstaltung",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "shift",
+            "in": "path",
+            "required": true,
+            "description": "Helferdienst",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Die Veranstaltung danach",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyEvent"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      }
     }
   },
   "components": {
@@ -3940,7 +4178,8 @@
                 "votes",
                 "accounts",
                 "meetings",
-                "profile"
+                "profile",
+                "events"
               ]
             }
           },
@@ -4745,6 +4984,210 @@
           },
           "wished_too_early": {
             "type": "boolean"
+          }
+        }
+      },
+      "PublicEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "day",
+          "end_day",
+          "timezone",
+          "place",
+          "status",
+          "visibility",
+          "registration"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "day": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "end_day": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "place": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "done",
+              "cancelled"
+            ]
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "members"
+            ]
+          },
+          "registration": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "external_ref"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "dolibarr",
+                  "external"
+                ],
+                "description": "Wo man sich anmeldet; genau eine Stelle"
+              },
+              "external_ref": {
+                "type": "string",
+                "description": "Bei external: die Anwendung oder Kennung, bei der angemeldet wird"
+              }
+            }
+          }
+        }
+      },
+      "MyEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "day",
+          "end_day",
+          "timezone",
+          "place",
+          "status",
+          "visibility",
+          "registration",
+          "shifts"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "day": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "end_day": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "place": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "done",
+              "cancelled"
+            ]
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "members"
+            ]
+          },
+          "registration": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "external_ref"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "dolibarr",
+                  "external"
+                ],
+                "description": "Wo man sich anmeldet; genau eine Stelle"
+              },
+              "external_ref": {
+                "type": "string",
+                "description": "Bei external: die Anwendung oder Kennung, bei der angemeldet wird"
+              }
+            }
+          },
+          "shifts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "label",
+                "day",
+                "start",
+                "end",
+                "capacity",
+                "taken",
+                "full",
+                "mine"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "day": {
+                  "type": "string"
+                },
+                "start": {
+                  "type": "string"
+                },
+                "end": {
+                  "type": "string"
+                },
+                "capacity": {
+                  "type": "integer"
+                },
+                "taken": {
+                  "type": "integer",
+                  "description": "Bestätigte oder geleistete Plätze"
+                },
+                "full": {
+                  "type": "boolean"
+                },
+                "mine": {
+                  "type": "string",
+                  "enum": [
+                    "",
+                    "requested",
+                    "confirmed",
+                    "done",
+                    "cancelled"
+                  ]
+                }
+              }
+            }
           }
         }
       }

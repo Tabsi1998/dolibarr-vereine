@@ -288,9 +288,22 @@ class VereineShifts
 			$this->errors[] = $refused;
 			return 0;
 		}
-		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_event_shift_entry (entity, fk_shift, fk_adherent, status, source, datec, fk_user_modif)";
-		$sql .= " VALUES (".((int) $conf->entity).", ".((int) $shiftId).", ".((int) $memberId).", '".$this->db->escape((string) $status)."',";
-		$sql .= " '".$this->db->escape((string) $source !== '' ? (string) $source : 'dolibarr')."', '".$this->db->idate(dol_now())."', ".((int) $user->id).")";
+		$source = (string) $source !== '' ? (string) $source : 'dolibarr';
+		$before = 0;
+		foreach ($shift['entries'] as $entry) {
+			if ((int) $entry['member_id'] === (int) $memberId) {
+				$before = (int) $entry['id'];
+			}
+		}
+		if ($before > 0) {
+			// Cancelled before and back again: the same entry, as the key allows one per member and shift.
+			$sql = "UPDATE ".MAIN_DB_PREFIX."vereine_event_shift_entry SET status = '".$this->db->escape((string) $status)."', source = '".$this->db->escape($source)."',";
+			$sql .= " hours = NULL, fk_user_modif = ".((int) $user->id)." WHERE rowid = ".$before." AND entity = ".((int) $conf->entity);
+		} else {
+			$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_event_shift_entry (entity, fk_shift, fk_adherent, status, source, datec, fk_user_modif)";
+			$sql .= " VALUES (".((int) $conf->entity).", ".((int) $shiftId).", ".((int) $memberId).", '".$this->db->escape((string) $status)."',";
+			$sql .= " '".$this->db->escape($source)."', '".$this->db->idate(dol_now())."', ".((int) $user->id).")";
+		}
 		if (!$this->db->query($sql)) {
 			$this->error = $this->db->lasterror();
 			return -1;

@@ -311,7 +311,7 @@ class VereineEvents
 		$day = trim((string) $data['event_day']);
 		$end = trim((string) (isset($data['end_day']) ? $data['end_day'] : ''));
 		$registration = isset($data['registration']) ? (string) $data['registration'] : VereineEventRules::REGISTRATION_NONE;
-		$public = !empty($data['public']) ? 1 : 0;
+		$public = VereineEventRules::storedVisibility(isset($data['public']) ? $data['public'] : 0);
 		$note = (string) (isset($data['note']) ? $data['note'] : '');
 
 		$this->db->begin();
@@ -419,7 +419,7 @@ class VereineEvents
 			? dol_mktime(23, 59, 59, (int) substr($end, 5, 2), (int) substr($end, 8, 2), (int) substr($end, 0, 4))
 			: $project->date_start;
 		$project->statut = 1;
-		$project->public = !empty($data['public']) ? 1 : 0;
+		$project->public = VereineEventRules::storedVisibility(isset($data['public']) ? $data['public'] : 0) === 1 ? 1 : 0;
 		$project->usage_task = 1;
 		// Dolibarr's own event organisation only when Dolibarr leads the sign-up, so nothing is booked twice (#165).
 		$project->usage_organize_event = $registration === VereineEventRules::REGISTRATION_DOLIBARR ? 1 : 0;
@@ -526,7 +526,7 @@ class VereineEvents
 		while ($obj = $this->db->fetch_object($resql)) {
 			$events[] = array('id' => (int) $obj->rowid, 'template_id' => (int) $obj->fk_template, 'label' => (string) $obj->label,
 				'event_day' => substr((string) $obj->event_day, 0, 10), 'end_day' => $obj->end_day ? substr((string) $obj->end_day, 0, 10) : '',
-				'place' => (string) $obj->place, 'public' => (bool) $obj->public, 'registration' => (string) $obj->registration,
+				'place' => (string) $obj->place, 'public' => (int) $obj->public === 1, 'visibility' => VereineEventRules::visibility($obj->public), 'registration' => (string) $obj->registration,
 				'external_ref' => (string) $obj->external_ref, 'status' => (string) $obj->status, 'project_id' => (int) $obj->fk_projet,
 				'agenda_id' => (int) $obj->fk_actioncomm, 'note' => (string) $obj->note);
 		}

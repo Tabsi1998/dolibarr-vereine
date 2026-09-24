@@ -1197,6 +1197,110 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Public events
+	 *
+	 * Events from today on that the association marked as public: name, days, place, state and where
+	 * people register (nowhere, in Dolibarr, or at one named external application). Never a list of
+	 * participants, internal tasks or money.
+	 *
+	 * @return array List as documented in docs/API.md
+	 *
+	 * @url GET events
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getEvents()
+	{
+		$this->checkAccess();
+		dol_include_once('/vereine/class/vereineeventportal.class.php');
+		return (new VereineEventPortal($this->db))->events(dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+	}
+
+	/**
+	 * Events and helper shifts for the person the caller acts for
+	 *
+	 * The public events and those for members, from today on, each with its helper shifts: how many
+	 * places are taken and the person's own state. Only with the ability events for this binding.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array List as documented in docs/API.md
+	 *
+	 * @url GET me/events
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyEvents($subject = '')
+	{
+		$this->checkAccess();
+		$memberId = $this->eventMember((string) $subject);
+		return (new VereineEventPortal($this->db))->events(dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'), $memberId);
+	}
+
+	/**
+	 * Ask for a helper shift for the person the caller acts for
+	 *
+	 * The request waits for the board, which confirms it in Dolibarr. Asking again changes nothing; a
+	 * shift overlapping another of the person is refused.
+	 *
+	 * @param int    $id      Event
+	 * @param int    $shift   Shift
+	 * @param string $subject How the application calls the person
+	 * @return array The event afterwards
+	 *
+	 * @url PUT me/events/{id}/shifts/{shift}
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 No such event or shift for the person
+	 * @throws RestException 409 The event is cancelled, the shift is over or full, or overlaps another
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function putMyShift($id, $shift, $subject = '')
+	{
+		$this->checkAccess();
+		$memberId = $this->eventMember((string) $subject);
+		$portal = new VereineEventPortal($this->db);
+		$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
+		$result = $portal->ask($memberId, (int) $id, (int) $shift, (string) DolibarrApiAccess::$user->login, $today, DolibarrApiAccess::$user);
+		if ($result <= 0) {
+			$this->eventRefused($portal, $result);
+		}
+		return $this->eventFor($portal, $memberId, (int) $id, $today);
+	}
+
+	/**
+	 * Take back a helper shift the board has not confirmed yet
+	 *
+	 * @param int    $id      Event
+	 * @param int    $shift   Shift
+	 * @param string $subject How the application calls the person
+	 * @return array The event afterwards
+	 *
+	 * @url DELETE me/events/{id}/shifts/{shift}
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 No such event or shift for the person
+	 * @throws RestException 409 The shift is confirmed, over or the event cancelled
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function deleteMyShift($id, $shift, $subject = '')
+	{
+		$this->checkAccess();
+		$memberId = $this->eventMember((string) $subject);
+		$portal = new VereineEventPortal($this->db);
+		$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
+		$result = $portal->withdraw($memberId, (int) $id, (int) $shift, $today, DolibarrApiAccess::$user);
+		if ($result <= 0) {
+			$this->eventRefused($portal, $result);
+		}
+		return $this->eventFor($portal, $memberId, (int) $id, $today);
+	}
+
+	/**
 	 * The accounts of the person the caller acts for
 	 *
 	 * The networks the association asks for and every other the member has, each with the name, where it
@@ -1551,6 +1655,65 @@ class Vereine extends DolibarrApi
 			throw new RestException(500, 'The archived file is missing or was changed');
 		}
 		return $pdf;
+	}
+
+	/**
+	 * The member the caller acts for, when the binding may handle the person's events.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return int Member
+	 *
+	 * @throws RestException
+	 */
+	private function eventMember($subject)
+	{
+		$this->checkIdentityRight();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		dol_include_once('/vereine/class/vereineeventportal.class.php');
+		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_EVENTS, 'member');
+		return (int) $identity['member_id'];
+	}
+
+	/**
+	 * One event as the member sees it.
+	 *
+	 * @param VereineEventPortal $portal   The service
+	 * @param int                $memberId Member
+	 * @param int                $eventId  Event
+	 * @param string             $today    Today
+	 * @return array
+	 *
+	 * @throws RestException
+	 */
+	private function eventFor($portal, $memberId, $eventId, $today)
+	{
+		foreach ($portal->events($today, $memberId) as $event) {
+			if ($event['id'] === $eventId) {
+				return $event;
+			}
+		}
+		throw new RestException(404, 'Not found');
+	}
+
+	/**
+	 * Turn what the event service refused into the answer of the API.
+	 *
+	 * @param VereineEventPortal $portal The service
+	 * @param int                $result What it returned
+	 * @return void
+	 *
+	 * @throws RestException
+	 */
+	private function eventRefused($portal, $result)
+	{
+		if ($result < 0) {
+			dol_syslog(__METHOD__.' '.$portal->error, LOG_ERR);
+			throw new RestException(500, 'The shift could not be kept');
+		}
+		if (in_array('not found', $portal->errors, true)) {
+			throw new RestException(404, 'Not found');
+		}
+		throw new RestException(409, implode('; ', $portal->errors));
 	}
 
 	/**

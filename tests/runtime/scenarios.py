@@ -6097,6 +6097,69 @@ def profileapi(stack: Stack) -> str:
             f"the board, rejected with a reason and without the internal note; the notice ends on {notice['last_day']} by the rule, a second one refused")
 
 
+def eventapi(stack: Stack) -> str:
+    """Events through the API: public ones for the website, members' ones for the app, never internal ones; a shift asked for once,
+    withdrawn while unconfirmed, a confirmed one not; one place of registration (#165)."""
+    browser = stack.browser()
+    base = "/custom/vereine/events.php"
+    today = datetime.date.fromisoformat(stack.today())
+    day = (today + datetime.timedelta(days=21)).isoformat()
+    ids = {}
+    for label, visibility, registration, ref in (("LAN intern", "0", "none", ""), ("LAN Mitglieder", "2", "none", ""),
+                                                 ("LAN offen", "1", "external", "lionsquad.at")):
+        page = page_ok(browser.get(base), "the events")
+        page_ok(browser.submit(page.form(name="vereineevent"), {"label": label, "event_day": day, "place": "Vereinsheim", "public": visibility,
+                                                                "registration": registration, "external_ref": ref}), f"create {label}")
+        ids[label] = int(stack.value(f"SELECT rowid FROM llx_vereine_event WHERE label = '{label}' ORDER BY rowid DESC LIMIT 1") or 0)
+    members_event = ids["LAN Mitglieder"]
+    page = page_ok(browser.get(f"{base}?id={members_event}"), "the members' event")
+    expect('data-event-visibility="members"' in page.text, "the event is not marked for members")
+    for label, start, end in (("Aufbau", "08:00", "10:00"), ("Kassa", "09:00", "12:00")):
+        page = page_ok(browser.get(f"{base}?id={members_event}"), "the event before a shift")
+        page_ok(browser.submit(page.form(name="vereineshift"), {"shift_label": label, "shift_day": day, "start_time": start, "end_time": end, "capacity": "1"}),
+                f"add the shift {label}")
+    shifts = {row[1]: int(row[0]) for row in stack.sql(f"SELECT rowid, label FROM llx_vereine_event_shift WHERE fk_event = {members_event}")}
+
+    status, public = stack.api("vereine/events", stack.reader_key)
+    labels = {row["label"]: row for row in public} if status == 200 else {}
+    expect("LAN offen" in labels and "LAN Mitglieder" not in labels and "LAN intern" not in labels
+           and labels["LAN offen"]["registration"] == {"kind": "external", "external_ref": "lionsquad.at"}, f"the public events: {public}")
+
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtevents", RT_CLIENT_KEY=client)
+    member = stack.value("SELECT rowid FROM llx_adherent WHERE statut = 1 ORDER BY rowid LIMIT 1")
+    page = page_ok(browser.get("/custom/vereine/admin/identities.php"), "the identities")
+    page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtevents", "member_id": member, "application_id": "0",
+                                                                             "capabilities[]": "events"}), "invite")
+    code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+    status, bound = stack.api(f"vereine/identities/claim?subject=sub-events&code={code}", client, method="POST")
+    expect(status == 200, f"binding: HTTP {status} {bound}")
+    status, mine = stack.api("vereine/me/events?subject=sub-events", client)
+    seen = {row["label"]: row for row in mine} if status == 200 else {}
+    expect("LAN Mitglieder" in seen and "LAN offen" in seen and "LAN intern" not in seen and len(seen["LAN Mitglieder"]["shifts"]) == 2,
+           f"the member's events: {list(seen)}")
+
+    path = f"vereine/me/events/{members_event}/shifts/{shifts['Aufbau']}?subject=sub-events"
+    for _ in range(2):
+        status, event = stack.api(path, client, method="PUT")
+    entries = stack.value(f"SELECT COUNT(*) FROM llx_vereine_event_shift_entry WHERE fk_shift = {shifts['Aufbau']} AND fk_adherent = {member} AND status <> 'cancelled'")
+    mine_now = next(row["mine"] for row in event["shifts"] if row["id"] == shifts["Aufbau"]) if status == 200 else ""
+    expect(status == 200 and mine_now == "requested" and entries == "1", f"asked twice: HTTP {status}, {mine_now}, {entries} entries")
+    status, _ = stack.api(f"vereine/me/events/{members_event}/shifts/{shifts['Kassa']}?subject=sub-events", client, method="PUT")
+    expect(status == 409, f"an overlapping shift was taken: HTTP {status}")
+    status, event = stack.api(path, client, method="DELETE")
+    expect(status == 200 and next(row["mine"] for row in event["shifts"] if row["id"] == shifts["Aufbau"]) == "cancelled", f"withdrawn: HTTP {status}")
+    status, event = stack.api(path, client, method="PUT")
+    expect(status == 200 and next(row["mine"] for row in event["shifts"] if row["id"] == shifts["Aufbau"]) == "requested", f"asked again after withdrawing: HTTP {status}")
+    stack.sql(f"UPDATE llx_vereine_event_shift_entry SET status = 'confirmed' WHERE fk_shift = {shifts['Aufbau']} AND fk_adherent = {member} AND status = 'requested'")
+    status, _ = stack.api(path, client, method="DELETE")
+    expect(status == 409, f"a confirmed shift was withdrawn through the app: HTTP {status}")
+    status, _ = stack.api(f"vereine/me/events/{ids['LAN intern']}/shifts/{shifts['Aufbau']}?subject=sub-events", client, method="PUT")
+    expect(status == 404, f"a shift through an internal event: HTTP {status}")
+    return ("the website saw only the public event with its external registration; the app saw public and members' events, never the internal one; "
+            "a shift asked twice is one request, an overlapping one refused, withdrawn while unconfirmed and asked again, a confirmed one not")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -6257,6 +6320,7 @@ SCENARIOS = (
     ("statuteapi", "Statutes through the API: published or not, in force, future, ambiguous, missing file", statuteapi, ("documents",)),
     ("meetingapi", "Meetings through the API: only invited ones, answer, motion once and late, board decides, cancelled", meetingapi, ("statuteapi",)),
     ("profileapi", "Own data through the API: change at once or for the board, conflict, nothing else writable, notice of the exit", profileapi, ("meetingapi",)),
+    ("eventapi", "Events through the API: public for the website, members' for the app, shifts asked and withdrawn", eventapi, ("profileapi",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),

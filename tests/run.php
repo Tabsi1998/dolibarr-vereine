@@ -2927,6 +2927,13 @@ $sorted = VereineSocialRules::sortChannels(array(
 	array('network' => 'twitch', 'position' => 20, 'label' => 'CS2'),
 	array('network' => 'discord', 'position' => 30, 'label' => 'Server')), array('discord', 'twitch', 'youtube'));
 same(array('Hauptstream', 'CS2', 'Livestream', 'Server'), array_column($sorted, 'label'), 'the order of the association first, then the network');
+// ------------------------------------------------------------- who sees an event (#165)
+
+same(array('internal', 'public', 'members', 'internal'), array(VereineEventRules::visibility(0), VereineEventRules::visibility('1'), VereineEventRules::visibility(2),
+	VereineEventRules::visibility(7)), 'stored 0, 1, 2: internal, public, members; anything else internal');
+same(array(0, 1, 2, 0, 0), array(VereineEventRules::storedVisibility('0'), VereineEventRules::storedVisibility('1'), VereineEventRules::storedVisibility('2'),
+	VereineEventRules::storedVisibility('3'), VereineEventRules::storedVisibility('public')), 'from the form only 0, 1 or 2');
+
 // ------------------------------------------------------------- own data through an application (#164)
 
 $now = array('address' => 'Alte Gasse 1', 'zip' => '6020', 'town' => 'Innsbruck', 'country_code' => 'AT', 'phone' => '', 'phone_mobile' => '', 'email' => 'a@example.org');
