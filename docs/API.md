@@ -36,7 +36,7 @@ Modulversion und API-Version – ein günstiger Weg, die Verbindung zu testen.
 
 ```json
 {
-  "module_version": "1.2.0",
+  "module_version": "1.3.0",
   "api_version": 2,
   "server_time": "2026-09-17T08:00:00Z"
 }
@@ -49,7 +49,8 @@ beim nächsten als `changed_since` verwenden (siehe unten). `api_version` 2 seit
 ## GET /vereine/documents
 
 Was der Verein für die **Öffentlichkeit** veröffentlicht hat, im selben Format wie
-`GET /vereine/me/documents`. Das PDF kommt von `GET /vereine/documents/{id}/pdf` (optional `revision`).
+`GET /vereine/me/documents`. Das PDF kommt von `GET /vereine/documents/{id}/pdf` (optional `revision`)
+als JSON mit base64 – oder als Datei von `GET /vereine/documents/{id}/file` (siehe unten).
 Veröffentlicht wird unter *Mitglieder > Verein > Vereinsakte*: je Dokument von Hand oder je Dokumentart
 automatisch, sobald die unterschriebene Fassung da ist. Ab Werk ist nichts veröffentlicht.
 
@@ -924,6 +925,24 @@ nichts mehr veröffentlicht ist).
 samt Unterschriften. Bei jedem Abruf wird neu geprüft, ob die Person es sehen darf und ob es noch
 veröffentlicht ist. Sonst kommt `404`, ob es das Dokument gibt oder nicht. Fehlt die Datei oder passt
 ihre Prüfsumme nicht mehr zur Vereinsakte, kommt `500` statt anderer Bytes.
+
+### GET /vereine/me/documents/{id}/file und /vereine/documents/{id}/file
+
+Dieselben Bytes wie `…/pdf`, aber **als Datei** statt JSON mit base64 (#244) – für große PDFs und für
+Downloads, die nach einem Abbruch weitergehen sollen. Parameter und Rechte wie bei `…/pdf`.
+
+| Anfrage | Antwort |
+| --- | --- |
+| `GET` | `200`, `Content-Type: application/pdf`, `Content-Length`, `ETag: "<sha256 aus dem Katalog>"`, `Accept-Ranges: bytes` |
+| `HEAD` | dieselben Kopfzeilen ohne Inhalt |
+| `If-None-Match: "<sha256>"` | `304` ohne Inhalt, wenn sich die Fassung nicht geändert hat |
+| `Range: bytes=1000-` (oder `bytes=1000-1999`, `bytes=-500`) | `206` mit dem Teil und `Content-Range`; mit `If-Range: "<sha256>"` nur, solange die Fassung gleich ist, sonst die ganze Datei |
+| Bereich hinter dem Ende | `416` mit `Content-Range: bytes */<Größe>` |
+
+Wer die Datei bekommen darf, prüft das Modul genauso wie bei `…/pdf` – **vor** jedem Byte und **vor**
+einem `304`. Ohne Recht, ohne Bindung oder für ein Dokument, das die Person nicht sehen darf, kommt die
+übliche JSON-Fehlerantwort (`401`, `403`, `404`), nie ein `304`. `Cache-Control: private, no-cache`: Ein
+Zwischenspeicher darf die Datei halten, muss aber jedes Mal nachfragen.
 
 ### GET /vereine/me/meetings
 

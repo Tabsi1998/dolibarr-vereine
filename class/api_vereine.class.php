@@ -26,6 +26,7 @@ use Luracast\Restler\RestException;
 require_once __DIR__.'/vereineassociationrules.class.php';
 require_once __DIR__.'/vereineorganization.class.php';
 require_once __DIR__.'/vereinewebsiteprofiles.class.php';
+require_once __DIR__.'/vereinefilerules.class.php';
 
 /**
  * The association's data for websites and integrations.
@@ -914,6 +915,52 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * The file of a document published for the public, as it is
+	 *
+	 * The same bytes as documents/{id}/pdf, without JSON and base64: the checksum of the catalog as ETag,
+	 * If-None-Match answered with 304, Range for a part (206) so a broken download goes on. Who may have
+	 * the file is checked before a byte or a 304 leaves.
+	 *
+	 * @param int $id       Document
+	 * @param int $revision Revision, 0 for the one published now
+	 * @return null The file itself, not JSON
+	 *
+	 * @url GET documents/{id}/file
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such document for the caller
+	 * @throws RestException 500 The file is missing or was changed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getDocumentFile($id, $revision = 0)
+	{
+		$this->checkAccess();
+		$this->sendFile($this->documentFile((int) $id, (int) $revision, array('public' => true)));
+		return null;
+	}
+
+	/**
+	 * Size, type and tag of the file of a document published for the public
+	 *
+	 * As GET documents/{id}/file, without the bytes.
+	 *
+	 * @param int $id       Document
+	 * @param int $revision Revision, 0 for the one published now
+	 * @return null Headers only
+	 *
+	 * @url HEAD documents/{id}/file
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such document for the caller
+	 * @throws RestException 500 The file is missing or was changed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function headDocumentFile($id, $revision = 0)
+	{
+		return $this->getDocumentFile($id, $revision);
+	}
+
+	/**
 	 * Documents for the person the caller acts for
 	 *
 	 * What the association published for this person: public documents, those for members while the
@@ -959,6 +1006,55 @@ class Vereine extends DolibarrApi
 	{
 		$this->checkAccess();
 		return $this->documentPdf((int) $id, (int) $revision, $this->documentActor((string) $subject));
+	}
+
+	/**
+	 * The file of a document for the person the caller acts for, as it is
+	 *
+	 * The same bytes as me/documents/{id}/pdf, without JSON and base64, with ETag, 304 and Range as for
+	 * documents/{id}/file. Checked again on every call before a byte or a 304 leaves.
+	 *
+	 * @param int    $id       Document
+	 * @param string $subject  How the application calls the person
+	 * @param int    $revision Revision, 0 for the one published now
+	 * @return null The file itself, not JSON
+	 *
+	 * @url GET me/documents/{id}/file
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 No such document for the person
+	 * @throws RestException 500 The file is missing or was changed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyDocumentFile($id, $subject = '', $revision = 0)
+	{
+		$this->checkAccess();
+		$this->sendFile($this->documentFile((int) $id, (int) $revision, $this->documentActor((string) $subject)));
+		return null;
+	}
+
+	/**
+	 * Size, type and tag of the file of a document for the person the caller acts for
+	 *
+	 * As GET me/documents/{id}/file, without the bytes.
+	 *
+	 * @param int    $id       Document
+	 * @param string $subject  How the application calls the person
+	 * @param int    $revision Revision, 0 for the one published now
+	 * @return null Headers only
+	 *
+	 * @url HEAD me/documents/{id}/file
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 No such document for the person
+	 * @throws RestException 500 The file is missing or was changed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function headMyDocumentFile($id, $subject = '', $revision = 0)
+	{
+		return $this->getMyDocumentFile($id, $subject, $revision);
 	}
 
 	/**
@@ -1843,6 +1939,63 @@ class Vereine extends DolibarrApi
 			throw new RestException(500, 'The archived file is missing or was changed');
 		}
 		return $pdf;
+	}
+
+	/**
+	 * The bytes of a published document with their checksum, when the actor may have them.
+	 *
+	 * @param int                 $id       Document
+	 * @param int                 $revision Revision, 0 for the one published now
+	 * @param array<string,mixed> $actor    Who asks, see VereinePublications::catalog()
+	 * @return array{filename:string,content_type:string,filesize:int,sha256:string,bytes:string}
+	 *
+	 * @throws RestException
+	 */
+	private function documentFile($id, $revision, array $actor)
+	{
+		dol_include_once('/vereine/class/vereinepublications.class.php');
+		$publications = new VereinePublications($this->db);
+		$file = $publications->file($id, $revision, $actor);
+		if ($file === null) {
+			throw new RestException(404, 'No such document');
+		}
+		if ($file === false) {
+			dol_syslog(__METHOD__.' '.$publications->error, LOG_ERR);
+			throw new RestException(500, 'The archived file is missing or was changed');
+		}
+		return $file;
+	}
+
+	/**
+	 * Hand a file out as it is and end the request (#244).
+	 *
+	 * Dolibarr's REST layer answers in JSON; a file leaves here instead, after the same checks as every other
+	 * answer: the API key before the method, the right and the binding in it.
+	 *
+	 * @param array{filename:string,content_type:string,filesize:int,sha256:string,bytes:string} $file The file
+	 * @return void
+	 */
+	private function sendFile(array $file)
+	{
+		$answer = VereineFileRules::answer(isset($_SERVER['REQUEST_METHOD']) ? (string) $_SERVER['REQUEST_METHOD'] : 'GET', (int) $file['filesize'], (string) $file['sha256'],
+			isset($_SERVER['HTTP_IF_NONE_MATCH']) ? (string) $_SERVER['HTTP_IF_NONE_MATCH'] : '', isset($_SERVER['HTTP_RANGE']) ? (string) $_SERVER['HTTP_RANGE'] : '',
+			isset($_SERVER['HTTP_IF_RANGE']) ? (string) $_SERVER['HTTP_IF_RANGE'] : '');
+		while (ob_get_level() > 0) {
+			ob_end_clean();
+		}
+		http_response_code($answer['status']);
+		foreach ($answer['headers'] as $name => $value) {
+			header($name.': '.$value);
+		}
+		if ($answer['status'] === 200 || $answer['status'] === 206) {
+			header('Content-Type: '.$file['content_type']);
+			header('Content-Disposition: attachment; filename="'.preg_replace('/[^A-Za-z0-9._-]/', '_', (string) $file['filename']).'"');
+			header('X-Content-Type-Options: nosniff');
+		}
+		if ($answer['body']) {
+			print substr($file['bytes'], $answer['start'], $answer['length']);
+		}
+		exit(0);
 	}
 
 	/**
