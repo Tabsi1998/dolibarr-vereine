@@ -37,17 +37,14 @@ Modulversion und API-Version – ein günstiger Weg, die Verbindung zu testen.
 ```json
 {
   "module_version": "0.5.8-beta",
-  "api_version": 1,
-  "country_profile": "AT",
-  "country_profile_complete": true,
+  "api_version": 2,
   "server_time": "2026-09-17T08:00:00Z"
 }
 ```
 
 `server_time` ist Dolibarrs Uhr in UTC – vor einem Website-Abgleich nehmen und
-beim nächsten als `changed_since` verwenden (siehe unten). `country_profile` und
-`country_profile_complete` sind veraltet: immer `AT` und `true`, sie entfallen
-mit 1.0.
+beim nächsten als `changed_since` verwenden (siehe unten). `api_version` 2 seit 1.0:
+`country_profile`, `country_profile_complete` und `register.court` gibt es nicht mehr.
 
 ## GET /vereine/documents
 

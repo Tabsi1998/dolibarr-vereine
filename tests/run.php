@@ -202,23 +202,21 @@ $settings = array(
 );
 
 $organization = VereineOrganization::build($settings, $company);
-same('AT', $organization['country_profile'], 'the deprecated country profile is always AT');
-same(true, $organization['country_profile_complete'], 'the deprecated completeness is always true');
-same(array('kind' => 'ZVR', 'number' => '123456789', 'court' => ''), $organization['register'], 'the register is the ZVR, the deprecated court stays empty');
+same(array('kind' => 'ZVR', 'number' => '123456789'), $organization['register'], 'the register is the ZVR');
 same('Landespolizeidirektion Tirol', $organization['authority'], 'authority for Austria');
 same(true, $organization['nonprofit'], 'non-profit flag');
 same(1, $organization['fiscal_year_start_month'], 'an unset fiscal month means January');
 same(
-	array('country_profile', 'country_profile_complete', 'name', 'register', 'authority', 'address', 'email', 'phone', 'url', 'founded', 'nonprofit', 'purpose', 'fiscal_year_start_month', 'channels'),
+	array('name', 'register', 'authority', 'address', 'email', 'phone', 'url', 'founded', 'nonprofit', 'purpose', 'fiscal_year_start_month', 'channels'),
 	array_keys($organization),
-	'API version 1 fields and their order, channels added at the end'
+	'API version 2 fields and their order, without the fields of the country profile (#252)'
 );
 
 $july = VereineOrganization::build($settings, array_merge($company, array('fiscal_month_start' => '7')));
 same(7, $july['fiscal_year_start_month'], 'fiscal year starts in July');
 
 $fallback = VereineOrganization::build(array('VEREINE_COUNTRY_PROFILE' => 'DE', 'VEREINE_REGISTER_COURT' => 'Amtsgericht'), array('country_code' => 'DE'));
-same(array('AT', ''), array($fallback['country_profile'], $fallback['register']['court']), 'old settings of a German profile are ignored');
+same(array('kind' => 'ZVR', 'number' => ''), $fallback['register'], 'old settings of a German profile are ignored');
 same('', $fallback['name'], 'missing company data stays empty, not null');
 same(false, $fallback['nonprofit'], 'missing non-profit flag is false');
 

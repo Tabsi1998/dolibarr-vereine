@@ -38,7 +38,7 @@ require_once __DIR__.'/vereineorganization.class.php';
 class Vereine extends DolibarrApi
 {
 	/** Version of this API's answers; raised when a field changes meaning or disappears. */
-	const API_VERSION = 1;
+	const API_VERSION = 2;
 
 	/**
 	 * Constructor.
@@ -54,7 +54,7 @@ class Vereine extends DolibarrApi
 	 *
 	 * Module version and API version. Useful to test a connection.
 	 *
-	 * @return array Fields module_version, api_version, country_profile, country_profile_complete, server_time
+	 * @return array Fields module_version, api_version, server_time
 	 *
 	 * @url GET status
 	 *
@@ -70,9 +70,6 @@ class Vereine extends DolibarrApi
 		return array(
 			'module_version' => (string) $module->version,
 			'api_version' => self::API_VERSION,
-			// Deprecated, kept for websites of API version 1 until 1.0: the module serves Austrian associations only.
-			'country_profile' => VereineAssociationRules::COUNTRY,
-			'country_profile_complete' => true,
 			// Dolibarr's clock, for changed_since of a website sync.
 			'server_time' => gmdate('Y-m-d\TH:i:s\Z', dol_now()),
 		);
