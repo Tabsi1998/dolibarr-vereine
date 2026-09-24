@@ -5892,6 +5892,8 @@ def statuteapi(stack: Stack) -> str:
     page_ok(browser.submit(page.form(name="vereinestatuteversion"), {"decided_on": decided, "valid_from": decided, "note": "API-Test"}, drop=("notify",)),
             "a version in force")
     newest = stack.sql("SELECT rowid, version, filename FROM llx_vereine_statute ORDER BY version DESC LIMIT 1")[0]
+    # Earlier checks leave versions that begin today; a day between ours and theirs has exactly one in force.
+    probe = (today - datetime.timedelta(days=20)).isoformat()
     status, public = stack.api("vereine/statutes", stack.reader_key)
     expect(status == 200 and public == {"state": "not_published", "current": None, "versions": []}, f"statutes before publishing: {public}")
 
@@ -5908,9 +5910,9 @@ def statuteapi(stack: Stack) -> str:
     # For members: the app reads them, the website does not.
     page = page_ok(browser.get(setup), "statutes before the audience")
     page_ok(browser.submit(page.form(name="vereinestatuteaudience"), {"audience": "members"}), "for members")
-    status, mine = stack.api("vereine/me/statutes?subject=sub-statutes", client)
+    status, mine = stack.api(f"vereine/me/statutes?subject=sub-statutes&day={probe}", client)
     expect(status == 200 and mine["state"] == "in_force" and mine["current"]["id"] == int(newest[0]), f"the member's statutes: HTTP {status} {mine}")
-    status, public = stack.api("vereine/statutes", stack.reader_key)
+    status, public = stack.api(f"vereine/statutes?day={probe}", stack.reader_key)
     expect(public["state"] == "not_published", f"statutes for members were public: {public}")
     status, pdf = stack.api(f"vereine/me/statutes/{newest[0]}/pdf?subject=sub-statutes", client)
     expect(status == 200 and hashlib.sha256(base64.b64decode(pdf["content"])).hexdigest() == mine["current"]["sha256"], f"the member's PDF: HTTP {status}")
@@ -5925,14 +5927,14 @@ def statuteapi(stack: Stack) -> str:
     sha = stack.value(f"SELECT sha256 FROM llx_vereine_statute WHERE rowid = {newest[0]}")
     stack.sql(f"INSERT INTO llx_vereine_statute (entity, version, decided_on, valid_from, source, filename, sha256, note, datec) VALUES (1, 98, '{stack.today()}', '{future}',"
               f" 'uploaded', '{copied}', '{sha}', 'Test', NOW())")
-    status, public = stack.api("vereine/statutes", stack.reader_key)
+    status, public = stack.api(f"vereine/statutes?day={probe}", stack.reader_key)
     states = {row["version"]: row["state"] for row in public.get("versions", [])}
     expect(status == 200 and public["state"] == "in_force" and states.get(98) == "future" and states.get(int(newest[1])) == "in_force",
            f"with a future version: {public}")
     status, pdf = stack.api(f"vereine/statutes/{newest[0]}/pdf", stack.reader_key)
     expect(status == 200, f"the public PDF: HTTP {status}")
     stack.sql(f"UPDATE llx_vereine_statute SET valid_from = (SELECT valid_from FROM (SELECT valid_from FROM llx_vereine_statute WHERE rowid = {newest[0]}) AS v) WHERE version = 98")
-    status, public = stack.api("vereine/statutes", stack.reader_key)
+    status, public = stack.api(f"vereine/statutes?day={probe}", stack.reader_key)
     expect(public["state"] == "ambiguous" and public["current"] is None, f"two versions from the same day: {public}")
     stack.shell(f"rm -f '{directory}/{copied}'")
     status, broken = stack.api("vereine/statutes/" + stack.value("SELECT rowid FROM llx_vereine_statute WHERE version = 98") + "/pdf", stack.reader_key)
