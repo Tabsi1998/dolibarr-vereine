@@ -5881,6 +5881,69 @@ def documents(stack: Stack) -> str:
             "published for the public by hand once though twice, withdrawn and gone, still in the files; a changed file is an error; no ability, no documents")
 
 
+def statuteapi(stack: Stack) -> str:
+    """The statutes through the API: nothing unless published, for members only the app, for the public the website; the version in
+    force, a future one, two from the same day ambiguous, a missing file an error (#158)."""
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/statutes.php"
+    today = datetime.date.fromisoformat(stack.today())
+    page = page_ok(browser.get(setup), "statutes")
+    decided = (today - datetime.timedelta(days=40)).isoformat()
+    page_ok(browser.submit(page.form(name="vereinestatuteversion"), {"decided_on": decided, "valid_from": decided, "note": "API-Test"}, drop=("notify",)),
+            "a version in force")
+    newest = stack.sql("SELECT rowid, version, filename FROM llx_vereine_statute ORDER BY version DESC LIMIT 1")[0]
+    status, public = stack.api("vereine/statutes", stack.reader_key)
+    expect(status == 200 and public == {"state": "not_published", "current": None, "versions": []}, f"statutes before publishing: {public}")
+
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtstatutes", RT_CLIENT_KEY=client)
+    member = int(stack.value("SELECT rowid FROM llx_adherent WHERE statut = 1 ORDER BY rowid LIMIT 1"))
+    page = page_ok(browser.get("/custom/vereine/admin/identities.php"), "the identities")
+    page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtstatutes", "member_id": str(member), "application_id": "0",
+                                                                             "capabilities[]": "documents"}), "invite")
+    code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+    status, bound = stack.api(f"vereine/identities/claim?subject=sub-statutes&code={code}", client, method="POST")
+    expect(status == 200, f"binding: HTTP {status} {bound}")
+
+    # For members: the app reads them, the website does not.
+    page = page_ok(browser.get(setup), "statutes before the audience")
+    page_ok(browser.submit(page.form(name="vereinestatuteaudience"), {"audience": "members"}), "for members")
+    status, mine = stack.api("vereine/me/statutes?subject=sub-statutes", client)
+    expect(status == 200 and mine["state"] == "in_force" and mine["current"]["id"] == int(newest[0]), f"the member's statutes: HTTP {status} {mine}")
+    status, public = stack.api("vereine/statutes", stack.reader_key)
+    expect(public["state"] == "not_published", f"statutes for members were public: {public}")
+    status, pdf = stack.api(f"vereine/me/statutes/{newest[0]}/pdf?subject=sub-statutes", client)
+    expect(status == 200 and hashlib.sha256(base64.b64decode(pdf["content"])).hexdigest() == mine["current"]["sha256"], f"the member's PDF: HTTP {status}")
+
+    # For the public: the website reads them; a future version and two from the same day.
+    page = page_ok(browser.get(setup), "statutes before the public")
+    page_ok(browser.submit(page.form(name="vereinestatuteaudience"), {"audience": "public"}), "for the public")
+    future = (today + datetime.timedelta(days=60)).isoformat()
+    directory = stack.php_fixture("statutedir")["dir"]
+    copied = f"statuten-v98-{future}.pdf"
+    stack.shell(f"cp '{directory}/{newest[2]}' '{directory}/{copied}'")
+    sha = stack.value(f"SELECT sha256 FROM llx_vereine_statute WHERE rowid = {newest[0]}")
+    stack.sql(f"INSERT INTO llx_vereine_statute (entity, version, decided_on, valid_from, source, filename, sha256, note, datec) VALUES (1, 98, '{stack.today()}', '{future}',"
+              f" 'uploaded', '{copied}', '{sha}', 'Test', NOW())")
+    status, public = stack.api("vereine/statutes", stack.reader_key)
+    states = {row["version"]: row["state"] for row in public.get("versions", [])}
+    expect(status == 200 and public["state"] == "in_force" and states.get(98) == "future" and states.get(int(newest[1])) == "in_force",
+           f"with a future version: {public}")
+    status, pdf = stack.api(f"vereine/statutes/{newest[0]}/pdf", stack.reader_key)
+    expect(status == 200, f"the public PDF: HTTP {status}")
+    stack.sql(f"UPDATE llx_vereine_statute SET valid_from = (SELECT valid_from FROM (SELECT valid_from FROM llx_vereine_statute WHERE rowid = {newest[0]}) AS v) WHERE version = 98")
+    status, public = stack.api("vereine/statutes", stack.reader_key)
+    expect(public["state"] == "ambiguous" and public["current"] is None, f"two versions from the same day: {public}")
+    stack.shell(f"rm -f '{directory}/{copied}'")
+    status, broken = stack.api("vereine/statutes/" + stack.value("SELECT rowid FROM llx_vereine_statute WHERE version = 98") + "/pdf", stack.reader_key)
+    expect(status == 500, f"a missing file was answered with HTTP {status}")
+    stack.sql("DELETE FROM llx_vereine_statute WHERE version = 98")
+    page = page_ok(browser.get(setup), "statutes at the end")
+    page_ok(browser.submit(page.form(name="vereinestatuteaudience"), {"audience": ""}), "nobody again")
+    return ("nothing before publishing; for members the app read the version in force and its PDF, the website nothing; for the public the website "
+            "read them with a future version; two from the same day ambiguous without a guess; a missing file an error")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -6038,6 +6101,7 @@ SCENARIOS = (
     ("honours", "Honours and statistics: jubilee once, birthdays with consent, honorary member, certificate, members on a day as a file", honours, ("social",)),
     ("inventory", "Equipment and loans: lend with state, no second loan, late reminder once to the borrower, return, reservation", inventory, ("honours",)),
     ("documents", "Publishing documents: rule for signed ones, by hand for the public, withdrawn gone, app and website see theirs", documents, ("inventory",)),
+    ("statuteapi", "Statutes through the API: published or not, in force, future, ambiguous, missing file", statuteapi, ("documents",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),

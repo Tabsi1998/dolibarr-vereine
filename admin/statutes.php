@@ -205,6 +205,13 @@ if ($action === 'savetext') {
 	} else {
 		setEventMessages(null, array_map(array($langs, 'trans'), $statutes->errors), 'errors');
 	}
+} elseif ($action === 'saveaudience') {
+	if ($statutes->saveAudience(GETPOST('audience', 'aZ09'), $user) > 0) {
+		setEventMessages($langs->trans('SetupSaved'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereinestatuteversions');
+		exit;
+	}
+	setEventMessages($statutes->error, null, 'errors');
 } elseif ($action === 'download') {
 	$file = $statutes->path(GETPOSTINT('id'));
 	if ($file === '') {
@@ -494,7 +501,14 @@ foreach ($versions as $version) {
 	print '<td>'.$langs->trans('VereineStatuteSource_'.$version['source']).'</td><td>'.dol_escape_htmltag($version['note']).'</td>';
 	print '<td class="right"><a href="'.$_SERVER['PHP_SELF'].'?action=download&amp;id='.$version['id'].'&amp;token='.newToken().'">'.img_picto('', 'pdf').' '.dol_escape_htmltag($version['filename']).'</a></td></tr>';
 }
-print '</table></div><br>';
+print '</table></div>';
+// Who may read the statutes through the API, for a website or the members' app (#158).
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereinestatuteversions" name="vereinestatuteaudience" class="paddingtop">';
+print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="saveaudience">';
+print $langs->trans('VereineStatuteAudience').' '.Form::selectarray('audience', array('' => $langs->trans('VereineStatuteAudience_none'),
+	'members' => $langs->trans('VereinePublicationAudience_members'), 'public' => $langs->trans('VereinePublicationAudience_public')), VereineStatutes::audience(),
+	0, 0, 0, '', 0, 0, 0, '', 'minwidth150').' <input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('Save')).'">';
+print ' <span class="opacitymedium small">'.$langs->trans('VereineStatuteAudienceHelp').'</span></form><br>';
 
 print '<div class="fichecenter"><div class="fichehalfleft">';
 print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereinestatuteversions" name="vereinestatuteversion">';
