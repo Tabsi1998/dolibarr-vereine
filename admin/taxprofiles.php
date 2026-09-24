@@ -126,6 +126,15 @@ if ($action === 'save') {
 	}
 	header('Location: '.$_SERVER['PHP_SELF']);
 	exit;
+} elseif ($action === 'addvatcodes') {
+	// Three codes for 0 %, so an e-invoice can name why a line has no VAT (#45).
+	if ($profiles->addZeroCodes() < 0) {
+		setEventMessages($profiles->error, null, 'errors');
+	} else {
+		setEventMessages($langs->trans('VereineVatCodesAdded'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereinevatcodes');
+		exit;
+	}
 } elseif ($action === 'addvat13') {
 	$result = $profiles->addAustrianRate13();
 	if ($result > 0) {
@@ -197,6 +206,25 @@ if (!$vat13) {
 	print '</form></div>';
 }
 print '</div>';
+
+// The three kinds of 0 % with a code of their own and the reason of an e-invoice where the official list has one (#45).
+$codesPresent = $profiles->zeroCodesPresent();
+$vatex = $profiles->vatexColumn();
+print '<div id="vereinevatcodes" data-vatcodes="'.(in_array(false, $codesPresent, true) ? 'missing' : 'present').'" data-vatex="'.($vatex ? 'available' : 'unavailable').'">';
+print '<div class="info">'.$langs->trans('VereineVatCodesHowTo');
+print '<table class="noborder paddingtop"><tr class="liste_titre"><td>'.$langs->trans('Code').'</td><td>'.$langs->trans('VereineVatCodeMeaning').'</td><td>VATEX</td></tr>';
+foreach (VereineTaxRules::zeroCodes() as $code => $entry) {
+	print '<tr data-vatcode="'.$code.'" data-vatcode-present="'.(!empty($codesPresent[$code]) ? 1 : 0).'"><td>'.$code.'</td><td>'.$langs->trans('VereineVatCode_'.$entry['key']).'</td>';
+	print '<td>'.($entry['vatex'] !== '' ? $entry['vatex'] : $langs->trans('VereineVatexNone')).'</td></tr>';
+}
+print '</table>';
+print $vatex ? '' : '<br>'.$langs->trans('VereineVatexUnavailable');
+if (in_array(false, $codesPresent, true)) {
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereinevatcodes" class="paddingtop">';
+	print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="addvatcodes">';
+	print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineVatCodesAdd')).'"></form>';
+}
+print '</div></div>';
 
 // Whether the invoice notes appear on invoice PDFs.
 print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereinetaxpdf">';

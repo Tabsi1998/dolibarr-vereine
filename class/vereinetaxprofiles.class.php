@@ -22,6 +22,7 @@
  */
 
 require_once __DIR__.'/vereinetaxrules.class.php';
+require_once __DIR__.'/vereinetaxassign.class.php';
 
 /**
  * Read and write tax profiles. Every write is checked by VereineTaxRules::validate().
@@ -248,6 +249,96 @@ class VereineTaxProfiles
 			return -1;
 		}
 		return 1;
+	}
+
+	/**
+	 * Whether Dolibarr's VAT dictionary keeps the exemption reason of e-invoices (Dolibarr 24 and later).
+	 *
+	 * @return bool
+	 */
+	public function vatexColumn()
+	{
+		$resql = $this->db->query("SHOW COLUMNS FROM ".MAIN_DB_PREFIX."c_tva LIKE 'einvoice_vatex'");
+		return $resql && $this->db->num_rows($resql) > 0;
+	}
+
+	/**
+	 * Which of the codes for 0 % are active in the VAT dictionary for Austria.
+	 *
+	 * @return array<string,bool> Code => active
+	 */
+	public function zeroCodesPresent()
+	{
+		$present = array();
+		foreach (array_keys(VereineTaxRules::zeroCodes()) as $code) {
+			$sql = "SELECT COUNT(*) FROM ".MAIN_DB_PREFIX."c_tva as t INNER JOIN ".MAIN_DB_PREFIX."c_country as c ON c.rowid = t.fk_pays";
+			$sql .= " WHERE c.code = 'AT' AND t.code = '".$this->db->escape($code)."' AND t.taux = 0 AND t.active = 1 AND t.entity IN (".getEntity('c_tva').")";
+			$present[$code] = (int) $this->value($sql) > 0;
+		}
+		return $present;
+	}
+
+	/**
+	 * Add the codes for 0 % to the VAT dictionary for Austria, with their VATEX where Dolibarr keeps it; a switched-off
+	 * entry is switched on again. Products whose profile has such a code take it; their price stays as it is (#45).
+	 *
+	 * @return int Entries added or changed, <0 on error
+	 */
+	public function addZeroCodes()
+	{
+		global $conf;
+
+		$countryId = (int) $this->value("SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+		if ($countryId <= 0) {
+			$this->error = 'Country AT not found';
+			return -1;
+		}
+		$vatex = $this->vatexColumn();
+		$changed = 0;
+		foreach (VereineTaxRules::zeroCodes() as $code => $entry) {
+			$where = " WHERE entity = ".((int) $conf->entity)." AND fk_pays = ".$countryId." AND code = '".$this->db->escape($code)."'";
+			$reason = $vatex ? ", einvoice_vatex = ".($entry['vatex'] !== '' ? "'".$this->db->escape($entry['vatex'])."'" : "NULL") : '';
+			if ((int) $this->value("SELECT COUNT(*) FROM ".MAIN_DB_PREFIX."c_tva".$where) > 0) {
+				$sql = "UPDATE ".MAIN_DB_PREFIX."c_tva SET active = 1, taux = 0".$reason.$where;
+			} else {
+				$sql = "INSERT INTO ".MAIN_DB_PREFIX."c_tva (entity, fk_pays, code, taux, localtax1, localtax1_type, localtax2, localtax2_type, recuperableonly, note, active"
+					.($vatex ? ", einvoice_vatex" : "").") VALUES (".((int) $conf->entity).", ".$countryId.", '".$this->db->escape($code)."', 0, '0', '0', '0', '0', 0, '".$this->db->escape($entry['note'])."', 1".($vatex ? ", ".($entry['vatex'] !== '' ? "'".$this->db->escape($entry['vatex'])."'" : "NULL") : "").")";
+			}
+			$resql = $this->db->query($sql);
+			if (!$resql) {
+				$this->error = $this->db->lasterror();
+				return -1;
+			}
+			$changed += (int) $this->db->affected_rows($resql) > 0 ? 1 : 0;
+		}
+		// Products at 0 % take the code of their profile; the price does not change, so no new price is written.
+		$sql = "SELECT p.rowid, t.treatment FROM ".MAIN_DB_PREFIX."product as p INNER JOIN ".MAIN_DB_PREFIX."product_extrafields as e ON e.fk_object = p.rowid";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."vereine_taxprofile as t ON t.rowid = e.".VereineTaxAssign::FIELD." WHERE p.tva_tx = 0 AND p.entity IN (".getEntity('product').")";
+		$resql = $this->db->query($sql);
+		while ($resql && ($obj = $this->db->fetch_object($resql))) {
+			$code = VereineTaxRules::zeroCodeOf((string) $obj->treatment);
+			if ($code !== '' && !$this->db->query("UPDATE ".MAIN_DB_PREFIX."product SET default_vat_code = '".$this->db->escape($code)."' WHERE rowid = ".((int) $obj->rowid))) {
+				$this->error = $this->db->lasterror();
+				return -1;
+			}
+		}
+		return $changed;
+	}
+
+	/**
+	 * The dictionary code a product of a treatment takes: its code for 0 % once the dictionary has it, otherwise none.
+	 *
+	 * @param string $treatment Treatment code
+	 * @return string
+	 */
+	public function productCodeOf($treatment)
+	{
+		$code = VereineTaxRules::zeroCodeOf($treatment);
+		if ($code === '') {
+			return '';
+		}
+		$present = $this->zeroCodesPresent();
+		return !empty($present[$code]) ? $code : '';
 	}
 
 	/**

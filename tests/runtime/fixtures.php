@@ -1869,6 +1869,35 @@ if ($stage === 'ballotconfirm') {
 	exit(0);
 }
 
+// An invoice line of a product as the fee run builds it: the rate Dolibarr gives for the product, with its code (#45).
+if ($stage === 'vatline') {
+	require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+	$resql = $db->query("SELECT rowid FROM ".MAIN_DB_PREFIX."societe WHERE client IN (1, 3) AND status = 1 ORDER BY rowid LIMIT 1");
+	$obj = $resql ? $db->fetch_object($resql) : null;
+	if (!$obj) {
+		rt_fail('no customer');
+	}
+	$customer = new Societe($db);
+	$customer->fetch((int) $obj->rowid);
+	$invoice = new Facture($db);
+	$invoice->socid = $customer->id;
+	$invoice->date = dol_now();
+	$invoice->type = Facture::TYPE_STANDARD;
+	if ($invoice->create($admin) <= 0) {
+		rt_fail('invoice: '.$invoice->error);
+	}
+	$vat = get_default_tva($mysoc, $customer, (int) rt_env('RT_PRODUCT_ID'));
+	if ($invoice->addline('Laufzeit VATEX', 10, 1, $vat, 0, 0, (int) rt_env('RT_PRODUCT_ID')) <= 0) {
+		rt_fail('line: '.$invoice->error);
+	}
+	$resql = $db->query("SELECT tva_tx, vat_src_code FROM ".MAIN_DB_PREFIX."facturedet WHERE fk_facture = ".((int) $invoice->id));
+	$line = $resql ? $db->fetch_object($resql) : null;
+	$invoice->delete($admin);
+	print json_encode(array('vat' => (string) $vat, 'tva_tx' => $line ? (float) $line->tva_tx : -1, 'vat_src_code' => $line ? (string) $line->vat_src_code : ''))."\n";
+	exit(0);
+}
+
 // Where the module keeps the PDFs of the statutes (#158).
 if ($stage === 'statutedir') {
 	dol_include_once('/vereine/class/vereinestatutes.class.php');
@@ -1876,4 +1905,4 @@ if ($stage === 'statutedir') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers, inventory, runloans, signedcopy, signedrun, ballotconfirm, statutedir or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers, inventory, runloans, signedcopy, signedrun, ballotconfirm, vatline, statutedir or reset');

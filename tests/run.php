@@ -1895,6 +1895,7 @@ $prefixes = array(
 	'VereineBallotOption_' => array(VereineBallotRules::YES, VereineBallotRules::NO, VereineBallotRules::ABSTAIN),
 	'VereineBallotChannel_' => VereineBallotRules::CHANNELS,
 	'VereineBallotReason_' => VereineBallotRules::REASONS,
+	'VereineVatCode_' => array_column(VereineTaxRules::zeroCodes(), 'key'),
 	'VereineBallotResult_' => VereineBallotRules::RESULTS,
 	'VereineBallotOutcome_' => VereineBallotRules::OUTCOMES,
 	'VereineBallotRefused_' => array('not_found', 'not_open', 'closed', 'channel', 'used', 'not_present', 'option', 'external_id'),
@@ -2988,6 +2989,19 @@ same(array('', 'not_found', 'not_found', 'not_open', 'closed', 'closed', 'closed
 	'a vote counts while open and before the hour, once, by the holder of the right in the assembly; the board enters paper ballots');
 same(array('counts' => array('yes' => 2, 'no' => 1, 'abstain' => 1), 'valid' => 3, 'abstain' => 1), VereineBallotRules::tally(array('yes', 'no', 'abstain'),
 	array('yes', 'no', 'yes', 'abstain', 'maybe')), 'abstentions are no valid votes cast; unknown codes do not count');
+
+// ------------------------------------------------------------- 0 % with a reason for e-invoices (#45)
+
+same(array('AT-NS', 'AT-NS', 'AT-KU', 'AT-SP', '', '', ''), array_map(array('VereineTaxRules', 'zeroCodeOf'), array(VereineTaxRules::TREATMENT_NONBUSINESS,
+	VereineTaxRules::TREATMENT_HOBBY, VereineTaxRules::TREATMENT_SMALL_BUSINESS, VereineTaxRules::TREATMENT_SPORT, VereineTaxRules::TREATMENT_REDUCED_10,
+	VereineTaxRules::TREATMENT_REDUCED_13, VereineTaxRules::TREATMENT_STANDARD_20)), 'every treatment at 0 %, and only those, has a code');
+same(array('AT-NS' => 'VATEX-EU-O', 'AT-KU' => '', 'AT-SP' => ''), array_map(function ($entry) {
+	return $entry['vatex'];
+}, VereineTaxRules::zeroCodes()), 'VATEX only where the official list has a code: not subject to VAT');
+foreach (VereineTaxRules::zeroCodes() as $code => $entry) {
+	expect(strlen($code) <= 10 && mb_strlen($entry['note'], 'UTF-8') <= 128, 'code '.$code.' fits the VAT dictionary');
+	expect(VereineTaxRules::rateOf($entry['treatments'][0]) === 0.0, 'code '.$code.' is for 0 %');
+}
 
 // ------------------------------------------------------------- counting a ballot (#163)
 
