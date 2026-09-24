@@ -114,8 +114,7 @@ class VereinePublications
 		if (!in_array($audience, VereinePublicationRules::AUDIENCES, true)) {
 			$this->errors[] = 'VereinePublicationErrorAudience';
 		}
-		$belongs = $this->value("SELECT COUNT(*) as v FROM ".$p."vereine_document_file as f INNER JOIN ".$p."vereine_document as d ON d.rowid = f.fk_document"
-			." WHERE f.rowid = ".((int) $fileId)." AND d.rowid = ".((int) $documentId)." AND d.entity = ".$entity);
+		$belongs = $this->value("SELECT COUNT(*) as v FROM ".$p."vereine_document_file as f INNER JOIN ".$p."vereine_document as d ON d.rowid = f.fk_document WHERE f.rowid = ".((int) $fileId)." AND d.rowid = ".((int) $documentId)." AND d.entity = ".$entity);
 		if ((int) $belongs === 0) {
 			$this->errors[] = 'VereinePublicationErrorFile';
 		}
@@ -131,10 +130,8 @@ class VereinePublications
 		$this->db->begin();
 		$now = $this->db->idate(dol_now());
 		// A newer revision replaces the older one for that audience.
-		$ok = (bool) $this->db->query("UPDATE ".$p."vereine_publication SET withdrawn_at = '".$now."', fk_user_withdrawn = ".((int) $user->id).", reason = 'replaced'"
-			." WHERE entity = ".$entity." AND fk_document = ".((int) $documentId)." AND audience = '".$this->db->escape($audience)."' AND withdrawn_at IS NULL");
-		$ok = $ok && $this->db->query("INSERT INTO ".$p."vereine_publication (entity, fk_document, fk_file, audience, published_at, fk_user) VALUES (".$entity.", ".((int) $documentId).","
-			." ".((int) $fileId).", '".$this->db->escape($audience)."', '".$now."', ".((int) $user->id).")");
+		$ok = (bool) $this->db->query("UPDATE ".$p."vereine_publication SET withdrawn_at = '".$now."', fk_user_withdrawn = ".((int) $user->id).", reason = 'replaced' WHERE entity = ".$entity." AND fk_document = ".((int) $documentId)." AND audience = '".$this->db->escape($audience)."' AND withdrawn_at IS NULL");
+		$ok = $ok && $this->db->query("INSERT INTO ".$p."vereine_publication (entity, fk_document, fk_file, audience, published_at, fk_user) VALUES (".$entity.", ".((int) $documentId).", ".((int) $fileId).", '".$this->db->escape($audience)."', '".$now."', ".((int) $user->id).")");
 		if (!$ok) {
 			$this->error = $this->db->lasterror();
 			$this->db->rollback();
@@ -292,9 +289,7 @@ class VereinePublications
 
 		$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
 		$active = (int) $this->value("SELECT COUNT(*) as v FROM ".MAIN_DB_PREFIX."adherent WHERE rowid = ".((int) $memberId)." AND statut = 1") > 0;
-		$board = (int) $this->value("SELECT COUNT(*) as v FROM ".MAIN_DB_PREFIX."vereine_function_term as t INNER JOIN ".MAIN_DB_PREFIX."vereine_function as f ON f.rowid = t.fk_function"
-			." WHERE t.entity = ".((int) $conf->entity)." AND t.fk_adherent = ".((int) $memberId)." AND f.board = 1 AND t.date_start <= '".$today."'"
-			." AND (t.date_end IS NULL OR t.date_end >= '".$today."')") > 0;
+		$board = (int) $this->value("SELECT COUNT(*) as v FROM ".MAIN_DB_PREFIX."vereine_function_term as t INNER JOIN ".MAIN_DB_PREFIX."vereine_function as f ON f.rowid = t.fk_function WHERE t.entity = ".((int) $conf->entity)." AND t.fk_adherent = ".((int) $memberId)." AND f.board = 1 AND t.date_start <= '".$today."' AND (t.date_end IS NULL OR t.date_end >= '".$today."')") > 0;
 		return array('public' => true, 'member' => $active, 'board' => $active && $board);
 	}
 
