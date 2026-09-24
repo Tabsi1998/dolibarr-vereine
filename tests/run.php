@@ -2996,6 +2996,12 @@ same(array('', 'not_found', 'not_found', 'not_open', 'closed', 'closed', 'closed
 same(array('counts' => array('yes' => 2, 'no' => 1, 'abstain' => 1), 'valid' => 3, 'abstain' => 1), VereineBallotRules::tally(array('yes', 'no', 'abstain'),
 	array('yes', 'no', 'yes', 'abstain', 'maybe')), 'abstentions are no valid votes cast; unknown codes do not count');
 
+// ------------------------------------------------------------- the own website profile (#260)
+
+same(array('gamertag' => 'Löwe', 'bio' => 'Hallo', 'games' => 'TFT, Rocket League', 'platforms' => 'PC'),
+	VereineWebsiteProfileRules::normalize(array('gamertag' => ' Löwe ', 'bio' => 'Hallo', 'games' => array('TFT', 'Rocket League', 'TFT'), 'platforms' => 'PC')),
+	'a list from an application as an array, tidied like text from a form');
+
 // ------------------------------------------------------------- the web portal (#25)
 
 same(array('documents', 'votes'), VereinePortal::parse('votes, documents,admin,votes'), 'only offered abilities, in their order, once');

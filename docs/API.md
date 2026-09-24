@@ -970,6 +970,22 @@ Vorstands nie.
 Kündigungsregel des Vereins ergibt (`last_day`), oder später, wenn später gewünscht. Ein früherer Wunsch
 wird nicht übernommen (`wished_too_early: true`). Ist schon ein Austritt geplant, kommt `409`.
 
+### GET /vereine/me/website-profile
+
+`subject`, Fähigkeit `profile`. Das eigene Website-Profil, auch solange die Einwilligung für die Website
+fehlt – dann zeigt die Website es nur nicht:
+
+```json
+{"consent": "website_profil", "given": true, "gamertag": "Löwe", "bio": "Seit 2019 im Verein.",
+ "games": ["TFT", "Rocket League"], "platforms": ["PC"]}
+```
+
+### PUT /vereine/me/website-profile
+
+`subject`, Fähigkeit `profile`, Body mit `gamertag`, `bio`, `games`, `platforms` (Listen als Array oder
+Text). Die gesendeten Felder ersetzen die gespeicherten, gekürzt und aufgeräumt wie auf der
+Mitgliedskarte; Antwort wie `GET`. Die Website erfährt es über Änderungsfeed und Webhooks.
+
 ### GET /vereine/me/ballots
 
 `subject`, Fähigkeit `votes`. Abstimmungen der Generalversammlungen, zu denen die Person eingeladen ist,

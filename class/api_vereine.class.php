@@ -1163,6 +1163,59 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * The own website profile of the person the caller acts for
+	 *
+	 * Gamertag, short text, games and platforms as the person keeps them, also while the consent for
+	 * the website is not given, and whether it is: only with it the association's website shows them.
+	 * Only with the ability profile for this binding.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET me/website-profile
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyWebsiteProfile($subject = '')
+	{
+		$this->checkAccess();
+		$member = $this->profileMember((string) $subject);
+		dol_include_once('/vereine/class/vereinewebsiteprofiles.class.php');
+		return (new VereineWebsiteProfiles($this->db))->ownView($member);
+	}
+
+	/**
+	 * Keep the own website profile of the person the caller acts for
+	 *
+	 * The fields sent replace the kept ones; games and platforms as a list or as text. Cut to their
+	 * length and tidied as on the member card; the website learns of it through the change feed.
+	 *
+	 * @param string $subject      How the application calls the person
+	 * @param array  $request_data gamertag, bio, games, platforms
+	 * @return array The profile afterwards
+	 *
+	 * @url PUT me/website-profile
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function putMyWebsiteProfile($subject = '', $request_data = null)
+	{
+		$this->checkAccess();
+		$member = $this->profileMember((string) $subject);
+		dol_include_once('/vereine/class/vereinewebsiteprofiles.class.php');
+		$profiles = new VereineWebsiteProfiles($this->db);
+		if ($profiles->save($member, is_array($request_data) ? $request_data : array(), DolibarrApiAccess::$user) < 0) {
+			dol_syslog(__METHOD__.' '.$profiles->error, LOG_ERR);
+			throw new RestException(500, 'The profile could not be kept');
+		}
+		return $profiles->ownView($member);
+	}
+
+	/**
 	 * Ask for a change of the own contact data
 	 *
 	 * Only address, zip, town, country, phones and e-mail; nothing else can be changed this way. The

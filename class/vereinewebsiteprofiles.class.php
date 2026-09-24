@@ -225,6 +225,19 @@ class VereineWebsiteProfiles
 	}
 
 	/**
+	 * The profile as the member sees it: the own fields, also without the consent, and whether it is given (#260).
+	 *
+	 * @param Adherent $member Member
+	 * @return array{consent:string,given:bool,gamertag:string,bio:string,games:string[],platforms:string[]}
+	 */
+	public function ownView($member)
+	{
+		$view = VereineWebsiteProfileRules::view($this->load((int) $member->id), null);
+		unset($view['photo']);
+		return array('consent' => self::consentCode(), 'given' => $this->consentGiven((int) $member->id) === true) + $view;
+	}
+
+	/**
 	 * The photo as the API hands it out, base64 with its checksum - null without consent or photo.
 	 *
 	 * @param Adherent $member Member

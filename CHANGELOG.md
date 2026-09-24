@@ -7,6 +7,13 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Neu
+
+- **Website-Profil selbst pflegen** (#260): Mitglieder tragen Gamertag, Kurztext, Spiele und Plattformen
+  selbst ein – im Webportal unter „Meine Daten“ oder über eine App (`GET`/`PUT /vereine/me/website-profile`,
+  Fähigkeit *profile*). Die Website zeigt das Profil weiterhin nur mit der gewählten Einwilligung; das
+  Portal sagt dem Mitglied, ob sie erteilt ist.
+
 ## [1.1.0] - 2026-09-24
 
 Mitglieder machen mehr selbst: „Mein Verein“ im Webportal von Dolibarr kann jetzt alles, was bisher nur eine App konnte – Einwilligungen, eigene Daten und Austritt, Helferdienste, Konten bei Discord, Twitch & Co., Statuten und Anträge zur Generalversammlung. Dazu ein Website-Profil je Mitglied mit Foto über die API, nur mit Einwilligung.

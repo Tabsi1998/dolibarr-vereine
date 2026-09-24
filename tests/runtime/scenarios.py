@@ -6189,6 +6189,14 @@ def profileapi(stack: Stack) -> str:
                                 data={"external_id": "app-change-3", "version": profile["version"], "changes": {"statut": "-2", "fk_soc": "1"}})
     expect(status == 400 and stack.value(f"SELECT statut FROM llx_adherent WHERE rowid = {member}") == "1", f"status written through the app: HTTP {status}")
 
+    # The own website profile, kept through the application (#260).
+    status, own = stack.api("vereine/me/website-profile?subject=sub-profile", client)
+    expect(status == 200 and set(own) == {"consent", "given", "gamertag", "bio", "games", "platforms"}, f"the own website profile: HTTP {status} {own}")
+    status, own = stack.api("vereine/me/website-profile?subject=sub-profile", client, method="PUT",
+                            data={"gamertag": "AppLöwe", "bio": "Aus der App.", "games": ["TFT", "Rocket League"], "platforms": "PC"})
+    kept = stack.sql(f"SELECT gamertag, games, platforms FROM llx_vereine_member_profile WHERE fk_adherent = {member}")
+    expect(status == 200 and own["games"] == ["TFT", "Rocket League"] and kept == [["AppLöwe", "TFT, Rocket League", "PC"]], f"kept through the app: {kept}")
+
     # A new e-mail address waits for the board; the board rejects it with a word for the member and a note of its own.
     old_email = stack.value(f"SELECT email FROM llx_adherent WHERE rowid = {member}")
     status, waiting = stack.api("vereine/me/profile/changes?subject=sub-profile", client, method="POST",
@@ -6496,6 +6504,10 @@ def portal(stack: Stack) -> str:
     page_ok(visitor.submit(mine.form(name="vereineportalprofile"), {"town": "Portalstadt"}), "ask for a change of the town")
     asked = stack.sql(f"SELECT status, payload FROM llx_vereine_profile_request WHERE fk_adherent = {member} AND client = 'webportal' ORDER BY rowid DESC LIMIT 1")
     expect(asked and "Portalstadt" in asked[0][1], f"the change through the portal: {asked}")
+    mine = page_ok(visitor.get("/public/webportal/index.php?controller=vereine"), "the page before the website profile")
+    page_ok(visitor.submit(mine.form(name="vereineportalwebsite"), {"gamertag": "PortalLöwe", "games": "Valorant, TFT"}), "keep the website profile in the portal")
+    kept = stack.sql(f"SELECT gamertag, games FROM llx_vereine_member_profile WHERE fk_adherent = {member}")
+    expect(kept == [["PortalLöwe", "Valorant, TFT"]], f"the website profile kept in the portal: {kept}")
     shift = stack.value(f"SELECT s.rowid FROM llx_vereine_event_shift s INNER JOIN llx_vereine_event e ON e.rowid = s.fk_event WHERE e.label = 'LAN Mitglieder'"
                         f" AND s.label = 'Kassa'")
     mine = page_ok(visitor.get("/public/webportal/index.php?controller=vereine"), "the page before a shift")

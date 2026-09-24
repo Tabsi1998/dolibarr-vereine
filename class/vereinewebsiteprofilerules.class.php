@@ -52,7 +52,10 @@ class VereineWebsiteProfileRules
 	{
 		$out = array();
 		foreach (self::FIELDS as $field => $length) {
-			$value = isset($entered[$field]) ? trim((string) $entered[$field]) : '';
+			// A list may come as an array from an application or as text from a form (#260).
+			$raw = isset($entered[$field]) ? $entered[$field] : '';
+			$raw = is_array($raw) ? implode(', ', array_filter($raw, 'is_scalar')) : $raw;
+			$value = is_scalar($raw) ? trim((string) $raw) : '';
 			if (in_array($field, self::LISTS, true)) {
 				$value = implode(', ', self::splitList($value));
 			}

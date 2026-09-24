@@ -127,6 +127,14 @@ class VereinePortalController extends Controller
 			$request = $profiles->submitChange($this->member(), array('external_id' => self::requestId(), 'version' => GETPOST('version', 'alphanohtml'), 'changes' => $changes),
 				VereinePortal::CLIENT, $this->actor());
 			$done = $request !== null ? '' : $langs->trans(in_array('conflict', $profiles->errors, true) ? 'VereinePortalConflict' : 'VereinePortalRefused');
+		} elseif ($action === 'website' && $this->allows('profile')) {
+			// The member keeps the own website profile; the website shows it only with the consent (#260).
+			dol_include_once('/vereine/class/vereinewebsiteprofiles.class.php');
+			$fields = array();
+			foreach (array_keys(VereineWebsiteProfileRules::FIELDS) as $field) {
+				$fields[$field] = GETPOST($field, 'alphanohtml');
+			}
+			$done = (new VereineWebsiteProfiles($this->db))->save($this->member(), $fields, $this->actor()) > 0 ? '' : $langs->trans('VereinePortalRefused');
 		} elseif ($action === 'exit' && $this->allows('profile') && GETPOST('confirm', 'aZ09') === '1') {
 			dol_include_once('/vereine/class/vereineprofiles.class.php');
 			$profiles = new VereineProfiles($this->db);
@@ -406,6 +414,7 @@ class VereinePortalController extends Controller
 				.dol_escape_htmltag($what).' · '.$langs->trans('VereinePortalRequest_'.$request['status'])
 				.(!empty($request['reason']) ? ' · '.dol_escape_htmltag($request['reason']) : '').'</p>';
 		}
+		$this->websiteProfile($self);
 		if ($profile['exit'] === null && $profile['status'] === 'active') {
 			print '<details><summary>'.$langs->trans('VereinePortalExitTitle').'</summary>';
 			print '<form method="POST" action="'.$self.'" name="vereineportalexit"><input type="hidden" name="token" value="'.newToken().'">';
@@ -416,6 +425,31 @@ class VereinePortalController extends Controller
 			print '<p data-vereine-portal-exit="'.dol_escape_htmltag($profile['exit']['last_day']).'">'.$langs->trans('VereinePortalExitPlanned', dol_escape_htmltag($profile['exit']['last_day'])).'</p>';
 		}
 		print '</article>';
+	}
+
+	/**
+	 * The own website profile: gamertag, short text, games and platforms, and whether the website may show them (#260).
+	 *
+	 * @param string $self Address of the page
+	 * @return void
+	 */
+	private function websiteProfile($self)
+	{
+		global $langs;
+
+		dol_include_once('/vereine/class/vereinewebsiteprofiles.class.php');
+		$view = (new VereineWebsiteProfiles($this->db))->ownView($this->member());
+		print '<details data-vereine-portal-website="'.($view['given'] ? 'shown' : 'hidden').'"><summary>'.$langs->trans('VereinePortalWebsiteProfile').'</summary>';
+		print '<p><small>'.$langs->trans($view['consent'] === '' ? 'VereinePortalWebsiteOff' : ($view['given'] ? 'VereinePortalWebsiteShown' : 'VereinePortalWebsiteHidden')).'</small></p>';
+		print '<form method="POST" action="'.$self.'" name="vereineportalwebsite"><input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="website">';
+		foreach (VereineWebsiteProfileRules::FIELDS as $field => $length) {
+			$value = is_array($view[$field]) ? implode(', ', $view[$field]) : (string) $view[$field];
+			print '<label>'.$langs->trans('VereineWebsiteProfile'.ucfirst($field));
+			print $field === 'bio' ? '<textarea name="bio" rows="3" maxlength="'.((int) $length).'">'.dol_escape_htmltag($value).'</textarea>'
+				: '<input type="text" name="'.$field.'" maxlength="'.((int) $length).'" value="'.dol_escape_htmltag($value).'">';
+			print '</label>';
+		}
+		print '<button type="submit">'.$langs->trans('VereinePortalWebsiteSave').'</button></form></details>';
 	}
 
 	/**
