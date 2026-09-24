@@ -143,6 +143,21 @@ class modVereine extends DolibarrModules
 				'test' => 'isModEnabled("vereine")',
 				'priority' => 50,
 			),
+			// Late loans of equipment: a reminder to the borrower once a week (#26).
+			2 => array(
+				'label' => 'VereineCronLoans',
+				'jobtype' => 'method',
+				'class' => '/vereine/class/vereineloans.class.php',
+				'objectname' => 'VereineLoans',
+				'method' => 'runDue',
+				'parameters' => '',
+				'comment' => 'VereineCronLoansHelp',
+				'frequency' => 1,
+				'unitfrequency' => 86400,
+				'status' => 1,
+				'test' => 'isModEnabled("vereine")',
+				'priority' => 60,
+			),
 		);
 
 		$this->rights = array();
@@ -398,6 +413,21 @@ class modVereine extends DolibarrModules
 			'mainmenu' => 'members',
 			'leftmenu' => 'vereine_statistics',
 			'url' => '/vereine/statistics.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->hasRight("vereine", "association", "read") && $user->hasRight("adherent", "lire")',
+			'target' => '',
+			'user' => 0,
+		);
+		// The association's equipment and who has it (#26).
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
+			'titre' => 'VereineMenuInventory',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_inventory',
+			'url' => '/vereine/inventory.php',
 			'langs' => 'vereine@vereine',
 			'position' => 1100 + $r,
 			'enabled' => 'isModEnabled("vereine")',

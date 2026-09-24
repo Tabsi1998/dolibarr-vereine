@@ -16,6 +16,13 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Turniersieg) oder Ehrenmitgliedschaft. Ein Ehrenmitglied wechselt in die Mitgliedsart, die der Verein
   dafür wählt, etwa eine ohne Beitrag. Zu jeder Ehrung gibt es eine **Urkunde als PDF** mit Linien für
   die Unterschriften; der Reiter *Verein* des Mitglieds nennt seine Ehrungen.
+- **Inventar und Ausleihe** (#26): Die Geräte des Vereins (PCs, Konsolen, Headsets, Zelte, Kassen) sind
+  Dolibarrs Ressourcen. *Mitglieder > Verein > Inventar und Ausleihe* zeigt, was gerade wer hat, gibt
+  ein Gerät mit Rückgabetag und Zustand aus und nimmt es mit Zustand zurück. Ein verliehenes Gerät lässt
+  sich nicht ein zweites Mal ausgeben. Ist etwas überfällig, erinnert ein geplanter Auftrag die Person
+  einmal pro Woche per E-Mail, und zwar nur sie. *Zu erledigen* zählt überfällige Geräte ohne Namen.
+  Reservierungen für Veranstaltungen macht Dolibarr am Termin selbst; die Liste zeigt die nächste.
+  Auskunft und Löschen nach dem Austritt berücksichtigen die Ausleihen.
 - **Mitgliederstatistik** (#28): *Mitglieder > Verein > Mitgliederstatistik* zählt die Mitglieder an
   einem Stichtag nach Mitgliedsart, Geschlecht, Altersgruppe und Sparte (Kategorien der Mitglieder),
   ohne Namen. Als CSV-Datei für Meldungen an Dach- und Fachverbände; die Altersgrenzen stellt der Verein ein.

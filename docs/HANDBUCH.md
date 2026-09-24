@@ -85,6 +85,8 @@ Meldungen, Wahlen, Anträge, Unterschriften und Rückstände, das Dringendste zu
   lassen, auszahlen.
 - **Spendenmeldung**: Spender mit Geburtsdatum erfassen, bis Ende Februar das Vorjahr ans Finanzamt
   melden.
+- **Inventar und Ausleihe**: Geräte als Ressourcen anlegen, ausgeben und zurücknehmen, jeweils mit
+  Zustand. An Überfälliges erinnert das Modul selbst.
 - **Ehrungen und Jubiläen**: vor der Generalversammlung nachsehen, wer ein Jubiläum hat; die Ehrung
   festhalten und die Urkunde drucken. Geburtstage nur mit Einwilligung.
 - **Mitgliederstatistik**: Zahlen an einem Stichtag für den Verband, als Datei.

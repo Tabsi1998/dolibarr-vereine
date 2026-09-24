@@ -137,6 +137,9 @@ class VereineLog
 	const SOCIAL_LINKED = 'social_linked';
 	const SOCIAL_UNLINKED = 'social_unlinked';
 	const HONOUR = 'honour';
+	const LOAN = 'loan';
+	const LOAN_RETURNED = 'loan_returned';
+	const LOAN_REMINDED = 'loan_reminded';
 
 	/**
 	 * Append one entry.
