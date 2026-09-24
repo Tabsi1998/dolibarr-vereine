@@ -7,6 +7,19 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Neu
+
+- **Ehrungen und Jubiläen** (#27): *Mitglieder > Verein > Ehrungen und Jubiläen* zeigt je Jahr, wer ein
+  Jubiläum der Mitgliedschaft erreicht (Jahre wählt der Verein, ab Werk 10, 20, 25, 30, 40, 50) und wer
+  Geburtstag hat, runde Geburtstage hervorgehoben. Geburtstage stehen nur da, wenn das Mitglied der
+  gewählten Einwilligung zugestimmt hat. Ehrungen hältst du fest: Jubiläum, Auszeichnung (etwa ein
+  Turniersieg) oder Ehrenmitgliedschaft. Ein Ehrenmitglied wechselt in die Mitgliedsart, die der Verein
+  dafür wählt, etwa eine ohne Beitrag. Zu jeder Ehrung gibt es eine **Urkunde als PDF** mit Linien für
+  die Unterschriften; der Reiter *Verein* des Mitglieds nennt seine Ehrungen.
+- **Mitgliederstatistik** (#28): *Mitglieder > Verein > Mitgliederstatistik* zählt die Mitglieder an
+  einem Stichtag nach Mitgliedsart, Geschlecht, Altersgruppe und Sparte (Kategorien der Mitglieder),
+  ohne Namen. Als CSV-Datei für Meldungen an Dach- und Fachverbände; die Altersgrenzen stellt der Verein ein.
+
 ## [0.10.0-beta] - 2026-09-24
 
 Vereinsakte, Datenschutz und Anbindungen: fertige Dokumente als PDF/A mit Kennung und öffentlicher Echtheitsprüfung, Auskunft nach Art. 15 DSGVO und Löschen nach dem Austritt mit Fristen je Art der Daten, Beitragsrückstände aus dem Mahnwesen als Vorschlag für den Vorstand, Kanäle des Vereins und Konten der Mitglieder bei Discord, Twitch, YouTube & Co., eigene Felder im Antrag, geführte Einrichtung und ein Handbuch.

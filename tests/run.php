@@ -77,6 +77,7 @@ require_once $root.'/class/vereinedisclosure.class.php';
 require_once $root.'/class/vereineerasurerules.class.php';
 require_once $root.'/class/vereinearrearrules.class.php';
 require_once $root.'/class/vereinesocialrules.class.php';
+require_once $root.'/class/vereinehonourrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -1805,7 +1806,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked', 'honour'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1847,6 +1848,8 @@ $prefixes = array(
 	'VereineErasureAction_' => array(VereineErasureRules::ACTION_BLANK, VereineErasureRules::ACTION_DELETE, VereineErasureRules::ACTION_ANONYMIZE, VereineErasureRules::ACTION_KEEP),
 	'VereineErasureState_' => array('due', 'waiting', 'kept', 'held', 'none', 'member'),
 	'VereineArrearState_' => VereineArrearRules::STATES,
+	'VereineStatisticsGender_' => array('woman', 'man', 'other', 'unknown'),
+	'VereineHonourKind_' => array('jubilee', 'honorary'),
 	'VereineErasureReason_' => array('keep_bookkeeping', 'keep_records', 'member', 'hold', 'open_invoices', 'functions', 'name'),
 	'VereineSetupStep_' => VereineSetupGuideRules::STEPS,
 	'VereineSetupStepHelp_' => VereineSetupGuideRules::STEPS,
@@ -2914,6 +2917,24 @@ $sorted = VereineSocialRules::sortChannels(array(
 	array('network' => 'twitch', 'position' => 20, 'label' => 'CS2'),
 	array('network' => 'discord', 'position' => 30, 'label' => 'Server')), array('discord', 'twitch', 'youtube'));
 same(array('Hauptstream', 'CS2', 'Livestream', 'Server'), array_column($sorted, 'label'), 'the order of the association first, then the network');
+// ------------------------------------------------------------- honours and statistics (#27, #28)
+
+same(array(10, 20, 25), VereineHonourRules::numbers('25, 10;20 10 abc 0 200'), 'milestones: whole numbers from 1 to 120, sorted, once');
+same(array('years' => 10, 'day' => '2026-05-04'), VereineHonourRules::jubilee('2016-05-04', 2026, array(10, 25)), 'ten years of membership in 2026');
+same(null, VereineHonourRules::jubilee('2017-05-04', 2026, array(10, 25)), 'nine years are no jubilee');
+same('2025-02-28', VereineHonourRules::jubilee('2020-02-29', 2025, array(5))['day'], 'a leap day in a year without one');
+same(array('day' => '2026-06-15', 'age' => 50, 'round' => true), VereineHonourRules::birthday('1976-06-15', 2026), 'fifty is round');
+expect(VereineHonourRules::birthday('2008-01-01', 2026)['round'] && !VereineHonourRules::birthday('1985-01-01', 2026)['round'] && VereineHonourRules::birthday('1951-01-01', 2026)['round'],
+	'18 and 75 are round, 41 is not');
+same(array(49, 50), array(VereineHonourRules::age('1976-06-15', '2026-06-14'), VereineHonourRules::age('1976-06-15', '2026-06-15')), 'the age changes on the birthday');
+$groups = VereineHonourRules::ageGroups(array(14, 18));
+same(array(array('from' => 0, 'to' => 14), array('from' => 15, 'to' => 18), array('from' => 19, 'to' => null)), $groups, 'age groups from their upper ends');
+same(array(0, 1, 2, -1), array(VereineHonourRules::groupOf(14, $groups), VereineHonourRules::groupOf(15, $groups), VereineHonourRules::groupOf(80, $groups), VereineHonourRules::groupOf(null, $groups)),
+	'an age in its group, an unknown one in none');
+expect(VereineHonourRules::memberOn('2020-01-01', '', '2026-01-01') && !VereineHonourRules::memberOn('2020-01-01', '2025-12-31', '2026-01-01')
+	&& !VereineHonourRules::memberOn('', '', '2026-01-01') && !VereineHonourRules::memberOn('2026-02-01', '', '2026-01-01'), 'a member on a day: begun, not ended, no draft');
+same("\xEF\xBB\xBFBereich;Anzahl\r\n\"a;b\";'=1+1\r\n", VereineHonourRules::csv(array(array('Bereich', 'Anzahl'), array('a;b', '=1+1'))), 'CSV for a spreadsheet: quotes, no formulas');
+
 expect(VereineSocialRules::stillConfirmed('LionTV', ' liontv ') && !VereineSocialRules::stillConfirmed('LionTV', 'LionTV2') && !VereineSocialRules::stillConfirmed('', ''),
 	'a confirmation holds for the name it confirmed, whatever the case');
 

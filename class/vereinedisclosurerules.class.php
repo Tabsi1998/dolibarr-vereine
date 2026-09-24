@@ -30,7 +30,7 @@ class VereineDisclosureRules
 	const CHECKS = array('known', 'id_document', 'member_email', 'id_austria', 'other');
 
 	/** Sections of the copy, in the order of the document. New data of the module get their section here. */
-	const SECTIONS = array('member', 'extra', 'subscriptions', 'invoices', 'consents', 'applications', 'functions', 'exits', 'identities', 'accounts',
+	const SECTIONS = array('member', 'extra', 'subscriptions', 'invoices', 'consents', 'applications', 'functions', 'honours', 'exits', 'identities', 'accounts',
 		'invitations', 'attendance', 'votes', 'signatures', 'tasks', 'duties', 'shifts', 'volunteer', 'donations', 'arrears', 'log');
 
 	/**

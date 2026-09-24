@@ -85,6 +85,9 @@ Meldungen, Wahlen, Anträge, Unterschriften und Rückstände, das Dringendste zu
   lassen, auszahlen.
 - **Spendenmeldung**: Spender mit Geburtsdatum erfassen, bis Ende Februar das Vorjahr ans Finanzamt
   melden.
+- **Ehrungen und Jubiläen**: vor der Generalversammlung nachsehen, wer ein Jubiläum hat; die Ehrung
+  festhalten und die Urkunde drucken. Geburtstage nur mit Einwilligung.
+- **Mitgliederstatistik**: Zahlen an einem Stichtag für den Verband, als Datei.
 - **Vereinsakte**: jedes fertige Dokument mit seiner Kennung. Für eine Übergabe an einen neuen
   Vorstand gibt es den Export eines Zeitraums als ZIP mit Inhaltsverzeichnis und Prüfsummen.
 

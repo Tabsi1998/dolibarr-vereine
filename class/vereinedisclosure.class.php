@@ -131,6 +131,7 @@ class VereineDisclosure
 		$sections['consents'] = $this->rows("SELECT code, version, given, source, date_event as day, note, proof_at FROM ".MAIN_DB_PREFIX."vereine_consent WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY date_event, rowid");
 		$sections['applications'] = $this->rows("SELECT external_id, datec as received, status, decided_on, reason FROM ".MAIN_DB_PREFIX."vereine_application WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY rowid");
 		$sections['functions'] = $this->rows("SELECT f.label as function, t.date_start as start, t.date_end as end FROM ".MAIN_DB_PREFIX."vereine_function_term as t INNER JOIN ".MAIN_DB_PREFIX."vereine_function as f ON f.rowid = t.fk_function WHERE t.entity = ".$entity." AND t.fk_adherent = ".$id." ORDER BY t.date_start");
+		$sections['honours'] = $this->rows("SELECT kind, years, label, given_on as day FROM ".MAIN_DB_PREFIX."vereine_honour WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY given_on");
 		$sections['exits'] = $this->rows("SELECT reason, notice_day, last_day, status, date_done as done FROM ".MAIN_DB_PREFIX."vereine_member_exit WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY rowid");
 		// Bindings of apps and websites: who, what for and since when; never a secret.
 		$sections['identities'] = $this->rows("SELECT client, capabilities, linked_at, revoked_at FROM ".MAIN_DB_PREFIX."vereine_identity WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY rowid");
@@ -314,6 +315,6 @@ class VereineDisclosure
 			'given', 'source', 'proof_at', 'external_id', 'received', 'decided_on', 'reason', 'function', 'notice_day', 'last_day', 'done', 'client',
 			'capabilities', 'linked_at', 'revoked_at', 'meeting', 'channel', 'voting', 'sent_at', 'state', 'resolution', 'choice', 'voted_at', 'document',
 			'signed_at', 'way', 'task', 'deadline', 'done_at', 'duty', 'year', 'due_on', 'done_on', 'shift', 'hours', 'activity', 'kind', 'paid_on', 'refnr',
-			'vbpk', 'action', 'invoice', 'level', 'network', 'handle', 'confirmed_at'), true);
+			'vbpk', 'action', 'invoice', 'level', 'network', 'handle', 'confirmed_at', 'years', 'label'), true);
 	}
 }

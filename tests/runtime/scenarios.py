@@ -390,10 +390,12 @@ def enable(stack: Stack) -> str:
                     ["members", "vereine_duties", "/vereine/duties.php"],
                     ["members", "vereine_events", "/vereine/events.php"],
                     ["members", "vereine_feerun", "/vereine/fees_run.php"], ["members", "vereine_functions", "/vereine/functions.php"],
+                    ["members", "vereine_honours", "/vereine/honours.php"],
                     ["members", "vereine_meetings", "/vereine/meetings.php"],
                     ["members", "vereine_overpayments", "/vereine/overpayments.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"],
                     ["members", "vereine_resolutions", "/vereine/resolutions.php"],
+                    ["members", "vereine_statistics", "/vereine/statistics.php"],
                     ["members", "vereine_volunteers", "/vereine/volunteer.php"]],
            f"menu entries after enabling: {menu}")
     expect(stack.sql("SHOW TABLES LIKE 'llx_vereine_log'") == [["llx_vereine_log"]], "the log table was not created")
@@ -5701,6 +5703,60 @@ def social(stack: Stack) -> str:
             "Twitch, the tab shows it, a changed name lost it, unlinking removed it; no ability, no accounts")
 
 
+def honours(stack: Stack) -> str:
+    """Honours and statistics: a jubilee of ten years kept once, birthdays only with consent, an award, an honorary member with
+    the member type for it, the certificate as PDF, members on a day by group and as a file (#27, #28)."""
+    browser = stack.browser()
+    base = "/custom/vereine/honours.php"
+    expect(denied(stack.browser("rtnobody").get(base)), "a user without rights opens the honours")
+    fixture = stack.php_fixture("honourmembers")
+    members, year = fixture["members"], fixture["year"]
+    page = page_ok(browser.get(base), "honours")
+    expect('data-birthdays="off"' in page.text, "birthdays are listed before a purpose of consent is chosen")
+    page_ok(browser.submit(page.form(name="vereinehonoursettings"), {"milestones": "25, 10", "birthday_consent": fixture["code"],
+                                                                       "honorary_type": str(fixture["type"]), "ages": "14, 18, 26, 40, 60"}), "the settings")
+    expect(stack.const("VEREINE_HONOUR_MILESTONES") == "10,25" and stack.const("VEREINE_HONORARY_TYPE") == str(fixture["type"]),
+           f"stored: {stack.const('VEREINE_HONOUR_MILESTONES')}, {stack.const('VEREINE_HONORARY_TYPE')}")
+
+    page = page_ok(browser.get(f"{base}?year={year}"), "honours of the year")
+    expect(f'data-jubilee="{members["hannah"]}" data-jubilee-years="10" data-jubilee-honoured="0"' in page.text, "Hannah's ten years are not listed")
+    expect(f'data-birthday="{members["ben"]}"' in page.text and f'data-birthday="{members["clara"]}"' not in page.text,
+           "the birthdays do not follow the consent")
+    page_ok(browser.submit(page.form(name=f"vereinejubilee{members['hannah']}"), {"given_on": f"{year}-04-20"}), "honour Hannah's ten years")
+    page = page_ok(browser.get(f"{base}?year={year}"), "honours after the jubilee")
+    expect(f'data-jubilee="{members["hannah"]}" data-jubilee-years="10" data-jubilee-honoured="1"' in page.text
+           and f'name="vereinejubilee{members["hannah"]}"' not in page.text, "the jubilee can be honoured twice")
+    page_ok(browser.submit(page.form(name="vereinehonouraward"), {"member": str(members["ben"]), "label": "Turniersieg Frühjahr", "given_on": f"{year}-05-01"}),
+            "an award for Ben")
+    page = page_ok(browser.get(f"{base}?year={year}"), "honours before the honorary membership")
+    page_ok(browser.submit(page.form(name="vereinehonourhonorary"), {"member": str(members["hannah"]), "given_on": f"{year}-04-20"}), "Hannah honorary member")
+    kept = stack.sql(f"SELECT kind, years, IFNULL(label, '') FROM llx_vereine_honour WHERE fk_adherent IN ({members['hannah']}, {members['ben']}) ORDER BY rowid")
+    expect(kept == [["jubilee", "10", ""], ["award", "0", "Turniersieg Frühjahr"], ["honorary", "0", ""]], f"honours kept: {kept}")
+    expect(stack.value(f"SELECT fk_adherent_type FROM llx_adherent WHERE rowid = {members['hannah']}") == str(fixture["type"]),
+           "the honorary member did not move to the member type for honorary members")
+
+    honour = stack.value(f"SELECT rowid FROM llx_vereine_honour WHERE fk_adherent = {members['hannah']} AND kind = 'jubilee'")
+    page = page_ok(browser.get(f"{base}?year={year}"), "honours before the certificate")
+    certificate = browser.get(f"{base}?year={year}&action=certificate&id={honour}&token={token_of(page)}")
+    text = pdf_bytes_text(certificate.body) if certificate.body[:4] == b"%PDF" else ""
+    expect("Urkunde" in text and "Hannah Ehrung" in text and "10 Jahre" in text, f"the certificate: {text[:300]!r}")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={members['hannah']}"), "Hannah's tab")
+    expect('data-member-honour="jubilee"' in tab.text and 'data-member-honour="honorary"' in tab.text, "the member's tab does not show the honours")
+
+    # Members on a day, counted and as a file.
+    today = stack.today()
+    page = page_ok(browser.get(f"/custom/vereine/statistics.php?day={today}"), "statistics")
+    total = int(re.search(r'data-statistics-total="(\d+)"', page.text).group(1))
+    active = int(stack.value("SELECT COUNT(*) FROM llx_adherent WHERE statut = 1") or 0)
+    expect(total >= 3 and total >= active, f"members on {today}: {total}, active now {active}")
+    expect("Ehrenmitglied" in page.text and "männlich" in html.unescape(page.text) and "bis 14" in page.text, "the statistics lack a group")
+    csv = browser.get(f"/custom/vereine/statistics.php?day={today}&action=csv&token={token_of(page)}")
+    expect(csv.body[:3] == b"\xef\xbb\xbf" and "Mitglieder gesamt;" in csv.body.decode("utf-8") and "Hannah" not in csv.body.decode("utf-8"),
+           f"the file: {csv.body[:200]!r}")
+    return (f"ten years of Hannah listed and honoured once; birthdays only for Ben who agreed; an award; Hannah honorary member with its "
+            f"member type; the certificate names her and the ten years; {total} members on {today} by type, gender, age and division, as CSV without names")
+
+
 def apidocs(stack: Stack) -> str:
     """The API tab lists every endpoint of docs/openapi.json with its rights and the users with an API key, never the key."""
     page = page_ok(stack.browser().get("/custom/vereine/admin/api.php"), "API setup")
@@ -5855,6 +5911,7 @@ SCENARIOS = (
     ("disclosure", "Access to one's own data: request with its check, a copy with the member's rows and nobody else's", disclosure, ("archive",)),
     ("social", "Channels of the association and accounts of members: order, own network, application, confirmation by an app", social,
      ("identities", "applicationfields")),
+    ("honours", "Honours and statistics: jubilee once, birthdays with consent, honorary member, certificate, members on a day as a file", honours, ("social",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),

@@ -136,6 +136,7 @@ class VereineLog
 	const SOCIAL_SETUP = 'social_setup';
 	const SOCIAL_LINKED = 'social_linked';
 	const SOCIAL_UNLINKED = 'social_unlinked';
+	const HONOUR = 'honour';
 
 	/**
 	 * Append one entry.
