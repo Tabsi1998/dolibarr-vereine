@@ -195,7 +195,8 @@ class VereineErasure
 			'last' => $this->day("SELECT MAX(datec) as v FROM ".$p."vereine_disclosure WHERE entity = ".$entity." AND fk_adherent = ".$id),
 			'due' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_disclosure WHERE entity = ".$entity." AND fk_adherent = ".$id." AND datec <= '".$this->db->escape($cut)." 23:59:59'"));
 		$found['log'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_log WHERE entity = ".$entity." AND fk_adherent = ".$id
-			." AND action NOT IN ('".VereineLog::ERASURE."', '".VereineLog::ERASURE_HOLD."')"), 'last' => '', 'due' => 0);
+			." AND action NOT IN ('".VereineLog::ERASURE."', '".VereineLog::ERASURE_HOLD."')")
+			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_profile_request WHERE entity = ".$entity." AND fk_adherent = ".$id), 'last' => '', 'due' => 0);
 		$found['volunteer'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_volunteer WHERE entity = ".$entity." AND fk_adherent = ".$id),
 			'last' => $this->day("SELECT MAX(duty_day) as v FROM ".$p."vereine_volunteer WHERE entity = ".$entity." AND fk_adherent = ".$id), 'due' => 0);
 		$found['donations'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_donor WHERE entity = ".$entity." AND fk_adherent = ".$id),
@@ -293,7 +294,8 @@ class VereineErasure
 					." AND datec <= '".$this->db->escape($this->cutoff($today, $periods['disclosures']))." 23:59:59'");
 			} elseif ($kind === 'log') {
 				$changed = $this->change("DELETE FROM ".$p."vereine_log WHERE entity = ".$entity." AND fk_adherent = ".$id
-					." AND action NOT IN ('".VereineLog::ERASURE."', '".VereineLog::ERASURE_HOLD."')");
+					." AND action NOT IN ('".VereineLog::ERASURE."', '".VereineLog::ERASURE_HOLD."')")
+					+ $this->change("DELETE FROM ".$p."vereine_profile_request WHERE entity = ".$entity." AND fk_adherent = ".$id);
 			} elseif ($kind === 'volunteer') {
 				$changed = $this->change("DELETE FROM ".$p."vereine_volunteer WHERE entity = ".$entity." AND fk_adherent = ".$id);
 			} elseif ($kind === 'donations') {

@@ -898,6 +898,34 @@ schon eingegangenen Antrag, mit anderem Inhalt `409`. Nach der Frist bleibt er a
 Ob er auf die Tagesordnung kommt, entscheidet der Vorstand in Dolibarr (`status`: received, accepted,
 rejected); angenommen steht er als letzter Punkt auf der Tagesordnung.
 
+### GET /vereine/me/profile
+
+`subject`, Fähigkeit `profile`. Die eigenen Daten: Name, Geburtsdatum (nur lesen), Anschrift, Telefon,
+E-Mail, Mitgliedsart, Status, ein geplanter oder vollzogener Austritt. Dazu `version` (der Stand der
+Kontaktdaten) und `direct` (Felder, die der Verein sofort übernimmt).
+
+### POST /vereine/me/profile/changes
+
+`subject`, Fähigkeit `profile`, Body
+`{"external_id": "app-42", "version": "…aus GET me/profile…", "changes": {"address": "…", "zip": "…", "town": "…"}}`.
+Nur `address`, `zip`, `town`, `country_code`, `phone`, `phone_mobile`, `email`; alles andere wird abgewiesen.
+Hat sich der Stand seither geändert, kommt `409` statt eines stillen Überschreibens. Felder aus `direct`
+werden sofort übernommen (`status: applied`), sonst entscheidet der Vorstand in Dolibarr
+(`received` → `applied` oder `rejected` mit `reason`). Eine neue E-Mail-Adresse braucht immer den Vorstand.
+Dieselbe `external_id` mit demselben Inhalt antwortet mit demselben Auftrag.
+
+### GET /vereine/me/profile/changes
+
+`subject`, Fähigkeit `profile`. Eigene Änderungswünsche und Kündigung mit Stand; interne Notizen des
+Vorstands nie.
+
+### POST /vereine/me/exit
+
+`subject`, Fähigkeit `profile`, Body `{"external_id": "app-exit-1", "wished_last_day": "2026-12-31"}`
+(Wunsch optional). Die Kündigung geht mit heutigem Eingang ein; die Mitgliedschaft endet am Tag, den die
+Kündigungsregel des Vereins ergibt (`last_day`), oder später, wenn später gewünscht. Ein früherer Wunsch
+wird nicht übernommen (`wished_too_early: true`). Ist schon ein Austritt geplant, kommt `409`.
+
 ### GET /vereine/me/accounts
 
 `subject`, braucht die Fähigkeit `accounts`. Die Konten der Person: jedes Netzwerk, das der Verein

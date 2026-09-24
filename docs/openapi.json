@@ -2224,6 +2224,266 @@
           ]
         ]
       }
+    },
+    "/vereine/me/profile": {
+      "get": {
+        "operationId": "getMyProfile",
+        "summary": "Eigene Daten der gebundenen Person",
+        "description": "Braucht die Fähigkeit profile.",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Die eigenen Daten",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      }
+    },
+    "/vereine/me/profile/changes": {
+      "get": {
+        "operationId": "getMyProfileChanges",
+        "summary": "Eigene Änderungswünsche und Kündigung",
+        "description": "Ohne interne Notizen des Vorstands.",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aufträge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MyProfileRequest"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      },
+      "post": {
+        "operationId": "postMyProfileChange",
+        "summary": "Änderung der eigenen Kontaktdaten beantragen",
+        "description": "Nur Anschrift, Telefon und E-Mail; mit dem Stand aus GET me/profile.",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "external_id",
+                  "version",
+                  "changes"
+                ],
+                "properties": {
+                  "external_id": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "version": {
+                    "type": "string"
+                  },
+                  "changes": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Der Auftrag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyProfileRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      }
+    },
+    "/vereine/me/exit": {
+      "post": {
+        "operationId": "postMyExit",
+        "summary": "Austritt erklären",
+        "description": "Endet am Tag, den die Kündigungsregel des Vereins ergibt, oder später, wenn so gewünscht.",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "external_id"
+                ],
+                "properties": {
+                  "external_id": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "wished_last_day": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Der Auftrag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyProfileRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      }
     }
   },
   "components": {
@@ -3679,7 +3939,8 @@
                 "documents",
                 "votes",
                 "accounts",
-                "meetings"
+                "meetings",
+                "profile"
               ]
             }
           },
@@ -4321,6 +4582,169 @@
             "items": {
               "$ref": "#/components/schemas/MyMotion"
             }
+          }
+        }
+      },
+      "MyProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "member_id",
+          "ref",
+          "firstname",
+          "lastname",
+          "birth",
+          "address",
+          "zip",
+          "town",
+          "country_code",
+          "phone",
+          "phone_mobile",
+          "email",
+          "member_type",
+          "status",
+          "version",
+          "direct",
+          "exit"
+        ],
+        "properties": {
+          "member_id": {
+            "type": "integer"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "firstname": {
+            "type": "string"
+          },
+          "lastname": {
+            "type": "string"
+          },
+          "birth": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "zip": {
+            "type": "string"
+          },
+          "town": {
+            "type": "string"
+          },
+          "country_code": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "phone_mobile": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "member_type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "draft",
+              "former"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "description": "Stand der Kontaktdaten; eine Änderung muss ihn nennen"
+          },
+          "direct": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Felder, die sofort übernommen werden"
+          },
+          "exit": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "reason",
+              "notice_day",
+              "last_day"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "planned",
+                  "done"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              },
+              "notice_day": {
+                "type": "string"
+              },
+              "last_day": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "MyProfileRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "external_id",
+          "kind",
+          "received_at"
+        ],
+        "properties": {
+          "external_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "change",
+              "exit"
+            ]
+          },
+          "changes": {
+            "type": "object",
+            "description": "Feld => gewünschter Wert"
+          },
+          "status": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Begründung des Vorstands für das Mitglied"
+          },
+          "received_at": {
+            "type": "string"
+          },
+          "decided_at": {
+            "type": "string"
+          },
+          "notice_day": {
+            "type": "string"
+          },
+          "last_day": {
+            "type": "string",
+            "description": "Letzter Tag der Mitgliedschaft laut Kündigungsregel"
+          },
+          "wished_last_day": {
+            "type": "string"
+          },
+          "wished_too_early": {
+            "type": "boolean"
           }
         }
       }
