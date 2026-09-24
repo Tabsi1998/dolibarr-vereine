@@ -16,6 +16,13 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Turniersieg) oder Ehrenmitgliedschaft. Ein Ehrenmitglied wechselt in die Mitgliedsart, die der Verein
   dafür wählt, etwa eine ohne Beitrag. Zu jeder Ehrung gibt es eine **Urkunde als PDF** mit Linien für
   die Unterschriften; der Reiter *Verein* des Mitglieds nennt seine Ehrungen.
+- **Auswertung von Abstimmungen** (#163): Nach dem Schließen wertet die Versammlungsleitung aus. Die
+  Auswertung hält Frage, Regeln, Stimmrechte, Stimmen je Antwort, die Beschlussfähigkeit beim Öffnen und
+  das Ergebnis fest und erzeugt einen **Nachweis als PDF/A** mit Code und Prüfsumme in der Vereinsakte – ohne
+  die Stimme einer Person. Die Auswertung ist vorläufig; erst **„Ergebnis bestätigen“** trägt sie ins
+  Beschlussbuch ein und löst die Folgen aus (Funktionsperiode, neue Statutenfassung, Meldung an die Behörde),
+  genau einmal, auch bei doppeltem Klick. Neu auswerten geht vor der Bestätigung mit Grund; die frühere
+  Auswertung bleibt mit ihrem Nachweis. Mitglieder sehen das Ergebnis in der App erst nach der Bestätigung.
 - **Abstimmungen in der App** (#160, #161): Zu einem Tagesordnungspunkt einer Generalversammlung legt der
   Vorstand unter *Sitzung > Abstimmungen in der App* eine Abstimmung an – Beschluss, Statutenänderung,
   Auflösung oder Wahl mit Kandidat:innen (mit deren Zustimmung). **Freigeben** hält Mehrheit,

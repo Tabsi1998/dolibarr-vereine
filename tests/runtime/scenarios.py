@@ -6206,6 +6206,86 @@ def ballotapi(stack: Stack) -> str:
             "counted once; closed: yes 1, no 1, abstain 1, two valid votes")
 
 
+def ballotresult(stack: Stack) -> str:
+    """Counting ballots: a snapshot with a proof as PDF in the files, nothing follows before whoever chairs confirms, confirming twice
+    makes one vote of the meeting, one entry in the register and one term of office; members see the result only once confirmed (#163)."""
+    browser = stack.browser()
+    meeting = int(stack.value("SELECT MAX(fk_meeting) FROM llx_vereine_ballot") or 0)
+    first = int(stack.value(f"SELECT MIN(rowid) FROM llx_vereine_ballot WHERE fk_meeting = {meeting}") or 0)
+    ballots = f"/custom/vereine/ballots.php?meeting={meeting}"
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtcount", RT_CLIENT_KEY=client)
+    anna = int(stack.value(f"SELECT fk_holder FROM llx_vereine_ballot_right WHERE fk_ballot = {first} AND reason = 'proxy' LIMIT 1") or 0)
+    page = page_ok(browser.get("/custom/vereine/admin/identities.php"), "the identities")
+    page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtcount", "member_id": str(anna), "application_id": "0", "capabilities[]": "votes"}), "invite")
+    code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+    status, _ = stack.api(f"vereine/identities/claim?subject=sub-count&code={code}", client, method="POST")
+    expect(status == 200, f"binding: HTTP {status}")
+
+    def seen(ballot: int) -> dict:
+        status, listed = stack.api("vereine/me/ballots?subject=sub-count", client)
+        expect(status == 200, f"the ballots: HTTP {status}")
+        return next((row for row in listed if row["id"] == ballot), {})
+
+    # The first ballot, closed: counted, a proof in the files, still provisional.
+    votes = f"SELECT COUNT(*) FROM llx_vereine_meeting_vote WHERE fk_meeting = {meeting}"
+    before = stack.value(votes)
+    page_ok(browser.submit(page_ok(browser.get(ballots), "the ballots").form(name=f"vereineballotevaluate{first}")), "count")
+    counted = stack.sql(f"SELECT rowid, status, filename, doc_sha FROM llx_vereine_ballot_result WHERE fk_ballot = {first}")
+    expect(len(counted) == 1 and counted[0][1] == "provisional" and counted[0][2] and len(counted[0][3]) == 64, f"the count: {counted}")
+    result_id, filename, sha = counted[0][0], counted[0][2], counted[0][3]
+    data = base64.b64decode(stack.shell(f"base64 '/var/www/documents/vereine/ballots/{filename}'").stdout)
+    text = pdf_bytes_text(data)
+    expect(hashlib.sha256(data).hexdigest() == sha and "Entlastung des Vorstands" in text and "Nachweis der Abstimmung" in text,
+           "the proof is not the PDF of the count")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_document WHERE kind = 'ballot' AND fk_object = {result_id}") == "1", "the proof is not in the files")
+    expect(stack.value(votes) == before and seen(first).get("result") is None, "a provisional count went into the meeting or to the members")
+    # Counted again with a reason: the first count stays with its proof.
+    page = page_ok(browser.get(ballots), "the ballots before counting again")
+    page_ok(browser.submit(page.form(name=f"vereineballotreevaluate{first}"), {"reason": "Anwesenheit berichtigt"}), "count again")
+    states = stack.sql(f"SELECT revision, status, reason FROM llx_vereine_ballot_result WHERE fk_ballot = {first} ORDER BY revision")
+    expect(states == [["1", "superseded", ""], ["2", "provisional", "Anwesenheit berichtigt"]], f"counted again: {states}")
+    page_ok(browser.submit(page_ok(browser.get(ballots), "the ballots before confirming").form(name=f"vereineballotconfirm{first}")), "confirm")
+    again = stack.php_fixture("ballotconfirm", RT_BALLOT_ID=str(first))
+    expect(again["result"] == 2 and stack.value(votes) == str(int(before) + 1), f"confirming twice: {again}, votes {stack.value(votes)} after {before}")
+    result = seen(first).get("result") or {}
+    expect(result.get("revision") == 2 and result.get("counts", {}).get("yes") == 1 and result.get("valid") == 2, f"the members' result: {result}")
+
+    # An election: nothing before it is confirmed, then one term.
+    agenda = page_ok(browser.get(f"/custom/vereine/meetings.php?id={meeting}"), "the assembly")
+    voting = [int(row[0]) for row in stack.sql(f"SELECT fk_adherent FROM llx_vereine_meeting_invitation WHERE fk_meeting = {meeting} AND voting = 1")]
+    changes = {}
+    for member in voting:
+        changes[f"attendance[{member}][state]"] = "present"
+        changes[f"attendance[{member}][arrived]"] = "00:00"
+        changes[f"attendance[{member}][left]"] = ""
+    page_ok(browser.submit(agenda.form(name="vereineattendance"), changes), "everybody is there")
+    function = stack.value("SELECT rowid FROM llx_vereine_function WHERE entity = 1 AND active = 1 AND represents = 0 ORDER BY rowid LIMIT 1")
+    terms = f"SELECT COUNT(*) FROM llx_vereine_function_term WHERE fk_function = {function} AND fk_adherent = {anna}"
+    terms_before = stack.value(terms)
+    page = page_ok(browser.get(ballots), "the ballots before the election")
+    page_ok(browser.submit(page.form(name="vereineballot"), {"item": "1", "kind": "election", "question": "Wahl Laufzeit", "function_id": str(function),
+                                                             "candidates[]": str(anna), "consent": "1"}), "prepare the election")
+    election = int(stack.value(f"SELECT MAX(rowid) FROM llx_vereine_ballot WHERE fk_meeting = {meeting}") or 0)
+    for step in ("release", "open"):
+        page_ok(browser.submit(page_ok(browser.get(ballots), f"before {step}").form(name=f"vereineballot{step}{election}")), step)
+    rights = [row for row in seen(election).get("rights", []) if row["state"] == "open"]
+    for right in rights:
+        status, _ = stack.api(f"vereine/me/ballots/{election}/votes?subject=sub-count", client, method="POST", data={"right_id": right["right_id"], "option": f"c{anna}"})
+        expect(status == 200, f"a vote in the election: HTTP {status}")
+    for step in ("close", "evaluate"):
+        page_ok(browser.submit(page_ok(browser.get(ballots), f"before {step}").form(name=f"vereineballot{step}{election}")), step)
+    outcome = stack.value(f"SELECT status FROM llx_vereine_ballot_result WHERE fk_ballot = {election}")
+    expect(outcome == "provisional" and stack.value(terms) == terms_before, "the election changed the functions before it was confirmed")
+    page_ok(browser.submit(page_ok(browser.get(ballots), "the election before confirming").form(name=f"vereineballotconfirm{election}")), "confirm the election")
+    stack.php_fixture("ballotconfirm", RT_BALLOT_ID=str(election))
+    expect(stack.value(terms) == str(int(terms_before) + 1), f"the term of the elected member: {stack.value(terms)} after {terms_before}")
+    won = seen(election).get("result") or {}
+    expect(won.get("outcome") == "passed" and won.get("winner") == f"c{anna}", f"the election for the members: {won}")
+    return ("counted with a proof as PDF/A in the files, provisional and invisible to members; counted again with a reason, the first count kept; "
+            "confirmed twice: one vote of the meeting; an election made its term only when confirmed, once")
+
+
 def documentmore(stack: Stack) -> str:
     """Documents, the second part: a shortened version as a file of its own derived from the original, a document for one person only,
     publishing and withdrawing in the change feed, a signed copy out only once every signature is there (#239)."""
@@ -6511,6 +6591,7 @@ SCENARIOS = (
     ("documentmore", "Documents: a shortened version derived from the original, one person only, the change feed, signed copies when complete",
      documentmore, ("eventapi",)),
     ("ballotapi", "Ballots of a general assembly: two applications and paper, proxies, frozen rights, one right counts once", ballotapi, ("documentmore",)),
+    ("ballotresult", "Counting ballots: proof as PDF, provisional until confirmed, confirmed once, an election's term once", ballotresult, ("ballotapi",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),

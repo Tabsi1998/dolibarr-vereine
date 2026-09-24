@@ -86,6 +86,18 @@ class VereineBallotRules
 	/** Abstention: no valid vote cast. */
 	const ABSTAIN = 'abstain';
 
+	/** Counted, not yet confirmed by whoever chairs. */
+	const RESULT_PROVISIONAL = 'provisional';
+	/** Confirmed in Dolibarr; what follows from it happened once. */
+	const RESULT_CONFIRMED = 'confirmed';
+	/** Replaced by a later count with its reason; kept with its proof. */
+	const RESULT_SUPERSEDED = 'superseded';
+	/** Every state of a count. */
+	const RESULTS = array('provisional', 'confirmed', 'superseded');
+
+	/** Every outcome of a count. */
+	const OUTCOMES = array('passed', 'rejected', 'no_quorum', 'no_majority');
+
 	/** The most candidates in one ballot. */
 	const CANDIDATES_MAX = 20;
 
@@ -321,5 +333,64 @@ class VereineBallotRules
 		}
 		$abstain = isset($counts[self::ABSTAIN]) ? $counts[self::ABSTAIN] : 0;
 		return array('counts' => $counts, 'valid' => array_sum($counts) - $abstain, 'abstain' => $abstain);
+	}
+
+	/**
+	 * What a counted ballot decided, by its frozen rules.
+	 *
+	 * Without the quorum nothing is decided. A resolution needs its majority of the valid votes cast. An
+	 * election with one candidate is a vote for or against; with several, whoever has more than half of the
+	 * valid votes cast is elected, otherwise nobody, and a run-off is a ballot of its own.
+	 *
+	 * @param array<string,mixed>                                   $ballot Ballot with options and rules
+	 * @param array{counts:array<string,int>,valid:int,abstain:int} $tally  Votes per option
+	 * @param array<string,mixed>                                   $quorum Quorum when the ballot opened, with reached
+	 * @return array{outcome:string,passed:bool,yes:int,no:int,winner:string,candidate_id:int,majority:string}
+	 */
+	public static function outcome(array $ballot, array $tally, array $quorum)
+	{
+		$counts = $tally['counts'];
+		$majority = isset($ballot['rules']['majority']) && in_array($ballot['rules']['majority'], VereineStatuteRules::MAJORITIES, true)
+			? (string) $ballot['rules']['majority'] : VereineStatuteRules::MAJORITY_SIMPLE;
+		$candidates = array();
+		foreach ($ballot['options'] as $option) {
+			if ((int) $option['member_id'] > 0) {
+				$candidates[(string) $option['code']] = (int) $option['member_id'];
+			}
+		}
+		$winner = '';
+		if (count($candidates) === 1) {
+			$winner = (string) key($candidates);
+			$yes = isset($counts[$winner]) ? (int) $counts[$winner] : 0;
+			$no = isset($counts[self::NO]) ? (int) $counts[self::NO] : 0;
+		} elseif ($candidates) {
+			$best = -1;
+			foreach (array_keys($candidates) as $code) {
+				$votes = isset($counts[$code]) ? (int) $counts[$code] : 0;
+				if ($votes > $best) {
+					$best = $votes;
+					$winner = $code;
+				} elseif ($votes === $best) {
+					// Two with the most votes: nobody is elected.
+					$winner = '';
+				}
+			}
+			$yes = max(0, $best);
+			$no = (int) $tally['valid'] - $yes;
+		} else {
+			$yes = isset($counts[self::YES]) ? (int) $counts[self::YES] : 0;
+			$no = isset($counts[self::NO]) ? (int) $counts[self::NO] : 0;
+		}
+		$decided = VereineVoteRules::result(array('yes' => $yes, 'no' => $no, 'tie' => ''), $majority, VereineMeetingRules::KIND_GENERAL, array());
+		$passed = !empty($quorum['reached']) && $decided['passed'] && ($candidates === array() || $winner !== '');
+		if (empty($quorum['reached'])) {
+			$outcome = 'no_quorum';
+		} elseif ($passed) {
+			$outcome = 'passed';
+		} else {
+			$outcome = count($candidates) > 1 ? 'no_majority' : 'rejected';
+		}
+		return array('outcome' => $outcome, 'passed' => $passed, 'yes' => $yes, 'no' => $no, 'winner' => $passed ? $winner : '',
+			'candidate_id' => $passed && $winner !== '' ? $candidates[$winner] : 0, 'majority' => $majority);
 	}
 }

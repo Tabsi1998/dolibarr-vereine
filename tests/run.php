@@ -1895,6 +1895,8 @@ $prefixes = array(
 	'VereineBallotOption_' => array(VereineBallotRules::YES, VereineBallotRules::NO, VereineBallotRules::ABSTAIN),
 	'VereineBallotChannel_' => VereineBallotRules::CHANNELS,
 	'VereineBallotReason_' => VereineBallotRules::REASONS,
+	'VereineBallotResult_' => VereineBallotRules::RESULTS,
+	'VereineBallotOutcome_' => VereineBallotRules::OUTCOMES,
 	'VereineBallotRefused_' => array('not_found', 'not_open', 'closed', 'channel', 'used', 'not_present', 'option', 'external_id'),
 	'VereineMinutesPlaceholder_' => VereineMinutesRules::PLACEHOLDERS,
 	'VereineMinutesItemKind_' => VereineMinutesRules::ITEM_KINDS,
@@ -2986,6 +2988,29 @@ same(array('', 'not_found', 'not_found', 'not_open', 'closed', 'closed', 'closed
 	'a vote counts while open and before the hour, once, by the holder of the right in the assembly; the board enters paper ballots');
 same(array('counts' => array('yes' => 2, 'no' => 1, 'abstain' => 1), 'valid' => 3, 'abstain' => 1), VereineBallotRules::tally(array('yes', 'no', 'abstain'),
 	array('yes', 'no', 'yes', 'abstain', 'maybe')), 'abstentions are no valid votes cast; unknown codes do not count');
+
+// ------------------------------------------------------------- counting a ballot (#163)
+
+$resolution = array('rules' => array('majority' => 'two_thirds'), 'options' => array(array('code' => 'yes', 'member_id' => 0), array('code' => 'no', 'member_id' => 0),
+	array('code' => 'abstain', 'member_id' => 0)));
+$reached = array('reached' => true);
+same(array('passed', 'rejected', 'no_quorum'), array(
+	VereineBallotRules::outcome($resolution, VereineBallotRules::tally(array('yes', 'no', 'abstain'), array('yes', 'yes', 'no', 'abstain', 'abstain')), $reached)['outcome'],
+	VereineBallotRules::outcome($resolution, VereineBallotRules::tally(array('yes', 'no', 'abstain'), array('yes', 'no')), $reached)['outcome'],
+	VereineBallotRules::outcome($resolution, VereineBallotRules::tally(array('yes', 'no', 'abstain'), array('yes', 'yes')), array('reached' => false))['outcome']),
+	'two thirds of the valid votes, abstentions apart; without the quorum nothing is decided');
+$election = array('rules' => array('majority' => 'simple'), 'options' => array(array('code' => 'c7', 'member_id' => 7), array('code' => 'c8', 'member_id' => 8),
+	array('code' => 'c9', 'member_id' => 9), array('code' => 'abstain', 'member_id' => 0)));
+$codes = array('c7', 'c8', 'c9', 'abstain');
+$won = VereineBallotRules::outcome($election, VereineBallotRules::tally($codes, array('c7', 'c7', 'c7', 'c8', 'c9', 'abstain')), $reached);
+same(array('passed', 'c7', 7, 3, 2), array($won['outcome'], $won['winner'], $won['candidate_id'], $won['yes'], $won['no']), 'more than half of the valid votes: elected');
+same(array('no_majority', 0), array(VereineBallotRules::outcome($election, VereineBallotRules::tally($codes, array('c7', 'c7', 'c8', 'c9')), $reached)['outcome'],
+	VereineBallotRules::outcome($election, VereineBallotRules::tally($codes, array('c7', 'c8')), $reached)['candidate_id']),
+	'half is not more than half, a tie elects nobody: a run-off is a ballot of its own');
+$alone = array('rules' => array('majority' => 'simple'), 'options' => array(array('code' => 'c7', 'member_id' => 7), array('code' => 'no', 'member_id' => 0),
+	array('code' => 'abstain', 'member_id' => 0)));
+same(array('passed', 'rejected'), array(VereineBallotRules::outcome($alone, VereineBallotRules::tally(array('c7', 'no', 'abstain'), array('c7', 'no', 'c7')), $reached)['outcome'],
+	VereineBallotRules::outcome($alone, VereineBallotRules::tally(array('c7', 'no', 'abstain'), array('c7', 'no')), $reached)['outcome']), 'one candidate: for against, a tie is no majority');
 
 // ------------------------------------------------------------- documents, the second part (#239)
 
