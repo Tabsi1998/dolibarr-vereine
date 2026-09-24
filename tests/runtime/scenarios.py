@@ -4417,6 +4417,42 @@ def taxcheck(stack: Stack) -> str:
             "only the profile field changed, invoice and line as before, logged; a line with a profile is not assigned again")
 
 
+def vatex(stack: Stack) -> str:
+    """0 % with a reason: three codes in Dolibarr's VAT dictionary, the e-invoice reason VATEX-EU-O for not subject to VAT on Dolibarr 24,
+    products of a profile at 0 % take their code, and so does the invoice line built from one (#45)."""
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/taxprofiles.php"
+    codes = ("SELECT t.code, t.taux, t.active FROM llx_c_tva as t INNER JOIN llx_c_country as c ON c.rowid = t.fk_pays"
+             " WHERE c.code = 'AT' AND t.code LIKE 'AT-%' ORDER BY t.code")
+    expect(stack.sql(codes) == [], "the dictionary had the codes before, the test proves nothing")
+    page = page_ok(browser.get(setup), "tax profiles without the codes")
+    expect('data-vatcodes="missing"' in page.text, "the setup does not offer the codes")
+    page_ok(browser.submit(page.form(name="vereinevatcodes")), "add the codes")
+    page = page_ok(browser.get(setup), "tax profiles with the codes")
+    page_ok(browser.post(setup, [("token", token_of(page)), ("action", "addvatcodes")]), "add the codes again")
+    rows = [(code, float(rate), active) for code, rate, active in stack.sql(codes)]
+    expect(rows == [("AT-KU", 0.0, "1"), ("AT-NS", 0.0, "1"), ("AT-SP", 0.0, "1")], f"the codes in the dictionary: {rows}")
+    column = stack.sql("SHOW COLUMNS FROM llx_c_tva LIKE 'einvoice_vatex'")
+    if column:
+        reasons = dict(stack.sql("SELECT t.code, COALESCE(t.einvoice_vatex, '') FROM llx_c_tva as t INNER JOIN llx_c_country as c ON c.rowid = t.fk_pays"
+                                 " WHERE c.code = 'AT' AND t.code LIKE 'AT-%'"))
+        expect(reasons == {"AT-NS": "VATEX-EU-O", "AT-KU": "", "AT-SP": ""} and 'data-vatex="available"' in page.text, f"the reasons kept: {reasons}")
+    else:
+        expect(not stack.version.startswith("24") and 'data-vatex="unavailable"' in page.text, f"Dolibarr {stack.version} without the VATEX column")
+
+    small = stack.value("SELECT p.rowid FROM llx_product as p INNER JOIN llx_product_extrafields as e ON e.fk_object = p.rowid INNER JOIN llx_vereine_taxprofile as t"
+                        " ON t.rowid = e.vereine_taxprofile WHERE t.treatment = 'small_business' ORDER BY p.rowid LIMIT 1")
+    fee = stack.value("SELECT p.rowid FROM llx_product as p INNER JOIN llx_product_extrafields as e ON e.fk_object = p.rowid INNER JOIN llx_vereine_taxprofile as t"
+                      " ON t.rowid = e.vereine_taxprofile WHERE t.treatment = 'nonbusiness' ORDER BY p.rowid LIMIT 1")
+    expect(small not in (None, "") and fee not in (None, ""), f"products for the test: small business {small}, fee {fee}")
+    kept = dict(stack.sql(f"SELECT rowid, COALESCE(default_vat_code, '') FROM llx_product WHERE rowid IN ({small}, {fee})"))
+    expect(kept == {small: "AT-KU", fee: "AT-NS"}, f"the codes of the products: {kept}")
+    line = stack.php_fixture("vatline", RT_PRODUCT_ID=small)
+    expect(line["tva_tx"] == 0 and line["vat_src_code"] == "AT-KU", f"the invoice line of the small business product: {line}")
+    return ("three codes for 0 % in the dictionary once though added twice, VATEX-EU-O for not subject to VAT where Dolibarr keeps it; "
+            "products of the profiles took AT-KU and AT-NS, and the invoice line built from one carries AT-KU")
+
+
 def audit(stack: Stack) -> str:
     """The audit of the auditors: bookings and invoices of the year with hints, ticked samples, the checklist, the report with signatures."""
     year = int(stack.today()[:4])
@@ -6563,7 +6599,8 @@ SCENARIOS = (
     ("qes", "ID Austria: signature service in the setup, two people sign one PDF, cancel, a way back used twice, a changed PDF", qes, ("agreements",)),
     ("placeholders", "Placeholders: association data in Dolibarr's e-mail templates, the module's e-mails as templates, one list with examples", placeholders, ("qes",)),
     ("taxcheck", "Older invoice lines without a tax profile: suggestions from facts, a preview, assigning only the profile", taxcheck, ("placeholders",)),
-    ("audit", "The audit of the auditors: bookings and invoices with hints, samples, checklist, report with signatures", audit, ("taxcheck",)),
+    ("vatex", "0 % with a reason: codes in the VAT dictionary, VATEX for not subject to VAT, products and lines take them", vatex, ("taxcheck",)),
+    ("audit", "The audit of the auditors: bookings and invoices with hints, samples, checklist, report with signatures", audit, ("vatex",)),
     ("account", "Income and expenditure account: the money of the year by area, agreeing with the bank, statement of assets, PDF, signatures", account, ("audit",)),
     ("duties", "The calendar of duties: catalogue of the law, days of the year, agenda tasks, handover after a change of office", duties, ("account",)),
     ("events", "Events from templates: a project of Dolibarr with its tasks, the checklist, a template that changes later", events, ("duties",)),

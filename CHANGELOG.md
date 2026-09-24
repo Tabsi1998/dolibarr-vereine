@@ -16,6 +16,12 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Turniersieg) oder Ehrenmitgliedschaft. Ein Ehrenmitglied wechselt in die Mitgliedsart, die der Verein
   dafür wählt, etwa eine ohne Beitrag. Zu jeder Ehrung gibt es eine **Urkunde als PDF** mit Linien für
   die Unterschriften; der Reiter *Verein* des Mitglieds nennt seine Ehrungen.
+- **0 % mit Begründung für E-Rechnungen** (#45): Unter *Steuerprofile* legt „Codes anlegen“ drei eigene
+  0-%-Codes im Umsatzsteuer-Wörterbuch an: `AT-NS` nicht steuerbar, `AT-KU` Kleinunternehmer, `AT-SP`
+  Sportverein. Ab Dolibarr 24 trägt `AT-NS` den EU-Befreiungsgrund `VATEX-EU-O`; für Kleinunternehmer und
+  Sportvereine hat die offizielle Liste keinen Code – dort bleibt der Rechnungshinweis des Profils der Grund.
+  Produkte mit einem solchen Steuerprofil übernehmen den Code (ohne Preisänderung), neue Rechnungszeilen
+  ebenso. So können E-Rechnungs-Module die Zeilen richtig kennzeichnen.
 - **Auswertung von Abstimmungen** (#163): Nach dem Schließen wertet die Versammlungsleitung aus. Die
   Auswertung hält Frage, Regeln, Stimmrechte, Stimmen je Antwort, die Beschlussfähigkeit beim Öffnen und
   das Ergebnis fest und erzeugt einen **Nachweis als PDF/A** mit Code und Prüfsumme in der Vereinsakte – ohne
