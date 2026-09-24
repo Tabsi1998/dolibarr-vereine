@@ -537,6 +537,10 @@ class VereineConsents
 		}
 
 		$this->db->begin();
+		// Accounts at Discord, Twitch and the like go into Dolibarr's own field of the member (#233).
+		if (!empty($application['accounts']) && is_array($application['accounts'])) {
+			$member->socialnetworks = $application['accounts'];
+		}
 		if ($member->create($user) <= 0) {
 			$this->error = 'member: '.$member->error.' '.implode(' | ', (array) $member->errors);
 			$this->db->rollback();

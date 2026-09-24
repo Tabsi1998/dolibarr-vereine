@@ -5479,8 +5479,9 @@ def erasure(stack: Stack) -> str:
     page_ok(browser.post(tab, [("token", token_of(page)), ("action", "confirm_erase"), ("confirm", "yes")]), "erase what is due")
     kept = stack.sql(f"SELECT lastname, IFNULL(email, '-'), IFNULL(address, '-'), IFNULL(birth, '-') FROM llx_adherent WHERE rowid = {member}")
     expect(kept == [["Vergessen", "-", "-", "-"]], f"the member after the first run: {kept}")
-    left = {table: stack.value(f"SELECT COUNT(*) FROM llx_vereine_{table} WHERE fk_adherent = {member}") for table in ("identity", "consent", "disclosure")}
-    expect(left == {"identity": "0", "consent": "0", "disclosure": "0"}, f"rows left after the first run: {left}")
+    left = {table: stack.value(f"SELECT COUNT(*) FROM llx_vereine_{table} WHERE fk_adherent = {member}") for table in ("identity", "consent", "disclosure", "social")}
+    expect(left == {"identity": "0", "consent": "0", "disclosure": "0", "social": "0"}, f"rows left after the first run: {left}")
+    expect(stack.value(f"SELECT IFNULL(socialnetworks, '-') FROM llx_adherent WHERE rowid = {member}") == "-", "the member's accounts are still there")
     expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_meeting_invitation WHERE fk_adherent = {member} AND email IS NOT NULL") == "0"
            and stack.value(f"SELECT name FROM llx_vereine_meeting_invitation WHERE fk_adherent = {member}") == "Emil Vergessen",
            "the invitation kept its address or lost its name")
@@ -5597,6 +5598,107 @@ def arrears(stack: Stack) -> str:
     return (f"Mahnwesen {MAHNWESEN_RELEASE[0]} deployed next to this module; the last step made one proposal for the fee and none for the sale "
             "of the same member, none for a fee paid first, none twice; a late event changed nothing; the to-do list counts without a name; "
             "a general assembly refused it, a board meeting took it; pause, resume and payment followed; the member stayed a member")
+
+
+def social(stack: Stack) -> str:
+    """Channels of the association and accounts of members: two streams and a live stream in order, an own network, the
+    application asks, an app confirms, a changed name loses the confirmation, a binding without the ability gets nothing (#233)."""
+    browser = stack.browser()
+    setup = "/custom/vereine/admin/social.php"
+    expect(denied(stack.browser("rtreader").get(setup)), "a non-administrator opens channels and accounts")
+
+    # A network the dictionary lacks.
+    page = page_ok(browser.get(setup), "channels and accounts")
+    refused = page_ok(browser.submit(page.form(name="vereinesocialnetwork"), {"code": "Steam!", "label": "Steam", "pattern": ""}), "a wrong code")
+    expect("Kleinbuchstaben" in html.unescape(refused.text), "a wrong code of a network was taken")
+    page = page_ok(browser.get(setup), "channels and accounts again")
+    page_ok(browser.submit(page.form(name="vereinesocialnetwork"), {"code": "steam", "label": "Steam", "pattern": "https://steamcommunity.com/id/{socialid}"}), "add Steam")
+    expect(stack.value("SELECT active FROM llx_c_socialnetworks WHERE code = 'steam' AND entity = 1") == "1", "Steam is not in Dolibarr's dictionary")
+
+    # Channels: two Twitch streams, a YouTube live stream, a Discord server, one kept from the website.
+    for fields in ({"network": "twitch", "label": "Hauptstream", "target": "lionsquad", "position": "10", "stream": "1", "public": "1"},
+                   {"network": "twitch", "label": "CS2", "target": "https://www.twitch.tv/lionsquad_cs", "position": "20", "stream": "1", "public": "1"},
+                   {"network": "youtube", "label": "Livestream", "target": "lionsquad", "position": "20", "stream": "1", "public": "1"},
+                   {"network": "discord", "label": "Community", "target": "https://discord.gg/lionsquad", "position": "30", "public": "1"},
+                   {"network": "twitch", "label": "Probe", "target": "lionsquad_test", "position": "5"}):
+        form = page_ok(browser.get(setup), "the channel form").form(name="vereinechannel")
+        page_ok(browser.submit(form, fields, drop=("stream", "public")), f"add the channel {fields['label']}")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_channel") == "5", "not every channel was stored")
+    status, organization = stack.api("vereine/organization", stack.reader_key)
+    channels = organization.get("channels", []) if status == 200 else []
+    expect([channel["label"] for channel in channels] == ["Hauptstream", "CS2", "Livestream", "Community"], f"the channels in the API: {channels}")
+    expect(channels[0]["url"] == "https://www.twitch.tv/lionsquad" and channels[0]["live_url"] == "https://www.twitch.tv/lionsquad"
+           and channels[2]["url"] == "https://www.youtube.com/@lionsquad" and channels[2]["live_url"] == "https://www.youtube.com/@lionsquad/live"
+           and channels[3]["stream"] is False and channels[3]["live_url"] == "", f"addresses of the channels: {channels}")
+    overview = page_ok(browser.get("/custom/vereine/vereineindex.php"), "overview")
+    expect("Hauptstream" in overview.text and "Probe" in overview.text and "nicht öffentlich" in html.unescape(overview.text),
+           "the overview does not show every channel")
+
+    # Which accounts the application asks for.
+    page = page_ok(browser.get(setup), "accounts to ask")
+    page_ok(browser.submit(page.form(name="vereinesocialasked"), {"asked_discord": "required", "asked_twitch": "optional", "asked_steam": "optional"}),
+            "ask for Discord, Twitch and Steam")
+    expect(json.loads(stack.const("VEREINE_SOCIAL_ASKED") or "{}") == {"discord": "required", "twitch": "optional", "steam": "optional"},
+           f"stored: {stack.const('VEREINE_SOCIAL_ASKED')}")
+    expect(stack.value("SELECT active FROM llx_c_socialnetworks WHERE code = 'discord' AND entity = 1") == "1", "Discord was not switched on for the member card")
+    key = stack.notes["applicationkey"]
+    status, form = stack.api("vereine/applicationform", key)
+    expect(status == 200 and {account["network"]: account["required"] for account in form["accounts"]} == {"discord": True, "twitch": False, "steam": False},
+           f"the web is told other accounts: {form.get('accounts')}")
+    type_id = int(stack.value("SELECT rowid FROM llx_adherent_type WHERE libelle = 'Beitragspflichtig'"))
+    body = {"firstname": "Sina", "lastname": "Stream", "email": "sina.stream@runtime-verein.test", "type_id": type_id, "birth": "2001-02-03",
+            "address": "Teststraße 5", "zip": "6020", "town": "Innsbruck", "fields": {"gamertag": "SinaTV", "spielstaerke": "profi"}}
+    for accounts, message in (({"twitch": "sina_tv"}, "accounts.discord is required"), ({"discord": "sina", "myspace": "x"}, "accounts.myspace is not asked")):
+        status, answer = stack.api("vereine/applications", key, method="POST", data={**body, "accounts": accounts})
+        expect(status == 400 and message in json.dumps(answer), f"application with {accounts}: HTTP {status} {answer}")
+    status, created = stack.api("vereine/applications", key, method="POST", data={**body, "accounts": {"discord": "sina#7", "twitch": "sina_tv"}})
+    expect(status == 200, f"a complete application was refused: HTTP {status} {created}")
+    applicant = int(stack.value("SELECT rowid FROM llx_adherent WHERE lastname = 'Stream'"))
+    stored = json.loads(stack.value(f"SELECT socialnetworks FROM llx_adherent WHERE rowid = {applicant}") or "{}")
+    expect(stored == {"discord": "sina#7", "twitch": "sina_tv"}, f"the accounts did not reach the member: {stored}")
+
+    # An app links and confirms an account of a member it is bound to.
+    client = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtlinks", RT_CLIENT_KEY=client)
+    member, other = (int(row[0]) for row in stack.sql("SELECT rowid FROM llx_adherent WHERE statut = 1 ORDER BY rowid LIMIT 2"))
+    codes = {}
+    for subject, capability, person in (("sub-links", "accounts", member), ("sub-nolinks", "consents", other)):
+        page = page_ok(browser.get("/custom/vereine/admin/identities.php"), "the identities")
+        page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": "rtlinks", "member_id": str(person), "application_id": "0",
+                                                                                 "capabilities[]": capability}), f"invite for {capability}")
+        codes[subject] = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+        status, bound = stack.api(f"vereine/identities/claim?subject={subject}&code={codes[subject]}", client, method="POST")
+        expect(status == 200 and bound["capabilities"] == [capability], f"binding {subject}: HTTP {status} {bound}")
+    status, mine = stack.api("vereine/me/accounts?subject=sub-links", client)
+    expect(status == 200 and {"discord", "twitch", "steam"} <= {account["network"] for account in mine}, f"the member's accounts: HTTP {status} {mine}")
+    status, after = stack.api("vereine/me/accounts/twitch?subject=sub-links", client, method="PUT",
+                              data={"handle": "lion_tv", "confirmed": True, "external_id": "98765"})
+    twitch = next((account for account in after if account["network"] == "twitch"), {}) if status == 200 else {}
+    expect(twitch.get("handle") == "lion_tv" and twitch.get("confirmed") is True and twitch.get("client") == "rtlinks"
+           and twitch.get("url") == "https://www.twitch.tv/lion_tv", f"the confirmed account: HTTP {status} {twitch}")
+    tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={member}"), "the member's tab")
+    expect('data-social-account="twitch" data-social-confirmed="1"' in tab.text, "the member's tab does not show the confirmed account")
+    status, refused = stack.api("vereine/me/accounts/myspace?subject=sub-links", client, method="PUT", data={"handle": "x"})
+    expect(status == 400, f"an unknown network was taken: HTTP {status}")
+    status, refused = stack.api("vereine/me/accounts?subject=sub-nolinks", client)
+    expect(status == 403, f"a binding without the ability read accounts: HTTP {status}")
+
+    # Somebody changes the name on the member card: the confirmation no longer holds.
+    stack.sql(f"UPDATE llx_adherent SET socialnetworks = JSON_SET(socialnetworks, '$.twitch', 'lion_tv2') WHERE rowid = {member}")
+    status, changed = stack.api("vereine/me/accounts?subject=sub-links", client)
+    twitch = next((account for account in changed if account["network"] == "twitch"), {})
+    expect(twitch.get("handle") == "lion_tv2" and twitch.get("confirmed") is False, f"after the name changed: {twitch}")
+    status, cleared = stack.api("vereine/me/accounts/twitch?subject=sub-links", client, method="DELETE")
+    twitch = next((account for account in cleared if account["network"] == "twitch"), {}) if status == 200 else {}
+    expect(twitch.get("handle") == "" and stack.value(f"SELECT COUNT(*) FROM llx_vereine_social WHERE fk_adherent = {member}") == "0",
+           f"unlinking left the account: HTTP {status} {twitch}")
+
+    # Later applications must not need Discord.
+    page = page_ok(browser.get(setup), "accounts to ask at the end")
+    page_ok(browser.submit(page.form(name="vereinesocialasked"), {"asked_discord": "optional"}), "Discord optional again")
+    return ("Steam added; two Twitch streams, a YouTube live stream and a Discord server in the order of the association, the one kept from the "
+            "website missing in the API; the application asks Discord (required), Twitch and Steam and the member got them; an app confirmed "
+            "Twitch, the tab shows it, a changed name lost it, unlinking removed it; no ability, no accounts")
 
 
 def apidocs(stack: Stack) -> str:
@@ -5751,6 +5853,8 @@ SCENARIOS = (
     ("donations", "Donation report: date of birth encrypted, vbPK from the register file, XML against the schema, protocol, E then A", donations, ("overpayments",)),
     ("archive", "Files of the association: PDF/A with a code, a public check that shows no title, the export with checksums", archive, ("donations",)),
     ("disclosure", "Access to one's own data: request with its check, a copy with the member's rows and nobody else's", disclosure, ("archive",)),
+    ("social", "Channels of the association and accounts of members: order, own network, application, confirmation by an app", social,
+     ("identities", "applicationfields")),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),

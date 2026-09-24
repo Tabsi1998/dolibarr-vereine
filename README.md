@@ -33,6 +33,8 @@ und bringt eine REST-API für die Vereinswebsite mit.
   Daten als PDF und JSON, ohne Daten anderer.
 - **Löschen nach dem Austritt**: Vorschau je Art der Daten mit Frist und Grund, gelöscht wird nur
   das Fällige nach Klick; Buchhaltung und Vereinsunterlagen bleiben.
+- **Kanäle und Konten**: Discord, Twitch, YouTube & Co. des Vereins (mehrere je Netzwerk, mit
+  Livestream-Link) für die Website; Konten der Mitglieder im Antrag, von der App bestätigt.
 - **Mit dem Mahnwesen-Modul**: Beitragsrückstände auf der letzten Mahnstufe kommen als Vorschlag in
   die nächste Vorstandssitzung; Zahlung und Pause halten den Stand aktuell, ausgeschlossen wird
   niemand automatisch.

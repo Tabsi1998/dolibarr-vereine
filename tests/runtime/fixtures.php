@@ -1552,6 +1552,8 @@ if ($stage === 'erasuremember') {
 	foreach (array(
 		"INSERT INTO ".$p."vereine_member_exit (entity, fk_adherent, reason, notice_day, last_day, status, datec, date_done) VALUES (1, ".$id.", 'resignation', '".$day."', '".$day."', 'done', '".$db->idate($fourYears)."', '".$db->idate($fourYears)."')",
 		"INSERT INTO ".$p."vereine_identity (entity, client, subject, fk_adherent, proof, capabilities, linked_at, datec) VALUES (1, 'rt-erase', 'erase-subject-1', ".$id.", 'known', 'profile', '".$db->idate($fourYears)."', '".$db->idate($fourYears)."')",
+		"INSERT INTO ".$p."vereine_social (entity, fk_adherent, network, handle, client, confirmed_at, datec) VALUES (1, ".$id.", 'twitch', 'emil_tv', 'rt-erase', '".$db->idate($fourYears)."', '".$db->idate($fourYears)."')",
+		"UPDATE ".$p."adherent SET socialnetworks = '{\"twitch\":\"emil_tv\"}' WHERE rowid = ".$id,
 		"INSERT INTO ".$p."vereine_consent (entity, fk_adherent, code, version, given, source, date_event, scan_name) VALUES (1, ".$id.", 'fotos', 1, 1, 'paper', '".$db->idate($fourYears)."', 'einwilligung-9999.pdf')",
 		"INSERT INTO ".$p."vereine_disclosure (entity, fk_adherent, requested_on, identity_check, delivered_at, sha256, fk_user, datec) VALUES (1, ".$id.", '".$day."', 'known', '".$db->idate($fourYears)."', '".str_repeat('a', 64)."', ".((int) $admin->id).", '".$db->idate($fourYears)."')",
 		"INSERT INTO ".$p."vereine_meeting (entity, kind, title, meeting_day, meeting_time, format, status, datec) VALUES (1, 'board', 'Vorstandssitzung vor zwei Jahren', '".dol_print_date($twoYears, '%Y-%m-%d')."', '19:00', 'physical', 'held', '".$db->idate($twoYears)."')",

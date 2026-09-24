@@ -87,6 +87,7 @@ if (!$user->hasRight('vereine', 'association', 'read')) {
  * View
  */
 
+require_once __DIR__.'/class/vereinesocial.class.php';
 $organization = VereineOrganization::load($mysoc);
 // Open points between members and third parties, for users who may see both.
 $partnerIssues = null;
@@ -136,6 +137,15 @@ $rows[] = array($langs->trans('VereineFounded'), $founded);
 $rows[] = array($langs->trans('VereineNonprofit'), yn($organization['nonprofit'] ? 1 : 0));
 $rows[] = array($langs->trans('VereineFiscalYearStart'), dol_escape_htmltag(vereineMonthName($organization['fiscal_year_start_month'])));
 $rows[] = array($langs->trans('VereinePurpose'), $organization['purpose'] !== '' ? dol_nl2br(dol_escape_htmltag($organization['purpose'])) : $notSet);
+$channelLines = array();
+foreach ((new VereineSocial($db))->channels(false) as $channel) {
+	$name = dol_escape_htmltag($channel['network_label'].': '.$channel['label']);
+	$line = $channel['url'] !== '' ? '<a href="'.dol_escape_htmltag($channel['url']).'" target="_blank" rel="noopener noreferrer">'.$name.'</a>' : $name.' <span class="opacitymedium">'.dol_escape_htmltag($channel['target']).'</span>';
+	$line .= $channel['live_url'] !== '' ? ' · <a href="'.dol_escape_htmltag($channel['live_url']).'" target="_blank" rel="noopener noreferrer">'.$langs->trans('VereineChannelLive').'</a>' : '';
+	$line .= !$channel['public'] ? ' <span class="opacitymedium small">('.$langs->trans('VereineChannelNotPublic').')</span>' : '';
+	$channelLines[] = '<div data-channel="'.$channel['id'].'">'.$line.'</div>';
+}
+$rows[] = array($langs->trans('VereineChannels'), $channelLines ? implode('', $channelLines) : $notSet);
 
 foreach ($rows as $row) {
 	print '<tr class="oddeven"><td class="titlefield tdtop">'.$row[0].'</td><td>'.$row[1].'</td></tr>';

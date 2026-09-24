@@ -49,7 +49,10 @@ class VereineIdentityRules
 	const CAPABILITY_VOTES = 'votes';
 
 	/** Every ability that can be switched on. Nothing is on until somebody switches it on. */
-	const CAPABILITIES = array('consents', 'applications', 'documents', 'votes');
+	/** Link the person's own accounts at Discord, Twitch and the like (#233). */
+	const CAPABILITY_ACCOUNTS = 'accounts';
+
+	const CAPABILITIES = array('consents', 'applications', 'documents', 'votes', 'accounts');
 
 	/** The binding came from a one-time invitation the person used. */
 	const PROOF_INVITATION = 'invitation';

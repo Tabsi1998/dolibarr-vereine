@@ -433,7 +433,16 @@ class VereineMemberForm
 				$pdf->Ln(7);
 			}
 		}
-		if ($settings['required'] || in_array(true, $settings['extra'], true)) {
+		// Accounts at Discord, Twitch and the like the association asks for, with what the member has (#233).
+		require_once __DIR__.'/vereinesocial.class.php';
+		$social = new VereineSocial($this->db);
+		$networks = $social->networks();
+		$askedAccounts = $social->asked();
+		$have = $member !== null && is_array($member->socialnetworks) ? $member->socialnetworks : array();
+		foreach ($askedAccounts as $network => $how) {
+			$field('account_'.$network, $networks[$network]['label'], isset($have[$network]) ? (string) $have[$network] : '', $how === VereineSocialRules::REQUIRED);
+		}
+		if ($settings['required'] || in_array(true, $settings['extra'], true) || in_array(VereineSocialRules::REQUIRED, $askedAccounts, true)) {
 			$pdf->SetFont($font, 'I', 8);
 			$pdf->MultiCell(0, 4, $outputlangs->transnoentitiesnoconv('VereineApplicationRequiredHint'), 0, 'L');
 		}

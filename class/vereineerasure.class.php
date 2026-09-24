@@ -161,7 +161,8 @@ class VereineErasure
 		$p = MAIN_DB_PREFIX;
 		$found = array();
 		$found['identities'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_identity WHERE entity = ".$entity." AND fk_adherent = ".$id)
-			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_identity_invite WHERE entity = ".$entity." AND fk_adherent = ".$id), 'last' => '', 'due' => 0);
+			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_identity_invite WHERE entity = ".$entity." AND fk_adherent = ".$id)
+			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_social WHERE entity = ".$entity." AND fk_adherent = ".$id), 'last' => '', 'due' => 0);
 		$contact = 0;
 		foreach (array('societe', 'address', 'zip', 'town', 'email', 'url', 'phone', 'phone_perso', 'phone_mobile', 'birth', 'photo', 'note_public', 'note_private') as $field) {
 			$contact += !empty($member->$field) ? 1 : 0;
@@ -247,7 +248,8 @@ class VereineErasure
 					}
 				}
 				$changed = $this->change("DELETE FROM ".$p."vereine_identity WHERE entity = ".$entity." AND fk_adherent = ".$id)
-					+ $this->change("DELETE FROM ".$p."vereine_identity_invite WHERE entity = ".$entity." AND fk_adherent = ".$id);
+					+ $this->change("DELETE FROM ".$p."vereine_identity_invite WHERE entity = ".$entity." AND fk_adherent = ".$id)
+					+ $this->change("DELETE FROM ".$p."vereine_social WHERE entity = ".$entity." AND fk_adherent = ".$id);
 			} elseif ($kind === 'contact') {
 				$changed = $this->change("UPDATE ".$p."adherent SET societe = NULL, address = NULL, zip = NULL, town = NULL, state_id = NULL, email = NULL, url = NULL, socialnetworks = NULL, phone = NULL, phone_perso = NULL, phone_mobile = NULL, birth = NULL, photo = NULL, note_public = NULL, note_private = NULL, gender = NULL WHERE rowid = ".$id) < 0 ? -1 : $preview['plan']['contact']['count'];
 				if ($changed >= 0 && $member->deleteExtraFields() < 0) {

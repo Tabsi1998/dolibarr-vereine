@@ -86,6 +86,23 @@ Einrichtung des Moduls.
 
 Jedes Textfeld ist ein String, leer, wenn nicht eingetragen – nie `null`.
 
+`channels` listet die **öffentlichen Kanäle** des Vereins in der Reihenfolge, die er unter
+*Einrichtung > Vereine > Kanäle und Konten* festlegt, auch mehrere je Netzwerk:
+
+```json
+"channels": [
+  {"network": "twitch", "network_label": "Twitch", "label": "Hauptstream", "target": "lionsquad",
+   "url": "https://www.twitch.tv/lionsquad", "stream": true, "live_url": "https://www.twitch.tv/lionsquad"},
+  {"network": "youtube", "network_label": "Youtube", "label": "Livestream", "target": "lionsquad",
+   "url": "https://www.youtube.com/@lionsquad", "stream": true, "live_url": "https://www.youtube.com/@lionsquad/live"},
+  {"network": "discord", "network_label": "Discord", "label": "Community", "target": "https://discord.gg/lionsquad",
+   "url": "https://discord.gg/lionsquad", "stream": false, "live_url": ""}
+]
+```
+
+`url` ist leer, wenn aus einem Namen keine Adresse zu bauen ist (etwa ein Discord-Name ohne Einladung).
+`live_url` gibt es für Kanäle, auf denen gestreamt wird, bei Twitch, YouTube und Kick.
+
 ## GET /vereine/taxprofiles
 
 Die Steuerprofile des Vereins: Sphäre und USt-Behandlung mit Rechtsgrundlage,
@@ -372,6 +389,11 @@ des Vereins fragt. Braucht dasselbe Recht wie das Senden eines Antrags.
 
 `POST /vereine/applications` lehnt einen Antrag mit **derselben** Liste ab: fehlt ein
 Pflichtfeld, kommt `400` mit z. B. `address is required` oder `fields.gamertag is required`.
+`accounts` nennt die Konten, die der Antrag abfragt, etwa
+`[{"network": "discord", "label": "Discord", "required": true}]`. Sie gehen als
+`"accounts": {"discord": "name#1234", "twitch": "name_tv"}` mit und landen in Dolibarrs eigenem Feld am
+Mitglied; ein Netzwerk, das der Antrag nicht abfragt, wird abgewiesen (`accounts.x is not asked by the form`).
+
 Eigene Felder gehen als `"fields": {"gamertag": "…", "spielstaerke": "profi"}` mit und landen am
 Mitglied: eine Mehrfachauswahl als Liste von Kürzeln, Ja/Nein als `true`/`false`, ein Datum als
 `JJJJ-MM-TT`. Ein Feld, das der Antrag nicht kennt, oder ein Wert, der nicht zur Art passt, wird
@@ -794,6 +816,31 @@ abgelaufenem Code und wenn es für die Kennung bei dieser Anwendung schon eine B
 ### GET /vereine/me/application
 
 `subject`, braucht die Fähigkeit `applications`. Der Stand des eigenen Beitrittsantrags.
+
+### GET /vereine/me/accounts
+
+`subject`, braucht die Fähigkeit `accounts`. Die Konten der Person: jedes Netzwerk, das der Verein
+abfragt, und jedes weitere, bei dem sie einen Namen hat.
+
+```json
+[{"network": "discord", "label": "Discord", "asked": "required", "handle": "lion#1234", "url": "",
+  "confirmed": false, "confirmed_at": "", "client": ""},
+ {"network": "twitch", "label": "Twitch", "asked": "optional", "handle": "lion_tv",
+  "url": "https://www.twitch.tv/lion_tv", "confirmed": true, "confirmed_at": "2026-09-24T18:02:11+00:00", "client": "app"}]
+```
+
+### PUT /vereine/me/accounts/{network}
+
+`subject`, Fähigkeit `accounts`, Body `{"handle": "lion_tv", "confirmed": true, "external_id": "98765"}`.
+Setzt den Namen. `confirmed: true` heißt: Die Anwendung hat das Konto beim Netzwerk geprüft, etwa
+nach dem Login mit Twitch oder Discord (OAuth). `external_id` ist die Kennung des Kontos beim Netzwerk.
+Der Verein sieht das Konto als bestätigt, bis jemand den Namen ändert. Ohne `confirmed` fällt eine
+ältere Bestätigung weg. Antwort: die Konten danach. Ein Netzwerk, das Dolibarr nicht kennt, ergibt 400.
+
+### DELETE /vereine/me/accounts/{network}
+
+`subject`, Fähigkeit `accounts`. Entfernt Namen und Bestätigung, etwa wenn die Person das Konto in
+der App löst. Antwort: die Konten danach.
 
 ## Signierte Webhooks
 

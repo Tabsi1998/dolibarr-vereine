@@ -76,6 +76,7 @@ require_once $root.'/class/vereinedisclosurerules.class.php';
 require_once $root.'/class/vereinedisclosure.class.php';
 require_once $root.'/class/vereineerasurerules.class.php';
 require_once $root.'/class/vereinearrearrules.class.php';
+require_once $root.'/class/vereinesocialrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -200,9 +201,9 @@ same('Landespolizeidirektion Tirol', $organization['authority'], 'authority for 
 same(true, $organization['nonprofit'], 'non-profit flag');
 same(1, $organization['fiscal_year_start_month'], 'an unset fiscal month means January');
 same(
-	array('country_profile', 'country_profile_complete', 'name', 'register', 'authority', 'address', 'email', 'phone', 'url', 'founded', 'nonprofit', 'purpose', 'fiscal_year_start_month'),
+	array('country_profile', 'country_profile_complete', 'name', 'register', 'authority', 'address', 'email', 'phone', 'url', 'founded', 'nonprofit', 'purpose', 'fiscal_year_start_month', 'channels'),
 	array_keys($organization),
-	'API version 1 fields and their order'
+	'API version 1 fields and their order, channels added at the end'
 );
 
 $july = VereineOrganization::build($settings, array_merge($company, array('fiscal_month_start' => '7')));
@@ -1804,7 +1805,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -2881,6 +2882,40 @@ same('settled', VereineArrearRules::decide(array('state' => 'settled', 'revision
 	'reopened, the board hears of it only when the last step comes again');
 same('no_arrear', VereineArrearRules::decide(null, array('type' => 'MAHNWESEN_CASE_CLOSED', 'revision' => 1), $fee)['why'], 'closing a case the board never had changes nothing');
 same('other_event', VereineArrearRules::decide(null, array('type' => 'MAHNWESEN_NOTICE_SENT', 'revision' => 1), $fee)['why'], 'a notice sent is no matter for the board');
+
+// ------------------------------------------------------------- channels and accounts (#233)
+
+same(array('discord' => 'required', 'twitch' => 'optional'), VereineSocialRules::asked('{"discord":"required","twitch":"optional","gone":"optional","youtube":"maybe"}', array('discord', 'twitch', 'youtube')),
+	'asked networks: known ones asked in a known way only');
+expect(VereineSocialRules::networkCode('steam') && VereineSocialRules::networkCode('riot_id') && !VereineSocialRules::networkCode('Steam') && !VereineSocialRules::networkCode('1up'),
+	'codes of own networks: small letters, digits, underscore, a letter first');
+same('Lion#1234', VereineSocialRules::handle(' Lion#1234 '), 'a name is trimmed');
+same(null, VereineSocialRules::handle('<script>'), 'no markup in a name');
+same(null, VereineSocialRules::handle(array('x')), 'a name is text');
+$sent = VereineSocialRules::fromApplication(array('twitch' => 'lion_tv', 'steam' => 'x'), array('discord' => 'required', 'twitch' => 'optional'));
+same(array('twitch' => 'lion_tv'), $sent['accounts'], 'only accounts the form asks for');
+same(array('accounts.steam is not asked by the form', 'accounts.discord is required'), $sent['errors'], 'an unknown network and a missing required one are refused');
+same('https://www.twitch.tv/lionsquad', VereineSocialRules::link('twitch', 'lionsquad', '{socialid}'), 'a Twitch name becomes its address');
+same('https://www.youtube.com/@lionsquad', VereineSocialRules::link('youtube', 'lionsquad', 'https://www.youtube.com/{socialid}'), 'a YouTube name gets its @');
+same('https://discord.gg/abc', VereineSocialRules::link('discord', 'https://discord.gg/abc', '{socialid}'), 'an address stays as it is');
+same('', VereineSocialRules::link('discord', 'LionSquad', '{socialid}'), 'a Discord name has no address');
+same('https://steamcommunity.com/id/lion', VereineSocialRules::link('steam', 'lion', 'https://steamcommunity.com/id/{socialid}'), 'an own network with its address');
+same('https://www.youtube.com/@lionsquad/live', VereineSocialRules::liveUrl('youtube', 'https://www.youtube.com/@lionsquad/'), 'the live page of a YouTube channel');
+same('https://www.twitch.tv/lionsquad', VereineSocialRules::liveUrl('twitch', 'https://www.twitch.tv/lionsquad'), 'a Twitch channel is its own live page');
+same('', VereineSocialRules::liveUrl('discord', 'https://discord.gg/abc'), 'Discord has no live page');
+$channel = VereineSocialRules::checkChannel(array('network' => 'twitch', 'label' => 'Hauptstream', 'target' => 'lionsquad', 'stream' => '1', 'position' => '10'), array('twitch'));
+same(array(), $channel['errors'], 'a channel with network, label and name');
+same(array(true, false, 10), array($channel['channel']['stream'], $channel['channel']['public'], $channel['channel']['position']), 'streams, not public unless ticked, its place');
+same(array('VereineChannelErrorNetwork', 'VereineChannelErrorLabel', 'VereineChannelErrorTarget'),
+	VereineSocialRules::checkChannel(array('network' => 'myspace', 'label' => '', 'target' => 'javascript://x'), array('twitch'))['errors'], 'unknown network, no label, a strange address');
+$sorted = VereineSocialRules::sortChannels(array(
+	array('network' => 'youtube', 'position' => 20, 'label' => 'Livestream'),
+	array('network' => 'twitch', 'position' => 10, 'label' => 'Hauptstream'),
+	array('network' => 'twitch', 'position' => 20, 'label' => 'CS2'),
+	array('network' => 'discord', 'position' => 30, 'label' => 'Server')), array('discord', 'twitch', 'youtube'));
+same(array('Hauptstream', 'CS2', 'Livestream', 'Server'), array_column($sorted, 'label'), 'the order of the association first, then the network');
+expect(VereineSocialRules::stillConfirmed('LionTV', ' liontv ') && !VereineSocialRules::stillConfirmed('LionTV', 'LionTV2') && !VereineSocialRules::stillConfirmed('', ''),
+	'a confirmation holds for the name it confirmed, whatever the case');
 
 // ------------------------------------------------------------------- result
 

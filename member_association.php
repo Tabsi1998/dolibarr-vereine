@@ -73,6 +73,7 @@ require_once __DIR__.'/class/vereineresolutions.class.php';
 require_once __DIR__.'/class/vereinedisclosure.class.php';
 require_once __DIR__.'/class/vereineerasure.class.php';
 require_once __DIR__.'/class/vereinearrears.class.php';
+require_once __DIR__.'/class/vereinesocial.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('companies', 'members', 'bills', 'categories', 'vereine@vereine'));
@@ -608,6 +609,26 @@ foreach ($memberResolutions as $entry) {
 	print '<td>'.$langs->trans($entry['passed'] ? 'VereineResolutionPassed' : 'VereineResolutionRejected').'</td></tr>';
 }
 print '</table></div><br>';
+
+// Accounts at Discord, Twitch and the like, and whether an application confirmed them (#233).
+$memberAccounts = (new VereineSocial($db))->accounts($object);
+if ($memberAccounts) {
+	print load_fiche_titre($langs->trans('VereineSocialMemberTitle'), '', '', 0, 'vereinesocial');
+	print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineSocialMemberHowTo').'</div>';
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+	print '<tr class="liste_titre"><td>'.$langs->trans('VereineChannelNetwork').'</td><td>'.$langs->trans('VereineSocialName').'</td><td>'.$langs->trans('VereineSocialState').'</td></tr>';
+	foreach ($memberAccounts as $account) {
+		print '<tr class="oddeven" data-social-account="'.dol_escape_htmltag($account['network']).'" data-social-confirmed="'.($account['confirmed'] ? 1 : 0).'">';
+		print '<td>'.dol_escape_htmltag($account['label']).($account['asked'] === VereineSocialRules::REQUIRED ? ' *' : '').'</td>';
+		print '<td>'.($account['url'] !== '' ? '<a href="'.dol_escape_htmltag($account['url']).'" target="_blank" rel="noopener noreferrer">'.dol_escape_htmltag($account['handle']).'</a>' : dol_escape_htmltag($account['handle'])).'</td>';
+		if ($account['confirmed']) {
+			print '<td>'.dol_escape_htmltag($langs->transnoentities('VereineSocialConfirmed', $account['client'], vereineFormatDay(substr($account['confirmed_at'], 0, 10)))).'</td></tr>';
+		} else {
+			print '<td><span class="opacitymedium">'.$langs->trans($account['handle'] !== '' ? 'VereineSocialUnconfirmed' : 'VereineSocialMissing').'</span></td></tr>';
+		}
+	}
+	print '</table></div><br>';
+}
 
 // Fee arrears the Mahnwesen module reported (#17): what the board has to look at, never a decision.
 $memberArrears = (new VereineArrears($db))->forMember((int) $object->id);
