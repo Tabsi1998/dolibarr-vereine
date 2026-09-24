@@ -423,7 +423,8 @@ def enable(stack: Stack) -> str:
     rights = stack.sql("SELECT id, perms, subperms FROM llx_rights_def WHERE module = 'vereine' AND entity = 1 ORDER BY id")
     expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"], ["49210003", "website", "read"],
                       ["49210004", "application", "write"], ["49210005", "sync", "read"],
-                      ["49210006", "identity", "use"], ["49210007", "donation", "write"]], f"rights after enabling: {rights}")
+                      ["49210006", "identity", "use"], ["49210007", "donation", "write"],
+                      ["49210008", "members", "act"], ["49210009", "members", "vote"]], f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_account", "/vereine/account.php"],
                     ["members", "vereine_application", "/vereine/application.php"],
