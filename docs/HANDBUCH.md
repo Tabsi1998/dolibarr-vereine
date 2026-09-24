@@ -117,7 +117,14 @@ und, wenn es eine gibt, die Kontaktperson für Datenschutz.
 | Freiwilligenpauschale | Einsätze abrechnen und auszahlen | gesetzliche Pflicht (Art. 6 Abs. 1 lit. c DSGVO) | Einsätze, Beträge; Helferinnen und Helfer | Kassa, Rechnungsprüfer | sieben Jahre ab Ende des Jahres |
 | Spendenmeldung | Spenden an das Finanzamt melden | gesetzliche Pflicht (Art. 6 Abs. 1 lit. c DSGVO, § 18 Abs. 8 EStG) | Name, Geburtsdatum (verschlüsselt), vbPK, Beträge; Spender | Finanzamt über FinanzOnline, Stammzahlenregister | sieben Jahre ab Ende des Jahres der letzten Spende |
 | Beitragsrückstände (mit Mahnwesen) | Vorstand entscheidet über säumige Mitglieder | Mitgliedschaft nach den Statuten (Art. 6 Abs. 1 lit. b DSGVO) | Rechnung, Mahnstufe, Stand; Mitglieder | Vorstand | drei Jahre nach dem Austritt |
-| Website und Apps (wenn angebunden) | Mitglieder sehen ihre eigenen Daten, Anträge kommen herein | Mitgliedschaft (Art. 6 Abs. 1 lit. b DSGVO) | was die Rechte des technischen Benutzers erlauben | die angebundene Anwendung und ihr Betreiber | Verbindung bis zum Austritt |
+| Ehrungen und Jubiläen | Ehrungen, Jubiläen, Ehrenmitgliedschaft; Geburtstage | Mitgliedschaft nach den Statuten (Art. 6 Abs. 1 lit. b DSGVO); die Geburtstagsliste nur mit Einwilligung (lit. a) | Art der Ehrung, Jahre, Tag; Mitglieder | Vorstand | Vereinsunterlagen |
+| Mitgliederstatistik | Meldungen an Dachverbände und Fördergeber | berechtigtes Interesse des Vereins (Art. 6 Abs. 1 lit. f DSGVO) | nur Zahlen je Mitgliedsart, Geschlecht, Altersgruppe und Kategorie, keine Namen | Dachverband | – |
+| Geräte und Ausleihe | Vereinsgeräte ausgeben, zurücknehmen, an die Rückgabe erinnern | Mitgliedschaft, Leihe (Art. 6 Abs. 1 lit. b DSGVO) | Gerät, Tag, Zustand bei Ausgabe und Rückgabe; Mitglieder | Vorstand, Gerätewart | zurückgegebene Ausleihen ein Jahr nach dem Austritt; offene bleiben, solange der Verein das Gerät zurückfordert |
+| Veröffentlichte Dokumente | Protokolle, Beschlüsse und Berichte für Mitglieder oder die Öffentlichkeit, persönliche Bestätigungen für eine Person | Statuten und Vereinsgesetz (Art. 6 Abs. 1 lit. b und c DSGVO) | die veröffentlichte Fassung, auch eine gekürzte; bei persönlichen Dokumenten die Person | Mitglieder, Öffentlichkeit oder nur die Person | bis zum Zurückziehen; die Vereinsakte bleibt |
+| Abstimmungen in der App | Stimmen in der Generalversammlung über Apps oder Stimmzettel, genau einmal je Stimmrecht | Statuten und Vereinsgesetz (Art. 6 Abs. 1 lit. b DSGVO) | Stimmrecht, Vollmacht, offene Stimme, Weg; Mitglieder der Versammlung. Der Nachweis enthält nur Summen | Versammlungsleitung | Vereinsunterlagen |
+| Veranstaltungen und Helferdienste | Dienste einteilen, auch auf Anfrage aus der App | Mitgliedschaft (Art. 6 Abs. 1 lit. b DSGVO) | Dienst, Stand, geleistete Stunden; Helferinnen und Helfer | Vorstand, Veranstaltungsleitung | ein Jahr nach dem Austritt; für die Freiwilligenpauschale sieben Jahre |
+| Eigene Daten über App oder Portal | Mitglieder berichtigen Kontaktdaten und erklären den Austritt | Mitgliedschaft und Recht auf Berichtigung (Art. 6 Abs. 1 lit. b, Art. 16 DSGVO) | beantragte Änderung, Stand, Grund einer Ablehnung; Mitglieder | Vorstand | drei Jahre nach dem Austritt |
+| Website, Apps und Webportal (wenn angebunden) | Mitglieder sehen ihre eigenen Daten, Anträge kommen herein | Mitgliedschaft (Art. 6 Abs. 1 lit. b DSGVO) | was die Rechte des technischen Benutzers bzw. die eingeschalteten Dienste des Portals erlauben | die angebundene Anwendung und ihr Betreiber; das Portal läuft in eurem Dolibarr | Verbindung bis zum Austritt; das Portal-Konto sperrt ihr beim Austritt |
 
 Die Fristen stehen im Modul unter *Einstellungen > Datenschutz*. Ändert ihr dort eine Frist, ändert
 sie auch hier.
@@ -169,6 +176,26 @@ sie braucht, und einen eigenen API-Schlüssel (siehe README). Weitere Punkte:
 - **Vereinbarung mit dem Betreiber**: Betreibt jemand anderer die Anwendung, braucht ihr mit ihm in
   der Regel eine Vereinbarung über die Auftragsverarbeitung (Art. 28 DSGVO). Darin steht auch, wie er
   löscht.
+
+### Webportal von Dolibarr
+
+Ab Dolibarr 23 können Mitglieder im **Webportal** von Dolibarr die Seite „Mein Verein“ sehen: Dokumente,
+Sitzungen mit Zu- oder Absage und Abstimmungen. Was dort erscheint, schaltet ihr unter *Einrichtung >
+Externe Identitäten > Webportal von Dolibarr* je Dienst ein. Es gelten dieselben Regeln wie für eine App:
+nur die eigenen Dokumente, nur die eigenen Stimmrechte, und eine Stimme zählt nur einmal, egal ob über
+App, Portal oder Stimmzettel.
+
+So richtet ihr es ein:
+
+1. Das Modul „Webportal“ von Dolibarr einschalten und dort eine Benutzerin bzw. einen Benutzer wählen, als
+   der das Portal in Dolibarr handelt.
+2. Für jedes Mitglied, das das Portal nutzen soll, beim verknüpften Geschäftspartner ein Portal-Konto
+   anlegen (Website-Konten, Seite „dolibarr_portal“).
+3. Hier die gewünschten Dienste einschalten.
+
+Tritt jemand aus, sperrt ihr das Portal-Konto. Mitgliederdokumente sieht ein ehemaliges Mitglied ohnehin
+nicht mehr; persönliche Dokumente nur, solange sie veröffentlicht sind. In Dolibarr 22 bietet das
+Webportal keinen Platz für Seiten von Modulen; dort nutzen Mitglieder eine App über die API.
 
 ### Sicherung und Wiederherstellung
 
