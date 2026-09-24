@@ -3026,7 +3026,7 @@
       "put": {
         "operationId": "putMyWebsiteProfile",
         "summary": "Eigenes Website-Profil speichern",
-        "description": "Die gesendeten Felder ersetzen die gespeicherten; Spiele und Plattformen als Liste oder Text.",
+        "description": "Nur gesendete Felder ändern sich, die anderen bleiben; Spiele und Plattformen als Liste (bevorzugt) oder Text mit Komma/Zeile. Zu lang: 400 mit dem Feldnamen. Unabhängig von der Einwilligung.",
         "parameters": [
           {
             "name": "subject",
@@ -3066,7 +3066,8 @@
                       "type": "string"
                     }
                   }
-                }
+                },
+                "additionalProperties": false
               }
             }
           }

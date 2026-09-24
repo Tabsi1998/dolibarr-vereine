@@ -52,16 +52,52 @@ class VereineWebsiteProfileRules
 	{
 		$out = array();
 		foreach (self::FIELDS as $field => $length) {
-			// A list may come as an array from an application or as text from a form (#260).
-			$raw = isset($entered[$field]) ? $entered[$field] : '';
-			$raw = is_array($raw) ? implode(', ', array_filter($raw, 'is_scalar')) : $raw;
-			$value = is_scalar($raw) ? trim((string) $raw) : '';
+			$value = isset($entered[$field]) ? trim((string) $entered[$field]) : '';
 			if (in_array($field, self::LISTS, true)) {
 				$value = implode(', ', self::splitList($value));
 			}
 			$out[$field] = mb_substr($value, 0, $length);
 		}
 		return $out;
+	}
+
+	/**
+	 * A change the member sends: only the fields sent change, the others stay; a field longer than it may be is refused
+	 * with its name, never cut (#260).
+	 *
+	 * @param mixed                $sent    Field => value as sent; lists as array or text
+	 * @param array<string,string> $current The stored profile
+	 * @return array{fields:array<string,string>,errors:string[]}
+	 */
+	public static function change($sent, array $current)
+	{
+		$sent = is_array($sent) ? $sent : array();
+		$fields = array();
+		$errors = array();
+		foreach (self::FIELDS as $field => $length) {
+			$fields[$field] = isset($current[$field]) ? (string) $current[$field] : '';
+			if (!array_key_exists($field, $sent)) {
+				continue;
+			}
+			$raw = $sent[$field];
+			if (is_array($raw) && in_array($field, self::LISTS, true) && count(array_filter($raw, 'is_scalar')) === count($raw)) {
+				$raw = implode("\n", $raw);
+			}
+			if (!is_scalar($raw) && $raw !== null) {
+				$errors[] = $field.' must be text'.(in_array($field, self::LISTS, true) ? ' or a list of texts' : '');
+				continue;
+			}
+			$value = trim((string) $raw);
+			if (in_array($field, self::LISTS, true)) {
+				$value = implode(', ', self::splitList($value));
+			}
+			if (mb_strlen($value, 'UTF-8') > $length) {
+				$errors[] = $field.' may have at most '.$length.' characters';
+				continue;
+			}
+			$fields[$field] = $value;
+		}
+		return array('fields' => $fields, 'errors' => $errors);
 	}
 
 	/**

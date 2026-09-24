@@ -1189,8 +1189,9 @@ class Vereine extends DolibarrApi
 	/**
 	 * Keep the own website profile of the person the caller acts for
 	 *
-	 * The fields sent replace the kept ones; games and platforms as a list or as text. Cut to their
-	 * length and tidied as on the member card; the website learns of it through the change feed.
+	 * Only the fields sent change, the others stay; games and platforms as a list or as text. A field
+	 * longer than it may be is refused with its name. Kept whether or not the consent for the website
+	 * is given; the website learns of it through the change feed.
 	 *
 	 * @param string $subject      How the application calls the person
 	 * @param array  $request_data gamertag, bio, games, platforms
@@ -1198,7 +1199,7 @@ class Vereine extends DolibarrApi
 	 *
 	 * @url PUT me/website-profile
 	 *
-	 * @throws RestException 400 subject missing
+	 * @throws RestException 400 subject missing, or a field too long or no text
 	 * @throws RestException 403 Not allowed, no binding or the ability is off
 	 * @throws RestException 501 Module not enabled
 	 */
@@ -1208,7 +1209,11 @@ class Vereine extends DolibarrApi
 		$member = $this->profileMember((string) $subject);
 		dol_include_once('/vereine/class/vereinewebsiteprofiles.class.php');
 		$profiles = new VereineWebsiteProfiles($this->db);
-		if ($profiles->save($member, is_array($request_data) ? $request_data : array(), DolibarrApiAccess::$user) < 0) {
+		$result = $profiles->change($member, $request_data, DolibarrApiAccess::$user);
+		if ($result === 0) {
+			throw new RestException(400, implode('; ', $profiles->errors));
+		}
+		if ($result < 0) {
 			dol_syslog(__METHOD__.' '.$profiles->error, LOG_ERR);
 			throw new RestException(500, 'The profile could not be kept');
 		}

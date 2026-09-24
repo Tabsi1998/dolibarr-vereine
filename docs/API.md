@@ -982,9 +982,13 @@ fehlt – dann zeigt die Website es nur nicht:
 
 ### PUT /vereine/me/website-profile
 
-`subject`, Fähigkeit `profile`, Body mit `gamertag`, `bio`, `games`, `platforms` (Listen als Array oder
-Text). Die gesendeten Felder ersetzen die gespeicherten, gekürzt und aufgeräumt wie auf der
-Mitgliedskarte; Antwort wie `GET`. Die Website erfährt es über Änderungsfeed und Webhooks.
+`subject`, Fähigkeit `profile`, Body mit einem oder mehreren von `gamertag` (höchstens 40 Zeichen),
+`bio` (2000), `games`, `platforms` (je 255, als Array bevorzugt, Text mit Komma oder Zeilenumbruch geht
+auch). **Nur die gesendeten Felder ändern sich**, die anderen bleiben. Ein zu langes Feld gibt `400` mit
+seinem Namen, statt es abzuschneiden. Gespeichert wird unabhängig von der Einwilligung – wer sein Profil
+vorbereitet, stimmt der Nennung auf der Website damit nicht zu. Antwort wie `GET`, Listen immer als Array.
+Der Vorstand sieht dieselben Felder auf der Mitgliedskarte; die Website erfährt die Änderung über
+Änderungsfeed und Webhooks.
 
 ### GET /vereine/me/ballots
 

@@ -42,6 +42,11 @@ class VereineWebsiteProfiles
 	public $error = '';
 
 	/**
+	 * @var string[] Why a change was refused
+	 */
+	public $errors = array();
+
+	/**
 	 * @param DoliDB $db Database
 	 */
 	public function __construct($db)
@@ -235,6 +240,25 @@ class VereineWebsiteProfiles
 		$view = VereineWebsiteProfileRules::view($this->load((int) $member->id), null);
 		unset($view['photo']);
 		return array('consent' => self::consentCode(), 'given' => $this->consentGiven((int) $member->id) === true) + $view;
+	}
+
+	/**
+	 * Keep a change the member makes to the own profile: the fields sent, checked; the others stay (#260).
+	 *
+	 * @param Adherent $member Member
+	 * @param mixed    $sent   Field => value as sent
+	 * @param User     $user   Who acts
+	 * @return int 1 when kept, 0 when refused (see errors), -1 on error
+	 */
+	public function change($member, $sent, $user)
+	{
+		$this->errors = array();
+		$checked = VereineWebsiteProfileRules::change($sent, $this->load((int) $member->id));
+		if ($checked['errors']) {
+			$this->errors = $checked['errors'];
+			return 0;
+		}
+		return $this->save($member, $checked['fields'], $user);
 	}
 
 	/**

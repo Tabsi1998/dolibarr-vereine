@@ -134,7 +134,7 @@ class VereinePortalController extends Controller
 			foreach (array_keys(VereineWebsiteProfileRules::FIELDS) as $field) {
 				$fields[$field] = GETPOST($field, 'alphanohtml');
 			}
-			$done = (new VereineWebsiteProfiles($this->db))->save($this->member(), $fields, $this->actor()) > 0 ? '' : $langs->trans('VereinePortalRefused');
+			$done = (new VereineWebsiteProfiles($this->db))->change($this->member(), $fields, $this->actor()) > 0 ? '' : $langs->trans('VereinePortalRefused');
 		} elseif ($action === 'exit' && $this->allows('profile') && GETPOST('confirm', 'aZ09') === '1') {
 			dol_include_once('/vereine/class/vereineprofiles.class.php');
 			$profiles = new VereineProfiles($this->db);

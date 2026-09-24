@@ -6195,7 +6195,13 @@ def profileapi(stack: Stack) -> str:
     status, own = stack.api("vereine/me/website-profile?subject=sub-profile", client, method="PUT",
                             data={"gamertag": "AppLöwe", "bio": "Aus der App.", "games": ["TFT", "Rocket League"], "platforms": "PC"})
     kept = stack.sql(f"SELECT gamertag, games, platforms FROM llx_vereine_member_profile WHERE fk_adherent = {member}")
-    expect(status == 200 and own["games"] == ["TFT", "Rocket League"] and kept == [["AppLöwe", "TFT, Rocket League", "PC"]], f"kept through the app: {kept}")
+    expect(status == 200 and own["games"] == ["TFT", "Rocket League"] and own["platforms"] == ["PC"] and kept == [["AppLöwe", "TFT, Rocket League", "PC"]],
+           f"kept through the app: {kept}")
+    status, own = stack.api("vereine/me/website-profile?subject=sub-profile", client, method="PUT", data={"bio": "Nur der Text neu."})
+    expect(status == 200 and own["gamertag"] == "AppLöwe" and own["bio"] == "Nur der Text neu.", f"a change of one field: HTTP {status} {own}")
+    status, refused = stack.api("vereine/me/website-profile?subject=sub-profile", client, method="PUT", data={"gamertag": "x" * 41})
+    expect(status == 400 and "gamertag" in str(refused) and stack.value(f"SELECT gamertag FROM llx_vereine_member_profile WHERE fk_adherent = {member}") == "AppLöwe",
+           f"a gamertag too long: HTTP {status} {refused}")
 
     # A new e-mail address waits for the board; the board rejects it with a word for the member and a note of its own.
     old_email = stack.value(f"SELECT email FROM llx_adherent WHERE rowid = {member}")

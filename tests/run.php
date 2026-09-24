@@ -2998,9 +2998,12 @@ same(array('counts' => array('yes' => 2, 'no' => 1, 'abstain' => 1), 'valid' => 
 
 // ------------------------------------------------------------- the own website profile (#260)
 
-same(array('gamertag' => 'Löwe', 'bio' => 'Hallo', 'games' => 'TFT, Rocket League', 'platforms' => 'PC'),
-	VereineWebsiteProfileRules::normalize(array('gamertag' => ' Löwe ', 'bio' => 'Hallo', 'games' => array('TFT', 'Rocket League', 'TFT'), 'platforms' => 'PC')),
-	'a list from an application as an array, tidied like text from a form');
+$stored = array('gamertag' => 'Alt', 'bio' => 'Bleibt', 'games' => 'Schach', 'platforms' => 'PC');
+$changed = VereineWebsiteProfileRules::change(array('gamertag' => ' Löwe ', 'games' => array('TFT', 'Rocket League', 'TFT'), 'platforms' => "PS5\nPC"), $stored);
+same(array(array(), array('gamertag' => 'Löwe', 'bio' => 'Bleibt', 'games' => 'TFT, Rocket League', 'platforms' => 'PS5, PC')), array($changed['errors'], $changed['fields']),
+	'only the fields sent change; a list as array or as lines, tidied');
+same(array('gamertag may have at most 40 characters', 'bio must be text'), VereineWebsiteProfileRules::change(array('gamertag' => str_repeat('x', 41),
+	'bio' => array('a' => array())), $stored)['errors'], 'too long is refused with its name, never cut');
 
 // ------------------------------------------------------------- the web portal (#25)
 
