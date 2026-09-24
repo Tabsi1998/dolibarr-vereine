@@ -16,6 +16,12 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Turniersieg) oder Ehrenmitgliedschaft. Ein Ehrenmitglied wechselt in die Mitgliedsart, die der Verein
   dafür wählt, etwa eine ohne Beitrag. Zu jeder Ehrung gibt es eine **Urkunde als PDF** mit Linien für
   die Unterschriften; der Reiter *Verein* des Mitglieds nennt seine Ehrungen.
+- **Sitzungen in der App** (#159): Eine App mit der neuen Fähigkeit *meetings* zeigt der Person jede
+  Sitzung, zu der sie eingeladen ist – nie eine Vorstandssitzung nur wegen der Mitgliedschaft –, mit
+  Tagesordnung, Ort oder Zugang, Stimmrecht und Antragsfrist. Die Person sagt zu oder ab (keine
+  Anwesenheit, keine Stimme) und stellt Anträge zur Tagesordnung einer Generalversammlung: genau einmal,
+  nach der Frist der Statuten als verspätet gekennzeichnet. Auf der Sitzung in Dolibarr siehst du die
+  Rückmeldungen und nimmst Anträge an (dann stehen sie auf der Tagesordnung) oder lehnst sie ab.
 - **Statuten über die API** (#158): Unter *Einrichtung > Statuten* gibst du die Statuten für Mitglieder
   oder die Öffentlichkeit frei (Standard: niemand). `GET /vereine/statutes` (Website) und
   `GET /vereine/me/statutes` (App) nennen jede beschlossene Fassung mit ihrem Stand am Stichtag

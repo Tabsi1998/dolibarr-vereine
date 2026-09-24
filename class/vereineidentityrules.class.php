@@ -52,7 +52,10 @@ class VereineIdentityRules
 	/** Link the person's own accounts at Discord, Twitch and the like (#233). */
 	const CAPABILITY_ACCOUNTS = 'accounts';
 
-	const CAPABILITIES = array('consents', 'applications', 'documents', 'votes', 'accounts');
+	/** The person's own meetings: see them, answer, send a motion (#159). */
+	const CAPABILITY_MEETINGS = 'meetings';
+
+	const CAPABILITIES = array('consents', 'applications', 'documents', 'votes', 'accounts', 'meetings');
 
 	/** The binding came from a one-time invitation the person used. */
 	const PROOF_INVITATION = 'invitation';

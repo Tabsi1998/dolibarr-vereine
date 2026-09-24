@@ -177,7 +177,9 @@ class VereineErasure
 			'last' => $this->day("SELECT MAX(m.meeting_day) as v FROM ".$p."vereine_meeting_invitation as i INNER JOIN ".$p."vereine_meeting as m ON m.rowid = i.fk_meeting WHERE i.entity = ".$entity." AND i.fk_adherent = ".$id." AND i.email IS NOT NULL AND i.email <> ''", "SELECT MAX(datec) as v FROM ".$p."vereine_circular_vote WHERE entity = ".$entity." AND fk_adherent = ".$id." AND email IS NOT NULL AND email <> ''"),
 			'due' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_meeting_invitation as i INNER JOIN ".$p."vereine_meeting as m ON m.rowid = i.fk_meeting WHERE i.entity = ".$entity." AND i.fk_adherent = ".$id." AND i.email IS NOT NULL AND i.email <> '' AND m.meeting_day <= '".$this->db->escape($cut)."'")
 				+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_circular_vote WHERE entity = ".$entity." AND fk_adherent = ".$id
-				." AND email IS NOT NULL AND email <> '' AND datec <= '".$this->db->escape($cut)." 23:59:59'"));
+				." AND email IS NOT NULL AND email <> '' AND datec <= '".$this->db->escape($cut)." 23:59:59'")
+				+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_meeting_response as r INNER JOIN ".$p."vereine_meeting as m ON m.rowid = r.fk_meeting WHERE r.entity = ".$entity
+				." AND r.fk_adherent = ".$id." AND m.meeting_day <= '".$this->db->escape($cut)."'"));
 		$found['tasks'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_resolution_task WHERE entity = ".$entity." AND fk_adherent = ".$id)
 			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_duty_task WHERE entity = ".$entity." AND fk_adherent = ".$id)
 			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_event_shift_entry WHERE entity = ".$entity." AND fk_adherent = ".$id), 'last' => '', 'due' => 0);
@@ -208,7 +210,8 @@ class VereineErasure
 			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_signature_person WHERE fk_adherent = ".$id)
 			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_meeting_attendance WHERE entity = ".$entity." AND fk_adherent = ".$id)
 			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_circular_vote WHERE entity = ".$entity." AND fk_adherent = ".$id)
-			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_honour WHERE entity = ".$entity." AND fk_adherent = ".$id), 'last' => '', 'due' => 0);
+			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_honour WHERE entity = ".$entity." AND fk_adherent = ".$id)
+			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_motion WHERE entity = ".$entity." AND fk_adherent = ".$id), 'last' => '', 'due' => 0);
 		$found['name'] = array('count' => (string) $member->lastname === self::ANONYMOUS && (string) $member->firstname === '' && (string) $member->login === '' ? 0 : 1,
 			'last' => '', 'due' => 0);
 		return $found;
@@ -265,7 +268,9 @@ class VereineErasure
 				$changed = $this->change("UPDATE ".$p."vereine_meeting_invitation SET email = NULL, error = NULL WHERE entity = ".$entity." AND fk_adherent = ".$id
 					." AND email IS NOT NULL AND email <> '' AND fk_meeting IN (SELECT rowid FROM ".$p."vereine_meeting WHERE meeting_day <= '".$cut."')")
 					+ $this->change("UPDATE ".$p."vereine_circular_vote SET email = NULL WHERE entity = ".$entity." AND fk_adherent = ".$id
-					." AND email IS NOT NULL AND email <> '' AND datec <= '".$cut." 23:59:59'");
+					." AND email IS NOT NULL AND email <> '' AND datec <= '".$cut." 23:59:59'")
+					+ $this->change("DELETE FROM ".$p."vereine_meeting_response WHERE entity = ".$entity." AND fk_adherent = ".$id
+					." AND fk_meeting IN (SELECT rowid FROM ".$p."vereine_meeting WHERE meeting_day <= '".$cut."')");
 			} elseif ($kind === 'tasks') {
 				$changed = $this->change("UPDATE ".$p."vereine_resolution_task SET fk_adherent = 0 WHERE entity = ".$entity." AND fk_adherent = ".$id)
 					+ $this->change("UPDATE ".$p."vereine_duty_task SET fk_adherent = 0 WHERE entity = ".$entity." AND fk_adherent = ".$id)
