@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '1.1.0';
+		$this->version = '1.2.0';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -643,6 +643,14 @@ class modVereine extends DolibarrModules
 		dol_include_once('/vereine/class/vereinewebsiteevents.class.php');
 		if (VereineWebsiteEvents::ensureTriggerCode($this->db) < 0) {
 			dol_syslog('modVereine::init adding '.VereineWebsiteEvents::TRIGGER_CODE.': '.$this->db->lasterror(), LOG_ERR);
+		}
+
+		// The website profiles of 1.1.0 become fields of the member the association keeps like any other (#260).
+		dol_include_once('/vereine/class/vereinewebsiteprofiles.class.php');
+		$websiteProfiles = new VereineWebsiteProfiles($this->db);
+		$taken = $websiteProfiles->migrate($user);
+		if ($taken != 0) {
+			dol_syslog('modVereine::init website profiles of 1.1.0: '.($taken < 0 ? $websiteProfiles->error : $taken.' members taken over'), $taken < 0 ? LOG_ERR : LOG_INFO);
 		}
 
 		// Line breaks stored as \n by the text areas before 0.5.3 become real line breaks.

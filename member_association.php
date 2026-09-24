@@ -78,6 +78,7 @@ require_once __DIR__.'/class/vereinehonours.class.php';
 require_once __DIR__.'/class/vereineloans.class.php';
 require_once __DIR__.'/class/vereineprofiles.class.php';
 require_once __DIR__.'/class/vereinewebsiteprofiles.class.php';
+require_once __DIR__.'/class/vereinememberform.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('companies', 'members', 'bills', 'categories', 'vereine@vereine'));
@@ -168,21 +169,6 @@ if (($action === 'addfunction' || $action === 'endfunction') && $canExit) {
 	exit;
 }
 $consents = new VereineConsents($db);
-if ($action === 'savewebsiteprofile' && $canExit) {
-	$websiteProfiles = new VereineWebsiteProfiles($db);
-	$entered = array();
-	foreach (array_keys(VereineWebsiteProfileRules::FIELDS) as $field) {
-		$entered[$field] = GETPOST('profile_'.$field, 'alphanohtml');
-	}
-	if ($websiteProfiles->save($object, $entered, $user) < 0) {
-		setEventMessages($websiteProfiles->error, null, 'errors');
-	} else {
-		setEventMessages($langs->trans('VereineWebsiteProfileSaved'), null, 'mesgs');
-	}
-	header('Location: '.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereinewebsiteprofile');
-	exit;
-}
-
 if (($action === 'recordconsent' || $action === 'withdrawconsent') && $canExit) {
 	$code = GETPOST('consent_code', 'aZ09');
 	$history = VereineConsentRules::current($consents->history((int) $object->id));
@@ -717,9 +703,9 @@ if ($memberAccounts) {
 	print '</table></div><br>';
 }
 
-// Website profile (#255): what the association publishes about the member, with the member's consent.
+// Website profile (#255, #260): the fields the association chose for its website, shown there only with the member's consent.
 $websiteProfiles = new VereineWebsiteProfiles($db);
-$websiteProfile = $websiteProfiles->load((int) $object->id);
+$websiteFields = $websiteProfiles->fields();
 $websiteConsent = $websiteProfiles->consentGiven((int) $object->id);
 $websitePhoto = $websiteProfiles->photoFile($object);
 $websiteConsentState = $websiteConsent === null ? 'none' : ($websiteConsent ? 'given' : 'missing');
@@ -737,33 +723,20 @@ print '</td></tr>';
 print '<tr class="oddeven"><td>'.$langs->trans('VereineWebsiteProfilePhoto').'</td><td>';
 print $websitePhoto ? dol_escape_htmltag($langs->transnoentities('VereineWebsiteProfilePhotoOnCard', $websitePhoto['name'])) : '<span class="opacitymedium">'.$langs->trans('VereineWebsiteProfilePhotoNone').'</span>';
 print '</td></tr>';
-if ($canExit) {
-	print '</table></div>';
-	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'" name="vereinewebsiteprofile">';
-	print '<input type="hidden" name="token" value="'.newToken().'">';
-	print '<input type="hidden" name="action" value="savewebsiteprofile">';
-	print '<div class="div-table-responsive-no-min"><table class="border centpercent">';
-	foreach (VereineWebsiteProfileRules::FIELDS as $field => $length) {
-		$label = $langs->trans('VereineWebsiteProfile'.ucfirst($field));
-		print '<tr class="oddeven"><td class="titlefield"><label for="profile_'.$field.'">'.$label.'</label></td><td>';
-		if ($field === 'bio') {
-			print '<textarea id="profile_bio" name="profile_bio" class="quatrevingtpercent" rows="4" maxlength="'.$length.'">'.dol_escape_htmltag($websiteProfile['bio']).'</textarea>';
-		} else {
-			print '<input type="text" id="profile_'.$field.'" name="profile_'.$field.'" class="quatrevingtpercent" maxlength="'.$length.'" value="'.dol_escape_htmltag($websiteProfile[$field]).'">';
-			if (in_array($field, VereineWebsiteProfileRules::LISTS, true)) {
-				print ' <span class="opacitymedium">'.$langs->trans('VereineWebsiteProfileListHint').'</span>';
-			}
-		}
-		print '</td></tr>';
-	}
-	print '</table></div>';
-	print '<div class="center paddingtop"><input type="submit" class="button small" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineWebsiteProfileSave')).'"></div>';
-	print '</form>';
-} else {
-	foreach (VereineWebsiteProfileRules::FIELDS as $field => $length) {
-		print '<tr class="oddeven"><td>'.$langs->trans('VereineWebsiteProfile'.ucfirst($field)).'</td><td>'.dol_escape_htmltag($websiteProfile[$field]).'</td></tr>';
-	}
-	print '</table></div>';
+if (!$websiteFields) {
+	print '<tr class="oddeven"><td colspan="2"><span class="opacitymedium">'.$langs->trans('VereineWebsiteProfileNoFields').'</span></td></tr>';
+} elseif (empty($object->array_options)) {
+	$object->fetch_optionals();
+}
+foreach ($websiteFields as $code => $spec) {
+	$raw = isset($object->array_options['options_'.$code]) ? $object->array_options['options_'.$code] : '';
+	print '<tr class="oddeven" data-website-profile-field="'.dol_escape_htmltag($code).'"><td>'.dol_escape_htmltag($spec['label']);
+	print $spec['editable'] ? ' <span class="opacitymedium small">('.$langs->trans('VereineWebsiteProfileBySelf').')</span>' : '';
+	print '</td><td>'.dol_escape_htmltag(VereineMemberForm::shownValue($spec, $raw, $langs)).'</td></tr>';
+}
+print '</table></div>';
+if ($canExit && $websiteFields) {
+	print '<div class="paddingtop"><a class="butAction" href="'.DOL_URL_ROOT.'/adherents/card.php?rowid='.((int) $object->id).'&action=edit">'.$langs->trans('VereineWebsiteProfileEdit').'</a></div>';
 }
 print '</div><br>';
 

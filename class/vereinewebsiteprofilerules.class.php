@@ -18,81 +18,212 @@
 /**
  * \file    class/vereinewebsiteprofilerules.class.php
  * \ingroup vereine
- * \brief   Rules of the website profile of a member (#255): fields, lists, photo types, the consent code.
+ * \brief   Rules of the website profile of a member (#255, #260): its fields, their values, the photo, the consent code.
  *
- * The profile is what the association itself writes about a member for its website - never the member's
- * contact data. It leaves Dolibarr only with the consent the association chose, and the website decides
- * what it shows of it.
+ * The profile is what the association itself chooses to show about a member on its own website: fields of the
+ * member it defines as Dolibarr's additional fields - never the contact data. Which fields, and which of them the
+ * member keeps, the association decides. The profile leaves Dolibarr only with the consent the association chose,
+ * and the website decides what it shows of it.
  */
+
+require_once __DIR__.'/vereineapplicationformrules.class.php';
 
 /**
  * Rules of the website profile.
  */
 class VereineWebsiteProfileRules
 {
-	/** Fields of the profile and their longest length. */
-	const FIELDS = array('gamertag' => 40, 'bio' => 2000, 'games' => 255, 'platforms' => 255);
-
-	/** Fields kept as a list: one entry per comma, semicolon or line. */
-	const LISTS = array('games', 'platforms');
-
 	/** Setting: the consent a member must have given before the website gets the profile. */
 	const CONSENT = 'VEREINE_WEBSITE_PROFILE_CONSENT';
+
+	/** Setting: the fields of the profile, a JSON object of code => {"self": 1 when the member may change it}. */
+	const FIELDS = 'VEREINE_WEBSITE_PROFILE_FIELDS';
+
+	/** Setting: the profiles of 1.1.0 were taken over into fields of the member. */
+	const MIGRATED = 'VEREINE_WEBSITE_PROFILE_MIGRATED';
+
+	/** The fixed fields of 1.1.0, each with the label and kind of the field of the member it becomes. */
+	const OLD_FIELDS = array('gamertag' => array('Gamertag', 'text'), 'bio' => array('Kurztext', 'textarea'),
+		'games' => array('Spiele', 'text'), 'platforms' => array('Plattformen', 'text'));
 
 	/** Image types a member photo may have, by extension. */
 	const IMAGE_TYPES = array('jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif', 'webp' => 'image/webp');
 
 	/**
-	 * The profile as it is stored: every field trimmed and cut, lists tidied, nothing else.
+	 * The fields of the profile as the association chose them, only ones the member really has.
 	 *
-	 * @param array<string,mixed> $entered Field => value as entered
-	 * @return array<string,string>
+	 * @param mixed    $stored JSON object of code => {"self": 0 or 1}
+	 * @param string[] $known  Codes of the fields of the member a form can show, in their order
+	 * @return array<string,bool> Code => the member may change it, in the order of the fields
 	 */
-	public static function normalize(array $entered)
+	public static function fields($stored, array $known)
 	{
-		$out = array();
-		foreach (self::FIELDS as $field => $length) {
-			$value = isset($entered[$field]) ? trim((string) $entered[$field]) : '';
-			if (in_array($field, self::LISTS, true)) {
-				$value = implode(', ', self::splitList($value));
-			}
-			$out[$field] = mb_substr($value, 0, $length);
+		$decoded = is_array($stored) ? $stored : json_decode((string) $stored, true);
+		if (!is_array($decoded)) {
+			return array();
 		}
-		return $out;
+		$fields = array();
+		foreach ($known as $code) {
+			$code = (string) $code;
+			// The module's own fields are kept by the module and never leave for a website.
+			if (array_key_exists($code, $decoded) && strpos($code, 'vereine_') !== 0) {
+				$entry = $decoded[$code];
+				$fields[$code] = is_array($entry) ? !empty($entry['self']) : !empty($entry);
+			}
+		}
+		return $fields;
 	}
 
 	/**
-	 * A list as entered - "TFT, Rocket League" or one per line - as tidy entries without repeats.
+	 * The setting as the setup stores it.
 	 *
-	 * @param string $value Entered
-	 * @return string[]
+	 * @param mixed    $chosen Codes of the fields in the profile
+	 * @param mixed    $self   Codes the member may change; only chosen ones count
+	 * @param string[] $known  Codes of the fields of the member a form can show
+	 * @return string JSON, empty when no field is chosen
 	 */
-	public static function splitList($value)
+	public static function setting($chosen, $self, array $known)
 	{
-		$out = array();
-		foreach (preg_split('/[,;\r\n]+/', (string) $value) as $entry) {
-			$entry = trim($entry);
-			if ($entry !== '' && !in_array($entry, $out, true)) {
-				$out[] = $entry;
+		$chosen = is_array($chosen) ? array_map('strval', array_filter($chosen, 'is_scalar')) : array();
+		$self = is_array($self) ? array_map('strval', array_filter($self, 'is_scalar')) : array();
+		$setting = array();
+		foreach ($known as $code) {
+			$code = (string) $code;
+			if (in_array($code, $chosen, true) && strpos($code, 'vereine_') !== 0) {
+				$setting[$code] = array('self' => in_array($code, $self, true) ? 1 : 0);
 			}
 		}
-		return $out;
+		return $setting ? (string) json_encode($setting) : '';
 	}
 
 	/**
-	 * Whether nothing is filled in.
+	 * A value of a field as the API hands it out: null when empty, several options as a list, yes or no as
+	 * true or false, a number as a number, a day as YYYY-MM-DD, anything else as text.
 	 *
-	 * @param array<string,string> $fields Normalised fields
-	 * @return bool
+	 * @param string $kind One of VereineApplicationFormRules::KINDS
+	 * @param mixed  $raw  As Dolibarr holds it; a day as a moment or as text
+	 * @return mixed
 	 */
-	public static function isEmpty(array $fields)
+	public static function value($kind, $raw)
 	{
-		foreach (self::FIELDS as $field => $length) {
-			if (isset($fields[$field]) && $fields[$field] !== '') {
-				return false;
+		if ($raw === null || $raw === '' || (is_array($raw) && !$raw)) {
+			return null;
+		}
+		switch ($kind) {
+			case 'multi':
+				$list = array();
+				foreach (is_array($raw) ? $raw : explode(',', (string) $raw) as $one) {
+					$one = trim((string) $one);
+					if ($one !== '' && !in_array($one, $list, true)) {
+						$list[] = $one;
+					}
+				}
+				return $list ? $list : null;
+			case 'boolean':
+				return (int) $raw !== 0;
+			case 'number':
+				if (!is_numeric($raw)) {
+					return null;
+				}
+				$number = (float) $raw;
+				return floor($number) == $number && abs($number) < 1e15 ? (int) $number : $number;
+			case 'date':
+				if (is_int($raw) || ctype_digit((string) $raw)) {
+					return date('Y-m-d', (int) $raw);
+				}
+				return preg_match('/^\d{4}-\d{2}-\d{2}/', (string) $raw, $day) ? $day[0] : null;
+		}
+		return (string) $raw;
+	}
+
+	/**
+	 * One field of the profile as the API hands it out: code, label, type, value and whether the member may
+	 * change it; a text with its longest length, a choice with its options.
+	 *
+	 * @param string              $code Code of the field
+	 * @param array<string,mixed> $spec label, kind, options (code => label), max, editable
+	 * @param mixed               $raw  Value as Dolibarr holds it
+	 * @return array<string,mixed>
+	 */
+	public static function field($code, array $spec, $raw)
+	{
+		$kind = (string) $spec['kind'];
+		$field = array('code' => (string) $code, 'label' => (string) $spec['label'], 'type' => $kind, 'editable' => !empty($spec['editable']),
+			'value' => self::value($kind, $raw));
+		if ($kind === 'text' || $kind === 'textarea') {
+			$limit = $kind === 'text' ? VereineApplicationFormRules::EXTRA_MAX : VereineApplicationFormRules::TEXTAREA_MAX;
+			$field['max_length'] = !empty($spec['max']) && (int) $spec['max'] < $limit ? (int) $spec['max'] : $limit;
+		}
+		if (!empty($spec['options'])) {
+			$field['options'] = array();
+			foreach ($spec['options'] as $option => $text) {
+				$field['options'][] = array('code' => (string) $option, 'label' => (string) $text);
 			}
 		}
-		return true;
+		return $field;
+	}
+
+	/**
+	 * A change the member sends: every field sent must be in the profile, be one the member may change and fit
+	 * its kind; the fields not sent stay as they are (#260).
+	 *
+	 * @param mixed                             $sent  Code => value as sent
+	 * @param array<string,array<string,mixed>> $specs Fields of the profile: kind, options, max, integer, editable
+	 * @return array{values:array<string,string|null>,errors:array<int,array{field:string,message:string}>} Values as
+	 *         checkValue() gives them, null to empty a field
+	 */
+	public static function change($sent, array $specs)
+	{
+		if (!is_array($sent)) {
+			return array('values' => array(), 'errors' => array(array('field' => '', 'message' => 'fields must be an object of code => value')));
+		}
+		$values = array();
+		$errors = array();
+		foreach ($sent as $code => $value) {
+			$code = (string) $code;
+			if (!isset($specs[$code])) {
+				$errors[] = array('field' => $code, 'message' => 'fields.'.$code.' is no field of the website profile');
+				continue;
+			}
+			if (empty($specs[$code]['editable'])) {
+				$errors[] = array('field' => $code, 'message' => 'fields.'.$code.' is kept by the association, not by the member');
+				continue;
+			}
+			$checked = VereineApplicationFormRules::checkValue($code, $value, $specs[$code]);
+			if ($checked['error'] !== '') {
+				$errors[] = array('field' => $code, 'message' => $checked['error']);
+				continue;
+			}
+			$values[$code] = $checked['value'];
+		}
+		return array('values' => $values, 'errors' => $errors);
+	}
+
+	/**
+	 * What becomes of the profiles of 1.1.0: each old field that holds something goes into the field of the member
+	 * with the same code when that is a text or a long text, into a new field otherwise (#260).
+	 *
+	 * @param string[]             $used     Old fields with at least one value
+	 * @param array<string,string> $existing Code => kind of every field the member has, empty for a kind a form cannot show
+	 * @return array<string,array{code:string,create:bool,label:string,kind:string}> Old field => where it goes
+	 */
+	public static function migration(array $used, array $existing)
+	{
+		$plan = array();
+		$taken = array_keys($existing);
+		foreach (self::OLD_FIELDS as $old => $definition) {
+			if (!in_array($old, $used, true)) {
+				continue;
+			}
+			if (isset($existing[$old]) && in_array($existing[$old], array('text', 'textarea'), true)) {
+				$plan[$old] = array('code' => $old, 'create' => false, 'label' => $definition[0], 'kind' => $existing[$old]);
+				continue;
+			}
+			$code = VereineApplicationFormRules::code($old, $taken);
+			$taken[] = $code;
+			$plan[$old] = array('code' => $code, 'create' => true, 'label' => $definition[0], 'kind' => $definition[1]);
+		}
+		return $plan;
 	}
 
 	/**
@@ -120,23 +251,16 @@ class VereineWebsiteProfileRules
 	}
 
 	/**
-	 * The profile as the API hands it out: lists as arrays, the photo as its checksum and size.
+	 * The photo as the profile names it: its checksum, size, type and time, null without photo.
 	 *
-	 * @param array<string,string> $row   Stored fields
-	 * @param array|null           $photo sha256, size, content_type, updated_at - or null without photo
-	 * @return array<string,mixed>
+	 * @param array|null $photo sha256, size, content_type, updated_at - or null
+	 * @return array<string,mixed>|null
 	 */
-	public static function view(array $row, $photo)
+	public static function photo($photo)
 	{
-		$out = array();
-		foreach (self::FIELDS as $field => $length) {
-			$value = isset($row[$field]) ? (string) $row[$field] : '';
-			$out[$field] = in_array($field, self::LISTS, true) ? self::splitList($value) : $value;
-		}
-		$out['photo'] = $photo ? array(
+		return $photo ? array(
 			'sha256' => (string) $photo['sha256'], 'size' => (int) $photo['size'],
 			'content_type' => (string) $photo['content_type'], 'updated_at' => (string) $photo['updated_at'],
 		) : null;
-		return $out;
 	}
 }

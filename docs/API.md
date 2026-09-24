@@ -36,7 +36,7 @@ Modulversion und API-Version – ein günstiger Weg, die Verbindung zu testen.
 
 ```json
 {
-  "module_version": "1.1.0",
+  "module_version": "1.2.0",
   "api_version": 2,
   "server_time": "2026-09-17T08:00:00Z"
 }
@@ -630,22 +630,35 @@ Antwortet 404, wenn es kein Mitglied mit dieser ID gibt.
 
 ## GET /vereine/members/{id}/profile
 
-Das **Website-Profil** eines Mitglieds (#255): was der Verein selbst über das Mitglied auf seiner
-Website zeigt – gepflegt vom Vorstand auf der Mitgliedskarte, Reiter *Verein*, Abschnitt
-*Website-Profil*. Dazu das Foto der Mitgliedskarte als Prüfsumme. Braucht das Recht, die
-Mitglieds-Zusammenfassung für die Website zu lesen.
+Das **Website-Profil** eines Mitglieds (#255, #260): was der Verein über das Mitglied auf seiner
+Website zeigt. Welche Angaben das sind, bestimmt der Verein selbst: Er wählt unter *Einrichtung >
+Vereine > Einwilligungen* Zusatzfelder des Mitglieds aus (oder legt dort neue an) und legt je Feld
+fest, ob das Mitglied es selbst pflegt. Dazu das Foto der Mitgliedskarte als Prüfsumme. Braucht das
+Recht, die Mitglieds-Zusammenfassung für die Website zu lesen.
 
 ```json
-{"consent": "profil", "given": true, "gamertag": "LionKing", "bio": "Spielt seit 2019 TFT für den Verein.",
- "games": ["TFT", "Rocket League"], "platforms": ["PC"],
+{"consent": "profil", "given": true,
+ "fields": [
+  {"code": "spitzname", "label": "Spitzname", "type": "text", "editable": true, "value": "Löwe", "max_length": 255},
+  {"code": "instrumente", "label": "Instrumente", "type": "multi", "editable": true, "value": ["geige"],
+   "options": [{"code": "geige", "label": "Geige"}, {"code": "bratsche", "label": "Bratsche"}]},
+  {"code": "ueber_mich", "label": "Über mich", "type": "textarea", "editable": false, "value": null, "max_length": 2000}
+ ],
  "photo": {"sha256": "3f9c…", "size": 48211, "content_type": "image/jpeg", "updated_at": "2026-09-25T10:00:00Z"}}
 ```
 
-- `consent` ist die Einwilligung, die der Verein unter *Einrichtung > Vereine > Einwilligungen* für das
-  Website-Profil gewählt hat. Hat das Mitglied sie **nicht** erteilt (oder ist keine gewählt), kommt nur
-  `{"consent": "profil", "given": false}` – kein Feld, kein Foto. Ein Widerruf wirkt beim nächsten Abruf.
+- `consent` ist die Einwilligung, die der Verein für das Website-Profil gewählt hat. Hat das Mitglied
+  sie **nicht** erteilt (oder ist keine gewählt), kommt nur `{"consent": "profil", "given": false}` –
+  kein Feld, kein Foto. Ein Widerruf wirkt beim nächsten Abruf.
+- `fields` in der Reihenfolge, die das Feld in Dolibarr hat. `code` ist das Kürzel des Zusatzfelds und
+  bleibt gleich, solange der Verein das Feld nicht löscht – eine Website ordnet ihre Anzeige danach zu.
+  `type` wie beim Mitgliedsantrag (`GET /vereine/applicationform`): `text`, `textarea`, `number`,
+  `date`, `boolean`, `select`, `multi`. `value` ist `null`, wenn leer; sonst Text, Zahl, `true`/`false`,
+  ein Tag `JJJJ-MM-TT`, ein Options-Kürzel oder bei `multi` eine Liste von Kürzeln. `max_length` gibt
+  es bei Text, `options` bei Auswahl.
 - `photo` ist `null` ohne Foto. Eine Website lädt die Datei nur, wenn sich `sha256` geändert hat.
-- Was hier leer ist, pflegt die Website selbst; was gefüllt ist, führt der Verein.
+- Seit 1.2.0. Aus 1.1.0 übernimmt das Update die festen Felder als Zusatzfelder mit den Kürzeln
+  `gamertag`, `bio`, `games` und `platforms` (nur die, die irgendwo gefüllt waren).
 
 ## GET /vereine/members/{id}/photo
 
@@ -969,6 +982,34 @@ Vorstands nie.
 (Wunsch optional). Die Kündigung geht mit heutigem Eingang ein; die Mitgliedschaft endet am Tag, den die
 Kündigungsregel des Vereins ergibt (`last_day`), oder später, wenn später gewünscht. Ein früherer Wunsch
 wird nicht übernommen (`wished_too_early: true`). Ist schon ein Austritt geplant, kommt `409`.
+
+### GET /vereine/me/website-profile
+
+`subject`, Fähigkeit `profile`. Das eigene Website-Profil, auch solange die Einwilligung für die Website
+fehlt – dann zeigt die Website es nur nicht. Alle Felder wie bei `GET /vereine/members/{id}/profile`,
+ohne Foto; `editable` sagt, welche die Person selbst ändern darf:
+
+```json
+{"consent": "profil", "given": false,
+ "fields": [{"code": "spitzname", "label": "Spitzname", "type": "text", "editable": true, "value": "Löwe", "max_length": 255}]}
+```
+
+### PUT /vereine/me/website-profile
+
+`subject`, Fähigkeit `profile`, Body `{"fields": {"spitzname": "Löwe", "instrumente": ["geige", "bratsche"]}}`.
+**Nur die gesendeten Felder ändern sich**, die anderen bleiben; `null` oder `""` leert ein Feld. Werte wie
+beim Mitgliedsantrag: Mehrfachauswahl als Liste von Kürzeln, Ja/Nein als `true`/`false`, Datum als
+`JJJJ-MM-TT`. Abgelehnt mit `400` wird ein Feld, das nicht im Profil ist, eines mit `editable: false`
+und ein Wert, der nicht passt (zu lang, keine Option, kein Tag) – nichts wird abgeschnitten, nichts
+gespeichert. Das Kürzel des ersten abgelehnten Feldes steht in `error.field`:
+
+```json
+{"error": {"code": 400, "message": "fields.spitzname is longer than 255 characters", "field": "spitzname"}}
+```
+
+Gespeichert wird unabhängig von der Einwilligung – wer sein Profil vorbereitet, stimmt der Nennung auf
+der Website damit nicht zu. Antwort wie `GET`. Der Vorstand sieht die Werte auf der Mitgliedskarte; die
+Website erfährt die Änderung über Änderungsfeed und Webhooks.
 
 ### GET /vereine/me/ballots
 

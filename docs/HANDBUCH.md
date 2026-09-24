@@ -194,12 +194,16 @@ Rechnungen älter als sieben Jahre sind.
 
 ### Website-Profil eines Mitglieds
 
-Was der Verein über ein Mitglied auf seiner **eigenen Website** zeigt – Gamertag, Kurztext, Spiele und
-Plattformen – pflegt ihr auf der Mitgliedskarte im Reiter *Verein*, Abschnitt *Website-Profil*. Das
-Foto ist das Foto der Mitgliedskarte. Die Website holt das Profil nur, wenn das Mitglied der
-Einwilligung zugestimmt hat, die ihr unter *Einrichtung > Vereine > Einwilligungen* dafür wählt
-(etwa „Nennung auf der Website“); ein Widerruf wirkt beim nächsten Abruf. Was ihr hier leer lasst,
-pflegt die Website selbst – so muss nichts doppelt gepflegt werden, und die Person muss nichts tun.
+Was der Verein über ein Mitglied auf seiner **eigenen Website** zeigt, bestimmt ihr selbst – etwa
+Spitzname, Instrument, Position im Team oder ein kurzer Text. Unter *Einrichtung > Vereine >
+Einwilligungen*, Abschnitt *Felder des Website-Profils*, wählt ihr Zusatzfelder des Mitglieds aus oder
+legt dort neue an. Je Feld entscheidet ihr, wer es pflegt: der Vorstand auf der Mitgliedskarte oder das
+Mitglied selbst im Webportal bzw. über eine App. Das Foto ist das Foto der Mitgliedskarte. Im Reiter
+*Verein* der Mitgliedskarte seht ihr, was die Website bekommt.
+
+Die Website holt das Profil nur, wenn das Mitglied der Einwilligung zugestimmt hat, die ihr im selben
+Abschnitt wählt (etwa „Nennung auf der Website“); ein Widerruf wirkt beim nächsten Abruf. Wie eine
+Website das Profil liest, steht in [API.md](API.md).
 
 ### Externe Anwendungen
 

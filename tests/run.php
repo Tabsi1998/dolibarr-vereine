@@ -1859,7 +1859,6 @@ $prefixes = array(
 	'VereinePublicationAudience_' => array('none', 'board', 'members', 'public', 'person'),
 	'VereineMotionState_' => array('accepted', 'rejected'),
 	'VereineProfileField_' => array_keys(VereineProfileRules::FIELDS),
-	'VereineWebsiteProfile' => array('Gamertag', 'Bio', 'Games', 'Platforms'),
 	'VereineMotionDecide_' => array('accepted', 'rejected'),
 	'VereineHonourKind_' => array('jubilee', 'honorary'),
 	'VereineErasureReason_' => array('keep_bookkeeping', 'keep_records', 'member', 'hold', 'open_invoices', 'functions', 'name'),
@@ -2996,6 +2995,25 @@ same(array('', 'not_found', 'not_found', 'not_open', 'closed', 'closed', 'closed
 same(array('counts' => array('yes' => 2, 'no' => 1, 'abstain' => 1), 'valid' => 3, 'abstain' => 1), VereineBallotRules::tally(array('yes', 'no', 'abstain'),
 	array('yes', 'no', 'yes', 'abstain', 'maybe')), 'abstentions are no valid votes cast; unknown codes do not count');
 
+// ------------------------------------------------------------- the own website profile (#260)
+
+$profileSpecs = array(
+	'spitzname' => array('kind' => 'text', 'options' => array(), 'max' => 40, 'editable' => true),
+	'instrumente' => array('kind' => 'multi', 'options' => array('geige' => 'Geige', 'bratsche' => 'Bratsche'), 'editable' => true),
+	'seit' => array('kind' => 'date', 'options' => array(), 'editable' => true),
+	'ueber_mich' => array('kind' => 'textarea', 'options' => array(), 'editable' => false),
+);
+same(array('values' => array('spitzname' => 'Löwe', 'instrumente' => 'geige,bratsche', 'seit' => null), 'errors' => array()),
+	VereineWebsiteProfileRules::change(array('spitzname' => ' Löwe ', 'instrumente' => array('geige', 'bratsche', 'geige'), 'seit' => ''), $profileSpecs),
+	'only the fields sent change; several options as a list, an empty value empties the field');
+same(array(array('field' => 'spitzname', 'message' => 'fields.spitzname is longer than 40 characters'),
+	array('field' => 'ueber_mich', 'message' => 'fields.ueber_mich is kept by the association, not by the member'),
+	array('field' => 'status', 'message' => 'fields.status is no field of the website profile'),
+	array('field' => 'seit', 'message' => 'fields.seit must be a date (YYYY-MM-DD)')),
+	VereineWebsiteProfileRules::change(array('spitzname' => str_repeat('x', 41), 'ueber_mich' => 'Hallo', 'status' => '1', 'seit' => '31.12.2020'), $profileSpecs)['errors'],
+	'too long, kept by the association, no field of the profile, no day: each refused with its code, nothing cut');
+same('fields must be an object of code => value', VereineWebsiteProfileRules::change('spitzname=Löwe', $profileSpecs)['errors'][0]['message'], 'fields as text is refused');
+
 // ------------------------------------------------------------- the web portal (#25)
 
 same(array('documents', 'votes'), VereinePortal::parse('votes, documents,admin,votes'), 'only offered abilities, in their order, once');
@@ -3163,23 +3181,38 @@ if ($failures) {
 	fwrite(STDERR, count($failures)." of ".$assertions." assertions failed:\n  - ".implode("\n  - ", $failures)."\n");
 	exit(1);
 }
-// Website profile of a member (#255): fields trimmed and cut, lists tidy, photo types by extension, the consent code clean.
-$websiteProfile = VereineWebsiteProfileRules::normalize(array('gamertag' => '  LionKing  ', 'bio' => " Spielt TFT.\n", 'games' => "TFT, Rocket League;Rocket League\nF1 25", 'platforms' => 'PC', 'status' => 'hack'));
-same(array('gamertag' => 'LionKing', 'bio' => 'Spielt TFT.', 'games' => 'TFT, Rocket League, F1 25', 'platforms' => 'PC'), $websiteProfile, 'website profile normalised');
-same(array('TFT', 'Rocket League', 'F1 25'), VereineWebsiteProfileRules::splitList($websiteProfile['games']), 'games as a list');
-same(40, strlen(VereineWebsiteProfileRules::normalize(array('gamertag' => str_repeat('x', 50)))['gamertag']), 'gamertag cut to 40');
-same(true, VereineWebsiteProfileRules::isEmpty(VereineWebsiteProfileRules::normalize(array('bio' => '  '))), 'an empty profile is empty');
+// Website profile of a member (#255, #260): the fields the association chose, their values for the API, photo types, the consent code.
+same(array('spitzname' => true, 'ueber_mich' => false), VereineWebsiteProfileRules::fields('{"ueber_mich":{"self":0},"spitzname":{"self":1},"weg":{"self":1},"vereine_fee_exempt":{"self":1}}',
+	array('spitzname', 'ueber_mich', 'vereine_fee_exempt')), 'only fields the member has, in their order, never the module\'s own');
+same(array(), VereineWebsiteProfileRules::fields('', array('spitzname')), 'no setting, no fields');
+same('{"spitzname":{"self":1},"ueber_mich":{"self":0}}', VereineWebsiteProfileRules::setting(array('ueber_mich', 'spitzname', 'weg'), array('spitzname', 'weg'), array('spitzname', 'ueber_mich')),
+	'the setting keeps chosen fields the member has; the member keeps only chosen ones');
+same('', VereineWebsiteProfileRules::setting(array(), array('spitzname'), array('spitzname')), 'nothing chosen, no setting');
+same(array(null, array('geige', 'bratsche'), true, false, 3, 2.5, '2020-05-17', '2020-05-17', 'Löwe', null),
+	array(VereineWebsiteProfileRules::value('text', ''), VereineWebsiteProfileRules::value('multi', 'geige,bratsche,geige'), VereineWebsiteProfileRules::value('boolean', '1'),
+		VereineWebsiteProfileRules::value('boolean', 0), VereineWebsiteProfileRules::value('number', '3.00000000'), VereineWebsiteProfileRules::value('number', '2.50000000'),
+		VereineWebsiteProfileRules::value('date', mktime(12, 0, 0, 5, 17, 2020)), VereineWebsiteProfileRules::value('date', '2020-05-17 00:00:00'),
+		VereineWebsiteProfileRules::value('text', 'Löwe'), VereineWebsiteProfileRules::value('number', 'viel')),
+	'values for the API: empty is null, a list, true or false, a number, a day, text');
+same(array('code' => 'instrumente', 'label' => 'Instrumente', 'type' => 'multi', 'editable' => true, 'value' => array('geige'),
+	'options' => array(array('code' => 'geige', 'label' => 'Geige'), array('code' => 'bratsche', 'label' => 'Bratsche'))),
+	VereineWebsiteProfileRules::field('instrumente', array('label' => 'Instrumente') + $profileSpecs['instrumente'], 'geige'), 'a choice with its options');
+same(array('code' => 'spitzname', 'label' => 'Spitzname', 'type' => 'text', 'editable' => false, 'value' => null, 'max_length' => 40),
+	VereineWebsiteProfileRules::field('spitzname', array('label' => 'Spitzname', 'editable' => false) + $profileSpecs['spitzname'], null), 'a text with its length');
+same(array('gamertag' => array('code' => 'gamertag', 'create' => false, 'label' => 'Gamertag', 'kind' => 'text'),
+	'bio' => array('code' => 'bio_2', 'create' => true, 'label' => 'Kurztext', 'kind' => 'textarea'),
+	'games' => array('code' => 'games', 'create' => true, 'label' => 'Spiele', 'kind' => 'text')),
+	VereineWebsiteProfileRules::migration(array('gamertag', 'bio', 'games'), array('gamertag' => 'text', 'bio' => 'select', 'passwort' => '')),
+	'1.1.0: an old field goes into a text field of its code, a field of another kind gets a new code, an empty old field stays away');
 same('image/png', VereineWebsiteProfileRules::contentType('Foto.PNG'), 'png photo');
 same('image/jpeg', VereineWebsiteProfileRules::contentType('foto.jpg'), 'jpeg photo');
 same(null, VereineWebsiteProfileRules::contentType('foto.pdf'), 'no pdf as a photo');
 same('verzeichnis', VereineWebsiteProfileRules::consentCode(' verzeichnis '), 'consent code trimmed');
 same('', VereineWebsiteProfileRules::consentCode('kein code'), 'a consent code with other characters counts as none');
-$websiteView = VereineWebsiteProfileRules::view(array('gamertag' => 'LionKing', 'bio' => 'Spielt TFT.', 'games' => 'TFT, F1 25', 'platforms' => ''),
-	array('sha256' => str_repeat('a', 64), 'size' => 12, 'content_type' => 'image/png', 'updated_at' => '2026-09-25T10:00:00Z'));
-same(array('TFT', 'F1 25'), $websiteView['games'], 'the view lists games');
-same(array(), $websiteView['platforms'], 'the view lists nothing for empty platforms');
-same('image/png', $websiteView['photo']['content_type'], 'the view carries the photo');
-same(null, VereineWebsiteProfileRules::view(array(), null)['photo'], 'no photo is null');
+same(array('sha256' => str_repeat('a', 64), 'size' => 12, 'content_type' => 'image/png', 'updated_at' => '2026-09-25T10:00:00Z'),
+	VereineWebsiteProfileRules::photo(array('sha256' => str_repeat('a', 64), 'size' => '12', 'content_type' => 'image/png', 'updated_at' => '2026-09-25T10:00:00Z', 'path' => '/x')),
+	'the photo as checksum, size, type and time');
+same(null, VereineWebsiteProfileRules::photo(null), 'no photo is null');
 
 print 'Unit tests: OK ('.$assertions." assertions)\n";
 exit(0);

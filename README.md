@@ -43,8 +43,9 @@ und bringt eine REST-API für die Vereinswebsite mit.
   Mitgliederzahlen an einem Stichtag für Verbände.
 - **Kanäle und Konten**: Discord, Twitch, YouTube & Co. des Vereins (mehrere je Netzwerk, mit
   Livestream-Link) für die Website; Konten der Mitglieder im Antrag, von der App bestätigt.
-- **Website-Profil je Mitglied**: Gamertag, Kurztext, Spiele und Foto der Mitgliedskarte für die
-  Website – nur mit der Einwilligung, die der Verein dafür wählt.
+- **Website-Profil je Mitglied**: Felder, die der Verein selbst festlegt, und das Foto der
+  Mitgliedskarte für die Website – nur mit der Einwilligung, die der Verein dafür wählt; welche Felder
+  das Mitglied selbst pflegt, bestimmt der Verein.
 - **Mit dem Mahnwesen-Modul**: Beitragsrückstände auf der letzten Mahnstufe kommen als Vorschlag in
   die nächste Vorstandssitzung; Zahlung und Pause halten den Stand aktuell, ausgeschlossen wird
   niemand automatisch.

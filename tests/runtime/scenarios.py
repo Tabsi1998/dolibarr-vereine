@@ -316,12 +316,29 @@ def upgrade(stack: Stack) -> str:
                   "VALUES (1, 1, 'RT Upgrade', '', '1y', '1', 12)")
         upgrade_type = int(stack.value("SELECT rowid FROM llx_adherent_type WHERE libelle = 'RT Upgrade'"))
         stack.sql(f"INSERT INTO llx_adherent_type_extrafields (fk_object, vereine_fee_prorated) VALUES ({upgrade_type}, 1)")
+    # A website profile of 1.1.0 (#255), which the update turns into fields of the member (#260).
+    old_profile = bool(stack.sql("SHOW TABLES LIKE 'llx_vereine_member_profile'"))
+    if old_profile:
+        stack.sql("INSERT INTO llx_adherent_type (entity, statut, libelle, morphy, duration, subscription, amount) "
+                  "VALUES (1, 1, 'RT Upgrade Profil', '', '1y', '1', 12)")
+        profile_type = int(stack.value("SELECT rowid FROM llx_adherent_type WHERE libelle = 'RT Upgrade Profil'"))
+        stack.sql("INSERT INTO llx_adherent (ref, entity, lastname, firstname, fk_adherent_type, morphy, statut, datec) "
+                  f"VALUES ('RTUP1', 1, 'Upgrade', 'Uli', {profile_type}, 'phy', 1, NOW())")
+        profile_member = int(stack.value("SELECT rowid FROM llx_adherent WHERE ref = 'RTUP1' AND entity = 1"))
+        stack.sql("INSERT INTO llx_vereine_member_profile (entity, fk_adherent, gamertag, bio, games, platforms, datec) "
+                  f"VALUES (1, {profile_member}, 'UpLoewe', 'Seit 2019 dabei.', 'TFT, Schach', '', NOW())")
 
     upload(stack, stack.package)
+    # PHP keeps the compiled module for a moment after the files were replaced (opcache): switched off and on
+    # before that, Dolibarr would run the init of the release it upgrades from. An administrator switches later.
+    for attempt in range(10):
+        about = page_ok(stack.browser().get("/custom/vereine/admin/about.php"), "about before switching the new package on")
+        if stack.module_version in about.text:
+            break
+        time.sleep(1)
     switch_module(stack, "reset")
     switch_module(stack, "set")
-    # PHP keeps the compiled module descriptor for a moment after the files were replaced (opcache),
-    # so the about page may still name the version of the release it upgraded from.
+    # The about page may still name the version of the release it upgraded from for the same reason.
     for attempt in range(10):
         about = page_ok(stack.browser().get("/custom/vereine/admin/about.php"), "about after the upgrade")
         if stack.module_version in about.text:
@@ -345,12 +362,24 @@ def upgrade(stack: Stack) -> str:
                f"the old checkbox became {proration!r}, column left {leftover}, definitions left {definition}")
         stack.sql(f"DELETE FROM llx_adherent_type_extrafields WHERE fk_object = {upgrade_type}")
         stack.sql(f"DELETE FROM llx_adherent_type WHERE rowid = {upgrade_type}")
+    if old_profile:
+        made = stack.sql("SELECT name, type FROM llx_extrafields WHERE elementtype = 'adherent' AND name IN ('gamertag', 'bio', 'games', 'platforms') ORDER BY name")
+        values = stack.sql(f"SELECT gamertag, bio, games FROM llx_adherent_extrafields WHERE fk_object = {profile_member}")
+        chosen = json.loads(stack.const("VEREINE_WEBSITE_PROFILE_FIELDS") or "{}")
+        expect(made == [["bio", "text"], ["gamertag", "varchar"], ["games", "varchar"]] and values == [["UpLoewe", "Seit 2019 dabei.", "TFT, Schach"]]
+               and chosen == {"gamertag": {"self": 0}, "bio": {"self": 0}, "games": {"self": 0}}
+               and not stack.sql("SHOW TABLES LIKE 'llx_vereine_member_profile'"),
+               f"the website profile of {old}: fields {made}, values {values}, profile {chosen}")
+        stack.sql(f"DELETE FROM llx_adherent_extrafields WHERE fk_object = {profile_member}")
+        stack.sql(f"DELETE FROM llx_adherent WHERE rowid = {profile_member}")
+        stack.sql(f"DELETE FROM llx_adherent_type WHERE rowid = {profile_type}")
 
     stack.php_fixture("reset")
     expect(stack.const("MAIN_MODULE_VEREINE") is None and stack.const("VEREINE_REGISTER_NUMBER") is None,
            "the reset after the upgrade test left module state behind")
     return (f"{old} -> {stack.module_version}: association data kept; tables, website right and categories in place"
-            + ("; old prorated checkbox became by month" if old_checkbox else ""))
+            + ("; old prorated checkbox became by month" if old_checkbox else "")
+            + ("; website profile of 1.1.0 became fields of the member" if old_profile else ""))
 
 
 def deploy(stack: Stack) -> str:
@@ -1148,22 +1177,48 @@ def website(stack: Stack) -> str:
 
 
 def websiteprofile(stack: Stack) -> str:
-    """The board keeps a website profile per member; the API hands it and the photo out only with the chosen consent."""
+    """The association chooses fields of the member for its website profile; the API hands them and the photo out only with the chosen consent."""
     notes = stack.notes["website"]
     key, members = notes["key"], notes["members"]
     paid, free = int(members["paid"]), int(members["free"])
     browser = stack.browser()
+    setup_url = "/custom/vereine/admin/consents.php"
 
     # A consent text for the website profile, chosen in the setup of consents.
-    setup = page_ok(browser.get("/custom/vereine/admin/consents.php"), "consent setup")
+    setup = page_ok(browser.get(setup_url), "consent setup")
     page_ok(browser.submit(setup.form(name="vereineconsenttext"), {"code": "profil", "label": "Website-Profil", "text": "Der Verein darf mich auf der Website zeigen."}),
             "create the consent text for the website profile")
-    setup = page_ok(browser.get("/custom/vereine/admin/consents.php"), "consent setup with the text")
+    setup = page_ok(browser.get(setup_url), "consent setup with the text")
     expect('data-website-profile-consent=""' in setup.text, "the consent setup does not offer the choice for the website profile")
     page_ok(browser.submit(setup.form(name="vereinewebsiteprofileconsent"), {"website_profile_consent": "profil"}), "choose the consent")
     expect(stack.const("VEREINE_WEBSITE_PROFILE_CONSENT") == "profil", "the consent for the website profile was not stored")
     status, body = stack.api("vereine/status", key)
     expect(status == 200 and body.get("website_profile_consent") == "profil", f"status does not name the consent: {body}")
+
+    # Fields made right in the setup join the profile at once: a text and a choice of several the member keeps, a long text the board keeps.
+    for label, kind, options, member_keeps in (("Spitzname", "text", "", True), ("Instrumente", "multi", "Geige\nBratsche", True),
+                                               ("Über mich", "textarea", "", False)):
+        setup = page_ok(browser.get(setup_url), f"consent setup before the field {label}")
+        values = {"field_label": label, "field_kind": kind, "field_options": options}
+        if member_keeps:
+            values["field_self"] = "1"
+        page_ok(browser.submit(setup.form(name="vereinewebsiteprofilenewfield"), values), f"create the field {label}")
+    made = stack.sql("SELECT name, type FROM llx_extrafields WHERE elementtype = 'adherent' AND name IN ('spitzname', 'instrumente', 'ueber_mich') ORDER BY pos")
+    expect(made == [["spitzname", "varchar"], ["instrumente", "checkbox"], ["ueber_mich", "text"]], f"the fields in Dolibarr: {made}")
+    chosen = json.loads(stack.const("VEREINE_WEBSITE_PROFILE_FIELDS") or "{}")
+    expect(chosen == {"spitzname": {"self": 1}, "instrumente": {"self": 1}, "ueber_mich": {"self": 0}}, f"the fields of the profile: {chosen}")
+
+    # Who keeps which field changes in the setup; the module's own fields never join.
+    setup = page_ok(browser.get(setup_url), "consent setup with the fields")
+    expect('data-website-profile-field="spitzname" data-website-profile-state="self"' in setup.text
+           and 'data-website-profile-field="ueber_mich" data-website-profile-state="board"' in setup.text, "the setup does not show who keeps the fields")
+    form = setup.form(name="vereinewebsiteprofilefields")
+    sent = [(name, value) for name, value in form.values() if name not in ("profile_fields[]", "profile_self[]")]
+    sent += [("profile_fields[]", code) for code in ("spitzname", "instrumente", "ueber_mich", "vereine_fee_exempt")]
+    sent += [("profile_self[]", code) for code in ("spitzname", "ueber_mich")]
+    page_ok(browser.post(form.url(), sent), "choose who keeps the fields")
+    chosen = json.loads(stack.const("VEREINE_WEBSITE_PROFILE_FIELDS") or "{}")
+    expect(chosen == {"spitzname": {"self": 1}, "instrumente": {"self": 0}, "ueber_mich": {"self": 1}}, f"the fields after the choice: {chosen}")
 
     # Without the consent the API names it and carries nothing personal.
     status, body = stack.api(f"vereine/members/{paid}/profile", key)
@@ -1171,24 +1226,30 @@ def websiteprofile(stack: Stack) -> str:
     status, _ = stack.api(f"vereine/members/{paid}/photo", key, check=False)
     expect(status == 404, f"photo without consent answered HTTP {status}")
 
-    # The board records the consent on the member card and fills the profile.
+    # The board fills the fields on Dolibarr's own member card; the tab Association shows what the website gets.
+    for attribute, values in (("spitzname", [("options_spitzname", "LionKing")]), ("instrumente", [("options_instrumente[]", "geige")]),
+                              ("ueber_mich", [("options_ueber_mich", "Spielt seit 2019.")])):
+        card = page_ok(browser.get(f"/adherents/card.php?rowid={paid}"), f"member card before {attribute}")
+        page_ok(browser.post(f"/adherents/card.php?rowid={paid}", [("token", token_of(card)), ("action", "update_extras"), ("attribute", attribute)] + values),
+                f"fill {attribute} on the member card")
+    kept = stack.sql(f"SELECT spitzname, instrumente, ueber_mich FROM llx_adherent_extrafields WHERE fk_object = {paid}")
+    expect(kept == [["LionKing", "geige", "Spielt seit 2019."]], f"the fields on the member card: {kept}")
     tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={paid}"), "tab Association")
     expect('data-website-profile-consent="missing"' in tab.text and 'data-website-profile-photo="0"' in tab.text,
            "the tab Association does not show the missing consent and the missing photo")
+    expect('data-website-profile-field="instrumente"' in tab.text and "LionKing" in tab.text and "Geige" in tab.text,
+           "the tab Association does not show the fields of the profile")
     page_ok(browser.post(f"/custom/vereine/member_association.php?id={paid}", [("token", token_of(tab)), ("action", "recordconsent"),
                                                                                   ("consent_code", "profil"), ("consent_source", "paper")]), "record the consent")
     tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={paid}"), "tab Association with consent")
     expect('data-website-profile-consent="given"' in tab.text, "the tab Association does not show the given consent")
-    page_ok(browser.submit(tab.form(name="vereinewebsiteprofile"), {"profile_gamertag": "  LionKing ", "profile_bio": "Spielt TFT.",
-                                                                        "profile_games": "TFT, Rocket League; Rocket League", "profile_platforms": "PC"}), "save the profile")
-    expect(stack.value(f"SELECT gamertag FROM llx_vereine_member_profile WHERE fk_adherent = {paid}") == "LionKing", "the profile was not stored")
     status, body = stack.api(f"vereine/members/{paid}/profile", key)
-    expect(status == 200 and body == {"consent": "profil", "given": True, "gamertag": "LionKing", "bio": "Spielt TFT.",
-                                      "games": ["TFT", "Rocket League"], "platforms": ["PC"], "photo": None}, f"profile with consent: {body}")
-    logged = stack.value(f"SELECT COUNT(*) FROM llx_vereine_log WHERE fk_adherent = {paid} AND action = 'website_profile'")
-    expect(logged == "1", f"the log does not record the saved profile once: {logged}")
-    status, body = stack.api(f"vereine/changes?limit=50", key, check=False)
-    expect(status in (200, 403), f"changes answered HTTP {status}")
+    expect(status == 200 and body == {"consent": "profil", "given": True, "photo": None, "fields": [
+        {"code": "spitzname", "label": "Spitzname", "type": "text", "editable": True, "value": "LionKing", "max_length": 255},
+        {"code": "instrumente", "label": "Instrumente", "type": "multi", "editable": False, "value": ["geige"],
+         "options": [{"code": "geige", "label": "Geige"}, {"code": "bratsche", "label": "Bratsche"}]},
+        {"code": "ueber_mich", "label": "Über mich", "type": "textarea", "editable": True, "value": "Spielt seit 2019.", "max_length": 2000}]},
+           f"profile with consent: {body}")
 
     # A photo on the member card: the API hands it out with its checksum, and the file matches.
     photo = stack.php_fixture("memberphoto", RT_MEMBER=str(paid))
@@ -1212,7 +1273,7 @@ def websiteprofile(stack: Stack) -> str:
     status, _ = stack.api("vereine/members/999999/profile", key, check=False)
     expect(status == 404, f"an unknown member answered HTTP {status}")
 
-    # Withdrawn: gone again, the profile stays kept for the day the consent comes back.
+    # Withdrawn: gone again, the values stay on the member for the day the consent comes back.
     tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={paid}"), "tab Association before the withdrawal")
     page_ok(browser.post(f"/custom/vereine/member_association.php?id={paid}", [("token", token_of(tab)), ("action", "withdrawconsent"),
                                                                                   ("consent_code", "profil"), ("consent_source", "paper")]), "withdraw the consent")
@@ -1220,17 +1281,21 @@ def websiteprofile(stack: Stack) -> str:
     expect(status == 200 and body == {"consent": "profil", "given": False}, f"profile after the withdrawal: {body}")
     status, _ = stack.api(f"vereine/members/{paid}/photo", key, check=False)
     expect(status == 404, f"photo after the withdrawal answered HTTP {status}")
-    expect(stack.value(f"SELECT gamertag FROM llx_vereine_member_profile WHERE fk_adherent = {paid}") == "LionKing", "the withdrawal deleted the profile")
+    expect(stack.value(f"SELECT spitzname FROM llx_adherent_extrafields WHERE fk_object = {paid}") == "LionKing", "the withdrawal deleted the values")
 
-    # Leave the setup of consents as found: later scenarios count the consent texts from zero.
-    setup = page_ok(browser.get("/custom/vereine/admin/consents.php"), "consent setup at the end")
+    # Leave the setup as found: later scenarios count the consent texts from zero and bring their own fields.
+    setup = page_ok(browser.get(setup_url), "consent setup at the end")
     page_ok(browser.submit(setup.form(name="vereinewebsiteprofileconsent"), {"website_profile_consent": ""}), "choose no consent again")
     expect(stack.const("VEREINE_WEBSITE_PROFILE_CONSENT") in ("", None, "NULL"), "the consent for the website profile was not cleared")
+    setup = page_ok(browser.get(setup_url), "consent setup before emptying the profile")
+    page_ok(browser.submit(setup.form(name="vereinewebsiteprofilefields"), drop=("profile_fields[]", "profile_self[]")), "take every field out of the profile")
+    expect(stack.const("VEREINE_WEBSITE_PROFILE_FIELDS") in ("", None, "NULL"), "the fields of the profile were not cleared")
+    stack.php_fixture("memberextradrop", RT_FIELDS="spitzname,instrumente,ueber_mich")
     stack.sql("DELETE FROM llx_vereine_consent WHERE code = 'profil'")
     stack.sql("DELETE FROM llx_vereine_consent_text WHERE code = 'profil'")
     expect(stack.value("SELECT COUNT(*) FROM llx_vereine_consent_text") == "0", "the consent text for the profile was not removed")
-    return ("Website profile on the tab Association, the consent chosen in the setup; the API hands profile and photo out only "
-            "with that consent, names it otherwise, and a withdrawal closes both")
+    return ("Website profile of fields the association makes in the setup, kept by the board on the member card or by the member; "
+            "the API hands fields and photo out only with the chosen consent, names it otherwise, and a withdrawal closes both")
 
 
 def websiteinvoices(stack: Stack) -> str:
@@ -6189,6 +6254,26 @@ def profileapi(stack: Stack) -> str:
                                 data={"external_id": "app-change-3", "version": profile["version"], "changes": {"statut": "-2", "fk_soc": "1"}})
     expect(status == 400 and stack.value(f"SELECT statut FROM llx_adherent WHERE rowid = {member}") == "1", f"status written through the app: HTTP {status}")
 
+    # The own website profile, kept through the application (#260): the gamer tag is the member's, the level the association's.
+    stack.sql("DELETE FROM llx_const WHERE name = 'VEREINE_WEBSITE_PROFILE_FIELDS' AND entity = 1")
+    stack.sql("INSERT INTO llx_const (name, entity, value, type, visible) VALUES ('VEREINE_WEBSITE_PROFILE_FIELDS', 1, "
+              "'{\"gamertag\":{\"self\":1},\"spielstaerke\":{\"self\":0}}', 'chaine', 0)")
+    status, own = stack.api("vereine/me/website-profile?subject=sub-profile", client)
+    expect(status == 200 and set(own) == {"consent", "given", "fields"}
+           and [(field["code"], field["editable"]) for field in own["fields"]] == [("gamertag", True), ("spielstaerke", False)],
+           f"the own website profile: HTTP {status} {own}")
+    status, own = stack.api("vereine/me/website-profile?subject=sub-profile", client, method="PUT", data={"fields": {"gamertag": " AppLöwe "}})
+    kept = stack.value(f"SELECT gamertag FROM llx_adherent_extrafields WHERE fk_object = {member}")
+    expect(status == 200 and own["fields"][0]["value"] == "AppLöwe" and kept == "AppLöwe", f"kept through the app: HTTP {status} {own}, {kept!r}")
+    for data, field in (({"fields": {"spielstaerke": "profi"}}, "spielstaerke"), ({"fields": {"gamertag": "x" * 256}}, "gamertag"),
+                        ({"fields": {"passwort": "x"}}, "passwort")):
+        status, refused = stack.api("vereine/me/website-profile?subject=sub-profile", client, method="PUT", data=data)
+        expect(status == 400 and isinstance(refused, dict) and refused.get("error", {}).get("field") == field, f"{data} was not refused with its field: HTTP {status} {refused}")
+    expect(stack.value(f"SELECT gamertag FROM llx_adherent_extrafields WHERE fk_object = {member}") == "AppLöwe", "a refused change was kept")
+    status, own = stack.api("vereine/me/website-profile?subject=sub-profile", client, method="PUT", data={"fields": {"gamertag": None}})
+    expect(status == 200 and own["fields"][0]["value"] is None and stack.value(f"SELECT gamertag FROM llx_adherent_extrafields WHERE fk_object = {member}") in (None, "", "NULL"),
+           f"emptying the gamer tag: HTTP {status} {own}")
+
     # A new e-mail address waits for the board; the board rejects it with a word for the member and a note of its own.
     old_email = stack.value(f"SELECT email FROM llx_adherent WHERE rowid = {member}")
     status, waiting = stack.api("vereine/me/profile/changes?subject=sub-profile", client, method="POST",
@@ -6496,6 +6581,12 @@ def portal(stack: Stack) -> str:
     page_ok(visitor.submit(mine.form(name="vereineportalprofile"), {"town": "Portalstadt"}), "ask for a change of the town")
     asked = stack.sql(f"SELECT status, payload FROM llx_vereine_profile_request WHERE fk_adherent = {member} AND client = 'webportal' ORDER BY rowid DESC LIMIT 1")
     expect(asked and "Portalstadt" in asked[0][1], f"the change through the portal: {asked}")
+    mine = page_ok(visitor.get("/public/webportal/index.php?controller=vereine"), "the page before the website profile")
+    expect('name="website_gamertag"' in mine.text and 'name="website_spielstaerke"' not in mine.text,
+           "the portal does not offer exactly the field of the website profile the member keeps")
+    page_ok(visitor.submit(mine.form(name="vereineportalwebsite"), {"website_gamertag": "PortalLöwe"}), "keep the website profile in the portal")
+    kept = stack.value(f"SELECT gamertag FROM llx_adherent_extrafields WHERE fk_object = {member}")
+    expect(kept == "PortalLöwe", f"the website profile kept in the portal: {kept!r}")
     shift = stack.value(f"SELECT s.rowid FROM llx_vereine_event_shift s INNER JOIN llx_vereine_event e ON e.rowid = s.fk_event WHERE e.label = 'LAN Mitglieder'"
                         f" AND s.label = 'Kassa'")
     mine = page_ok(visitor.get("/public/webportal/index.php?controller=vereine"), "the page before a shift")

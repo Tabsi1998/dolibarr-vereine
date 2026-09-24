@@ -7,6 +7,34 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-24
+
+Das Website-Profil passt jetzt zu jedem Verein: Welche Angaben die Website über ein Mitglied bekommt, legt der Verein selbst fest – und welche davon das Mitglied im Webportal oder in einer App selbst pflegt.
+
+Nach dem Update das Modul einmal aus- und wieder einschalten: Die Website-Profile aus 1.1.0 werden dabei übernommen. Wer eine eigene Website anbindet: `GET /vereine/members/{id}/profile` liefert die Felder jetzt als Liste `fields` (siehe API.md).
+
+### Neu
+
+- **Eigene Felder im Website-Profil** (#260): Unter *Einrichtung > Vereine > Einwilligungen* wählt der
+  Verein Zusatzfelder des Mitglieds für das Website-Profil aus oder legt dort neue an – Text, langer
+  Text, Zahl, Datum, Ja/Nein, Auswahl, Mehrfachauswahl, wie beim Mitgliedsantrag. Je Feld legt er fest,
+  ob der Vorstand es auf der Mitgliedskarte pflegt oder das Mitglied selbst.
+- **Website-Profil selbst pflegen** (#260): Mitglieder ändern die Felder, die der Verein ihnen überlässt,
+  im Webportal unter „Meine Daten“ oder über eine App (`GET`/`PUT /vereine/me/website-profile`,
+  Fähigkeit *profile*). Ein Wert, der nicht passt, wird mit dem Kürzel des Feldes abgelehnt
+  (`error.field`), nichts wird abgeschnitten. Die Website zeigt das Profil weiterhin nur mit der
+  gewählten Einwilligung; das Portal sagt dem Mitglied, ob sie erteilt ist.
+
+### Geändert
+
+- **Website-Profil** (#260): `GET /vereine/members/{id}/profile` liefert statt der festen Felder
+  `gamertag`, `bio`, `games` und `platforms` die Liste `fields` – je Feld Kürzel, Bezeichnung, Art, Wert
+  und ob das Mitglied es pflegt. `photo` und `GET /vereine/members/{id}/photo` bleiben gleich. Beim
+  Update werden die Profile aus 1.1.0 zu Zusatzfeldern mit den Kürzeln `gamertag`, `bio`, `games` und
+  `platforms` (nur die, die irgendwo gefüllt waren), gepflegt vom Vorstand wie bisher. Hat ein Mitglied
+  in einem gleichnamigen Zusatzfeld schon einen Wert, bleibt dieser. Die Tabelle
+  `llx_vereine_member_profile` entfällt; die Werte hängen jetzt am Mitglied und gehen mit ihm.
+
 ## [1.1.0] - 2026-09-24
 
 Mitglieder machen mehr selbst: „Mein Verein“ im Webportal von Dolibarr kann jetzt alles, was bisher nur eine App konnte – Einwilligungen, eigene Daten und Austritt, Helferdienste, Konten bei Discord, Twitch & Co., Statuten und Anträge zur Generalversammlung. Dazu ein Website-Profil je Mitglied mit Foto über die API, nur mit Einwilligung.
@@ -2100,7 +2128,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.2.0
 [1.1.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.0.0
 [0.11.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.11.0-beta
