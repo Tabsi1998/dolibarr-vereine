@@ -6374,8 +6374,9 @@ def portal(stack: Stack) -> str:
     page_ok(visitor.post("/public/webportal/index.php", [("token", token_of(login)), ("action_login", "login"), ("login", account["login"]),
                                                          ("password", account["password"])]), "log in")
     mine = page_ok(visitor.get("/public/webportal/index.php?controller=vereine"), "the page of the association")
+    seen = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html.unescape(re.sub(r"(?s)<(script|style)[^>]*>.*?</>", " ", mine.text))))[:900]
     expect(f'data-vereine-portal="{member}"' in mine.text and 'data-vereine-portal-section="meetings"' not in mine.text,
-           "the page is not the member's, or shows meetings that are switched off")
+           f"the page is not the member's, or shows meetings that are switched off; the portal showed: {seen}")
     status, documents = stack.api("vereine/me/documents?subject=sub-portal", client)
     shown = sorted(int(found) for found in re.findall(r'data-vereine-portal-document="(\d+)"', mine.text))
     expect(status == 200 and shown == sorted(row["document_id"] for row in documents), f"documents: portal {shown}, API {[row['document_id'] for row in documents]}")
