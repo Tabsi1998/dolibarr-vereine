@@ -530,7 +530,7 @@ def api(stack: Stack) -> str:
     status, body = stack.api("vereine/status", stack.reader_key)
     expect(status == 200, f"GET vereine/status answered HTTP {status}: {body}")
     server_time = body.pop("server_time", "") if isinstance(body, dict) else ""
-    expect(body == {"module_version": stack.module_version, "api_version": 2}, f"GET vereine/status returned {body}")
+    expect(body == {"module_version": stack.module_version, "api_version": 2, "website_profile_consent": ""}, f"GET vereine/status returned {body}")
     drift = abs((datetime.datetime.now(datetime.timezone.utc)
                  - datetime.datetime.strptime(server_time, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)).total_seconds())
     expect(drift < 300, f"server_time {server_time} is {drift:.0f} s away from this computer's clock")
