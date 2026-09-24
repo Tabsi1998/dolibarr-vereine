@@ -7,6 +7,12 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-24
+
+Die erste stabile Version: alles, was ein österreichischer Verein über das Jahr braucht – Beiträge, Sitzungen und Generalversammlung mit Abstimmungen, Funktionen und Meldungen an die Behörde, Rechnungslegung, Spendenmeldung, Freiwilligenpauschale, Vereinsakte und Datenschutz – mit einer stabilen API (Version 2) für Website, App und das Webportal von Dolibarr, und einem bebilderten Handbuch.
+
+Nach dem Update ist nichts zu tun. Wer eine eigene Website anbindet und `country_profile`, `country_profile_complete` oder `register.court` liest: diese Felder gibt es nicht mehr.
+
 ### Geändert
 
 - **API-Version 2** (#252): `GET /vereine/status` und `GET /vereine/organization` liefern die seit
@@ -2069,7 +2075,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.11.0-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.0.0
 [0.11.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.11.0-beta
 [0.10.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.10.0-beta
 [0.9.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.9.0-beta

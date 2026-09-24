@@ -5,8 +5,9 @@ Dolibarr-Funktionen für Mitglieder, Rechnungen, Bank, SEPA, Agenda und E-Mail
 auf, ergänzt, was ein Verein nach dem Vereinsgesetz 2002 darüber hinaus braucht,
 und bringt eine REST-API für die Vereinswebsite mit.
 
-> **Beta.** Das Modul wächst Meilenstein für Meilenstein – siehe
-> [Fahrplan](https://github.com/Tabsi1998/dolibarr-vereine/milestones).
+> **Stabil seit 1.0.0.** Neue Funktionen kommen Meilenstein für Meilenstein – siehe
+> [Fahrplan](https://github.com/Tabsi1998/dolibarr-vereine/milestones). Ein bebildertes
+> [Handbuch](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/HANDBUCH.md) erklärt den Alltag.
 
 ## Was das Modul kann
 
@@ -25,6 +26,9 @@ und bringt eine REST-API für die Vereinswebsite mit.
   auf der Übersicht, als Startseiten-Widget und in der API;
   **Registrierkassen-Check** je Bereich und der fehlende **13-%-Satz** auf
   Knopfdruck.
+- **0 % mit Begründung für E-Rechnungen**: eigene Codes im Umsatzsteuer-Wörterbuch
+  für nicht steuerbar, Kleinunternehmer und Sportverein; ab Dolibarr 24 mit dem
+  EU-Befreiungsgrund `VATEX-EU-O` für nicht steuerbar.
 - **Überzahlungen zuordnen**: Wer mehr überweist, als die Rechnung ausmacht, landet
   in einer Liste. Der Mehrbetrag wird mit Vorschau Guthaben, Rückzahlung oder –
   nur wenn er freiwillig und ohne Gegenleistung kam – Spende, genau einmal. Die
@@ -44,7 +48,8 @@ und bringt eine REST-API für die Vereinswebsite mit.
   niemand automatisch.
 - **Vereinsakte**: Fertige Dokumente als PDF/A mit Kennung und QR-Code, eine öffentliche
   Echtheitsprüfung ohne Titel und Inhalt, und die Akte eines Zeitraums als ZIP mit
-  Inhaltsverzeichnis und Prüfsummen.
+  Inhaltsverzeichnis und Prüfsummen. Veröffentlicht wird für Vorstand, Mitglieder,
+  Öffentlichkeit oder eine einzelne Person, auch als gekürzte Fassung.
 - **Spendenmeldung ans Finanzamt**: Summe je Person und Jahr aus dem Spendenmodul,
   Geburtsdatum verschlüsselt, vbPK über die Abgleichliste des Stammzahlenregisters,
   XML nach dem Schema des Finanzministeriums mit Erst-, Änderungs- und
@@ -90,6 +95,12 @@ und bringt eine REST-API für die Vereinswebsite mit.
 - **Unterschreiben** in Dolibarr, auf Papier oder **mit ID Austria** –
   qualifiziert, rechtlich wie eigenhändig – über einen eigenen Signaturdienst
   (PDF-AS). Einrichtung in [docs/ID-AUSTRIA.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/ID-AUSTRIA.md).
+- **Abstimmungen in der App**: In der Generalversammlung stimmen Mitglieder über
+  eine App, das Webportal oder per Stimmzettel ab. Die Stimmrechte samt Vollmachten
+  werden beim Öffnen festgehalten, jedes zählt genau einmal. Die Auswertung erzeugt
+  einen Nachweis als PDF; erst die Bestätigung durch die Versammlungsleitung trägt
+  den Beschluss ein und löst die Folgen aus. Geheime Wahlen folgen nach einer
+  eigenen Sicherheitsprüfung.
 
 - **Freiwilligenpauschale und PRAE**: Einsätze je Person mit Tag, Tätigkeit,
   Art und Betrag. Was über einer Tages-, Monats- oder Jahresgrenze liegt, markiert
@@ -134,7 +145,7 @@ und bringt eine REST-API für die Vereinswebsite mit.
   Dolibarrs Kalender bei der zuständigen Person an und erinnert daran; wechselt
   eine Funktion, warten offene Aufgaben auf die Bestätigung der Übergabe.
 
-### Für die Vereinswebsite
+### Für Website, App und Webportal
 
 - **REST-API**: Vereinsdaten, Vorstand, Steuerprofile, Beiträge, Einwilligungen,
   Beitrittsanträge und eine **Mitglieds-Zusammenfassung** (Mitgliedschaft,
@@ -144,6 +155,14 @@ und bringt eine REST-API für die Vereinswebsite mit.
   [docs/openapi.json](https://github.com/Tabsi1998/dolibarr-vereine/blob/main/docs/openapi.json).
 - **API-Reiter** in der Einrichtung: jede Schnittstelle mit ihren Rechten und
   einem Beispiel, die Benutzer mit API-Schlüssel und was sie aufrufen dürfen.
+- **Für Mitglieder in einer App**: eigene und veröffentlichte Dokumente, die
+  geltenden Statuten, Sitzungen mit Zu- oder Absage und Anträgen, eigene Daten
+  berichtigen und den Austritt erklären, Veranstaltungen und Helferdienste,
+  abstimmen – jeweils nur mit der Fähigkeit, die der Verein für die Anwendung
+  einschaltet.
+- **Webportal „Mein Verein“** (ab Dolibarr 23): dieselben Dienste im Webportal
+  von Dolibarr, ohne eigene Website; ohne Verwaltungsrechte und ohne API-Schlüssel
+  im Browser.
 
 ## Steuerprofile einfach erklärt
 
