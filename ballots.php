@@ -115,6 +115,28 @@ if ($action === 'create' && $canWrite) {
 	$result = $ballots->open($ballot['id'], $today, $user);
 } elseif ($ballot !== null && $canWrite && in_array($action, array('close', 'cancel'), true)) {
 	$result = $ballots->finish($ballot['id'], $action === 'close' ? VereineBallotRules::STATUS_CLOSED : VereineBallotRules::STATUS_CANCELLED, $user);
+} elseif ($ballot !== null && $canWrite && in_array($action, array('evaluate', 'reevaluate'), true)) {
+	$result = $ballots->evaluate($ballot['id'], $action === 'reevaluate' ? GETPOST('reason', 'alphanohtml') : '', $user, $langs);
+} elseif ($ballot !== null && $canWrite && $action === 'proof') {
+	$result = $ballots->buildProof(GETPOSTINT('result'), $langs);
+} elseif ($ballot !== null && $canWrite && $action === 'confirm') {
+	// Confirming is the act of whoever chairs; only now the resolution, the term or the version of the statutes follows.
+	$result = $ballots->confirm($ballot['id'], $user, $langs);
+} elseif ($ballot !== null && $action === 'download') {
+	$file = '';
+	foreach ($ballots->results($ballot['id']) as $counted) {
+		if ($counted['id'] === GETPOSTINT('result') && $counted['filename'] !== '') {
+			$file = VereineBallots::directory().'/'.$counted['filename'];
+		}
+	}
+	if ($file === '' || !is_file($file)) {
+		accessforbidden();
+	}
+	header('Content-Type: application/pdf');
+	header('Content-Disposition: attachment; filename="'.basename($file).'"');
+	header('Content-Length: '.filesize($file));
+	readfile($file);
+	exit;
 } elseif ($ballot !== null && $canWrite && $action === 'paper') {
 	// A paper ballot the board collected: the same voting right, used once whichever way.
 	$result = $ballots->cast($ballot['id'], GETPOSTINT('right'), GETPOST('option', 'aZ09'), 0, VereineBallotRules::CHANNEL_PAPER, '', '', $user);
@@ -123,6 +145,10 @@ if ($action === 'create' && $canWrite) {
 	}
 }
 if ($result !== null) {
+	if ($result > 0 && $action === 'evaluate' && $ballots->error !== '') {
+		// Counted, but the proof failed; it is built again from the same count.
+		setEventMessages($langs->trans('VereineBallotProofMissing'), null, 'warnings');
+	}
 	if ($result > 0) {
 		setEventMessages($langs->trans('VereineBallotSaved'), null, 'mesgs');
 		header('Location: '.$self.'#vereineballots');
@@ -172,6 +198,8 @@ foreach ($ballots->forMeeting($meeting['id']) as $shown) {
 			print $form('vereineballotopen'.$id, 'open', $id, $langs->trans('VereineBallotOpen'));
 		} elseif ($shown['status'] === VereineBallotRules::STATUS_OPEN) {
 			print $form('vereineballotclose'.$id, 'close', $id, $langs->trans('VereineBallotClose'));
+		} elseif ($shown['status'] === VereineBallotRules::STATUS_CLOSED) {
+			print $form('vereineballotevaluate'.$id, 'evaluate', $id, $langs->trans('VereineBallotEvaluate'));
 		}
 		if (VereineBallotRules::canMove($shown['status'], VereineBallotRules::STATUS_CANCELLED)) {
 			print $form('vereineballotcancel'.$id, 'cancel', $id, $langs->trans('VereineBallotCancel'));
@@ -215,6 +243,33 @@ foreach ($ballots->forMeeting($meeting['id']) as $shown) {
 				print '<span class="paddingright" data-ballot-count="'.dol_escape_htmltag($code).'">'.$labels[$code].': '.$count.'</span> ';
 			}
 			print '</div>';
+		}
+	}
+	// Each count with its proof: provisional until confirmed, replaced counts stay with their reason (#163).
+	$counts = $ballots->results($id);
+	if ($counts) {
+		print '<div class="div-table-responsive-no-min paddingtop"><table class="noborder centpercent"><tr class="liste_titre"><td>'.$langs->trans('VereineBallotCount').'</td>';
+		print '<td>'.$langs->trans('VereineBallotProofOutcome').'</td><td>'.$langs->trans('VereineBallotProofTitle').'</td></tr>';
+		foreach ($counts as $counted) {
+			$outcome = $counted['snapshot']['outcome'];
+			print '<tr class="oddeven" data-ballot-result="'.$counted['id'].'" data-ballot-result-status="'.$counted['status'].'" data-ballot-outcome="'.$outcome['outcome'].'"><td>';
+			print $langs->trans('VereineBallotProofRevision', $counted['revision']).' · '.dol_print_date($counted['created'], 'dayhour').' · '.$langs->trans('VereineBallotResult_'.$counted['status']);
+			print $counted['reason'] !== '' ? '<br><span class="opacitymedium small">'.dol_escape_htmltag($counted['reason']).'</span>' : '';
+			print '</td><td>'.$langs->trans('VereineBallotOutcome_'.$outcome['outcome']).'</td><td>';
+			if ($counted['filename'] !== '') {
+				print '<a href="'.$self.'&action=download&ballot='.$id.'&result='.$counted['id'].'&token='.newToken().'">'.dol_escape_htmltag($counted['filename']).'</a>';
+				print ' <span class="opacitymedium small" data-ballot-proof-sha="'.$counted['sha256'].'">'.substr($counted['sha256'], 0, 16).'…</span>';
+			} elseif ($canWrite) {
+				print $form('vereineballotproof'.$id, 'proof', $id, $langs->trans('VereineBallotProofBuild'), '<input type="hidden" name="result" value="'.$counted['id'].'">');
+			}
+			print '</td></tr>';
+		}
+		print '</table></div>';
+		if ($canWrite && $counts[0]['status'] === VereineBallotRules::RESULT_PROVISIONAL) {
+			print '<div class="paddingtop">'.$form('vereineballotconfirm'.$id, 'confirm', $id, $langs->trans('VereineBallotConfirm'));
+			print $form('vereineballotreevaluate'.$id, 'reevaluate', $id, $langs->trans('VereineBallotReevaluate'),
+				'<input type="text" name="reason" class="minwidth300" maxlength="255" placeholder="'.dol_escape_htmltag($langs->trans('VereineBallotReevaluateReason')).'"> ');
+			print '<br><span class="opacitymedium small">'.$langs->trans('VereineBallotConfirmHint').'</span></div>';
 		}
 	}
 	print '</div>';

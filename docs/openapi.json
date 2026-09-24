@@ -4613,7 +4613,8 @@
               "account",
               "payout",
               "statute",
-              "letter"
+              "letter",
+              "ballot"
             ]
           },
           "title": {
@@ -5413,7 +5414,8 @@
           "closes",
           "timezone",
           "options",
-          "rights"
+          "rights",
+          "result"
         ],
         "properties": {
           "id": {
@@ -5484,6 +5486,52 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/BallotRight"
+            }
+          },
+          "result": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": false,
+            "description": "Erst nach der Bestätigung durch die Versammlungsleitung; vorher null",
+            "required": [
+              "revision",
+              "outcome",
+              "passed",
+              "counts",
+              "valid",
+              "abstain",
+              "winner"
+            ],
+            "properties": {
+              "revision": {
+                "type": "integer"
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "passed",
+                  "rejected",
+                  "no_quorum",
+                  "no_majority"
+                ]
+              },
+              "passed": {
+                "type": "boolean"
+              },
+              "counts": {
+                "type": "object",
+                "description": "Stimmen je Antwort-Code"
+              },
+              "valid": {
+                "type": "integer"
+              },
+              "abstain": {
+                "type": "integer"
+              },
+              "winner": {
+                "type": "string",
+                "description": "Bei einer Wahl der Code der gewählten Person, sonst leer"
+              }
             }
           }
         }

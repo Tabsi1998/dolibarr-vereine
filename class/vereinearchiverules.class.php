@@ -32,7 +32,7 @@ class VereineArchiveRules
 	const LENGTH = 10;
 
 	/** Kinds of finished documents that carry a code, in the order of the index. */
-	const KINDS = array('minutes', 'resolution', 'audit_report', 'account', 'payout', 'statute', 'letter');
+	const KINDS = array('minutes', 'resolution', 'audit_report', 'account', 'payout', 'statute', 'letter', 'ballot');
 
 	/** Kinds of files of a document: as built, signed with ID Austria, the signed paper as a scan. */
 	const FILES = array('built', 'signed', 'scan', 'excerpt');

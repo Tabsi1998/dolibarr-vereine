@@ -1001,6 +1001,16 @@ danach.
 Öffnen, Schließen, Auszählen und Absagen geschehen nur in Dolibarr durch die Versammlungsleitung; keine
 Anwendung kann das.
 
+`result` ist `null`, bis die Versammlungsleitung das Ergebnis in Dolibarr **bestätigt** hat; danach:
+
+```json
+{"revision": 1, "outcome": "passed", "passed": true, "counts": {"yes": 41, "no": 3, "abstain": 2}, "valid": 44, "abstain": 2, "winner": ""}
+```
+
+`outcome`: `passed`, `rejected`, `no_quorum` (nicht beschlussfähig beim Öffnen), `no_majority` (Wahl: niemand
+über der Hälfte der gültigen Stimmen – eine Stichwahl ist eine neue Abstimmung). `winner` ist bei einer Wahl
+der Code der gewählten Person.
+
 ### GET /vereine/me/events
 
 `subject`, Fähigkeit `events`. Öffentliche Veranstaltungen und die für Mitglieder (in Dolibarr „nur für

@@ -13,28 +13,21 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- A vote of the members on an agenda item of a general assembly (#160): the question, how it may be cast,
--- its status, and the rules frozen when it was released (majority, proxies, version of the statutes).
-CREATE TABLE llx_vereine_ballot(
+-- A count of a closed ballot (#163): the snapshot it rests on, its proof as PDF with the checksum, whether it is provisional,
+-- confirmed or replaced by a later count with the reason, and the vote of the meeting its confirmation made.
+CREATE TABLE llx_vereine_ballot_result(
 	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
 	entity INTEGER DEFAULT 1 NOT NULL,
-	fk_meeting INTEGER NOT NULL,
-	item INTEGER DEFAULT 0 NOT NULL,
-	kind VARCHAR(16) NOT NULL,
-	question VARCHAR(255) NOT NULL,
-	secret SMALLINT DEFAULT 0 NOT NULL,
-	channels VARCHAR(32) NOT NULL,
+	fk_ballot INTEGER NOT NULL,
+	revision INTEGER NOT NULL,
+	snapshot MEDIUMTEXT NOT NULL,
+	reason VARCHAR(255),
 	status VARCHAR(16) NOT NULL,
-	closes VARCHAR(5),
-	rules TEXT,
-	quorum TEXT,
-	fk_function INTEGER DEFAULT 0 NOT NULL,
+	filename VARCHAR(255),
+	doc_sha VARCHAR(64),
 	fk_vote INTEGER DEFAULT 0 NOT NULL,
-	released_at DATETIME,
-	opened_at DATETIME,
-	closed_at DATETIME,
 	datec DATETIME NOT NULL,
-	tms TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-	fk_user_creat INTEGER,
-	fk_user_modif INTEGER
+	fk_user INTEGER,
+	confirmed_at DATETIME,
+	fk_user_confirmed INTEGER
 ) ENGINE=innodb;

@@ -1860,6 +1860,15 @@ if ($stage === 'signedrun') {
 	exit(0);
 }
 
+// Confirming a count once more, as a second click or a retry would (#163).
+if ($stage === 'ballotconfirm') {
+	dol_include_once('/vereine/class/vereineballots.class.php');
+	$langs->load('vereine@vereine');
+	$ballots = new VereineBallots($db);
+	print json_encode(array('result' => $ballots->confirm((int) rt_env('RT_BALLOT_ID'), $admin, $langs), 'errors' => $ballots->errors))."\n";
+	exit(0);
+}
+
 // Where the module keeps the PDFs of the statutes (#158).
 if ($stage === 'statutedir') {
 	dol_include_once('/vereine/class/vereinestatutes.class.php');
@@ -1867,4 +1876,4 @@ if ($stage === 'statutedir') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers, inventory, runloans, signedcopy, signedrun, statutedir or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers, inventory, runloans, signedcopy, signedrun, ballotconfirm, statutedir or reset');
