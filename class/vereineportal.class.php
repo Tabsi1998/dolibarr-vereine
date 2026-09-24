@@ -36,7 +36,7 @@ class VereinePortal
 	const SETTING = 'VEREINE_PORTAL_CAPABILITIES';
 
 	/** Abilities the portal can offer so far, in the order of its page. */
-	const OFFERED = array('documents', 'meetings', 'votes', 'consents', 'profile', 'events');
+	const OFFERED = array('documents', 'meetings', 'votes', 'consents', 'profile', 'events', 'accounts');
 
 	/** How the portal is named as the application in what it records. */
 	const CLIENT = 'webportal';

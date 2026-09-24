@@ -6394,7 +6394,8 @@ def portal(stack: Stack) -> str:
     # Consents, own data and events in the portal as well (#257).
     page = page_ok(browser.get(setup), "the identities for more of the portal")
     page_ok(browser.submit(page.form(name="vereineportal"), {"portal_documents": "1", "portal_votes": "1", "portal_consents": "1", "portal_profile": "1",
-                                                              "portal_events": "1"}), "switch consents, own data and events on")
+                                                              "portal_events": "1", "portal_meetings": "1", "portal_accounts": "1"}),
+            "switch consents, own data, events, meetings and accounts on")
     mine = page_ok(visitor.get("/public/webportal/index.php?controller=vereine"), "the page with everything")
     code = re.search(r'name="vereineportalgive([a-z0-9_]+)"', mine.text) or re.search(r'name="vereineportalwithdraw([a-z0-9_]+)"', mine.text)
     expect(code is not None, "the portal offers no consent to give or withdraw")
@@ -6421,16 +6422,38 @@ def portal(stack: Stack) -> str:
     expect(stack.value(f"SELECT status FROM llx_vereine_event_shift_entry WHERE fk_shift = {shift} AND fk_adherent = {member}") == "cancelled",
            "the request was not taken back")
 
+    # Accounts, statutes and a motion in the portal (#258).
+    mine = page_ok(visitor.get("/public/webportal/index.php?controller=vereine"), "the page with accounts, statutes and motions")
+    network = re.search(r'name="vereineportalaccount([a-z0-9_]+)"', mine.text)
+    expect(network is not None, "the portal offers no account")
+    page_ok(visitor.submit(mine.form(name=f"vereineportalaccount{network.group(1)}"), {"handle": "PortalGamer"}), "set an account in the portal")
+    kept = json.loads(stack.value(f"SELECT IFNULL(socialnetworks, '{{}}') FROM llx_adherent WHERE rowid = {member}") or "{}")
+    expect(kept.get(network.group(1)) == "PortalGamer" and stack.value(f"SELECT COUNT(*) FROM llx_vereine_social WHERE fk_adherent = {member}"
+                                                                        f" AND network = '{network.group(1)}' AND handle = 'PortalGamer'") == "0",
+           f"the account set in the portal: {kept}, confirmed only by an application")
+    statute = re.search(r'data-vereine-portal-statute="(\d+)"', mine.text)
+    if 'data-vereine-portal-statutes="not_published"' not in mine.text:
+        expect(statute is not None, "the portal shows no version of the published statutes")
+        link = re.search(r'href="([^"]*action=statute[^"]*)"', mine.text)
+        pdf = visitor.get(html.unescape(link.group(1)))
+        expect(pdf.status == 200 and pdf.text.startswith("%PDF"), f"the statutes as PDF: HTTP {pdf.status}")
+    motion = re.search(r'name="vereineportalmotion(\d+)"', mine.text)
+    expect(motion is not None, "the portal offers no motion for a general assembly")
+    page_ok(visitor.submit(mine.form(name=f"vereineportalmotion{motion.group(1)}"), {"title": "Antrag aus dem Portal", "text": "Bitte mehr LAN-Partys."}),
+            "a motion through the portal")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_motion WHERE fk_meeting = {motion.group(1)} AND fk_adherent = {member} AND client = 'webportal'"
+                       " AND title = 'Antrag aus dem Portal'") == "1", "the motion through the portal was not kept")
+
     # Switched off: no page, no menu entry.
     page = page_ok(browser.get(setup), "the identities before switching off")
-    page_ok(browser.submit(page.form(name="vereineportal"), {}, drop=("portal_documents", "portal_votes", "portal_consents", "portal_profile", "portal_events")),
-            "switch the portal off")
+    page_ok(browser.submit(page.form(name="vereineportal"), {}, drop=("portal_documents", "portal_votes", "portal_consents", "portal_profile", "portal_events",
+                                                                       "portal_meetings", "portal_accounts")), "switch the portal off")
     gone = visitor.get("/public/webportal/index.php?controller=vereine")
     expect("data-vereine-portal=" not in gone.text, "the page stays after switching the portal off")
     page_ok(browser.submit(page_ok(browser.get(ballots), "the ballots").form(name=f"vereineballotcancel{ballot}")), "call the ballot off")
     return ("the member logged in to the web portal saw the documents the API gives, none of somebody else, and the vote cast through the "
-            "application; voting again in the portal counted nothing; a consent withdrawn, a change of the town asked for and a shift asked for "
-            "and taken back through the portal, as through an application; switched off, the page is gone")
+            "application; voting again in the portal counted nothing; a consent withdrawn, a change of the town asked for, a shift asked for "
+            "and taken back, an account set, the statutes read and a motion made through the portal, as through an application; switched off, the page is gone")
 
 
 def documentmore(stack: Stack) -> str:

@@ -18,7 +18,7 @@
 /**
  * \file    class/portal/vereine.controller.class.php
  * \ingroup vereine
- * \brief   The page "My association" in Dolibarr's web portal (#25, #257): documents, meetings, ballots, events, consents and own data of the member logged in.
+ * \brief   The page "My association" in Dolibarr's web portal (#25, #257, #258): documents and statutes, meetings with motions, ballots, events, consents, own data and accounts.
  *
  * Loaded by Dolibarr's web portal through the hook initController (Dolibarr 23 and later). It holds no logic
  * of its own: documents come from VereinePublications, meetings from VereineMeetingPortal, ballots from
@@ -78,6 +78,9 @@ class VereinePortalController extends Controller
 		if ($action === 'pdf' && $this->allows('documents')) {
 			$this->pdf(GETPOSTINT('document'));
 		}
+		if ($action === 'statute' && $this->allows('documents')) {
+			$this->statutePdf(GETPOSTINT('statute'));
+		}
 		$done = null;
 		if ($action === 'respond' && $this->allows('meetings')) {
 			dol_include_once('/vereine/class/vereinemeetingportal.class.php');
@@ -90,6 +93,18 @@ class VereinePortalController extends Controller
 			$result = $ballots->cast(GETPOSTINT('ballot'), GETPOSTINT('right'), GETPOST('option', 'aZ09'), $this->memberId, VereineBallotRules::CHANNEL_APP, VereinePortal::CLIENT,
 				'', $this->actor());
 			$done = $result > 0 ? '' : $langs->trans('VereineBallotRefused_'.($ballots->reason !== '' ? $ballots->reason : 'not_found'));
+		} elseif ($action === 'motion' && $this->allows('meetings')) {
+			dol_include_once('/vereine/class/vereinemeetingportal.class.php');
+			$portal = new VereineMeetingPortal($this->db);
+			$motion = $portal->submitMotion($this->memberId, GETPOSTINT('meeting'), array('external_id' => self::requestId(), 'title' => GETPOST('title', 'alphanohtml'),
+				'text' => GETPOST('text', 'alphanohtml')), VereinePortal::CLIENT, dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+			$done = $motion !== null ? '' : $langs->trans('VereinePortalRefused');
+		} elseif ($action === 'account' && $this->allows('accounts')) {
+			// Set in the portal is set by the member, not checked at the network: only an application can confirm (#258).
+			dol_include_once('/vereine/class/vereinesocial.class.php');
+			$social = new VereineSocial($this->db);
+			$done = $social->setAccount($this->member(), GETPOST('network', 'aZ09'), GETPOST('handle', 'alphanohtml'), false, '', VereinePortal::CLIENT, $this->actor()) > 0
+				? '' : $langs->trans('VereinePortalRefused');
 		} elseif ($action === 'consent' && $this->allows('consents')) {
 			// The same decision as through a website, with the portal as its proof (#257).
 			dol_include_once('/vereine/class/vereineconsents.class.php');
@@ -153,6 +168,7 @@ class VereinePortalController extends Controller
 		print '<main class="container" data-vereine-portal="'.$this->memberId.'">';
 		if ($this->allows('documents')) {
 			$this->documents();
+			$this->statutes();
 		}
 		if ($this->allows('meetings')) {
 			$this->meetings();
@@ -168,6 +184,9 @@ class VereinePortalController extends Controller
 		}
 		if ($this->allows('profile')) {
 			$this->profile();
+		}
+		if ($this->allows('accounts')) {
+			$this->accounts();
 		}
 		print '</main>';
 		$this->loadTemplate('footer');
@@ -249,6 +268,19 @@ class VereinePortalController extends Controller
 					print '<option value="'.$response.'"'.($meeting['response'] === $response ? ' selected' : '').'>'.$langs->trans('VereinePortalResponse_'.$response).'</option>';
 				}
 				print '</select><button type="submit">'.$langs->trans('VereinePortalAnswer').'</button></form>';
+			}
+			foreach ($meeting['motions'] as $motion) {
+				print '<p data-vereine-portal-motion="'.dol_escape_htmltag($motion['status']).'">'.$langs->trans('VereineMotion').': '.dol_escape_htmltag($motion['title']).' · '
+					.$langs->trans($motion['status'] === 'received' ? 'VereineMotionReceived' : 'VereineMotionState_'.$motion['status']).($motion['late'] ? ' · '.$langs->trans('VereineMotionLate') : '').'</p>';
+			}
+			if ($meeting['kind'] !== 'board' && $meeting['status'] === 'invited' && $meeting['day'] >= $today) {
+				// A motion for the agenda of a general assembly, with the deadline of the statutes (#258).
+				print '<details><summary>'.$langs->trans('VereinePortalMotion').($meeting['motion_deadline'] !== '' ? ' · '.$langs->trans('VereinePortalMotionBy', dol_escape_htmltag($meeting['motion_deadline'])) : '')
+					.'</summary><form method="POST" action="'.$context->getControllerUrl('vereine', '', false).'" name="vereineportalmotion'.$meeting['id'].'"><input type="hidden" name="token" value="'.newToken().'">';
+				print '<input type="hidden" name="action" value="motion"><input type="hidden" name="meeting" value="'.$meeting['id'].'">';
+				print '<label>'.$langs->trans('VereinePortalMotionTitle').'<input type="text" name="title" maxlength="255" required></label>';
+				print '<label>'.$langs->trans('VereinePortalMotionText').'<textarea name="text" rows="4"></textarea></label>';
+				print '<button type="submit">'.$langs->trans('VereinePortalMotionSend').'</button></form></details>';
 			}
 			print '</div>';
 		}
@@ -446,6 +478,85 @@ class VereinePortalController extends Controller
 	private static function requestId()
 	{
 		return VereinePortal::CLIENT.'-'.bin2hex(random_bytes(8));
+	}
+
+	/**
+	 * The member's accounts at Discord, Twitch, YouTube & Co.: those the association asks for and the member's own; set, change, remove (#258).
+	 *
+	 * @return void
+	 */
+	private function accounts()
+	{
+		global $langs;
+
+		dol_include_once('/vereine/class/vereinesocial.class.php');
+		$context = Context::getInstance();
+		$accounts = (new VereineSocial($this->db))->accounts($this->member());
+		print '<article data-vereine-portal-section="accounts"><header><strong>'.$langs->trans('VereinePortalAccounts').'</strong></header>';
+		print '<p><small>'.$langs->trans('VereinePortalAccountsHint').'</small></p>';
+		if (!$accounts) {
+			print '<p>'.$langs->trans('VereinePortalNothing').'</p>';
+		}
+		foreach ($accounts as $account) {
+			print '<form method="POST" action="'.$context->getControllerUrl('vereine', '', false).'" name="vereineportalaccount'.dol_escape_htmltag($account['network'])
+				.'" data-vereine-portal-account="'.dol_escape_htmltag($account['network']).'" data-vereine-portal-account-confirmed="'.($account['confirmed'] ? 1 : 0).'">';
+			print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="account"><input type="hidden" name="network" value="'
+				.dol_escape_htmltag($account['network']).'">';
+			print '<label>'.dol_escape_htmltag($account['label']).($account['asked'] === 'required' ? ' *' : '').($account['confirmed'] ? ' · '.$langs->trans('VereinePortalAccountConfirmed') : '')
+				.'<input type="text" name="handle" maxlength="128" value="'.dol_escape_htmltag($account['handle']).'"></label>';
+			print '<button type="submit">'.$langs->trans('VereinePortalAccountSave').'</button></form>';
+		}
+		print '</article>';
+	}
+
+	/**
+	 * The statutes as the association published them: the version in force and the archive, each as PDF (#258).
+	 *
+	 * @return void
+	 */
+	private function statutes()
+	{
+		global $langs;
+
+		dol_include_once('/vereine/class/vereinestatutes.class.php');
+		dol_include_once('/vereine/class/vereinepublications.class.php');
+		$context = Context::getInstance();
+		$actor = (new VereinePublications($this->db))->actorFor($this->memberId);
+		$statutes = (new VereineStatutes($this->db))->published($actor, dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+		print '<article data-vereine-portal-section="statutes" data-vereine-portal-statutes="'.dol_escape_htmltag($statutes['state']).'"><header><strong>'
+			.$langs->trans('VereinePortalStatutes').'</strong></header>';
+		if (!$statutes['versions']) {
+			print '<p>'.$langs->trans('VereinePortalNothing').'</p>';
+		}
+		foreach ($statutes['versions'] as $version) {
+			$current = $statutes['current'] !== null && $statutes['current']['id'] === $version['id'];
+			print '<p data-vereine-portal-statute="'.$version['id'].'"><a href="'.$context->getControllerUrl('vereine', array('action' => 'statute', 'statute' => $version['id'])).'">'
+				.$langs->trans('VereinePortalStatuteVersion', $version['version'], dol_escape_htmltag($version['valid_from'])).'</a>'
+				.($current ? ' · <strong>'.$langs->trans('VereinePortalStatuteCurrent').'</strong>' : '').'</p>';
+		}
+		print '</article>';
+	}
+
+	/**
+	 * Hand out the PDF of a version of the statutes the member may read, checked against its checksum.
+	 *
+	 * @param int $id Version
+	 * @return void
+	 */
+	private function statutePdf($id)
+	{
+		dol_include_once('/vereine/class/vereinestatutes.class.php');
+		dol_include_once('/vereine/class/vereinepublications.class.php');
+		$pdf = (new VereineStatutes($this->db))->publishedFile((int) $id, (new VereinePublications($this->db))->actorFor($this->memberId));
+		if (!is_array($pdf)) {
+			http_response_code($pdf === false ? 500 : 404);
+			exit;
+		}
+		header('Content-Type: application/pdf');
+		header('Content-Disposition: attachment; filename="'.$pdf['filename'].'"');
+		header('Content-Length: '.strlen($pdf['bytes']));
+		print $pdf['bytes'];
+		exit;
 	}
 
 	/**

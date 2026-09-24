@@ -588,6 +588,24 @@ class VereineStatutes
 	 */
 	public function publishedPdf($id, array $actor)
 	{
+		$file = $this->publishedFile($id, $actor);
+		if (!is_array($file)) {
+			return $file;
+		}
+		$file['content'] = base64_encode($file['bytes']);
+		unset($file['bytes']);
+		return $file;
+	}
+
+	/**
+	 * The bytes of a version for somebody who may read the statutes, checked against its checksum; the web portal hands them out as they are (#258).
+	 *
+	 * @param int                 $id    Version
+	 * @param array<string,mixed> $actor public, member, board
+	 * @return array{filename:string,content_type:string,filesize:int,sha256:string,bytes:string}|null|false Null when not for them, false when the file is gone or changed
+	 */
+	public function publishedFile($id, array $actor)
+	{
 		require_once __DIR__.'/vereinepublicationrules.class.php';
 
 		$audience = self::audience();
@@ -605,7 +623,7 @@ class VereineStatutes
 				return false;
 			}
 			return array('filename' => $version['filename'], 'content_type' => 'application/pdf', 'filesize' => strlen($content), 'sha256' => $version['sha256'],
-				'content' => base64_encode($content));
+				'bytes' => $content);
 		}
 		return null;
 	}

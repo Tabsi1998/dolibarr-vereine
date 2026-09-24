@@ -15,6 +15,9 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   den **Austritt** erklären) und **Veranstaltungen und Helferdienste** (mithelfen, unbestätigte Anfrage
   zurückziehen). Jeder Bereich ist unter *Externe Identitäten > Webportal* einzeln einschaltbar und nutzt
   dieselben Dienste wie eine App.
+- **Webportal: Konten, Statuten, Anträge** (#258): **Meine Konten** (Discord, Twitch, YouTube & Co. eintragen,
+  ändern, entfernen – bestätigen kann weiterhin nur eine App), die veröffentlichten **Statuten** als PDF
+  und **Anträge zur Generalversammlung** im Bereich Sitzungen, mit der Frist der Statuten.
 
 ## [1.0.0] - 2026-09-24
 

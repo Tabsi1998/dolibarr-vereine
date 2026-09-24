@@ -2997,7 +2997,8 @@ same(array('counts' => array('yes' => 2, 'no' => 1, 'abstain' => 1), 'valid' => 
 // ------------------------------------------------------------- the web portal (#25)
 
 same(array('documents', 'votes'), VereinePortal::parse('votes, documents,admin,votes'), 'only offered abilities, in their order, once');
-same(array('meetings', 'consents', 'profile', 'events'), VereinePortal::parse('events,profile,consents,meetings'), 'consents, own data and events in the portal too (#257)');
+same(array('meetings', 'consents', 'profile', 'events', 'accounts'), VereinePortal::parse('accounts,events,profile,consents,meetings'),
+	'consents, own data, events and accounts in the portal too (#257, #258)');
 same(array(), VereinePortal::parse(''), 'switched off by default');
 same(array(false, true, true), array(VereinePortal::supported('22.0.3'), VereinePortal::supported('23.0.0'), VereinePortal::supported('24.0.1')),
 	'the web portal takes pages of modules from Dolibarr 23 on');
