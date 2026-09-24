@@ -7,6 +7,12 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-24
+
+Mitglieder pflegen ihr Website-Profil selbst – im Webportal von Dolibarr oder über die App bzw. die Website des Vereins. Die Website zeigt es weiterhin nur mit Einwilligung.
+
+Nach dem Update ist nichts zu tun.
+
 ### Neu
 
 - **Website-Profil selbst pflegen** (#260): Mitglieder tragen Gamertag, Kurztext, Spiele und Plattformen
@@ -2107,7 +2113,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.2.0
 [1.1.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.0.0
 [0.11.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.11.0-beta
