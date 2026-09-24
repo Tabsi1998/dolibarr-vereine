@@ -150,16 +150,22 @@ class Stack:
             expect(not problems, "the answer differs from docs/openapi.json:\n" + "\n".join(problems[:10]))
         return status, body
 
-    def fetch(self, path: str, key: str | None, method: str = "GET", headers: dict | None = None) -> tuple[int, dict, bytes]:
-        """Fetch a file of the API as it is (#244): status, headers and bytes; the status must be one docs/openapi.json lists."""
+    def fetch(self, path: str, key: str | None, method: str = "GET", headers: dict | None = None) -> tuple[int, object, bytes]:
+        """Fetch a file of the API as it is (#244): status, headers (any case) and bytes; a JSON answer must match docs/openapi.json."""
         sent = {**({"DOLAPIKEY": key} if key else {}), **(headers or {})}
         request = urllib.request.Request(f"{self.url}/api/index.php/{path.lstrip('/')}", method=method, headers=sent)
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
-                status, answer, raw = response.status, dict(response.headers.items()), response.read()
+                status, answer, raw = response.status, response.headers, response.read()
         except urllib.error.HTTPError as error:
-            status, answer, raw = error.code, dict(error.headers.items()), error.read()
-        problems = self.openapi.check(method, path, status, None)
+            status, answer, raw = error.code, error.headers, error.read()
+        body = None
+        if (answer.get("Content-Type") or "").startswith("application/json"):
+            try:
+                body = json.loads(raw.decode("utf-8") or "null")
+            except ValueError:
+                body = raw.decode("utf-8", errors="replace")
+        problems = self.openapi.check(method, path, status, body)
         expect(not problems, "the answer differs from docs/openapi.json:\n" + "\n".join(problems[:10]))
         return status, answer, raw
 
