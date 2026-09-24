@@ -33,6 +33,8 @@ und bringt eine REST-API für die Vereinswebsite mit.
   Daten als PDF und JSON, ohne Daten anderer.
 - **Löschen nach dem Austritt**: Vorschau je Art der Daten mit Frist und Grund, gelöscht wird nur
   das Fällige nach Klick; Buchhaltung und Vereinsunterlagen bleiben.
+- **Inventar und Ausleihe**: Geräte als Dolibarr-Ressourcen, Ausgabe und Rückgabe mit Zustand,
+  Erinnerung bei Überfälligkeit nur an die Person.
 - **Ehrungen und Statistik**: Jubiläen, Geburtstage mit Einwilligung, Ehrenmitgliedschaft und Urkunde;
   Mitgliederzahlen an einem Stichtag für Verbände.
 - **Kanäle und Konten**: Discord, Twitch, YouTube & Co. des Vereins (mehrere je Netzwerk, mit

@@ -116,6 +116,13 @@ class VereineWaiting
 			$add('arrear', '', $langs->transnoentities('VereineTodoArrears', $arrearCount), dol_buildpath('/vereine/meetings.php', 1).'?template=board#vereinemeetingnew');
 		}
 
+		// Equipment that is late; the list names nobody (#26).
+		require_once __DIR__.'/vereineloans.class.php';
+		$lateLoans = (new VereineLoans($this->db))->overdue($today);
+		if ($lateLoans > 0) {
+			$add('loan', '', $langs->transnoentities('VereineTodoLoans', $lateLoans), dol_buildpath('/vereine/inventory.php', 1));
+		}
+
 		// Functions without a holder and terms of office that are over: an election is due.
 		require_once __DIR__.'/vereinefunctionrules.class.php';
 		$store = new VereineFunctions($this->db);
