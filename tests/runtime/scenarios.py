@@ -6376,8 +6376,9 @@ def profileapi(stack: Stack) -> str:
                                       (f"vereine/me/invoices?member_id={payer}&subject=sub-invoices", direct, 400, "subject and member id together")):
         status, _ = stack.api(path, key)
         expect(status == expected, f"{what}: HTTP {status}, expected {expected}")
-    stack.php_fixture("apiclient", RT_LOGIN="rtdirect", RT_CLIENT_KEY=direct, RT_EXTRA_RIGHTS="members/vote")
-    status, ballots = stack.api(f"vereine/me/ballots?member_id={member}", direct)
+    voter = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtvoter", RT_CLIENT_KEY=voter, RT_EXTRA_RIGHTS="members/vote")
+    status, ballots = stack.api(f"vereine/me/ballots?member_id={member}", voter)
     expect(status == 200 and isinstance(ballots, list), f"ballots with the right to vote: HTTP {status} {ballots}")
 
     # A new e-mail address waits for the board; the board rejects it with a word for the member and a note of its own.
