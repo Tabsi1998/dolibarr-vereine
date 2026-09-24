@@ -1705,4 +1705,54 @@ if ($stage === 'arrearstale') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale or reset');
+// Honours (#27): a member of ten years, one turning fifty who agreed to birthday wishes, one who did not, and a
+// member type for honorary members without a fee.
+if ($stage === 'honourmembers') {
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent_type.class.php';
+	$year = (int) dol_print_date(dol_now(), '%Y');
+	$type = new AdherentType($db);
+	$type->label = 'Ehrenmitglied';
+	$type->libelle = 'Ehrenmitglied';
+	$type->subscription = 0;
+	$type->vote = 1;
+	$type->status = 1;
+	$type->morphy = '';
+	if ($type->create($admin) <= 0) {
+		rt_fail('member type Ehrenmitglied: '.$type->error);
+	}
+	$code = (string) rt_value($db, "SELECT code FROM ".MAIN_DB_PREFIX."vereine_consent_text ORDER BY rowid LIMIT 1");
+	$members = array();
+	foreach (array('hannah' => array('Hannah', ''), 'ben' => array('Ben', ($year - 50).'-06-15'), 'clara' => array('Clara', ($year - 30).'-03-03')) as $key => $data) {
+		$member = new Adherent($db);
+		$member->typeid = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."adherent_type WHERE libelle = 'Beitragspflichtig'");
+		$member->morphy = 'phy';
+		$member->firstname = $data[0];
+		$member->lastname = 'Ehrung';
+		$member->email = $key.'.ehrung@runtime-verein.test';
+		$member->gender = $key === 'ben' ? 'man' : 'woman';
+		$member->country_id = (int) rt_value($db, "SELECT rowid FROM ".MAIN_DB_PREFIX."c_country WHERE code = 'AT'");
+		if ($data[1] !== '') {
+			$member->birth = dol_stringtotime($data[1].' 12:00:00');
+		}
+		$member->public = 0;
+		if ($member->create($admin) <= 0 || $member->validate($admin) <= 0) {
+			rt_fail('member '.$data[0].': '.$member->error.' '.implode(' | ', (array) $member->errors));
+		}
+		if ($key === 'hannah') {
+			$since = dol_mktime(12, 0, 0, 4, 1, $year - 10);
+			if ($member->subscription($since, 20, 0, '', 'Mitgliedsbeitrag', '', '', '', dol_time_plus_duree($since, 1, 'y') - 86400) <= 0) {
+				rt_fail('first fee of Hannah: '.$member->error);
+			}
+		}
+		$members[$key] = (int) $member->id;
+	}
+	// Ben agreed to birthday wishes, Clara did not.
+	if (!$db->query("INSERT INTO ".MAIN_DB_PREFIX."vereine_consent (entity, fk_adherent, code, version, given, source, date_event) VALUES (1, ".$members['ben'].", '".$db->escape($code)."', 1, 1, 'paper', '".$db->idate(dol_now())."')")) {
+		rt_fail('consent of Ben: '.$db->lasterror());
+	}
+	print json_encode(array('members' => $members, 'type' => (int) $type->id, 'code' => $code, 'year' => $year))."\n";
+	exit(0);
+}
+
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers or reset');

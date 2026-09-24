@@ -74,6 +74,7 @@ require_once __DIR__.'/class/vereinedisclosure.class.php';
 require_once __DIR__.'/class/vereineerasure.class.php';
 require_once __DIR__.'/class/vereinearrears.class.php';
 require_once __DIR__.'/class/vereinesocial.class.php';
+require_once __DIR__.'/class/vereinehonours.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('companies', 'members', 'bills', 'categories', 'vereine@vereine'));
@@ -609,6 +610,19 @@ foreach ($memberResolutions as $entry) {
 	print '<td>'.$langs->trans($entry['passed'] ? 'VereineResolutionPassed' : 'VereineResolutionRejected').'</td></tr>';
 }
 print '</table></div><br>';
+
+// Honours the member was given (#27).
+$memberHonours = (new VereineHonours($db))->honours((int) $object->id);
+if ($memberHonours) {
+	print load_fiche_titre($langs->trans('VereineHonourList'), '', '', 0, 'vereinehonours');
+	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
+	foreach ($memberHonours as $honour) {
+		$what = $honour['kind'] === 'jubilee' ? $langs->trans('VereineHonourKind_jubilee', $honour['years'])
+			: ($honour['kind'] === 'award' ? dol_escape_htmltag($honour['label']) : $langs->trans('VereineHonourKind_honorary'));
+		print '<tr class="oddeven" data-member-honour="'.dol_escape_htmltag($honour['kind']).'"><td class="nowraponall">'.vereineFormatDay($honour['given_on']).'</td><td>'.$what.'</td></tr>';
+	}
+	print '</table></div><br>';
+}
 
 // Accounts at Discord, Twitch and the like, and whether an application confirmed them (#233).
 $memberAccounts = (new VereineSocial($db))->accounts($object);
