@@ -7,6 +7,12 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [0.11.0-beta] - 2026-09-24
+
+Mitglieder und ihr Verein, auch unterwegs: Ehrungen, Jubiläen und Mitgliederstatistik, Geräte und Ausleihe, veröffentlichte Dokumente und Statuten, Sitzungen mit Zu-/Absage und Anträgen, eigene Daten und Austritt, Veranstaltungen mit Helferdiensten, Abstimmungen in der Generalversammlung über App oder Stimmzettel mit Nachweis – über die API und im Webportal von Dolibarr. Dazu 0 % mit Begründung für E-Rechnungen.
+
+Nach dem Update das Modul einmal aus- und wieder einschalten: neue Tabellen, Menüpunkte und Webportal-Anbindung.
+
 ### Neu
 
 - **Ehrungen und Jubiläen** (#27): *Mitglieder > Verein > Ehrungen und Jubiläen* zeigt je Jahr, wer ein
@@ -2056,7 +2062,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.10.0-beta...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.11.0-beta...HEAD
+[0.11.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.11.0-beta
 [0.10.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.10.0-beta
 [0.9.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.9.0-beta
 [0.8.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.8.0-beta
