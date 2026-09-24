@@ -2933,6 +2933,7 @@ $now = array('address' => 'Alte Gasse 1', 'zip' => '6020', 'town' => 'Innsbruck'
 $version = VereineProfileRules::version($now);
 $asked = VereineProfileRules::check(array('external_id' => 'app-1', 'version' => $version, 'changes' => array('address' => ' Neue Gasse 2 ', 'zip' => '6020', 'country_code' => 'at')), $now);
 same(array(array(), array('address' => 'Neue Gasse 2')), array($asked['errors'], $asked['changes']), 'only what differs, trimmed; the country as two capitals');
+same(array('address' => 'Neue Gasse 2', 'country_code' => 'AT', 'zip' => '6020'), $asked['asked'], 'what was asked stays, to recognise the same request after it was applied');
 $refused = VereineProfileRules::check(array('external_id' => 'app-2', 'version' => $version, 'changes' => array('statut' => '1', 'fk_soc' => '7', 'email' => 'kein')), $now);
 same(array('changes.statut cannot be changed this way', 'changes.fk_soc cannot be changed this way', 'changes.email is no valid address'), $refused['errors'],
 	'status, third party and a wrong address are refused');

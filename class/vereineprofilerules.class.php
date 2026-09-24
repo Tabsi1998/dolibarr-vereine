@@ -60,7 +60,7 @@ class VereineProfileRules
 	 *
 	 * @param mixed                $sent    external_id, version, changes
 	 * @param array<string,string> $current Field => value now
-	 * @return array{external_id:string,version:string,changes:array<string,string>,errors:string[]}
+	 * @return array{external_id:string,version:string,asked:array<string,string>,changes:array<string,string>,errors:string[]}
 	 */
 	public static function check($sent, array $current)
 	{
@@ -75,6 +75,7 @@ class VereineProfileRules
 			$errors[] = 'version is needed: the one GET me/profile gave';
 		}
 		$changes = array();
+		$asked = array();
 		foreach (isset($sent['changes']) && is_array($sent['changes']) ? $sent['changes'] : array() as $field => $value) {
 			if (!array_key_exists((string) $field, self::FIELDS)) {
 				$errors[] = 'changes.'.$field.' cannot be changed this way';
@@ -96,6 +97,7 @@ class VereineProfileRules
 				$errors[] = 'changes.email is no valid address';
 				continue;
 			}
+			$asked[(string) $field] = $value;
 			if (!isset($current[$field]) || (string) $current[$field] !== $value) {
 				$changes[(string) $field] = $value;
 			}
@@ -103,7 +105,8 @@ class VereineProfileRules
 		if (!$errors && !$changes) {
 			$errors[] = 'changes has nothing that differs from the data now';
 		}
-		return array('external_id' => $external, 'version' => $version, 'changes' => $changes, 'errors' => $errors);
+		ksort($asked);
+		return array('external_id' => $external, 'version' => $version, 'asked' => $asked, 'changes' => $changes, 'errors' => $errors);
 	}
 
 	/**

@@ -147,10 +147,11 @@ class VereineProfiles
 		$current = self::current($member);
 		$checked = VereineProfileRules::check($sent, $current);
 		$known = $checked['external_id'] !== '' ? $this->byExternal($client, $checked['external_id']) : null;
+		$asked = array('version' => $checked['version'], 'asked' => $checked['asked']);
 		$payload = array('version' => $checked['version'], 'changes' => $checked['changes']);
 		if ($known !== null) {
-			// The same request again is the same request; another one under the same id is refused.
-			if ($known['member_id'] !== (int) $member->id || $known['fingerprint'] !== VereineProfileRules::fingerprint($payload) || $known['kind'] !== 'change') {
+			// The same request again is the same request, even after it was applied; another one under the same id is refused.
+			if ($known['member_id'] !== (int) $member->id || $known['fingerprint'] !== VereineProfileRules::fingerprint($asked) || $known['kind'] !== 'change') {
 				$this->errors[] = 'conflict';
 				return null;
 			}
@@ -165,7 +166,7 @@ class VereineProfiles
 			return null;
 		}
 		$direct = VereineProfileRules::direct($checked['changes'], self::directFields());
-		$id = $this->insert((int) $member->id, $client, $checked['external_id'], 'change', $payload, $direct ? 'applied' : 'received', 0);
+		$id = $this->insert((int) $member->id, $client, $checked['external_id'], 'change', $payload, $direct ? 'applied' : 'received', 0, VereineProfileRules::fingerprint($asked));
 		if ($id < 0) {
 			return null;
 		}
@@ -226,7 +227,7 @@ class VereineProfiles
 		if ($wished !== '' && $wished > $planned && $this->value("SELECT status as v FROM ".MAIN_DB_PREFIX."vereine_member_exit WHERE rowid = ".((int) $exitId)) === VereineExits::STATUS_PLANNED) {
 			$this->db->query("UPDATE ".MAIN_DB_PREFIX."vereine_member_exit SET last_day = '".$this->db->escape($wished)."' WHERE rowid = ".((int) $exitId));
 		}
-		$id = $this->insert((int) $member->id, $client, $external, 'exit', $payload, 'applied', $exitId);
+		$id = $this->insert((int) $member->id, $client, $external, 'exit', $payload, 'applied', $exitId, VereineProfileRules::fingerprint($payload));
 		return $id > 0 ? $this->exitView($id) : null;
 	}
 
@@ -360,16 +361,17 @@ class VereineProfiles
 	 * @param string              $kind     change or exit
 	 * @param array<string,mixed> $payload  What was asked
 	 * @param string              $status   received or applied
-	 * @param int                 $exitId   The exit a notice made
+	 * @param int                 $exitId      The exit a notice made
+	 * @param string              $fingerprint What was sent, to recognise a repetition
 	 * @return int Id, -1 on error
 	 */
-	private function insert($memberId, $client, $external, $kind, array $payload, $status, $exitId)
+	private function insert($memberId, $client, $external, $kind, array $payload, $status, $exitId, $fingerprint)
 	{
 		global $conf;
 
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_profile_request (entity, fk_adherent, client, external_id, kind, payload, fingerprint, status, fk_exit, received_at) VALUES (";
 		$sql .= ((int) $conf->entity).", ".((int) $memberId).", '".$this->db->escape($client)."', '".$this->db->escape($external)."', '".$this->db->escape($kind)."',";
-		$sql .= " '".$this->db->escape((string) json_encode($payload))."', '".VereineProfileRules::fingerprint($payload)."', '".$this->db->escape($status)."', ".((int) $exitId).",";
+		$sql .= " '".$this->db->escape((string) json_encode($payload))."', '".$this->db->escape($fingerprint)."', '".$this->db->escape($status)."', ".((int) $exitId).",";
 		$sql .= " '".$this->db->idate(dol_now())."')";
 		if (!$this->db->query($sql)) {
 			$this->error = $this->db->lasterror();
