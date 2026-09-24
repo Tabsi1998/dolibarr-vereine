@@ -56,6 +56,31 @@ Was der Verein für die **Öffentlichkeit** veröffentlicht hat, im selben Forma
 Veröffentlicht wird unter *Mitglieder > Verein > Vereinsakte*: je Dokument von Hand oder je Dokumentart
 automatisch, sobald die unterschriebene Fassung da ist. Ab Werk ist nichts veröffentlicht.
 
+## GET /vereine/statutes
+
+Die Statuten, wenn der Verein sie unter *Einrichtung > Statuten* für die **Öffentlichkeit** freigibt
+(Standard: niemand). Optional `day=JJJJ-MM-TT` als Stichtag, sonst heute.
+
+```json
+{"state": "in_force",
+ "current": {"id": 3, "version": 2, "decided_on": "2026-03-14", "valid_from": "2026-04-20", "valid_to": "",
+             "state": "in_force", "source": "generated", "sha256": "9b1d…", "size": 48211},
+ "versions": [{"id": 5, "version": 3, "valid_from": "2027-01-01", "state": "future", "…": "…"},
+              {"id": 3, "version": 2, "state": "in_force", "…": "…"},
+              {"id": 1, "version": 1, "valid_to": "2026-04-19", "state": "repealed", "…": "…"}]}
+```
+
+- Nur **beschlossene** Fassungen, nie der Text, an dem der Vorstand noch arbeitet.
+- `state`: `in_force` (eine Fassung gilt), `none` (noch keine gilt), `ambiguous` (zwei Fassungen beginnen am
+  selben Tag – dann nennt die Antwort keine, statt eine zu erraten), `not_published`.
+- Das PDF einer Fassung: `GET /vereine/statutes/{id}/pdf`, geprüft gegen ihre Prüfsumme; fehlt die Datei
+  oder passt sie nicht, kommt `500`.
+- Für Mitglieder freigegeben: `GET /vereine/me/statutes?subject=…` und `GET /vereine/me/statutes/{id}/pdf`
+  mit der Fähigkeit `documents`, solange die Person aktives Mitglied ist.
+
+Wann eine Statutenänderung wirksam wird, trägt der Verein als „gültig ab“ ein: in der Regel, wenn die
+Vereinsbehörde nicht binnen vier Wochen widerspricht oder vorher zustimmt.
+
 ## GET /vereine/organization
 
 Der Verein, zum Beispiel für das Impressum einer Website. Name, Anschrift und

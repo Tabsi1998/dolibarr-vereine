@@ -1764,6 +1764,229 @@
           ]
         ]
       }
+    },
+    "/vereine/statutes": {
+      "get": {
+        "operationId": "getStatutes",
+        "summary": "Statuten, wenn für die Öffentlichkeit veröffentlicht",
+        "description": "Jede beschlossene Fassung mit ihrem Stand am Stichtag und die geltende. Nie der Entwurf. Ohne Freigabe für die Öffentlichkeit state not_published.",
+        "parameters": [
+          {
+            "name": "day",
+            "in": "query",
+            "required": false,
+            "description": "Stichtag JJJJ-MM-TT; ohne heute",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Die Statuten",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Statutes"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ]
+        ]
+      }
+    },
+    "/vereine/statutes/{id}/pdf": {
+      "get": {
+        "operationId": "getStatutePdf",
+        "summary": "PDF einer Fassung der Statuten, wenn öffentlich",
+        "description": "Die Bytes der Fassung, geprüft gegen ihre Prüfsumme.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Fassung",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Das PDF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPdf"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ]
+        ]
+      }
+    },
+    "/vereine/me/statutes": {
+      "get": {
+        "operationId": "getMyStatutes",
+        "summary": "Statuten für die gebundene Person",
+        "description": "Wie GET /vereine/statutes, für Statuten, die für Mitglieder veröffentlicht sind, solange die Person aktives Mitglied ist. Braucht die Fähigkeit documents.",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "day",
+            "in": "query",
+            "required": false,
+            "description": "Stichtag JJJJ-MM-TT; ohne heute",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Die Statuten",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Statutes"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      }
+    },
+    "/vereine/me/statutes/{id}/pdf": {
+      "get": {
+        "operationId": "getMyStatutePdf",
+        "summary": "PDF einer Fassung der Statuten für die gebundene Person",
+        "description": "Bei jedem Abruf neu geprüft.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Fassung",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Das PDF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPdf"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      }
     }
   },
   "components": {
@@ -3568,6 +3791,155 @@
           "content": {
             "type": "string",
             "description": "Das PDF, base64-kodiert, unverändert samt Unterschriften"
+          }
+        }
+      },
+      "StatuteVersion": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "version",
+          "decided_on",
+          "valid_from",
+          "valid_to",
+          "state",
+          "source",
+          "sha256",
+          "size"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "version": {
+            "type": "integer",
+            "description": "Fassung 1, 2, …"
+          },
+          "decided_on": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "valid_from": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "valid_to": {
+            "type": "string",
+            "description": "Letzter Tag vor der nächsten Fassung; leer für die jüngste"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "in_force",
+              "future",
+              "repealed",
+              "ambiguous"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "generated",
+              "uploaded"
+            ]
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "size": {
+            "type": "integer",
+            "description": "Größe in Bytes; 0, wenn die Datei fehlt"
+          }
+        }
+      },
+      "Statutes": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "current",
+          "versions"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "in_force",
+              "none",
+              "ambiguous",
+              "not_published"
+            ],
+            "description": "in_force: eine Fassung gilt; none: noch keine; ambiguous: zwei beginnen am selben Tag; not_published: nicht für den Abrufer freigegeben"
+          },
+          "current": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "version",
+              "decided_on",
+              "valid_from",
+              "valid_to",
+              "state",
+              "source",
+              "sha256",
+              "size"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "version": {
+                "type": "integer",
+                "description": "Fassung 1, 2, …"
+              },
+              "decided_on": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              "valid_from": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              "valid_to": {
+                "type": "string",
+                "description": "Letzter Tag vor der nächsten Fassung; leer für die jüngste"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "in_force",
+                  "future",
+                  "repealed",
+                  "ambiguous"
+                ]
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "generated",
+                  "uploaded"
+                ]
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "size": {
+                "type": "integer",
+                "description": "Größe in Bytes; 0, wenn die Datei fehlt"
+              }
+            },
+            "nullable": true,
+            "description": "Die geltende Fassung; null, wenn keine oder mehrere gleichzeitig beginnen"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatuteVersion"
+            }
           }
         }
       }

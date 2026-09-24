@@ -16,6 +16,11 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Turniersieg) oder Ehrenmitgliedschaft. Ein Ehrenmitglied wechselt in die Mitgliedsart, die der Verein
   dafür wählt, etwa eine ohne Beitrag. Zu jeder Ehrung gibt es eine **Urkunde als PDF** mit Linien für
   die Unterschriften; der Reiter *Verein* des Mitglieds nennt seine Ehrungen.
+- **Statuten über die API** (#158): Unter *Einrichtung > Statuten* gibst du die Statuten für Mitglieder
+  oder die Öffentlichkeit frei (Standard: niemand). `GET /vereine/statutes` (Website) und
+  `GET /vereine/me/statutes` (App) nennen jede beschlossene Fassung mit ihrem Stand am Stichtag
+  (gilt, kommt noch, aufgehoben) und die geltende, samt PDF, geprüft gegen die Prüfsumme. Beginnen zwei
+  Fassungen am selben Tag, sagt die Antwort das, statt eine zu erraten; der Entwurf ist nie dabei.
 - **Dokumente veröffentlichen** (#156, #157): In der Vereinsakte gibst du ein fertiges Dokument frei
   für den **Vorstand**, die **Mitglieder** oder die **Öffentlichkeit** (nur Administratoren). Je
   Dokumentart kannst du festlegen, dass die unterschriebene Fassung von selbst hinausgeht, etwa das

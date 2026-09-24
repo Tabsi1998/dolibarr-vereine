@@ -911,6 +911,90 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * The statutes, when the association publishes them for the public
+	 *
+	 * Every stored version with its state on the day: in force, future or repealed, and which one is in
+	 * force. Two versions beginning on the same day are ambiguous and none is named. The text the board is
+	 * still editing is never part of it. Nothing unless the association publishes the statutes for the public.
+	 *
+	 * @param string $day The day, YYYY-MM-DD; empty for today
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET statutes
+	 *
+	 * @throws RestException 400 The day is no day
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getStatutes($day = '')
+	{
+		$this->checkAccess();
+		return $this->statutesFor(array('public' => true), (string) $day);
+	}
+
+	/**
+	 * The PDF of a version of the statutes, when published for the public
+	 *
+	 * @param int $id Version
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET statutes/{id}/pdf
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such version for the caller
+	 * @throws RestException 500 The file is missing or was changed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getStatutePdf($id)
+	{
+		$this->checkAccess();
+		return $this->statutePdf((int) $id, array('public' => true));
+	}
+
+	/**
+	 * The statutes for the person the caller acts for
+	 *
+	 * The same as statutes, for statutes published for members while the person is an active member.
+	 * Only with the ability documents for this binding.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @param string $day     The day, YYYY-MM-DD; empty for today
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET me/statutes
+	 *
+	 * @throws RestException 400 subject missing or the day is no day
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyStatutes($subject = '', $day = '')
+	{
+		$this->checkAccess();
+		return $this->statutesFor($this->documentActor((string) $subject), (string) $day);
+	}
+
+	/**
+	 * The PDF of a version of the statutes for the person the caller acts for
+	 *
+	 * @param int    $id      Version
+	 * @param string $subject How the application calls the person
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET me/statutes/{id}/pdf
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 No such version for the caller
+	 * @throws RestException 500 The file is missing or was changed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyStatutePdf($id, $subject = '')
+	{
+		$this->checkAccess();
+		return $this->statutePdf((int) $id, $this->documentActor((string) $subject));
+	}
+
+	/**
 	 * The accounts of the person the caller acts for
 	 *
 	 * The networks the association asks for and every other the member has, each with the name, where it
@@ -1195,6 +1279,51 @@ class Vereine extends DolibarrApi
 		dol_include_once('/vereine/class/vereinepublications.class.php');
 		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_DOCUMENTS, 'member');
 		return (new VereinePublications($this->db))->actorFor((int) $identity['member_id']);
+	}
+
+	/**
+	 * The statutes as somebody may read them on a day.
+	 *
+	 * @param array<string,bool> $actor public, member, board
+	 * @param string             $day   The day, empty for today
+	 * @return array
+	 *
+	 * @throws RestException
+	 */
+	private function statutesFor(array $actor, $day)
+	{
+		if ($day === '') {
+			$day = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
+		}
+		if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $day, $parts) || !checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1])) {
+			throw new RestException(400, 'day must be YYYY-MM-DD');
+		}
+		dol_include_once('/vereine/class/vereinestatutes.class.php');
+		return (new VereineStatutes($this->db))->published($actor, $day);
+	}
+
+	/**
+	 * The PDF of a version of the statutes for somebody.
+	 *
+	 * @param int                $id    Version
+	 * @param array<string,bool> $actor public, member, board
+	 * @return array
+	 *
+	 * @throws RestException
+	 */
+	private function statutePdf($id, array $actor)
+	{
+		dol_include_once('/vereine/class/vereinestatutes.class.php');
+		$statutes = new VereineStatutes($this->db);
+		$pdf = $statutes->publishedPdf($id, $actor);
+		if ($pdf === null) {
+			throw new RestException(404, 'No such version');
+		}
+		if ($pdf === false) {
+			dol_syslog(__METHOD__.' '.$statutes->error, LOG_ERR);
+			throw new RestException(500, 'The file is missing or was changed');
+		}
+		return $pdf;
 	}
 
 	/**

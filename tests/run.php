@@ -80,6 +80,7 @@ require_once $root.'/class/vereinesocialrules.class.php';
 require_once $root.'/class/vereinehonourrules.class.php';
 require_once $root.'/class/vereineloanrules.class.php';
 require_once $root.'/class/vereinepublicationrules.class.php';
+require_once $root.'/class/vereinestatuteversionrules.class.php';
 require_once $root.'/class/vereineaccountrules.class.php';
 require_once $root.'/class/vereinememberform.class.php';
 require_once $root.'/class/vereineapplicationrules.class.php';
@@ -2921,6 +2922,21 @@ $sorted = VereineSocialRules::sortChannels(array(
 	array('network' => 'twitch', 'position' => 20, 'label' => 'CS2'),
 	array('network' => 'discord', 'position' => 30, 'label' => 'Server')), array('discord', 'twitch', 'youtube'));
 same(array('Hauptstream', 'CS2', 'Livestream', 'Server'), array_column($sorted, 'label'), 'the order of the association first, then the network');
+// ------------------------------------------------------------- statutes on a day (#158)
+
+$stored = array(array('id' => 1, 'version' => 1, 'valid_from' => '2020-01-01'), array('id' => 3, 'version' => 2, 'valid_from' => '2026-04-20'),
+	array('id' => 5, 'version' => 3, 'valid_from' => '2027-01-01'));
+$onDay = VereineStatuteVersionRules::onDay($stored, '2026-09-24');
+same(array('in_force', 3), array($onDay['state'], $onDay['current']), 'version 2 is in force, version 3 still to come');
+same(array('future', 'in_force', 'repealed'), array_column($onDay['versions'], 'state'), 'newest first: future, in force, repealed');
+same(array('', '2026-12-31', '2026-04-19'), array_column($onDay['versions'], 'valid_to'), 'each version holds until the day before the next begins');
+same(array('in_force', 1), array(VereineStatuteVersionRules::onDay($stored, '2026-04-19')['state'], VereineStatuteVersionRules::onDay($stored, '2026-04-19')['current']),
+	'on the day before, version 1 still holds');
+same(array('none', 0), array(VereineStatuteVersionRules::onDay($stored, '2019-12-31')['state'], VereineStatuteVersionRules::onDay($stored, '2019-12-31')['current']),
+	'before the first, none holds');
+$twice = VereineStatuteVersionRules::onDay(array_merge($stored, array(array('id' => 4, 'version' => 4, 'valid_from' => '2026-04-20'))), '2026-09-24');
+same(array('ambiguous', 0), array($twice['state'], $twice['current']), 'two versions from the same day: ambiguous, none named, not the higher number');
+
 // ------------------------------------------------------------- publishing documents (#156, #157)
 
 $rules = VereinePublicationRules::rules('{"minutes":{"audience":"members","auto":true},"account":{"audience":"everybody","auto":true},"letter":{"audience":"","auto":true}}',
