@@ -1928,6 +1928,10 @@ if ($stage === 'portalmember') {
 	if ($account->create($admin) <= 0) {
 		rt_fail('portal account: '.$account->error.' '.implode(' ', $account->errors));
 	}
+	// Dolibarr hashes an empty clear password on create; the hash of the real one is written afterwards.
+	if (!$db->query("UPDATE ".MAIN_DB_PREFIX."societe_account SET pass_crypted = '".$db->escape(dol_hash($password))."' WHERE rowid = ".((int) $account->id))) {
+		rt_fail('portal password: '.$db->lasterror());
+	}
 	print json_encode(array('login' => $account->login, 'password' => $password))."\n";
 	exit(0);
 }

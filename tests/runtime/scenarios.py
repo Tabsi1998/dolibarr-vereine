@@ -6387,6 +6387,7 @@ def portal(stack: Stack) -> str:
     token = re.search(r"[?&;]token=([0-9a-zA-Z]+)", html.unescape(mine.text)).group(1)
     refused = page_ok(visitor.post("/public/webportal/index.php?controller=vereine", [("token", token), ("action", "vote"), ("ballot", str(ballot)),
                                                                                        ("right", str(right)), ("option", "no")]), "vote again in the portal")
+    expect("schon abgestimmt" in html.unescape(refused.text), "the portal does not say that the right was used")
     votes = stack.value(f"SELECT COUNT(*) FROM llx_vereine_ballot_vote WHERE fk_ballot = {ballot}")
     expect(votes == "1" and stack.value(f"SELECT option_code FROM llx_vereine_ballot_vote WHERE fk_ballot = {ballot}") == "yes", f"votes after the portal: {votes}")
     # Switched off: no page, no menu entry.
