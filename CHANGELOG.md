@@ -16,6 +16,17 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
   Turniersieg) oder Ehrenmitgliedschaft. Ein Ehrenmitglied wechselt in die Mitgliedsart, die der Verein
   dafür wählt, etwa eine ohne Beitrag. Zu jeder Ehrung gibt es eine **Urkunde als PDF** mit Linien für
   die Unterschriften; der Reiter *Verein* des Mitglieds nennt seine Ehrungen.
+- **Abstimmungen in der App** (#160, #161): Zu einem Tagesordnungspunkt einer Generalversammlung legt der
+  Vorstand unter *Sitzung > Abstimmungen in der App* eine Abstimmung an – Beschluss, Statutenänderung,
+  Auflösung oder Wahl mit Kandidat:innen (mit deren Zustimmung). **Freigeben** hält Mehrheit,
+  Vollmachtsregel und Statutenfassung fest; **Öffnen** am Versammlungstag hält die Stimmrechte fest:
+  eingeladen und stimmberechtigt, Mitglied am Versammlungstag, Vollmachten aus der Anwesenheitsliste.
+  Ein offener Beitrag nimmt kein Stimmrecht. Mitglieder stimmen über ihre App ab (`GET /vereine/me/ballots`,
+  `POST /vereine/me/ballots/{id}/votes`, Fähigkeit *votes*), aber nur, solange sie laut Anwesenheitsliste
+  in der Versammlung sind; wer eine Vollmacht hält, stimmt auch für die vertretene Person. Der Vorstand kann
+  Stimmzettel eintragen. **Jedes Stimmrecht zählt genau einmal** – egal über welche App oder auf Papier;
+  dieselbe Anfrage nach einem Verbindungsabbruch zählt nicht doppelt. Nach dem Schließen zeigt die Seite
+  die Stimmen. Auswertung mit Nachweis-PDF (#163) und geheime Wahlen (#162) folgen.
 - **Dokumente, zweiter Teil** (#239): In der Vereinsakte lässt sich je Dokument eine **gekürzte
   Fassung** hochladen, etwa ein Protokoll ohne Personalangelegenheiten für die Mitglieder. Sie ist eine
   eigene Datei mit eigener Prüfsumme und zeigt – auch bei der öffentlichen Echtheitsprüfung –, aus

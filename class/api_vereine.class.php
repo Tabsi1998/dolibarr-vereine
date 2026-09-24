@@ -1197,6 +1197,82 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Ballots for the person the caller acts for
+	 *
+	 * Ballots of general assemblies the person was invited to, from their release on: question, options,
+	 * status, and the voting rights the person may use: the own one, and those of members who gave the
+	 * person a written proxy. A represented member sees why the own right is not there. Only with the
+	 * ability votes for this binding. Opening, closing and counting happen in Dolibarr.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array List as documented in docs/API.md
+	 *
+	 * @url GET me/ballots
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyBallots($subject = '')
+	{
+		$this->checkAccess();
+		$memberId = $this->ballotMember((string) $subject);
+		return (new VereineBallots($this->db))->forMember($memberId);
+	}
+
+	/**
+	 * Cast a vote for the person the caller acts for
+	 *
+	 * With one voting right of GET me/ballots and one option, while the ballot is open and the person is
+	 * in the assembly by the attendance. A right is used once, by any application or on paper. The same
+	 * external_id answers the same request; the same vote sent again without one changes nothing.
+	 *
+	 * @param int    $id           Ballot
+	 * @param string $subject      How the application calls the person
+	 * @param array  $request_data right_id, option, external_id
+	 * @return array The ballot afterwards
+	 *
+	 * @url POST me/ballots/{id}/votes
+	 * @status 200
+	 *
+	 * @throws RestException 400 subject, right_id or option missing, or an option the ballot does not have
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 404 No such ballot or right for the person
+	 * @throws RestException 409 Not open, closed, the right was used, not in the assembly, or the external_id holds another vote
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function postMyVote($id, $subject = '', $request_data = null)
+	{
+		$this->checkAccess();
+		$memberId = $this->ballotMember((string) $subject);
+		$data = is_array($request_data) ? $request_data : array();
+		$right = isset($data['right_id']) && is_numeric($data['right_id']) ? (int) $data['right_id'] : 0;
+		$option = isset($data['option']) && is_string($data['option']) ? trim($data['option']) : '';
+		$external = isset($data['external_id']) && is_scalar($data['external_id']) ? (string) $data['external_id'] : '';
+		if ($right < 1 || $option === '') {
+			throw new RestException(400, 'right_id and option are needed');
+		}
+		$ballots = new VereineBallots($this->db);
+		$result = $ballots->cast((int) $id, $right, $option, $memberId, VereineBallotRules::CHANNEL_APP, (string) DolibarrApiAccess::$user->login, $external, DolibarrApiAccess::$user);
+		if ($result < 0) {
+			dol_syslog(__METHOD__.' '.$ballots->error, LOG_ERR);
+			throw new RestException(500, 'The vote could not be kept');
+		}
+		if ($result === 0) {
+			if ($ballots->reason === 'not_found') {
+				throw new RestException(404, 'Not found');
+			}
+			throw new RestException($ballots->reason === 'option' ? 400 : 409, $ballots->reason);
+		}
+		foreach ($ballots->forMember($memberId) as $ballot) {
+			if ($ballot['id'] === (int) $id) {
+				return $ballot;
+			}
+		}
+		throw new RestException(404, 'Not found');
+	}
+
+	/**
 	 * Public events
 	 *
 	 * Events from today on that the association marked as public: name, days, place, state and where
@@ -1655,6 +1731,26 @@ class Vereine extends DolibarrApi
 			throw new RestException(500, 'The archived file is missing or was changed');
 		}
 		return $pdf;
+	}
+
+	/**
+	 * The member the caller acts for, when the binding may vote for the person.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return int Member
+	 *
+	 * @throws RestException
+	 */
+	private function ballotMember($subject)
+	{
+		global $langs;
+
+		$this->checkIdentityRight();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		dol_include_once('/vereine/class/vereineballots.class.php');
+		$langs->load('vereine@vereine');
+		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_VOTES, 'member');
+		return (int) $identity['member_id'];
 	}
 
 	/**

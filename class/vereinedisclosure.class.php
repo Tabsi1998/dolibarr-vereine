@@ -153,6 +153,10 @@ class VereineDisclosure
 			."vereine_profile_request WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY rowid");
 		// Only the member's own votes of circular resolutions, which are not secret.
 		$sections['votes'] = $this->rows("SELECT c.title as resolution, v.choice, v.voted_at FROM ".MAIN_DB_PREFIX."vereine_circular_vote as v INNER JOIN ".MAIN_DB_PREFIX."vereine_circular as c ON c.rowid = v.fk_circular WHERE v.entity = ".$entity." AND v.fk_adherent = ".$id." ORDER BY v.rowid");
+		// Open ballots of general assemblies (#161): the member's own votes, also those a proxy holder cast for the member.
+		$sections['votes'] = array_merge($sections['votes'], $this->rows("SELECT b.question as resolution, v.option_code as choice, v.cast_at as voted_at FROM ".MAIN_DB_PREFIX
+			."vereine_ballot_vote as v INNER JOIN ".MAIN_DB_PREFIX."vereine_ballot_right as r ON r.rowid = v.fk_right INNER JOIN ".MAIN_DB_PREFIX
+			."vereine_ballot as b ON b.rowid = v.fk_ballot WHERE r.entity = ".$entity." AND r.fk_adherent = ".$id." ORDER BY v.rowid"));
 		$sections['signatures'] = $this->rows("SELECT s.doc_name as document, p.function_label as function, p.signed_at, p.way FROM ".MAIN_DB_PREFIX."vereine_signature_person as p INNER JOIN ".MAIN_DB_PREFIX."vereine_signature as s ON s.rowid = p.fk_signature WHERE p.fk_adherent = ".$id." AND s.entity = ".$entity." ORDER BY p.rowid");
 		// Documents published for this person alone (#239): which, since when, and whether withdrawn.
 		$sections['documents'] = $this->rows("SELECT d.title as document, d.kind, p.published_at as day, p.withdrawn_at as end FROM ".MAIN_DB_PREFIX."vereine_publication as p INNER JOIN "

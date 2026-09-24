@@ -90,6 +90,7 @@ require_once $root.'/class/vereinepdf.class.php';
 require_once $root.'/class/vereinetextrepair.class.php';
 require_once $root.'/class/vereineattendancerules.class.php';
 require_once $root.'/class/vereinevoterules.class.php';
+require_once $root.'/class/vereineballotrules.class.php';
 require_once $root.'/class/vereineresolutionrules.class.php';
 require_once $root.'/class/vereinecircularrules.class.php';
 require_once $root.'/class/vereinemeetingdocrules.class.php';
@@ -1811,7 +1812,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked', 'honour', 'loan', 'loan_returned', 'loan_reminded', 'publication', 'meeting_response', 'motion', 'profile'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked', 'honour', 'loan', 'loan_returned', 'loan_reminded', 'publication', 'meeting_response', 'motion', 'profile', 'ballot', 'ballot_vote'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1890,6 +1891,11 @@ $prefixes = array(
 	'VereineAttendanceState_' => VereineAttendanceRules::STATES,
 	'VereineAttendanceHowTo_' => array('board', 'general'),
 	'VereineVoteKind_' => VereineVoteRules::KINDS,
+	'VereineBallotStatus_' => VereineBallotRules::STATUSES,
+	'VereineBallotOption_' => array(VereineBallotRules::YES, VereineBallotRules::NO, VereineBallotRules::ABSTAIN),
+	'VereineBallotChannel_' => VereineBallotRules::CHANNELS,
+	'VereineBallotReason_' => VereineBallotRules::REASONS,
+	'VereineBallotRefused_' => array('not_found', 'not_open', 'closed', 'channel', 'used', 'not_present', 'option', 'external_id'),
 	'VereineMinutesPlaceholder_' => VereineMinutesRules::PLACEHOLDERS,
 	'VereineMinutesItemKind_' => VereineMinutesRules::ITEM_KINDS,
 	'VereineMeetingStep_' => VereineMeetingRules::STEPS,
@@ -2927,6 +2933,60 @@ $sorted = VereineSocialRules::sortChannels(array(
 	array('network' => 'twitch', 'position' => 20, 'label' => 'CS2'),
 	array('network' => 'discord', 'position' => 30, 'label' => 'Server')), array('discord', 'twitch', 'youtube'));
 same(array('Hauptstream', 'CS2', 'Livestream', 'Server'), array_column($sorted, 'label'), 'the order of the association first, then the network');
+// ------------------------------------------------------------- ballots of a general assembly (#160, #161)
+
+same(array(true, true, false, false, true), array(VereineBallotRules::canMove('draft', 'released'), VereineBallotRules::canMove('open', 'closed'),
+	VereineBallotRules::canMove('draft', 'open'), VereineBallotRules::canMove('evaluated', 'cancelled'), VereineBallotRules::canMove('closed', 'cancelled')),
+	'released before open, nothing after the count');
+$people = array(7 => 'Anna Muster', 8 => 'Ben Beispiel');
+$functions = array(3 => 'Obfrau');
+$plain = VereineBallotRules::entered(array('item' => '2', 'kind' => 'resolution', 'question' => ' Entlastung ', 'channels' => array('app', 'paper', 'fax'), 'closes' => '19:30'),
+	$people, 4, $functions);
+same(array(array(), 'Entlastung', array('app', 'paper'), array('yes', 'no', 'abstain')), array($plain['errors'], $plain['ballot']['question'], $plain['ballot']['channels'],
+	array_column($plain['options'], 'code')), 'a resolution: yes, no, abstain; only known channels');
+$single = VereineBallotRules::entered(array('item' => '1', 'kind' => 'election', 'question' => 'Obfrau', 'channels' => array('app'), 'function_id' => '3',
+	'candidates' => array('7'), 'consent' => array('7')), $people, 4, $functions);
+same(array(array('c7', 'no', 'abstain'), true), array(array_column($single['options'], 'code'), $single['options'][0]['consent']), 'one candidate: for, against, abstain; with consent');
+same(array('VereineVoteErrorItem', 'VereineBallotErrorQuestion', 'VereineBallotErrorChannels', 'VereineBallotErrorCloses'),
+	VereineBallotRules::entered(array('item' => '9', 'question' => '', 'closes' => '25:00'), $people, 4, $functions)['errors'], 'item, question, channels and time are checked');
+same(array('VereineVoteErrorElection', 'VereineBallotErrorCandidate', 'VereineBallotErrorCandidates'), VereineBallotRules::entered(array('item' => '1', 'kind' => 'election',
+	'question' => 'Kassier', 'channels' => array('app'), 'function_id' => '4', 'candidates' => array('99')), $people, 4, $functions)['errors'], 'an unknown function and somebody who is no active member');
+same(array('VereineBallotErrorBoard'), VereineBallotRules::releaseProblems(array('status' => 'draft', 'secret' => false), $plain['options'], array('kind' => 'board', 'status' => 'invited')),
+	'no ballot through applications in a board meeting');
+same(array('VereineBallotErrorStatus', 'VereineBallotErrorConsent'), VereineBallotRules::releaseProblems(array('status' => 'open', 'secret' => false),
+	array(array('member_id' => 8, 'consent' => false)), array('kind' => 'general', 'status' => 'invited')), 'released once, and only with the consent of every candidate');
+$day = '2026-10-10';
+same(array('own', 'no_voting_right', 'not_member', 'not_member', 'own', 'proxy'), array(
+	VereineBallotRules::right(array('member_id' => 1, 'voting' => true), array('status' => 1, 'arrears' => 120.0), '', 0, $day)['reason'],
+	VereineBallotRules::right(array('member_id' => 2, 'voting' => false), array('status' => 1), '', 0, $day)['reason'],
+	VereineBallotRules::right(array('member_id' => 3, 'voting' => true), array('status' => 0), '', 0, $day)['reason'],
+	VereineBallotRules::right(array('member_id' => 4, 'voting' => true), array('status' => 1), '2026-10-09', 0, $day)['reason'],
+	VereineBallotRules::right(array('member_id' => 5, 'voting' => true), array('status' => 1), '2026-12-31', 0, $day)['reason'],
+	VereineBallotRules::right(array('member_id' => 6, 'voting' => true), array('status' => 1), '', 1, $day)['reason']),
+	'a voting right: unpaid fees keep it, a type without it has none, gone before the day none, an exit after the day keeps it, a proxy moves it');
+$present = array('state' => 'present', 'holder' => 0, 'arrived' => '18:00', 'left' => '');
+$attendance = array(1 => $present, 6 => array('state' => 'represented', 'holder' => 1, 'arrived' => '', 'left' => ''), 9 => array('state' => 'represented', 'holder' => 2, 'arrived' => '', 'left' => ''));
+same(array(6 => 1), VereineBallotRules::proxies('general', $attendance, array(1 => true, 6 => true, 9 => true, 2 => false), array('proxy' => true)),
+	'only a valid proxy: to a voting member who is present');
+same(array(), VereineBallotRules::proxies('general', $attendance, array(1 => true, 6 => true), array('proxy' => false)), 'no proxy when the statutes do not allow one');
+$open = array('status' => 'open', 'day' => $day, 'closes' => '19:30', 'channels' => array('app', 'paper'));
+$mine = array('eligible' => true, 'holder' => 1, 'used' => false);
+same(array('', 'not_found', 'not_found', 'not_open', 'closed', 'closed', 'closed', 'channel', 'used', 'not_present', ''), array(
+	VereineBallotRules::castProblem($open, $mine, 1, 'app', $day, '19:00', true),
+	VereineBallotRules::castProblem($open, null, 1, 'app', $day, '19:00', true),
+	VereineBallotRules::castProblem($open, $mine, 6, 'app', $day, '19:00', true),
+	VereineBallotRules::castProblem(array('status' => 'released') + $open, $mine, 1, 'app', $day, '19:00', true),
+	VereineBallotRules::castProblem(array('status' => 'closed') + $open, $mine, 1, 'app', $day, '19:00', true),
+	VereineBallotRules::castProblem($open, $mine, 1, 'app', '2026-10-11', '10:00', true),
+	VereineBallotRules::castProblem($open, $mine, 1, 'app', $day, '19:30', true),
+	VereineBallotRules::castProblem(array('channels' => array('paper')) + $open, $mine, 1, 'app', $day, '19:00', true),
+	VereineBallotRules::castProblem($open, array('used' => true) + $mine, 1, 'app', $day, '19:00', true),
+	VereineBallotRules::castProblem($open, $mine, 1, 'app', $day, '19:00', false),
+	VereineBallotRules::castProblem($open, $mine, 0, 'paper', $day, '19:00', false)),
+	'a vote counts while open and before the hour, once, by the holder of the right in the assembly; the board enters paper ballots');
+same(array('counts' => array('yes' => 2, 'no' => 1, 'abstain' => 1), 'valid' => 3, 'abstain' => 1), VereineBallotRules::tally(array('yes', 'no', 'abstain'),
+	array('yes', 'no', 'yes', 'abstain', 'maybe')), 'abstentions are no valid votes cast; unknown codes do not count');
+
 // ------------------------------------------------------------- documents, the second part (#239)
 
 $member7 = array('public' => true, 'member' => true, 'board' => false, 'member_id' => 7);

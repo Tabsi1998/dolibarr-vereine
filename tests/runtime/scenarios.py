@@ -6097,6 +6097,115 @@ def profileapi(stack: Stack) -> str:
             f"the board, rejected with a reason and without the internal note; the notice ends on {notice['last_day']} by the rule, a second one refused")
 
 
+def ballotapi(stack: Stack) -> str:
+    """Ballots of a general assembly through two applications and on paper: rules frozen at release, rights at opening, a proxy votes
+    for the represented member, whoever left cannot vote, one right counts once whichever way, the same request twice is one (#160, #161)."""
+    browser = stack.browser()
+    base = "/custom/vereine/meetings.php"
+    today = stack.today()
+    page = page_ok(browser.get(f"{base}?template=general"), "a new general assembly")
+    page_ok(browser.submit(page.form(name="vereinemeeting"), {"day": (datetime.date.fromisoformat(today) + datetime.timedelta(days=30)).isoformat(), "time": "18:00",
+                                                               "format": "hybrid", "place": "Vereinsheim", "access": "https://meet.example.org/abstimmung",
+                                                               "title": "Generalversammlung Abstimmung"}), "store the assembly")
+    meeting = int(stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting") or 0)
+    page_ok(browser.submit(page_ok(browser.get(f"{base}?id={meeting}"), "the assembly").form(name="vereinemeetinginvite"), {"checked": "1"}), "invite")
+    # The invitation went out in time; the assembly is today.
+    stack.sql(f"UPDATE llx_vereine_meeting SET meeting_day = '{today}' WHERE rowid = {meeting}")
+    voters = [int(row[0]) for row in stack.sql(f"SELECT i.fk_adherent FROM llx_vereine_meeting_invitation i INNER JOIN llx_adherent a ON a.rowid = i.fk_adherent"
+                                                f" WHERE i.fk_meeting = {meeting} AND i.voting = 1 AND a.statut = 1 AND i.fk_adherent NOT IN"
+                                                " (SELECT fk_adherent FROM llx_vereine_member_exit WHERE status <> 'cancelled') ORDER BY i.fk_adherent LIMIT 4")]
+    expect(len(voters) == 4, f"too few voting members for the test: {voters}")
+    anna, ben, carla, emil = voters
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the assembly before the attendance")
+    page_ok(browser.submit(page.form(name="vereineattendance"), {
+        f"attendance[{anna}][state]": "present", f"attendance[{anna}][arrived]": "00:00",
+        f"attendance[{ben}][state]": "represented", f"attendance[{ben}][holder]": str(anna),
+        f"attendance[{carla}][state]": "present", f"attendance[{carla}][left]": "00:00",
+        f"attendance[{emil}][state]": "present", f"attendance[{emil}][arrived]": "00:00"}), "the attendance")
+    expect(stack.value(f"SELECT fk_holder FROM llx_vereine_meeting_attendance WHERE fk_meeting = {meeting} AND fk_adherent = {ben}") == str(anna),
+           "the proxy of the attendance was not stored")
+
+    ballots = f"/custom/vereine/ballots.php?meeting={meeting}"
+    page = page_ok(browser.get(ballots), "the ballots")
+    page_ok(browser.submit(page.form(name="vereineballot"), {"item": "1", "kind": "resolution", "question": "Entlastung des Vorstands"}), "prepare a ballot")
+    ballot = int(stack.value(f"SELECT MAX(rowid) FROM llx_vereine_ballot WHERE fk_meeting = {meeting}") or 0)
+    expect(ballot > 0, "no ballot was prepared")
+
+    clients = {"rtvote1": secrets.token_hex(16), "rtvote2": secrets.token_hex(16)}
+    for login, key in clients.items():
+        stack.php_fixture("apiclient", RT_LOGIN=login, RT_CLIENT_KEY=key)
+    for login, subject, person in (("rtvote1", "sub-anna", anna), ("rtvote2", "sub-anna-2", anna), ("rtvote1", "sub-ben", ben), ("rtvote1", "sub-carla", carla),
+                                   ("rtvote2", "sub-emil", emil)):
+        page = page_ok(browser.get("/custom/vereine/admin/identities.php"), "the identities")
+        page = page_ok(browser.submit(page.form(name="vereineidentityinvite"), {"client": login, "member_id": str(person), "application_id": "0",
+                                                                                 "capabilities[]": "votes"}), f"invite {subject}")
+        code = re.search(r"<code>([A-Za-z0-9_-]{30,})</code>", page.text).group(1)
+        status, _ = stack.api(f"vereine/identities/claim?subject={subject}&code={code}", clients[login], method="POST")
+        expect(status == 200, f"binding {subject}: HTTP {status}")
+
+    def mine(login: str, subject: str) -> dict:
+        status, listed = stack.api(f"vereine/me/ballots?subject={subject}", clients[login])
+        expect(status == 200, f"the ballots of {subject}: HTTP {status}")
+        return next((row for row in listed if row["id"] == ballot), {})
+
+    def vote(login: str, subject: str, data: dict) -> tuple[int, object]:
+        return stack.api(f"vereine/me/ballots/{ballot}/votes?subject={subject}", clients[login], method="POST", data=data)
+
+    expect(mine("rtvote1", "sub-anna") == {}, "a draft is visible in the application")
+    page_ok(browser.submit(page_ok(browser.get(ballots), "the ballots").form(name=f"vereineballotrelease{ballot}")), "release")
+    rules = json.loads(stack.value(f"SELECT rules FROM llx_vereine_ballot WHERE rowid = {ballot}") or "{}")
+    expect(rules.get("majority") == "simple" and rules.get("proxy") is True and rules.get("day") == today, f"the frozen rules: {rules}")
+    shown = mine("rtvote1", "sub-anna")
+    expect(shown.get("status") == "released" and shown.get("rights") == [] and [o["code"] for o in shown.get("options", [])] == ["yes", "no", "abstain"],
+           f"the released ballot: {shown}")
+    status, _ = vote("rtvote1", "sub-anna", {"right_id": 1, "option": "yes"})
+    expect(status in (404, 409), f"a vote before opening: HTTP {status}")
+
+    page_ok(browser.submit(page_ok(browser.get(ballots), "the ballots").form(name=f"vereineballotopen{ballot}")), "open")
+    # Proxies are frozen at opening: Ben coming himself later changes nothing for this ballot.
+    stack.sql(f"UPDATE llx_vereine_meeting_attendance SET state = 'present', fk_holder = 0, arrived = '00:00' WHERE fk_meeting = {meeting} AND fk_adherent = {ben}")
+    shown = mine("rtvote1", "sub-anna")
+    rights = {row["for"]: row for row in shown.get("rights", [])}
+    expect(shown.get("status") == "open" and set(rights) == {"self", "proxy"} and rights["proxy"]["state"] == "open", f"Anna's rights: {shown.get('rights')}")
+    represented = mine("rtvote1", "sub-ben").get("rights", [])
+    expect(represented == [{"right_id": 0, "for": "self", "name": "", "state": "none", "reason": "represented", "option": ""}], f"Ben's rights: {represented}")
+
+    own, proxy = rights["self"]["right_id"], rights["proxy"]["right_id"]
+    for _ in range(2):
+        status, after = vote("rtvote1", "sub-anna", {"right_id": own, "option": "yes", "external_id": "anna-1"})
+    expect(status == 200, f"Anna's vote: HTTP {status} {after}")
+    status, _ = vote("rtvote2", "sub-anna-2", {"right_id": own, "option": "no", "external_id": "anna-2"})
+    expect(status == 409, f"the same right through the second application: HTTP {status}")
+    status, _ = vote("rtvote1", "sub-anna", {"right_id": proxy, "option": "maybe"})
+    expect(status == 400, f"an option the ballot does not have: HTTP {status}")
+    status, after = vote("rtvote1", "sub-anna", {"right_id": proxy, "option": "no", "external_id": "anna-for-ben"})
+    expect(status == 200 and {row["for"]: row["option"] for row in after["rights"]} == {"self": "yes", "proxy": "no"}, f"Anna for Ben: HTTP {status}")
+    status, _ = vote("rtvote1", "sub-ben", {"right_id": proxy, "option": "yes"})
+    expect(status == 404, f"Ben used the right his proxy holds: HTTP {status}")
+    carla_right = mine("rtvote1", "sub-carla")["rights"][0]["right_id"]
+    status, refused = vote("rtvote1", "sub-carla", {"right_id": carla_right, "option": "yes"})
+    expect(status == 409, f"Carla voted although she left: HTTP {status} {refused}")
+
+    # The board enters Emil's paper ballot; his application finds the right used.
+    emil_right = mine("rtvote2", "sub-emil")["rights"][0]["right_id"]
+    page = page_ok(browser.get(ballots), "the ballots before the paper ballot")
+    page_ok(browser.submit(page.form(name=f"vereineballotpaper{ballot}"), {"right": str(emil_right), "option": "abstain"}), "enter a paper ballot")
+    status, _ = vote("rtvote2", "sub-emil", {"right_id": emil_right, "option": "yes"})
+    expect(status == 409, f"a paper ballot and then the application: HTTP {status}")
+    counted = stack.sql(f"SELECT channel, COUNT(*) FROM llx_vereine_ballot_vote WHERE fk_ballot = {ballot} GROUP BY channel ORDER BY channel")
+    expect(counted == [["app", "2"], ["paper", "1"]], f"the votes kept: {counted}")
+
+    page_ok(browser.submit(page_ok(browser.get(ballots), "the ballots").form(name=f"vereineballotclose{ballot}")), "close")
+    status, _ = vote("rtvote1", "sub-carla", {"right_id": carla_right, "option": "yes"})
+    expect(status == 409, f"a vote after closing: HTTP {status}")
+    page = page_ok(browser.get(ballots), "the closed ballot")
+    counts = dict(re.findall(r'data-ballot-count="([a-z0-9]+)">[^<]*?: (\d+)<', page.text))
+    expect(counts == {"yes": "1", "no": "1", "abstain": "1"} and 'data-ballot-valid="2"' in page.text, f"the count: {counts}")
+    return ("released with frozen rules, opened with frozen rights: Anna voted for herself once though sent twice and for Ben by his proxy, "
+            "the second application found her right used, Ben could not vote himself, Carla who left was refused, Emil's paper ballot "
+            "counted once; closed: yes 1, no 1, abstain 1, two valid votes")
+
+
 def documentmore(stack: Stack) -> str:
     """Documents, the second part: a shortened version as a file of its own derived from the original, a document for one person only,
     publishing and withdrawing in the change feed, a signed copy out only once every signature is there (#239)."""
@@ -6401,6 +6510,7 @@ SCENARIOS = (
     ("eventapi", "Events through the API: public for the website, members' for the app, shifts asked and withdrawn", eventapi, ("profileapi",)),
     ("documentmore", "Documents: a shortened version derived from the original, one person only, the change feed, signed copies when complete",
      documentmore, ("eventapi",)),
+    ("ballotapi", "Ballots of a general assembly: two applications and paper, proxies, frozen rights, one right counts once", ballotapi, ("documentmore",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),
