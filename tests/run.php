@@ -38,6 +38,7 @@ require_once $root.'/class/vereineorganization.class.php';
 require_once $root.'/class/vereinepartnerrules.class.php';
 require_once $root.'/class/vereinetaxrules.class.php';
 require_once $root.'/class/vereinethresholds.class.php';
+require_once $root.'/class/vereinewebsiteprofilerules.class.php';
 require_once $root.'/class/vereinecashregister.class.php';
 require_once $root.'/class/vereinemembersummary.class.php';
 require_once $root.'/class/vereinewebsiteevents.class.php';
@@ -1858,6 +1859,7 @@ $prefixes = array(
 	'VereinePublicationAudience_' => array('none', 'board', 'members', 'public', 'person'),
 	'VereineMotionState_' => array('accepted', 'rejected'),
 	'VereineProfileField_' => array_keys(VereineProfileRules::FIELDS),
+	'VereineWebsiteProfile' => array('Gamertag', 'Bio', 'Games', 'Platforms'),
 	'VereineMotionDecide_' => array('accepted', 'rejected'),
 	'VereineHonourKind_' => array('jubilee', 'honorary'),
 	'VereineErasureReason_' => array('keep_bookkeeping', 'keep_records', 'member', 'hold', 'open_invoices', 'functions', 'name'),
@@ -3161,5 +3163,23 @@ if ($failures) {
 	fwrite(STDERR, count($failures)." of ".$assertions." assertions failed:\n  - ".implode("\n  - ", $failures)."\n");
 	exit(1);
 }
+// Website profile of a member (#255): fields trimmed and cut, lists tidy, photo types by extension, the consent code clean.
+$websiteProfile = VereineWebsiteProfileRules::normalize(array('gamertag' => '  LionKing  ', 'bio' => " Spielt TFT.\n", 'games' => "TFT, Rocket League;Rocket League\nF1 25", 'platforms' => 'PC', 'status' => 'hack'));
+same(array('gamertag' => 'LionKing', 'bio' => 'Spielt TFT.', 'games' => 'TFT, Rocket League, F1 25', 'platforms' => 'PC'), $websiteProfile, 'website profile normalised');
+same(array('TFT', 'Rocket League', 'F1 25'), VereineWebsiteProfileRules::splitList($websiteProfile['games']), 'games as a list');
+same(40, strlen(VereineWebsiteProfileRules::normalize(array('gamertag' => str_repeat('x', 50)))['gamertag']), 'gamertag cut to 40');
+same(true, VereineWebsiteProfileRules::isEmpty(VereineWebsiteProfileRules::normalize(array('bio' => '  '))), 'an empty profile is empty');
+same('image/png', VereineWebsiteProfileRules::contentType('Foto.PNG'), 'png photo');
+same('image/jpeg', VereineWebsiteProfileRules::contentType('foto.jpg'), 'jpeg photo');
+same(null, VereineWebsiteProfileRules::contentType('foto.pdf'), 'no pdf as a photo');
+same('verzeichnis', VereineWebsiteProfileRules::consentCode(' verzeichnis '), 'consent code trimmed');
+same('', VereineWebsiteProfileRules::consentCode('kein code'), 'a consent code with other characters counts as none');
+$websiteView = VereineWebsiteProfileRules::view(array('gamertag' => 'LionKing', 'bio' => 'Spielt TFT.', 'games' => 'TFT, F1 25', 'platforms' => ''),
+	array('sha256' => str_repeat('a', 64), 'size' => 12, 'content_type' => 'image/png', 'updated_at' => '2026-09-25T10:00:00Z'));
+same(array('TFT', 'F1 25'), $websiteView['games'], 'the view lists games');
+same(array(), $websiteView['platforms'], 'the view lists nothing for empty platforms');
+same('image/png', $websiteView['photo']['content_type'], 'the view carries the photo');
+same(null, VereineWebsiteProfileRules::view(array(), null)['photo'], 'no photo is null');
+
 print 'Unit tests: OK ('.$assertions." assertions)\n";
 exit(0);

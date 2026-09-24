@@ -82,7 +82,17 @@ $edit = array('code' => '', 'label' => '', 'text' => '');
  * Actions
  */
 
-if ($action === 'savetext') {
+if ($action === 'savewebsiteprofileconsent') {
+	dol_include_once('/vereine/class/vereinewebsiteprofiles.class.php');
+	$websiteProfiles = new VereineWebsiteProfiles($db);
+	if ($websiteProfiles->saveConsentCode(GETPOST('website_profile_consent', 'aZ09'), $user) < 0) {
+		setEventMessages($websiteProfiles->error, null, 'errors');
+	} else {
+		setEventMessages($langs->trans('VereineWebsiteProfileConsentSaved'), null, 'mesgs');
+	}
+	header('Location: '.$_SERVER['PHP_SELF']);
+	exit;
+} elseif ($action === 'savetext') {
 	$edit = array('code' => GETPOST('code', 'aZ09'), 'label' => GETPOST('label', 'alphanohtml'), 'text' => GETPOST('text', 'restricthtml'));
 	$result = $consents->saveText($edit['code'], $edit['label'], $edit['text'], $user);
 	if ($result > 0) {
@@ -161,6 +171,22 @@ foreach ($texts as $text) {
 	print '</form></td></tr>';
 }
 print '</table></div><br>';
+
+// Which consent opens the website profile of a member (#255).
+dol_include_once('/vereine/class/vereinewebsiteprofiles.class.php');
+$websiteProfileConsent = VereineWebsiteProfiles::consentCode();
+print load_fiche_titre($langs->trans('VereineWebsiteProfileConsentSetting'), '', '');
+print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineWebsiteProfileConsentSettingHowTo').'</div>';
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereinewebsiteprofileconsent">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="savewebsiteprofileconsent">';
+print '<select name="website_profile_consent" class="minwidth300" data-website-profile-consent="'.dol_escape_htmltag($websiteProfileConsent).'">';
+print '<option value=""'.($websiteProfileConsent === '' ? ' selected' : '').'>'.$langs->trans('VereineWebsiteProfileConsentSettingNone').'</option>';
+foreach ($current as $code => $text) {
+	print '<option value="'.dol_escape_htmltag($code).'"'.($websiteProfileConsent === $code ? ' selected' : '').'>'.dol_escape_htmltag($text['label'].' ('.$code.')').'</option>';
+}
+print '</select> <input type="submit" class="button small" value="'.dol_escape_htmltag($langs->transnoentitiesnoconv('Save')).'">';
+print '</form><br>';
 
 print load_fiche_titre($langs->trans($edit['code'] !== '' && isset($shown[$edit['code']]) ? 'VereineConsentEdit' : 'VereineConsentNew'), '', '');
 print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" name="vereineconsenttext" id="vereineconsenttext">';

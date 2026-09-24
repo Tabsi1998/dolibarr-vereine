@@ -43,6 +43,7 @@ class VereineLog
 	const FEE_DIRECT_DEBIT = 'fee_direct_debit';
 	const EXIT_PLANNED = 'exit_planned';
 	const EXIT_DONE = 'exit_done';
+	const WEBSITE_PROFILE = 'website_profile';
 	const EXIT_CANCELLED = 'exit_cancelled';
 	const EXIT_ERROR = 'exit_error';
 	const CONSENT_GIVEN = 'consent_given';

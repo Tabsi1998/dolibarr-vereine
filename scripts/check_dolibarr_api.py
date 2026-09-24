@@ -41,6 +41,7 @@ CONTRACTS = (
     ("htdocs/user/class/user.class.php", "public $fk_member", "the member behind a Dolibarr user is the one who signs"),
     ("htdocs/core/lib/admin.lib.php", "function activateModule(", "runtime fixtures"),
     ("htdocs/core/lib/functions.lib.php", "function getDolGlobalString(", "reading settings"),
+    ("htdocs/core/lib/functions.lib.php", "function get_exdir(", "folder of the member photo (#255)"),
     ("htdocs/core/lib/functions.lib.php", "function isModEnabled(", "module state"),
     ("htdocs/core/lib/functions.lib.php", "function GETPOST(", "request input"),
     ("htdocs/core/lib/functions.lib.php", "function GETPOSTINT(", "request input"),
