@@ -2723,6 +2723,153 @@
           ]
         ]
       }
+    },
+    "/vereine/me/ballots": {
+      "get": {
+        "operationId": "getMyBallots",
+        "summary": "Abstimmungen für die gebundene Person",
+        "description": "Abstimmungen der Generalversammlungen, zu denen die Person eingeladen ist, ab der Freigabe. Braucht die Fähigkeit votes.",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Abstimmungen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Ballot"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      }
+    },
+    "/vereine/me/ballots/{id}/votes": {
+      "post": {
+        "operationId": "postMyVote",
+        "summary": "Stimme abgeben",
+        "description": "Mit einem Stimmrecht aus GET me/ballots, solange die Abstimmung offen ist und die Person laut Anwesenheit in der Versammlung ist. Jedes Stimmrecht zählt einmal.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Abstimmung",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Kennung der Person bei dieser Anwendung; stabil, nie eine E-Mail-Adresse allein",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "right_id",
+                  "option"
+                ],
+                "properties": {
+                  "right_id": {
+                    "type": "integer"
+                  },
+                  "option": {
+                    "type": "string",
+                    "maxLength": 16
+                  },
+                  "external_id": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Die Abstimmung danach",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ballot"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use"
+          ]
+        ]
+      }
     }
   },
   "components": {
@@ -5196,6 +5343,147 @@
                   ]
                 }
               }
+            }
+          }
+        }
+      },
+      "BallotRight": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "right_id",
+          "for",
+          "name",
+          "state",
+          "reason",
+          "option"
+        ],
+        "properties": {
+          "right_id": {
+            "type": "integer",
+            "description": "Zum Abstimmen; 0, wenn die Person dieses Stimmrecht nicht nutzen kann"
+          },
+          "for": {
+            "type": "string",
+            "enum": [
+              "self",
+              "proxy"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "Bei einer Vollmacht: wen die Person vertritt"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "used",
+              "none"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "own",
+              "proxy",
+              "represented",
+              "no_voting_right",
+              "not_member"
+            ]
+          },
+          "option": {
+            "type": "string",
+            "description": "Die abgegebene Stimme, sobald das Stimmrecht genutzt ist"
+          }
+        }
+      },
+      "Ballot": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "meeting_id",
+          "meeting",
+          "day",
+          "item",
+          "kind",
+          "question",
+          "status",
+          "closes",
+          "timezone",
+          "options",
+          "rights"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "meeting_id": {
+            "type": "integer"
+          },
+          "meeting": {
+            "type": "string"
+          },
+          "day": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "item": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "resolution",
+              "election",
+              "statutes",
+              "dissolution"
+            ]
+          },
+          "question": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "released",
+              "open",
+              "closed",
+              "evaluated",
+              "cancelled"
+            ]
+          },
+          "closes": {
+            "type": "string",
+            "description": "Uhrzeit HH:MM am Versammlungstag, leer ohne feste Zeit"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "code",
+                "label"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "rights": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BallotRight"
             }
           }
         }

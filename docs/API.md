@@ -951,6 +951,56 @@ Vorstands nie.
 Kündigungsregel des Vereins ergibt (`last_day`), oder später, wenn später gewünscht. Ein früherer Wunsch
 wird nicht übernommen (`wished_too_early: true`). Ist schon ein Austritt geplant, kommt `409`.
 
+### GET /vereine/me/ballots
+
+`subject`, Fähigkeit `votes`. Abstimmungen der Generalversammlungen, zu denen die Person eingeladen ist,
+ab der Freigabe durch die Versammlungsleitung:
+
+```json
+[{"id": 3, "meeting_id": 12, "meeting": "Generalversammlung 2026", "day": "2026-10-10", "item": 4, "kind": "resolution",
+  "question": "Entlastung des Vorstands", "status": "open", "closes": "19:30", "timezone": "Europe/Vienna",
+  "options": [{"code": "yes", "label": "Ja"}, {"code": "no", "label": "Nein"}, {"code": "abstain", "label": "Enthaltung"}],
+  "rights": [{"right_id": 41, "for": "self", "name": "", "state": "open", "reason": "own", "option": ""},
+             {"right_id": 42, "for": "proxy", "name": "Anna Muster", "state": "used", "reason": "proxy", "option": "yes"}]}]
+```
+
+Eine Abstimmung gehört immer zu einem Tagesordnungspunkt einer Generalversammlung; eine Umfrage allein ist
+keine Versammlung. `status`: `released` (angekündigt), `open`, `closed`, `evaluated`, `cancelled`.
+
+`rights` sind die Stimmrechte, die die Person nutzen kann: das eigene und die von Mitgliedern, die ihr
+eine schriftliche Vollmacht gegeben haben. Sie werden beim **Öffnen** festgehalten – aus Einladung
+(stimmberechtigt oder nicht), Mitgliedschaft am Versammlungstag und den Vollmachten der Anwesenheitsliste.
+Spätere Änderungen gelten für diese Abstimmung nicht. `reason`: `own`, `proxy`, `represented` (hat eine
+Vollmacht gegeben, der Vertreter stimmt), `no_voting_right`, `not_member`. Ein offener Beitrag nimmt kein
+Stimmrecht; das müssten die Statuten sagen.
+
+Wahlen: je Kandidat:in eine Option `c<Nummer>`, bei nur einer Kandidatur zusätzlich `no`; immer
+`abstain`. Die Codes ändern sich nie. Mehrere Plätze in einem Wahlgang und automatische Stichwahlen gibt
+es nicht: je Platz ein Wahlgang, eine Stichwahl als neue Abstimmung. Geheime Wahlen folgen (#162).
+
+### POST /vereine/me/ballots/{id}/votes
+
+`subject`, Fähigkeit `votes`, Body:
+
+```json
+{"right_id": 41, "option": "yes", "external_id": "app-vote-7f3a"}
+```
+
+Zählt nur, solange die Abstimmung offen ist (und vor `closes`) und die Person **laut Anwesenheitsliste in
+der Versammlung** ist. Jedes Stimmrecht zählt **einmal**, egal über welche Anwendung oder ob der Vorstand
+einen Stimmzettel einträgt. Dieselbe `external_id` beantwortet dieselbe Anfrage (`200`), auch nach einem
+Verbindungsabbruch; dieselbe Stimme ohne `external_id` nochmal ändert nichts. Antwort: die Abstimmung
+danach.
+
+| Code | Bedeutung |
+| --- | --- |
+| `400` | `right_id`/`option` fehlen oder die Option gibt es nicht (`option`) |
+| `404` | Die Abstimmung oder das Stimmrecht gehört nicht zur Person |
+| `409` | `not_open`, `closed`, `channel`, `used` (schon abgestimmt, auf welchem Weg auch immer), `not_present`, `external_id` (andere Stimme unter derselben Kennung) |
+
+Öffnen, Schließen, Auszählen und Absagen geschehen nur in Dolibarr durch die Versammlungsleitung; keine
+Anwendung kann das.
+
 ### GET /vereine/me/events
 
 `subject`, Fähigkeit `events`. Öffentliche Veranstaltungen und die für Mitglieder (in Dolibarr „nur für

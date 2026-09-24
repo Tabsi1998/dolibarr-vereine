@@ -1104,7 +1104,9 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 	foreach ($functionStore->fetchAll(true) as $function) {
 		$catalogue[$function['id']] = $function['label'];
 	}
-	print '<br>'.load_fiche_titre($langs->trans('VereineVotes'), '', '', 0, 'vereinevotes');
+	$ballotLink = $meeting['kind'] !== VereineMeetingRules::KIND_BOARD ? '<a href="'.dol_buildpath('/vereine/ballots.php', 1).'?meeting='.$meeting['id'].'">'
+		.$langs->trans('VereineBallotsLink').'</a>' : '';
+	print '<br>'.load_fiche_titre($langs->trans('VereineVotes'), $ballotLink, '', 0, 'vereinevotes');
 	print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineVotesHowTo').'</div>';
 	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
 	print '<tr class="liste_titre"><td>'.$langs->trans('VereineVoteItem').'</td><td>'.$langs->trans('VereineVoteTitle').'</td><td>'.$langs->trans('VereineVoteCounts').'</td>';

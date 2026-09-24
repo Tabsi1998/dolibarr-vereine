@@ -144,6 +144,8 @@ class VereineLog
 	const MEETING_RESPONSE = 'meeting_response';
 	const MOTION = 'motion';
 	const PROFILE = 'profile';
+	const BALLOT = 'ballot';
+	const BALLOT_VOTE = 'ballot_vote';
 
 	/**
 	 * Append one entry.
