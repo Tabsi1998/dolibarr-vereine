@@ -1963,7 +1963,7 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
   gegen den getaggten Commit erneut geprüft.
 
 [Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.10.0-beta...HEAD
-[0.10.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v0.9.0-beta...v0.10.0-beta
+[0.10.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.10.0-beta
 [0.9.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.9.0-beta
 [0.8.0-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.8.0-beta
 [0.7.1-beta]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v0.7.1-beta
