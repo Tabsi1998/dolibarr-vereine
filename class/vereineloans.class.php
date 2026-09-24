@@ -227,6 +227,7 @@ class VereineLoans
 		global $conf, $langs, $mysoc, $user;
 
 		require_once __DIR__.'/vereinemail.class.php';
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/date.lib.php';
 
 		$langs->loadLangs(array('main', 'members', 'vereine@vereine'));
 		$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
