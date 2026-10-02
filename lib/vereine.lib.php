@@ -162,7 +162,7 @@ function vereineFeeReason(array $fee)
  * @param string            $kind       Kind of document, see VereineSignatureRules::KINDS
  * @param int               $objectId   The document's object
  * @param string            $file       Absolute path of the document
- * @param bool              $canWrite   Whether the user may sign or upload
+ * @param bool              $canWrite   Whether the user may start a run and upload a scan; whoever has to sign signs anyway (#269)
  * @param string            $anchor     Anchor the forms return to
  * @return void
  */
@@ -218,7 +218,7 @@ function vereineSignatureBlock($signatures, $kind, $objectId, $file, $canWrite, 
 	}
 	$click = VereineSignatureRules::allowsClick($rules, $kind);
 	$withQes = VereineSignatureRules::allowsQes($rules, $kind);
-	if ($run['status'] === VereineSignatures::STATUS_OPEN && $canWrite && $mine && !$run['document_changed'] && $withQes) {
+	if ($run['status'] === VereineSignatures::STATUS_OPEN && $mine && !$run['document_changed'] && $withQes) {
 		if (VereineQes::configured()) {
 			print '<form method="POST" action="'.dol_buildpath('/vereine/signature.php', 1).'" name="vereinesignqes'.$run['id'].'" class="paddingtop">';
 			print '<input type="hidden" name="token" value="'.newToken().'">';
@@ -234,7 +234,7 @@ function vereineSignatureBlock($signatures, $kind, $objectId, $file, $canWrite, 
 	if ($run['status'] === VereineSignatures::STATUS_OPEN && $withQes && !$click) {
 		print '<div class="opacitymedium small" data-qes-only="1">'.$langs->trans('VereineQesOnlyHint').'</div>';
 	}
-	if ($run['status'] === VereineSignatures::STATUS_OPEN && $canWrite && $mine && !$run['document_changed'] && $click) {
+	if ($run['status'] === VereineSignatures::STATUS_OPEN && $mine && !$run['document_changed'] && $click) {
 		print '<form method="POST" action="'.$back.'" name="vereinesign'.$run['id'].'" class="paddingtop">';
 		print '<input type="hidden" name="token" value="'.newToken().'">';
 		print '<input type="hidden" name="action" value="sign">';

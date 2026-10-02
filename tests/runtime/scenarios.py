@@ -7063,9 +7063,37 @@ def boardvote(stack: Stack) -> str:
     # Applications never see a vote of the board (#118).
     status, seen = stack.api(f"vereine/me/ballots?member_id={chair}", stack.notes["voter"])
     expect(status == 200 and all(entry["id"] != int(ballot) for entry in seen), f"an application sees the vote of the board: HTTP {status} {seen}")
+
+    # The minutes: final, the signatures start by themselves, and the keeper signs although the keeper may only read (#269).
+    keeper = board[1]
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the board meeting before the minutes")
+    page_ok(browser.submit(page.form(name="vereinemeetingroles"), {"chair": chair, "keeper": keeper}), "who presided and who kept the minutes")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the board meeting with roles")
+    page_ok(browser.submit(page.form(name="vereinemeetingfinalize"), {"approved_on": today, "note": "Vorstandsbeschluss"}), "the final minutes")
+    run = stack.value("SELECT s.rowid FROM llx_vereine_signature as s INNER JOIN llx_vereine_meeting_minutes as v ON v.rowid = s.fk_object"
+                      f" WHERE s.kind = 'minutes' AND s.status = 'open' AND v.fk_meeting = {meeting}")
+    expect(run not in (None, "", "NULL"), "the signatures of the final minutes did not start by themselves")
+    reader_linked = stack.value("SELECT fk_member FROM llx_user WHERE login = 'rtreader'")
+    stack.sql(f"UPDATE llx_user SET fk_member = {keeper} WHERE login = 'rtreader'")
+    reader = stack.browser("rtreader")
+    home = page_ok(reader.get("/index.php"), "the keeper's home")
+    expect('data-vereine-waiting="1"' in home.text, "the counter of the keeper does not show the signature waiting")
+    card = page_ok(reader.get(f"{base}?id={meeting}"), "the meeting for the keeper")
+    expect(f'name="vereinesign{run}"' in card.text, "the keeper, who may only read members, is not offered to sign")
+    refused = page_ok(reader.submit(card.form(name=f"vereinesign{run}"), {"password": "falsch"}), "sign with a wrong password")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_signature_person WHERE fk_signature = {run} AND signed_at IS NOT NULL") == "0",
+           f"a wrong password signed: {html.unescape(refused.text)[:200]}")
+    card = page_ok(reader.get(f"{base}?id={meeting}"), "the meeting for the keeper again")
+    page_ok(reader.submit(card.form(name=f"vereinesign{run}"), {"password": stack.reader_password}), "the keeper signs")
+    signed = stack.sql(f"SELECT fk_adherent FROM llx_vereine_signature_person WHERE fk_signature = {run} AND signed_at IS NOT NULL")
+    expect(signed == [[str(keeper)]], f"after the keeper signed: {signed}")
+    expect('name="vereinesignscan' not in page_ok(reader.get(f"{base}?id={meeting}"), "the meeting after signing").text,
+           "somebody who may only read is offered to upload a scan")
+    stack.sql(f"UPDATE llx_user SET fk_member = {reader_linked if reader_linked not in (None, '', 'NULL') else 'NULL'} WHERE login = 'rtreader'")
     stack.sql(f"UPDATE llx_user SET fk_member = {linked if linked not in (None, '', 'NULL') else 'NULL'} WHERE login = 'admin'")
     return (f"board meeting of {len(board)}: started at once, only Dolibarr and paper; counter, notice and hint for the chair; the chair voted in Dolibarr "
-            "once, the others on paper; closing took result and resolution over; applications do not see it")
+            "once, the others on paper; closing took result and resolution over; applications do not see it; final minutes started their signatures, "
+            "the keeper who may only read saw it waiting, a wrong password was refused, the keeper signed, no scan offered")
 
 
 SCENARIOS = (

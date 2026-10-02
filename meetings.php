@@ -366,7 +366,8 @@ if ($action === 'document') {
 		exit;
 	}
 	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $signatures->errors ? $signatures->errors : array('VereineSignatureErrorDocument')), 'errors');
-} elseif (($action === 'sign' || $action === 'signscan') && $canWrite) {
+} elseif ($action === 'sign' || ($action === 'signscan' && $canWrite)) {
+	// Whoever has to sign signs without the right to change members; the run checks the person and the password (#269).
 	$run = $signatures->fetch(GETPOSTINT('signature'));
 	$version = $run !== null ? $minutes->version($run['object_id']) : null;
 	$file = $version !== null ? VereineMinutes::path($version) : '';

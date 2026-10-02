@@ -94,6 +94,10 @@ Meldungen, Wahlen, Anträge, Unterschriften und Rückstände, das Dringendste zu
   einen Dolibarr-Benutzer, der mit seinem Mitglied verknüpft ist (*Benutzer > Mitglied*), mit den Rechten
   *Vereinsübersicht lesen* und *Mitglieder lesen*. Derselbe Zähler zeigt offene Umlaufbeschlüsse und
   Unterschriften.
+- **Unterschreiben**: Ist das Protokoll fertig, starten die Unterschriften von Vorsitz und Schriftführer
+  von selbst, und bei beiden poppt es auf. Unterschreiben darf, wer dran ist – auch ohne das Recht,
+  Mitglieder zu ändern; Dolibarr fragt das eigene Passwort ab. Einen Scan hochladen oder Unterschriften
+  neu starten bleibt beim Vorstand mit Schreibrecht.
 - **Abstimmungen in der App**: In einer Generalversammlung können Mitglieder über ihre App oder das
   Webportal abstimmen, der Vorstand trägt Stimmzettel ein. Unter *Sitzung > Abstimmungen in der App*:
   anlegen, **Freigeben** (die Regeln werden festgehalten), am Versammlungstag **Öffnen** (die Stimmrechte

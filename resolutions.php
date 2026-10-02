@@ -239,7 +239,8 @@ if ($action === 'export') {
 		exit;
 	}
 	setEventMessages($result < 0 ? $signatures->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $signatures->errors), 'errors');
-} elseif ($action === 'sign' && $canWrite) {
+} elseif ($action === 'sign') {
+	// Whoever has to sign signs without the right to change members; the run checks the person and the password (#269).
 	$run = $signatures->fetch(GETPOSTINT('signature'));
 	$file = $run !== null ? VereineResolutionDocs::path($run['object_id']) : '';
 	$result = $run === null ? 0 : $signatures->sign($run['id'], GETPOST('password', 'password'), $file, $user, $langs);

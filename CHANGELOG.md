@@ -7,6 +7,21 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-02
+
+Unterschreiben darf jetzt, wer unterschreiben muss – auch ohne das Recht, Mitglieder zu ändern.
+
+Nach dem Update ist nichts zu tun.
+
+### Geändert
+
+- **Unterschreiben ohne Schreibrecht** (#269): Wer ein Protokoll, einen Beschluss, ein Schreiben an die
+  Behörde oder einen anderen Beleg unterschreiben muss, bekommt den Knopf dafür (mit Passwort oder
+  qualifizierter Signatur) auch ohne das Recht, Mitglieder zu ändern; die Unterschrift prüft wie bisher,
+  ob die angemeldete Person dran ist, und ihr Passwort. Unterschriften starten und einen Scan hochladen
+  bleiben beim Vorstand mit Schreibrecht. Dass die Unterschriften eines fertigen Protokolls von selbst
+  starten, bleibt so – mit 1.6.0 poppt es bei Vorsitz und Schriftführer auch auf.
+
 ## [1.6.0] - 2026-10-02
 
 Im Vorstand stimmt jetzt jede Person selbst in Dolibarr ab – und was auf jemanden wartet, poppt bei dieser Person auf: Abstimmungen, Umlaufbeschlüsse, Unterschriften.
@@ -2207,7 +2222,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.7.0
 [1.6.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.6.0
 [1.5.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.5.0
 [1.4.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.4.0

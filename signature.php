@@ -163,8 +163,8 @@ function vereineQesKeep($db, $signatures, array $pending, $signed, $user, $langs
 	return $result < 0 ? array($signatures->error) : array_map(array($langs, 'trans'), $signatures->errors);
 }
 
-if ($action === 'qes' && $canWrite) {
-	// On the way to the signature service.
+if ($action === 'qes') {
+	// On the way to the signature service; whoever has to sign may, with or without the right to change members (#269).
 	$run = $signatures->fetch(GETPOSTINT('signature'));
 	$document = $run !== null ? vereineSignatureDocument($db, $run) : array('file' => '', 'back' => dol_buildpath('/vereine/vereineindex.php', 1));
 	$refused = '';
