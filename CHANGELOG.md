@@ -7,6 +7,28 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-02
+
+Sitzungen, die aus Versehen angelegt oder abgesagt wurden, lassen sich löschen. Bearbeiten, Absagen und Kopieren stehen jetzt oben auf der Sitzung.
+
+Nach dem Update ist nichts zu tun.
+
+### Neu
+
+- **Sitzungen löschen** (#266): Eine Sitzung, die nur geplant oder abgesagt ist, lässt sich löschen – solange
+  darin nichts festgehalten wurde (Anwesenheit, Abstimmungen, Protokoll, Dokumente, Abstimmungen der
+  Mitglieder, Anträge, Beschlüsse). Einladungen, Zu- und Absagen und der Termin im Dolibarr-Kalender gehen
+  mit; Beitragsrückstände auf ihrer Tagesordnung warten wieder auf die nächste Vorstandssitzung. Eine
+  eingeladene Sitzung wird zuerst abgesagt, damit die Eingeladenen in Portal und App „abgesagt“ sehen.
+- **Als neue Sitzung kopieren** (#266): füllt das Formular einer neuen Sitzung mit Bezeichnung, Art, Ort und
+  Tagesordnung – um eine abgesagte oder schon eingeladene Sitzung mit anderem Titel oder anderer Art neu
+  anzulegen.
+
+### Geändert
+
+- **Knöpfe oben auf der Sitzung** (#266): Bearbeiten (solange noch nicht eingeladen), Abgehalten, Absagen,
+  Kopieren und Löschen stehen direkt unter den Angaben der Sitzung statt am Seitenende.
+
 ## [1.4.0] - 2026-09-24
 
 Websites und Apps, die ihre Mitglieder selbst kennen, handeln jetzt direkt per Mitglieds-ID – ohne Einladungscode und ohne Bindung, gesteuert über zwei Rechte in Dolibarr. Dazu eigene Rechnungen über die API.
@@ -2164,7 +2186,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.5.0
 [1.4.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.4.0
 [1.3.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.3.0
 [1.2.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.2.0

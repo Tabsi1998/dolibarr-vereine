@@ -1255,7 +1255,6 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 		vereineMeetingNotes($meetings, $meeting, $canWrite);
 		vereineMeetingMinutes($minutes, $signatures, $meeting, $canWrite);
 	}
-
 }
 
 llxFooter();
