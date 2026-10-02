@@ -214,6 +214,15 @@ if ($action === 'document') {
 		exit;
 	}
 	setEventMessages($result < 0 ? $meetings->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $meetings->errors), 'errors');
+} elseif ($action === 'confirm_delete' && GETPOST('confirm', 'alpha') === 'yes' && $canWrite) {
+	// A meeting planned only or called off, with nothing recorded in it (#266).
+	$result = $meetings->delete($id, $user);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineMeetingDeleted'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF']);
+		exit;
+	}
+	setEventMessages($result < 0 ? $meetings->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $meetings->errors), 'errors');
 } elseif (($action === 'held' || $action === 'cancel') && $canWrite) {
 	$result = $meetings->setStatus($id, $action === 'held' ? VereineMeetingRules::STATUS_HELD : VereineMeetingRules::STATUS_CANCELLED, $user);
 	if ($result <= 0) {
@@ -873,6 +882,15 @@ if ($meeting === null) {
 			print $langs->trans('VereineMeetingKind_'.$kind).'</a>';
 		}
 		print '</div>';
+		$source = $entered === null && GETPOSTINT('copy') > 0 ? $meetings->fetch(GETPOSTINT('copy')) : null;
+		if ($source !== null) {
+			// A copy, to plan a meeting anew with another title, kind or day (#266); a day gone by becomes the next possible one.
+			$entered = VereineMeetingRules::normalize(array('kind' => $source['kind'], 'title' => $source['title'],
+				'day' => $source['day'] >= $today ? $source['day'] : VereineMeetingRules::addDays($today, (int) $rules['invite_days']),
+				'time' => $source['time'], 'place' => $source['place'], 'format' => $source['format'], 'access' => $source['access'],
+				'agenda' => implode("\n", $source['agenda'])));
+			print '<div class="info" data-meeting-copy="'.((int) $source['id']).'">'.$langs->trans('VereineMeetingCopyOf', dol_escape_htmltag($source['title'])).'</div>';
+		}
 		if ($entered === null && in_array($template, VereineMeetingRules::KINDS, true)) {
 			$entered = VereineMeetingRules::normalize(array('kind' => $template, 'title' => $langs->transnoentitiesnoconv('VereineMeetingKind_'.$template).' '.substr($today, 0, 4),
 				'day' => VereineMeetingRules::addDays($today, $template === VereineMeetingRules::KIND_GENERAL ? (int) $rules['invite_days'] : 1),
@@ -914,6 +932,40 @@ if ($motionsBy !== '') {
 	print '<tr><td>'.$langs->trans('VereineMeetingMotionsBy').'</td><td>'.vereineFormatDay($motionsBy).'</td></tr>';
 }
 print '</table>';
+// What can be done with the meeting, at the top where it is found (#266).
+if ($canWrite) {
+	if ($action === 'delete') {
+		print (new Form($db))->formconfirm($_SERVER['PHP_SELF'].'?id='.$meeting['id'], $langs->trans('VereineMeetingDelete'),
+			$langs->trans('VereineMeetingDeleteQuestion', $meeting['title']), 'confirm_delete', '', 0, 1);
+	}
+	$deleteRefused = VereineMeetingRules::deletable($meeting['status'], $meetings->records($meeting['id']));
+	print '<div class="tabsAction" data-meeting-actions="'.$meeting['id'].'">';
+	if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
+		print '<a class="butAction" href="#vereinemeetingedit">'.$langs->trans('VereineMeetingEdit').'</a>';
+	}
+	if ($meeting['status'] === VereineMeetingRules::STATUS_INVITED) {
+		foreach (array('held' => 'VereineMeetingMarkHeld', 'cancel' => 'VereineMeetingMarkCancelled') as $status => $label) {
+			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'" name="vereinemeeting'.$status.'" class="inline-block">';
+			print '<input type="hidden" name="token" value="'.newToken().'">';
+			print '<input type="hidden" name="action" value="'.$status.'">';
+			print '<input type="submit" class="butAction" value="'.dol_escape_htmltag($langs->trans($label)).'">';
+			print '</form>';
+		}
+	}
+	print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?copy='.$meeting['id'].'#vereinemeetingnew" data-meeting-copy-link="1">'.$langs->trans('VereineMeetingCopy').'</a>';
+	if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED || $meeting['status'] === VereineMeetingRules::STATUS_CANCELLED) {
+		if (!$deleteRefused) {
+			print '<a class="butActionDelete" href="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'&amp;action=delete&amp;token='.newToken().'" data-meeting-delete="1">'.$langs->trans('Delete').'</a>';
+		} else {
+			$why = implode(' ', array_map(array($langs, 'transnoentitiesnoconv'), $deleteRefused));
+			print '<span class="butActionRefused classfortooltip" title="'.dol_escape_htmltag($why).'" data-meeting-delete="0">'.$langs->trans('Delete').'</span>';
+		}
+	}
+	print '</div>';
+	if ($deleteRefused && $meeting['status'] !== VereineMeetingRules::STATUS_HELD && $meeting['status'] !== VereineMeetingRules::STATUS_INVITED) {
+		print '<div class="opacitymedium small" data-meeting-delete-why="1">'.dol_escape_htmltag(implode(' ', array_map(array($langs, 'transnoentitiesnoconv'), $deleteRefused))).'</div>';
+	}
+}
 if ($late) {
 	print '<div class="warning">'.$langs->trans('VereineMeetingLate', vereineFormatDay($inviteBy)).'</div>';
 }
@@ -959,7 +1011,7 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 		print '<label><input type="checkbox" name="checked" value="1"> '.$langs->trans('VereineMeetingChecked').'</label> ';
 		print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans('VereineMeetingInvite')).'">';
 		print '</form><br>';
-		print load_fiche_titre($langs->trans('VereineMeetingEdit'), '', '');
+		print load_fiche_titre($langs->trans('VereineMeetingEdit'), '', '', 0, 'vereinemeetingedit');
 		vereineMeetingForm($entered !== null ? $entered : $meeting, $meeting['id']);
 	}
 } else {
@@ -1204,17 +1256,6 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 		vereineMeetingMinutes($minutes, $signatures, $meeting, $canWrite);
 	}
 
-	if ($canWrite && $meeting['status'] === VereineMeetingRules::STATUS_INVITED) {
-		print '<div class="center paddingtop">';
-		foreach (array('held' => 'VereineMeetingMarkHeld', 'cancel' => 'VereineMeetingMarkCancelled') as $status => $label) {
-			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'" name="vereinemeeting'.$status.'" class="inline-block paddingright">';
-			print '<input type="hidden" name="token" value="'.newToken().'">';
-			print '<input type="hidden" name="action" value="'.$status.'">';
-			print '<input type="submit" class="button" value="'.dol_escape_htmltag($langs->trans($label)).'">';
-			print '</form>';
-		}
-		print '</div>';
-	}
 }
 
 llxFooter();

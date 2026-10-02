@@ -70,6 +70,37 @@ class VereineMeetingRules
 	/** The steps of a meeting, in their order. */
 	const STEPS = array('plan', 'invite', 'meet', 'minutes', 'close');
 
+	/** What recorded in a meeting keeps it from being deleted (#266), in the order they are named. */
+	const RECORDS = array('attendance', 'votes', 'minutes', 'documents', 'ballots', 'motions', 'resolutions', 'agreements');
+
+	/**
+	 * Why a meeting cannot be deleted (#266): it was held, it is still invited, or something is recorded in it.
+	 *
+	 * A meeting that was planned only or called off goes, with its invitations; attendance, votes, minutes and
+	 * the like are records of the association and keep the meeting.
+	 *
+	 * @param string            $status  Status of the meeting
+	 * @param array<string,int> $records Count by kind, see RECORDS
+	 * @return string[] Language keys, empty when it can be deleted
+	 */
+	public static function deletable($status, array $records)
+	{
+		$reasons = array();
+		if ($status === self::STATUS_HELD) {
+			$reasons[] = 'VereineMeetingDeleteHeld';
+		} elseif ($status === self::STATUS_INVITED) {
+			$reasons[] = 'VereineMeetingDeleteInvited';
+		} elseif (!in_array($status, array(self::STATUS_PLANNED, self::STATUS_CANCELLED), true)) {
+			$reasons[] = 'VereineMeetingErrorStatus';
+		}
+		foreach (self::RECORDS as $kind) {
+			if (!empty($records[$kind])) {
+				$reasons[] = 'VereineMeetingDeleteHas_'.$kind;
+			}
+		}
+		return $reasons;
+	}
+
 	/**
 	 * Where a meeting stands: every step is done, the one to do now, or later.
 	 *

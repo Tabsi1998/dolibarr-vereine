@@ -164,6 +164,85 @@ class VereineMeetings
 	}
 
 	/**
+	 * What is recorded in a meeting, by kind (#266); a kind that cannot be counted counts as recorded.
+	 *
+	 * @param int $id Meeting
+	 * @return array<string,int> Count by kind of VereineMeetingRules::RECORDS
+	 */
+	public function records($id)
+	{
+		global $conf;
+
+		$tables = array('attendance' => 'vereine_meeting_attendance', 'votes' => 'vereine_meeting_vote', 'minutes' => 'vereine_meeting_minutes',
+			'documents' => 'vereine_meeting_document', 'ballots' => 'vereine_ballot', 'motions' => 'vereine_motion', 'resolutions' => 'vereine_resolution',
+			'agreements' => 'vereine_resolution_task');
+		$records = array();
+		foreach ($tables as $kind => $table) {
+			$resql = $this->db->query("SELECT COUNT(*) as nb FROM ".MAIN_DB_PREFIX.$table." WHERE fk_meeting = ".((int) $id)." AND entity = ".((int) $conf->entity));
+			$obj = $resql ? $this->db->fetch_object($resql) : null;
+			$records[$kind] = $obj ? (int) $obj->nb : 1;
+		}
+		return $records;
+	}
+
+	/**
+	 * Delete a meeting that was planned only or called off, with nothing recorded in it (#266).
+	 *
+	 * Its invitations, the answers of the invited and the texts prepared for its items go with it, so do its
+	 * event in Dolibarr's agenda and its letters; fee arrears on its agenda wait for the next board meeting again.
+	 * The log keeps what it was.
+	 *
+	 * @param int  $id   Meeting
+	 * @param User $user Who deletes
+	 * @return int 1 when deleted, 0 when refused (see errors), -1 on error
+	 */
+	public function delete($id, $user)
+	{
+		global $conf;
+
+		$meeting = $this->fetch($id);
+		if ($meeting === null) {
+			$this->errors = array('VereineMeetingErrorStatus');
+			return 0;
+		}
+		$this->errors = VereineMeetingRules::deletable($meeting['status'], $this->records((int) $id));
+		if ($this->errors) {
+			return 0;
+		}
+		$entity = (int) $conf->entity;
+		$invited = count($this->invitations((int) $id));
+		$statements = array();
+		foreach (array('vereine_meeting_invitation', 'vereine_meeting_response', 'vereine_meeting_note') as $table) {
+			$statements[] = "DELETE FROM ".MAIN_DB_PREFIX.$table." WHERE fk_meeting = ".((int) $id)." AND entity = ".$entity;
+		}
+		$statements[] = "UPDATE ".MAIN_DB_PREFIX."vereine_arrear SET fk_meeting = 0 WHERE fk_meeting = ".((int) $id)." AND entity = ".$entity;
+		$statements[] = "DELETE FROM ".MAIN_DB_PREFIX."vereine_meeting WHERE rowid = ".((int) $id)." AND entity = ".$entity;
+		$this->db->begin();
+		foreach ($statements as $sql) {
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
+				$this->db->rollback();
+				return -1;
+			}
+		}
+		$this->db->commit();
+		// The event in the agenda and the letters go too; if one of them stays, the log says so and the meeting is gone anyway.
+		if ((int) $meeting['actioncomm_id'] > 0) {
+			require_once DOL_DOCUMENT_ROOT.'/comm/action/class/actioncomm.class.php';
+			$event = new ActionComm($this->db);
+			if ($event->fetch((int) $meeting['actioncomm_id']) > 0 && $event->delete($user) < 0) {
+				dol_syslog(__METHOD__.' agenda event '.((int) $meeting['actioncomm_id']).': '.$event->error, LOG_WARNING);
+			}
+		}
+		$letters = self::lettersPath((int) $id);
+		if (is_file($letters)) {
+			dol_delete_file($letters);
+		}
+		VereineLog::add($this->db, $user, VereineLog::MEETING_DELETED, 0, 0, $meeting['kind'].' '.$meeting['day'].' '.$meeting['title'].' ('.$meeting['status'].', '.$invited.' invited)');
+		return 1;
+	}
+
+	/**
 	 * Members with what an invitation needs, and whether they are on the board on a day.
 	 *
 	 * @param string $day Day of the meeting
