@@ -169,11 +169,13 @@ class ActionsVereine
 		$langs->load('vereine@vereine');
 		$items = (new VereineWaiting($this->db))->urgent((int) $user->fk_member);
 		$count = count($items);
-		$this->resprints = '<div class="inline-block nowrap vereine-waiting" data-vereine-waiting="'.$count.'"'
-			.' data-vereine-waiting-url="'.dol_escape_htmltag(dol_buildpath('/vereine/ajax/waiting.php', 1)).'"'.($count ? '' : ' style="display: none;"').'>'
-			.'<a href="'.dol_escape_htmltag($count ? $items[0]['url'] : dol_buildpath('/vereine/vereineindex.php', 1).'#vereinetodo').'"'
-			.' title="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineWaitingCounter')).'" class="valignmiddle">'
-			.img_picto('', 'fa-vote-yea', 'class="paddingright"').'<span class="badge badge-warning vereine-waiting-count">'.$count.'</span></a></div>';
+		$address = dol_escape_htmltag(dol_buildpath('/vereine/ajax/waiting.php', 1));
+		$target = dol_escape_htmltag($count ? $items[0]['url'] : dol_buildpath('/vereine/vereineindex.php', 1).'#vereinetodo');
+		$title = dol_escape_htmltag($langs->transnoentitiesnoconv('VereineWaitingCounter'));
+		$hidden = $count ? '' : ' style="display: none;"';
+		$this->resprints = '<div class="inline-block nowrap vereine-waiting" data-vereine-waiting="'.$count.'" data-vereine-waiting-url="'.$address.'"'.$hidden.'>';
+		$this->resprints .= '<a href="'.$target.'" title="'.$title.'" class="valignmiddle">'.img_picto('', 'fa-vote-yea', 'class="paddingright"');
+		$this->resprints .= '<span class="badge badge-warning vereine-waiting-count">'.$count.'</span></a></div>';
 		return 0;
 	}
 
