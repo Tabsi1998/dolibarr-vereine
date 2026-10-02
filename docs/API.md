@@ -36,7 +36,7 @@ Modulversion und API-Version – ein günstiger Weg, die Verbindung zu testen.
 
 ```json
 {
-  "module_version": "1.4.0",
+  "module_version": "1.5.0",
   "api_version": 2,
   "server_time": "2026-09-17T08:00:00Z"
 }

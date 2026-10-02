@@ -81,7 +81,10 @@ Meldungen, Wahlen, Anträge, Unterschriften und Rückstände, das Dringendste zu
   Vorschlag für die Tagesordnung. Ausgeschlossen wird niemand automatisch.
 - **Sitzungen**: aus einer Vorlage anlegen, einladen, Anwesenheit und Abstimmungen erfassen, das
   Protokoll schreiben und unterschreiben lassen. Beschlüsse landen im *Beschlussbuch*, Aufgaben
-  daraus bei der zuständigen Person. Zwischen Sitzungen gibt es *Umlaufbeschlüsse*.
+  daraus bei der zuständigen Person. Zwischen Sitzungen gibt es *Umlaufbeschlüsse*. Bis zur Einladung
+  lässt sich alles ändern (*Bearbeiten* oben auf der Sitzung); danach bleibt die Sitzung so, wie sie
+  verschickt wurde – für eine Änderung absagen und *Als neue Sitzung kopieren*. Eine geplante oder
+  abgesagte Sitzung, in der nichts festgehalten wurde, lässt sich *löschen*.
 - **Abstimmungen in der App**: In einer Generalversammlung können Mitglieder über ihre App oder das
   Webportal abstimmen, der Vorstand trägt Stimmzettel ein. Unter *Sitzung > Abstimmungen in der App*:
   anlegen, **Freigeben** (die Regeln werden festgehalten), am Versammlungstag **Öffnen** (die Stimmrechte

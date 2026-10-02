@@ -1883,6 +1883,7 @@ $prefixes = array(
 	'VereineStatuteSource_' => array('generated', 'uploaded'),
 	'VereineMeetingKind_' => VereineMeetingRules::KINDS,
 	'VereineMeetingStatus_' => VereineMeetingRules::STATUSES,
+	'VereineMeetingDeleteHas_' => VereineMeetingRules::RECORDS,
 	'VereineMeetingFormat_' => VereineMeetingRules::FORMATS,
 	'VereineMeetingChannel_' => array(VereineMeetingRules::CHANNEL_EMAIL, VereineMeetingRules::CHANNEL_LETTER),
 	'VereineMeetingRecipientsHelp_' => VereineMeetingRules::KINDS,
@@ -3234,6 +3235,16 @@ same(array(
 	$fileAnswer('GET', '', 'bytes=100-', '"anders"'), $fileAnswer('HEAD', '', 'bytes=100-', '"'.$fileTag.'"'),
 ), 'whole, headers only, 304 for the tag and a weak tag, another tag gets the file; parts from, between, the last bytes, beyond the end cut, beyond the start 416; several ranges or a range that is none: whole; If-Range with another tag: whole');
 same('private, no-cache', VereineFileRules::answer('GET', 1, $fileTag, '', '', '')['headers']['Cache-Control'], 'a cache asks again every time');
+
+// A meeting goes only when it was planned or called off and nothing is recorded in it (#266).
+same(array(array(), array(), array('VereineMeetingDeleteInvited'), array('VereineMeetingDeleteHeld', 'VereineMeetingDeleteHas_votes'),
+	array('VereineMeetingDeleteHas_attendance', 'VereineMeetingDeleteHas_minutes')), array(
+	VereineMeetingRules::deletable(VereineMeetingRules::STATUS_PLANNED, array()),
+	VereineMeetingRules::deletable(VereineMeetingRules::STATUS_CANCELLED, array('attendance' => 0, 'votes' => 0)),
+	VereineMeetingRules::deletable(VereineMeetingRules::STATUS_INVITED, array()),
+	VereineMeetingRules::deletable(VereineMeetingRules::STATUS_HELD, array('votes' => 2)),
+	VereineMeetingRules::deletable(VereineMeetingRules::STATUS_CANCELLED, array('minutes' => 1, 'attendance' => 3)),
+), 'planned or called off and empty: it goes; invited: call it off first; held or with records: it stays, with the reasons in their order');
 
 print 'Unit tests: OK ('.$assertions." assertions)\n";
 exit(0);

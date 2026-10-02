@@ -4103,14 +4103,43 @@ def meetings(stack: Stack) -> str:
     page_ok(browser.submit(page_ok(browser.get(f"{base}?id={general_id}"), "general assembly").form(name="vereinemeetingheld")), "note the general assembly as held")
     expect(stack.value(f"SELECT status FROM llx_vereine_meeting WHERE rowid = {general_id}") == "held", "the general assembly is not marked held")
 
+    # Created by mistake: deleted at once. Invited: called off first, then deleted with its invitations and its agenda event (#266).
+    def delete(meeting: str) -> Page:
+        page = page_ok(browser.get(f"{base}?id={meeting}"), f"meeting {meeting} before deleting")
+        return page_ok(browser.post(f"{base}?id={meeting}", [("token", token_of(page)), ("action", "confirm_delete"), ("confirm", "yes")]), f"delete meeting {meeting}")
+
+    mistake = create({**board, "title": "Aus Versehen", "agenda": "Begrüßung"})
+    mistake_id = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting")
+    expect('data-meeting-delete="1"' in mistake.text and 'href="#vereinemeetingedit"' in mistake.text, "a planned meeting offers neither deleting nor editing at the top")
+    copied = page_ok(browser.get(f"{base}?copy={mistake_id}"), "copy of the meeting")
+    expect(f'data-meeting-copy="{mistake_id}"' in copied.text and 'value="Aus Versehen"' in copied.text, "the copy does not fill the form of a new meeting")
+    delete(mistake_id)
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_meeting WHERE rowid = {mistake_id}") == "0", "the meeting created by mistake was not deleted")
+    held_card = page_ok(browser.get(f"{base}?id={general_id}"), "the held general assembly")
+    expect('data-meeting-delete=' not in held_card.text, "a held meeting offers deleting")
+    called_off = create({**board, "title": "Fällt aus", "agenda": "Begrüßung"})
+    called_off_id = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting")
+    page_ok(browser.submit(called_off.form(name="vereinemeetinginvite"), {"checked": "1"}), "invite the meeting that will be called off")
+    refused = delete(called_off_id)
+    expect("zuerst absagen" in html.unescape(refused.text) and stack.value(f"SELECT COUNT(*) FROM llx_vereine_meeting WHERE rowid = {called_off_id}") == "1",
+           "an invited meeting was deleted without being called off")
+    event = stack.value(f"SELECT fk_actioncomm FROM llx_vereine_meeting WHERE rowid = {called_off_id}")
+    page_ok(browser.submit(page_ok(browser.get(f"{base}?id={called_off_id}"), "invited meeting").form(name="vereinemeetingcancel")), "call the meeting off")
+    delete(called_off_id)
+    left = [stack.value(f"SELECT COUNT(*) FROM llx_vereine_meeting WHERE rowid = {called_off_id}"),
+            stack.value(f"SELECT COUNT(*) FROM llx_vereine_meeting_invitation WHERE fk_meeting = {called_off_id}"),
+            stack.value(f"SELECT COUNT(*) FROM llx_actioncomm WHERE id = {int(event)}") if event and event != "NULL" else "0"]
+    expect(left == ["0", "0", "0"], f"after deleting the called off meeting: meeting, invitations, agenda event {left}")
+
     reader_page = stack.browser("rtreader").get(base)
     expect(denied(reader_page) or ('name="vereinemeeting"' not in reader_page.text and 'name="vereinemeetinginvite"' not in reader_page.text),
            "a user without the right to change members is offered a new meeting or an invitation")
     logged = dict(stack.sql("SELECT action, COUNT(*) FROM llx_vereine_log WHERE action LIKE 'meeting%' GROUP BY action"))
-    expect(logged == {"meeting_created": "2", "meeting_invited": "2", "meeting_status": "1"}, f"meeting log: {logged}")
+    expect(logged == {"meeting_created": "4", "meeting_invited": "3", "meeting_status": "2", "meeting_deleted": "2"}, f"meeting log: {logged}")
     return (f"no agenda refused; board meeting: {len(expected)} board members only, not without checking, e-mails exactly to the board, proof; general assembly "
             "in person refused (statutes hybrid), late invitation marked, every active member invited, member without e-mail in the letters PDF, "
-            "note for members without vote, agenda event, held; reader cannot create; log")
+            "note for members without vote, agenda event, held; created by mistake deleted, invited only after calling it off, with invitations "
+            "and agenda event; copy fills a new meeting; held not deletable; reader cannot create; log")
 
 
 def attendance(stack: Stack) -> str:
