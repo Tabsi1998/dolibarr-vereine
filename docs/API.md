@@ -2,10 +2,10 @@
 
 Das Modul ergänzt Schnittstellen unter Dolibarrs REST-API bei
 `https://<dolibarr>/api/index.php/vereine/`. Sie brauchen Dolibarrs Modul
-*API REST* und einen Benutzer mit dem Recht **Vereinsübersicht und Vereinsdaten
-lesen** (`vereine > association > read`). Die Mitglieder-Schnittstellen brauchen
-zusätzlich **Mitglieder-Zusammenfassung für die Website über die API lesen**
-(`vereine > website > read`).
+*API REST* und einen Benutzer mit dem Recht **Verein ansehen**
+(`vereine > association > read`). Die Mitglieder-Schnittstellen brauchen
+zusätzlich **Nur für die Website (API-Benutzer): Mitgliedschaft, Beitrag und offene
+Rechnungen eines Mitglieds lesen** (`vereine > website > read`).
 
 [`openapi.json`](openapi.json) beschreibt jede Schnittstelle als OpenAPI 3.0.
 Die Laufzeit-Tests vergleichen jede Antwort des Moduls damit, in Dolibarr 22, 23
@@ -363,8 +363,8 @@ direkt vor dem Anzeigen des Formulars neu lesen.
 Ein Beitrittsantrag von der Website. Er legt ein Mitglied **im Entwurf** mit den
 erteilten Einwilligungen an; der Verein prüft und gibt das Mitglied in Dolibarr
 frei, die Website kann das nie. Dem Formular einen eigenen API-Benutzer mit nur
-den Rechten *Vereinsübersicht und Vereinsdaten lesen* und *Beitrittsanträge über
-die API anlegen* geben.
+den Rechten *Verein ansehen* und *Nur für die Website (API-Benutzer):
+Beitrittsanträge einreichen* geben.
 
 ```json
 {

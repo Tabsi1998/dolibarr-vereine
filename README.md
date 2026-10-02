@@ -210,7 +210,7 @@ einstellen sollte, und erkennt an den Daten, was schon erledigt ist.
 | Kundenrechnung | Hinweis bei einer Überzahlung mit Link zum Zuordnen; danach steht dort, wohin der Mehrbetrag ging |
 | Rechnungs-PDF (Dolibarr-Vorlagen, unverändert) | Hinweise der Steuerprofile je Zeile und ZVR-Zahl im Hinweisbereich |
 | E-Mail-Kampagnen | Empfängerauswahl *Vereine* |
-| *Benutzer & Gruppen > Berechtigungen* | *Vereinsübersicht und Vereinsdaten lesen*; *Mitglieder und Geschäftspartner verknüpfen und abgleichen*; *Mitglieder-Zusammenfassung für die Website über die API lesen*; *Beitrittsanträge über die API anlegen*; *Spendenmeldung vorbereiten* (sieht Geburtsdaten und vbPK der Spender:innen) |
+| *Benutzer & Gruppen > Berechtigungen* | *Verein ansehen*; *Mitglieder mit Geschäftspartnern verknüpfen*; *Spendenmeldung an das Finanzamt vorbereiten* (sieht Geburtsdaten und vbPK der Spender:innen); dazu die Rechte, die mit *Nur für die Website* oder *Nur für Website oder App* beginnen – nur für den API-Benutzer der Website. Welche Funktion was braucht, steht im Handbuch unter *Wer darf was*. |
 | Modul *API REST* | Nötig für `/api/index.php/vereine/...`; die Übersicht warnt, solange es aus ist |
 
 So hängt es zusammen: Die Einrichtung speichert die Vereinsdaten als
@@ -250,7 +250,8 @@ steht in [docs/RELEASES.md](https://github.com/Tabsi1998/dolibarr-vereine/blob/m
    wird mit aktiviert.
 4. Die Einrichtung des Moduls öffnen und ZVR-Zahl, Vereinsbehörde und
    Vereinszweck eintragen.
-5. Benutzern das Recht *Vereinsübersicht und Vereinsdaten lesen* geben.
+5. Benutzern das Recht *Verein ansehen* geben; welche Funktion welche Rechte braucht, steht im
+   Handbuch unter *Wer darf was*.
 
 Ein Update läuft genauso: das neuere ZIP bereitstellen, dann das Modul in der
 Modulliste einmal deaktivieren und wieder aktivieren, damit neue Tabellen,
