@@ -2016,6 +2016,16 @@ foreach (array_keys($used) as $key) {
 }
 expect(isset($english['ModuleVereineName']), 'the module name has a translation');
 expect(isset($english['Permission49210001']), 'the read permission has a translation');
+// Every right of the module has a name of its own in the language file, so Dolibarr's list of permissions never falls back to English.
+preg_match_all('/\$this->numero\.\'(\d{2})\'/', (string) file_get_contents($root.'/core/modules/modVereine.class.php'), $rightNumbers);
+$unnamed = array();
+foreach ($rightNumbers[1] as $number) {
+	if (!isset($english['Permission492100'.$number])) {
+		$unnamed[] = '492100'.$number;
+	}
+}
+expect(count($rightNumbers[1]) >= 9, 'the rights of the module are found in the descriptor');
+same(array(), $unnamed, 'every right of the module has a name in the language file');
 
 // ------------------------------------------------------------ minutes texts
 

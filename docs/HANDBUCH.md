@@ -40,29 +40,42 @@ Die übrigen Reiter der Einrichtung:
 
 Dolibarr vergibt Rechte je Benutzer oder, einfacher, je Gruppe (*Start > Benutzer & Gruppen >
 Gruppen*). Das Modul nutzt Dolibarrs eigene Rechte für Mitglieder, Rechnungen und Bank und bringt
-eigene mit. Alle Seiten des Modules brauchen **Vereinsübersicht und Vereinsdaten lesen**.
+eigene mit. Alle Seiten des Moduls brauchen **Verein ansehen**.
 
 | Aufgabe | Nötige Rechte |
 | --- | --- |
-| Überblick, Fristen, Veranstaltungen, Vereinsakte ansehen | *Vereine*: Vereinsübersicht und Vereinsdaten lesen |
+| Überblick, Fristen, Veranstaltungen, Vereinsakte ansehen | *Vereine*: Verein ansehen |
 | Sitzungen, Beschlüsse, Funktionen, Anträge, Reiter *Verein* der Mitgliedskarte ansehen | dazu *Mitglieder*: lesen |
+| In Sitzungen abstimmen, unterschreiben, Umlaufbeschlüsse | dieselben zwei – und ein Benutzer, der mit dem eigenen Mitglied verknüpft ist |
 | Sitzungen anlegen und einladen, Austritte, Einwilligungen, Auskunft erstellen | dazu *Mitglieder*: anlegen/ändern |
 | Daten ehemaliger Mitglieder löschen | dazu *Mitglieder*: löschen |
-| Mitglieder und Geschäftspartner abgleichen | *Vereine*: verknüpfen und abgleichen, dazu *Mitglieder*: anlegen/ändern und *Geschäftspartner*: lesen und anlegen |
-| Einnahmen-Ausgaben-Rechnung | dazu *Banken*: lesen |
+| Mitglieder und Geschäftspartner abgleichen | *Vereine*: Mitglieder mit Geschäftspartnern verknüpfen, dazu *Mitglieder*: anlegen/ändern und *Geschäftspartner*: lesen und anlegen |
+| Beitragslauf (Beitragsrechnungen erstellen) | dazu *Mitglieder*: Beiträge erfassen, *Rechnungen*: anlegen und freigeben |
+| Einnahmen-Ausgaben-Rechnung | dazu *Banken*: lesen (ändern zum Bearbeiten) |
 | Rechnungsprüfung, Überzahlungen | dazu *Rechnungen*: lesen |
-| Spendenmeldung (sieht Geburtsdaten und vbPK) | *Vereine*: Spendenmeldung vorbereiten |
+| Spendenmeldung (sieht Geburtsdaten und vbPK) | *Vereine*: Spendenmeldung an das Finanzamt vorbereiten |
 | Einrichtung des Moduls | Administrator |
 
-Ein Vorschlag für Gruppen, anzupassen an eure Statuten:
+Die Rechte, die mit **„Nur für die Website“** oder **„Nur für Website oder App“** beginnen, bekommt nur
+der technische API-Benutzer eurer Website – nie ein Mensch.
 
-- **Vorstand**: lesen, Mitglieder lesen und ändern, Rechnungen lesen.
-- **Kassa**: wie Vorstand, dazu Banken lesen und, wenn der Verein spendenbegünstigt ist,
-  Spendenmeldung vorbereiten.
-- **Schriftführung**: wie Vorstand. Mitglieder löschen bekommt nur, wer sich um den Datenschutz kümmert.
-- **Rechnungsprüfung**: nur lesen, dazu Rechnungen und Banken lesen. Nichts ändern.
-- **Website oder App**: ein eigener technischer Benutzer, nie ein Mensch, siehe
-  [Externe Anwendungen](#externe-anwendungen).
+### Rechte je Funktion
+
+Ein Vorschlag, anzupassen an eure Statuten. Am einfachsten legt ihr dafür Gruppen an (*Benutzer &
+Gruppen > Gruppen > Neue Gruppe*) und gebt jedem Benutzer die Gruppe seiner Funktion:
+
+| Funktion | Vereine | Mitglieder | Geschäftspartner | Rechnungen | Banken |
+| --- | --- | --- | --- | --- | --- |
+| **Obmann/Obfrau** | Verein ansehen | lesen, anlegen/ändern | lesen | lesen | lesen |
+| **Stellvertretung** | Verein ansehen | lesen, anlegen/ändern | lesen | lesen | – |
+| **Schriftführung** | Verein ansehen | lesen, anlegen/ändern; löschen nur, wer sich um den Datenschutz kümmert | lesen | – | – |
+| **Kassier/Kassierin** | Verein ansehen, Mitglieder mit Geschäftspartnern verknüpfen, Spendenmeldung (nur wenn spendenbegünstigt) | lesen, anlegen/ändern, Beiträge erfassen | lesen, anlegen | lesen, anlegen, freigeben, Zahlungen erfassen | lesen, ändern |
+| **Rechnungsprüfung** | Verein ansehen | lesen | lesen | lesen | lesen |
+
+Dazu für **alle im Vorstand**: unter *Benutzer > (die Person) > Mitglied* den Benutzer mit dem eigenen
+Mitglied verknüpfen. Erst dann kann die Person selbst abstimmen und unterschreiben, und der Zähler
+„wartet auf dich“ oben in Dolibarr zeigt ihre offenen Abstimmungen und Unterschriften. Wer nur
+abstimmen und unterschreiben soll, braucht nicht mehr als *Verein ansehen* und *Mitglieder lesen*.
 
 Wenig Rechte sind besser als viele: Wer nur lesen muss, bekommt nur Lesen.
 

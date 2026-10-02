@@ -30,6 +30,9 @@ Nach dem Update das Modul einmal aus- und wieder einschalten: erst dann erschein
 
 ### Geändert
 
+- **Rechte auf Deutsch und verständlich**: Alle Rechte des Moduls heißen in Dolibarr jetzt deutsch und sagen,
+  für wen sie sind – drei standen bisher englisch da. Die Rechte für Website und App sind als „Nur für die
+  Website (API-Benutzer)“ gekennzeichnet; Menschen im Vorstand brauchen sie nicht.
 - **Unterschreiben ohne Schreibrecht** (#269): Wer ein Protokoll, einen Beschluss, ein Schreiben an die
   Behörde oder einen anderen Beleg unterschreiben muss, bekommt den Knopf dafür (mit Passwort oder
   qualifizierter Signatur) auch ohne das Recht, Mitglieder zu ändern; die Unterschrift prüft wie bisher,

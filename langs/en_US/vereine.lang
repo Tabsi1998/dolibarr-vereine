@@ -8,7 +8,7 @@
 ModuleVereineName=Vereine (Österreich)
 ModuleVereineDesc=Vereine nach österreichischem Recht: Vereinsdaten, Statuten, Funktionen, Beiträge, Sitzungen und eine API für die Vereinswebsite
 ModuleVereineDescLong=Vereine erweitert das Mitgliedermodul von Dolibarr um das, was ein österreichischer Verein braucht: Vereinsdaten mit ZVR-Zahl, Steuerprofile, Beiträge mit SEPA, Einwilligungen, Funktionen mit Meldung an die Vereinsbehörde, Statuten, Sitzungen mit Einladung, Anwesenheit und Abstimmungen, und eine REST-API für die Vereinswebsite.
-Permission49210001=Vereinsübersicht und Vereinsdaten lesen (auch über die API)
+Permission49210001=Verein ansehen: Übersicht, Vereinsdaten, Sitzungen, Beschlüsse, Unterlagen – brauchen alle im Vorstand (und die Rechnungsprüfung)
 VereineMenuAssociation=Verein
 
 #
@@ -69,8 +69,8 @@ VereineFixInModules=Module öffnen
 #
 # Mitglieder und Geschäftspartner
 #
-Permission49210002=Mitglieder und Geschäftspartner verknüpfen und abgleichen
-Permission49210003=Mitglieder-Zusammenfassung für die Website über die API lesen: Mitgliedschaft, Beitrag und offene Rechnungen
+Permission49210002=Mitglieder mit Geschäftspartnern (Rechnungsempfängern) verknüpfen und abgleichen – für die Kassa
+Permission49210003=Nur für die Website (API-Benutzer): Mitgliedschaft, Beitrag und offene Rechnungen eines Mitglieds lesen
 VereineMenuPartners=Mitglieder und Partner
 VereineMenuPartnerSetup=Partner-Einstellungen
 VereineTabMembership=Mitgliedschaft
@@ -591,9 +591,12 @@ VereineLog_fee_direct_debit=Lastschrift angefordert
 #
 # Einwilligungen und Beitrittsanträge
 #
-Permission49210004=Beitrittsanträge über die API anlegen: Mitglied im Entwurf mit Einwilligungen
-Permission49210008=Über die API im Namen jedes Mitglieds handeln (per Mitglieds-ID): eigene Daten, Dokumente, Rechnungen, Sitzungen, Veranstaltungen, Konten, Einwilligungen
-Permission49210009=Über die API im Namen jedes Mitglieds abstimmen (per Mitglieds-ID)
+Permission49210004=Nur für die Website (API-Benutzer): Beitrittsanträge einreichen – das Mitglied entsteht als Entwurf mit seinen Einwilligungen
+Permission49210007=Spendenmeldung an das Finanzamt vorbereiten – sieht Geburtsdaten und vbPK der Spender; nur für die Kassa, wenn der Verein spendenbegünstigt ist
+Permission49210006=Nur für Website oder App (API-Benutzer): für Personen handeln, die sich per Einladungscode verbunden haben
+Permission49210005=Nur für Website oder App (API-Benutzer): Änderungen abholen (Änderungsfeed), um die eigene Kopie aktuell zu halten
+Permission49210008=Nur für die eigene Website (API-Benutzer): im Namen jedes Mitglieds handeln, per Mitglieds-ID – eigene Daten, Dokumente, Rechnungen, Sitzungen, Veranstaltungen, Konten, Einwilligungen
+Permission49210009=Nur für die eigene Website (API-Benutzer): im Namen jedes Mitglieds abstimmen, per Mitglieds-ID – nur wenn über die Website abgestimmt wird
 VereineSetupTabConsents=Einwilligungen
 VereineConsentHowToWhy=<strong>Wofür:</strong> Für manches braucht der Verein eine Einwilligung, zum Beispiel für Fotos auf der Website oder den Newsletter. Der Verein muss nachweisen können, dass und wozu jemand eingewilligt hat (Art. 7 Abs. 1 DSGVO).
 VereineConsentHowToVersion=<strong>Version:</strong> Jeder Text hat eine Version. Wer Text oder Bezeichnung ändert, legt eine neue Version an. Frühere Einwilligungen behalten die Version, der zugestimmt wurde.
