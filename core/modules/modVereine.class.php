@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '1.5.0';
+		$this->version = '1.6.0';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -69,12 +69,12 @@ class modVereine extends DolibarrModules
 			'printing' => 0,
 			'theme' => 0,
 			'css' => array(),
-			'js' => array(),
+			'js' => array('/vereine/js/waiting.js'),
 			// class/actions_vereine.class.php: the member card links third parties without a trigger;
 			// invoice cards report lines whose VAT rate differs from their tax profile; invoice PDFs
 			// get the tax profile notes and the register number; the e-mail template editor knows the module's types;
 			// Dolibarr's web portal (23 and later) gets the page of the association and its menu entry (#25).
-			'hooks' => array('data' => array('membercard', 'invoicecard', 'invoicesuppliercard', 'pdfgeneration', 'emailtemplates', 'webportaldao', 'webportal'), 'entity' => '0'),
+			'hooks' => array('data' => array('membercard', 'invoicecard', 'invoicesuppliercard', 'pdfgeneration', 'emailtemplates', 'webportaldao', 'webportal', 'toprightmenu'), 'entity' => '0'),
 			'moduleforexternal' => 0,
 		);
 

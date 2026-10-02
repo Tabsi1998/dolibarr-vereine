@@ -63,10 +63,35 @@ class VereineBallotRules
 
 	/** A vote through an application of a member. */
 	const CHANNEL_APP = 'app';
+	/** A vote the person casts in Dolibarr with the own user (#267). */
+	const CHANNEL_DOLIBARR = 'dolibarr';
 	/** A paper ballot the board enters in Dolibarr. */
 	const CHANNEL_PAPER = 'paper';
 	/** Every channel. */
-	const CHANNELS = array('app', 'paper');
+	const CHANNELS = array('app', 'dolibarr', 'paper');
+
+	/**
+	 * The ways a meeting of a kind may vote (#267): the board in Dolibarr or on paper, never through an
+	 * application, as acts of an organ stay in Dolibarr (#118); a general assembly every way.
+	 *
+	 * @param string $meetingKind Kind of the meeting
+	 * @return string[]
+	 */
+	public static function channelsFor($meetingKind)
+	{
+		return (string) $meetingKind === VereineMeetingRules::KIND_BOARD ? array(self::CHANNEL_DOLIBARR, self::CHANNEL_PAPER) : self::CHANNELS;
+	}
+
+	/**
+	 * Whether a way of voting is cast by the person who holds the right, who must then be in the meeting.
+	 *
+	 * @param string $channel One of CHANNELS
+	 * @return bool
+	 */
+	public static function personal($channel)
+	{
+		return $channel === self::CHANNEL_APP || $channel === self::CHANNEL_DOLIBARR;
+	}
 
 	/** Votes for oneself. */
 	const REASON_OWN = 'own';
@@ -209,8 +234,8 @@ class VereineBallotRules
 		if (!self::canMove((string) $ballot['status'], self::STATUS_RELEASED)) {
 			$errors[] = 'VereineBallotErrorStatus';
 		}
-		// Organs of the association act in Dolibarr; applications carry votes of the members in their assembly only.
-		if ((string) $meeting['kind'] === VereineMeetingRules::KIND_BOARD) {
+		// Organs of the association act in Dolibarr; applications carry votes of the members in their assembly only (#118, #267).
+		if (array_diff(isset($ballot['channels']) ? (array) $ballot['channels'] : array(), self::channelsFor((string) $meeting['kind']))) {
 			$errors[] = 'VereineBallotErrorBoard';
 		}
 		if (!in_array((string) $meeting['status'], array(VereineMeetingRules::STATUS_INVITED, VereineMeetingRules::STATUS_HELD), true)) {
@@ -295,7 +320,7 @@ class VereineBallotRules
 	 */
 	public static function castProblem(array $ballot, $right, $actor, $channel, $today, $now, $present)
 	{
-		if ($right === null || empty($right['eligible']) || ($channel === self::CHANNEL_APP && (int) $right['holder'] !== (int) $actor)) {
+		if ($right === null || empty($right['eligible']) || (self::personal($channel) && (int) $right['holder'] !== (int) $actor)) {
 			return 'not_found';
 		}
 		if ((string) $ballot['status'] !== self::STATUS_OPEN) {
@@ -310,7 +335,7 @@ class VereineBallotRules
 		if (!empty($right['used'])) {
 			return 'used';
 		}
-		if ($channel === self::CHANNEL_APP && !$present) {
+		if (self::personal($channel) && !$present) {
 			return 'not_present';
 		}
 		return '';

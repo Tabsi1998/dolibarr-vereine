@@ -190,20 +190,58 @@ class VereineWaiting
 	}
 
 	/**
-	 * What waits for one member: votes in circular resolutions, signatures and tasks.
+	 * Whether the counter and the notices show for a user (#267): a user of the association linked to a member.
+	 *
+	 * @param User $user User logged in
+	 * @return bool
+	 */
+	public static function showsFor($user)
+	{
+		return is_object($user) && (int) $user->id > 0 && (int) $user->fk_member > 0 && empty($user->socid)
+			&& $user->hasRight('vereine', 'association', 'read') && $user->hasRight('adherent', 'lire');
+	}
+
+	/**
+	 * What cannot wait for a member (#267): votes in meetings, circular resolutions and signatures - not the tasks,
+	 * which have their deadlines. Each with a key that stays the same, for a notice that shows once.
 	 *
 	 * @param int $memberId Member the Dolibarr user is linked to
-	 * @return array{votes:array<int,array<string,mixed>>,signatures:array<int,array<string,mixed>>,tasks:array<int,array<string,mixed>>}
+	 * @return array<int,array{key:string,kind:string,title:string,url:string}>
+	 */
+	public function urgent($memberId)
+	{
+		$open = $this->forMember($memberId);
+		$items = array();
+		foreach (array('ballots' => 'ballot', 'votes' => 'vote', 'signatures' => 'signature') as $group => $kind) {
+			foreach ($open[$group] as $entry) {
+				$items[] = array('key' => $kind.'-'.$entry['id'], 'kind' => $kind, 'title' => (string) $entry['title'], 'url' => (string) $entry['url']);
+			}
+		}
+		return $items;
+	}
+
+	/**
+	 * What waits for one member: votes in meetings and in circular resolutions, signatures and tasks.
+	 *
+	 * @param int $memberId Member the Dolibarr user is linked to
+	 * @return array{ballots:array<int,array<string,mixed>>,votes:array<int,array<string,mixed>>,signatures:array<int,array<string,mixed>>,tasks:array<int,array<string,mixed>>}
 	 */
 	public function forMember($memberId)
 	{
 		global $conf;
 
-		$waiting = array('votes' => array(), 'signatures' => array(), 'tasks' => array());
+		$waiting = array('ballots' => array(), 'votes' => array(), 'signatures' => array(), 'tasks' => array());
 		if ((int) $memberId < 1) {
 			return $waiting;
 		}
 		$entity = (int) $conf->entity;
+
+		// Votes open in a meeting now, which this member may cast in Dolibarr, own or by proxy (#267).
+		require_once __DIR__.'/vereineballots.class.php';
+		foreach ((new VereineBallots($this->db))->openRights((int) $memberId) as $right) {
+			$waiting['ballots'][] = array('id' => $right['right_id'], 'title' => $right['meeting'].': '.$right['question'].($right['for'] === 'proxy' ? ' ('.$right['name'].')' : ''),
+				'deadline' => '', 'url' => dol_buildpath('/vereine/ballots.php', 1).'?meeting='.$right['meeting_id'].'#vereineballots');
+		}
 
 		// Circular resolutions still open, where this member has not voted yet.
 		$sql = "SELECT c.rowid, c.title, c.deadline FROM ".MAIN_DB_PREFIX."vereine_circular as c";

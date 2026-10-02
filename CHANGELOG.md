@@ -7,6 +7,39 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-02
+
+Im Vorstand stimmt jetzt jede Person selbst in Dolibarr ab, und unterschreiben darf, wer unterschreiben muss. Was auf jemanden wartet, poppt bei dieser Person auf: Abstimmungen, Umlaufbeschlüsse, Unterschriften.
+
+Nach dem Update das Modul einmal aus- und wieder einschalten: erst dann erscheint der Zähler oben in Dolibarr.
+
+### Neu
+
+- **Selbst abstimmen im Vorstand** (#267): In einer Vorstandssitzung startet der Vorsitz eine Abstimmung zu
+  einem Tagesordnungspunkt; jede anwesende Person stimmt mit ihrem eigenen Dolibarr-Benutzer ab, für wen
+  keinen Benutzer hat, trägt der Schriftführer einen Stimmzettel ein. Jede Stimme zählt einmal.
+  *Schließen und Ergebnis übernehmen* schreibt Ergebnis und Beschluss in Sitzung und Beschlussbuch, mit
+  Nachweis als PDF – ohne Eintippen. Vorstandsabstimmungen bleiben in Dolibarr und kommen über die API
+  nicht vor.
+- **Wartet auf dich – mit Hinweis, der aufpoppt** (#267): Oben in Dolibarr zählt ein Zähler, was auf die
+  angemeldete Person wartet – Abstimmungen in Sitzungen, Umlaufbeschlüsse, Unterschriften –, mit Link
+  direkt dorthin. Kommt etwas Neues dazu, poppt ein Hinweis auf, auch ohne die Seite neu zu laden. Der
+  Kasten *Wartet auf dich* auf der Startseite und die Übersicht des Vereins zeigen die Abstimmungen mit.
+- In einer Generalversammlung können Vorstandsmitglieder ihre Stimme jetzt auch direkt in Dolibarr
+  abgeben, neben App, Webportal und Stimmzettel.
+
+### Geändert
+
+- **Rechte auf Deutsch und verständlich**: Alle Rechte des Moduls heißen in Dolibarr jetzt deutsch und sagen,
+  für wen sie sind – drei standen bisher englisch da. Die Rechte für Website und App sind als „Nur für die
+  Website (API-Benutzer)“ gekennzeichnet; Menschen im Vorstand brauchen sie nicht.
+- **Unterschreiben ohne Schreibrecht** (#269): Wer ein Protokoll, einen Beschluss, ein Schreiben an die
+  Behörde oder einen anderen Beleg unterschreiben muss, bekommt den Knopf dafür (mit Passwort oder
+  qualifizierter Signatur) auch ohne das Recht, Mitglieder zu ändern; die Unterschrift prüft wie bisher,
+  ob die angemeldete Person dran ist, und ihr Passwort. Unterschriften starten und einen Scan hochladen
+  bleiben beim Vorstand mit Schreibrecht. Ist ein Protokoll fertig, starten die Unterschriften von
+  Vorsitz und Schriftführer wie bisher von selbst – jetzt poppt es bei beiden auch auf.
+
 ## [1.5.0] - 2026-10-02
 
 Sitzungen, die aus Versehen angelegt oder abgesagt wurden, lassen sich löschen. Bearbeiten, Absagen und Kopieren stehen jetzt oben auf der Sitzung.
@@ -2186,7 +2219,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.6.0
 [1.5.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.5.0
 [1.4.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.4.0
 [1.3.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.3.0

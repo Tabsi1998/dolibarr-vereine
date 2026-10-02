@@ -2,10 +2,10 @@
 
 Das Modul ergänzt Schnittstellen unter Dolibarrs REST-API bei
 `https://<dolibarr>/api/index.php/vereine/`. Sie brauchen Dolibarrs Modul
-*API REST* und einen Benutzer mit dem Recht **Vereinsübersicht und Vereinsdaten
-lesen** (`vereine > association > read`). Die Mitglieder-Schnittstellen brauchen
-zusätzlich **Mitglieder-Zusammenfassung für die Website über die API lesen**
-(`vereine > website > read`).
+*API REST* und einen Benutzer mit dem Recht **Verein ansehen**
+(`vereine > association > read`). Die Mitglieder-Schnittstellen brauchen
+zusätzlich **Nur für die Website (API-Benutzer): Mitgliedschaft, Beitrag und offene
+Rechnungen eines Mitglieds lesen** (`vereine > website > read`).
 
 [`openapi.json`](openapi.json) beschreibt jede Schnittstelle als OpenAPI 3.0.
 Die Laufzeit-Tests vergleichen jede Antwort des Moduls damit, in Dolibarr 22, 23
@@ -36,7 +36,7 @@ Modulversion und API-Version – ein günstiger Weg, die Verbindung zu testen.
 
 ```json
 {
-  "module_version": "1.5.0",
+  "module_version": "1.6.0",
   "api_version": 2,
   "server_time": "2026-09-17T08:00:00Z"
 }
@@ -363,8 +363,8 @@ direkt vor dem Anzeigen des Formulars neu lesen.
 Ein Beitrittsantrag von der Website. Er legt ein Mitglied **im Entwurf** mit den
 erteilten Einwilligungen an; der Verein prüft und gibt das Mitglied in Dolibarr
 frei, die Website kann das nie. Dem Formular einen eigenen API-Benutzer mit nur
-den Rechten *Vereinsübersicht und Vereinsdaten lesen* und *Beitrittsanträge über
-die API anlegen* geben.
+den Rechten *Verein ansehen* und *Nur für die Website (API-Benutzer):
+Beitrittsanträge einreichen* geben.
 
 ```json
 {
@@ -1054,7 +1054,8 @@ Website erfährt die Änderung über Änderungsfeed und Webhooks.
 ### GET /vereine/me/ballots
 
 `subject`, Fähigkeit `votes`. Abstimmungen der Generalversammlungen, zu denen die Person eingeladen ist,
-ab der Freigabe durch die Versammlungsleitung:
+ab der Freigabe durch die Versammlungsleitung. Abstimmungen einer **Vorstandssitzung** kommen hier nie vor:
+Im Vorstand stimmt jede Person selbst in Dolibarr ab oder auf einem Stimmzettel (seit 1.6.0):
 
 ```json
 [{"id": 3, "meeting_id": 12, "meeting": "Generalversammlung 2026", "day": "2026-10-10", "item": 4, "kind": "resolution",
