@@ -69,6 +69,7 @@ require_once __DIR__.'/class/vereineresolutions.class.php';
 require_once __DIR__.'/class/vereinearrears.class.php';
 require_once __DIR__.'/class/vereinemeetingportal.class.php';
 require_once __DIR__.'/class/vereinemeetingdocs.class.php';
+require_once __DIR__.'/class/vereineballots.class.php';
 require_once __DIR__.'/class/vereinemail.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
@@ -1156,8 +1157,17 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 	foreach ($functionStore->fetchAll(true) as $function) {
 		$catalogue[$function['id']] = $function['label'];
 	}
-	$ballotLink = $meeting['kind'] !== VereineMeetingRules::KIND_BOARD ? '<a href="'.dol_buildpath('/vereine/ballots.php', 1).'?meeting='.$meeting['id'].'">'
-		.$langs->trans('VereineBallotsLink').'</a>' : '';
+	$ballotLink = '<a href="'.dol_buildpath('/vereine/ballots.php', 1).'?meeting='.$meeting['id'].'" data-ballots-link="1">'
+		.$langs->trans($meeting['kind'] === VereineMeetingRules::KIND_BOARD ? 'VereineBallotsLinkBoard' : 'VereineBallotsLink').'</a>';
+	// A vote waiting for the user in this meeting, where it cannot be missed (#267).
+	$waitingRights = 0;
+	foreach ((new VereineBallots($db))->openRights((int) $user->fk_member) as $right) {
+		$waitingRights += $right['meeting_id'] === $meeting['id'] ? 1 : 0;
+	}
+	if ($waitingRights > 0) {
+		print '<div class="warning" data-meeting-vote-waiting="'.$waitingRights.'"><a href="'.dol_buildpath('/vereine/ballots.php', 1).'?meeting='.$meeting['id'].'#vereineballots">'
+			.$langs->trans('VereineBallotWaitingHere', $waitingRights).'</a></div>';
+	}
 	print '<br>'.load_fiche_titre($langs->trans('VereineVotes'), $ballotLink, '', 0, 'vereinevotes');
 	print '<div class="opacitymedium small paddingbottom">'.$langs->trans('VereineVotesHowTo').'</div>';
 	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';

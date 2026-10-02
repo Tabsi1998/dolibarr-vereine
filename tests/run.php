@@ -1884,6 +1884,7 @@ $prefixes = array(
 	'VereineMeetingKind_' => VereineMeetingRules::KINDS,
 	'VereineMeetingStatus_' => VereineMeetingRules::STATUSES,
 	'VereineMeetingDeleteHas_' => VereineMeetingRules::RECORDS,
+	'VereineWaitingNotice_' => array('ballot', 'vote', 'signature'),
 	'VereineMeetingFormat_' => VereineMeetingRules::FORMATS,
 	'VereineMeetingChannel_' => array(VereineMeetingRules::CHANNEL_EMAIL, VereineMeetingRules::CHANNEL_LETTER),
 	'VereineMeetingRecipientsHelp_' => VereineMeetingRules::KINDS,
@@ -2961,7 +2962,7 @@ same(array('VereineVoteErrorItem', 'VereineBallotErrorQuestion', 'VereineBallotE
 	VereineBallotRules::entered(array('item' => '9', 'question' => '', 'closes' => '25:00'), $people, 4, $functions)['errors'], 'item, question, channels and time are checked');
 same(array('VereineVoteErrorElection', 'VereineBallotErrorCandidate', 'VereineBallotErrorCandidates'), VereineBallotRules::entered(array('item' => '1', 'kind' => 'election',
 	'question' => 'Kassier', 'channels' => array('app'), 'function_id' => '4', 'candidates' => array('99')), $people, 4, $functions)['errors'], 'an unknown function and somebody who is no active member');
-same(array('VereineBallotErrorBoard'), VereineBallotRules::releaseProblems(array('status' => 'draft', 'secret' => false), $plain['options'], array('kind' => 'board', 'status' => 'invited')),
+same(array('VereineBallotErrorBoard'), VereineBallotRules::releaseProblems(array('status' => 'draft', 'secret' => false, 'channels' => array('app', 'paper')), $plain['options'], array('kind' => 'board', 'status' => 'invited')),
 	'no ballot through applications in a board meeting');
 same(array('VereineBallotErrorStatus', 'VereineBallotErrorConsent'), VereineBallotRules::releaseProblems(array('status' => 'open', 'secret' => false),
 	array(array('member_id' => 8, 'consent' => false)), array('kind' => 'general', 'status' => 'invited')), 'released once, and only with the consent of every candidate');
@@ -3235,6 +3236,25 @@ same(array(
 	$fileAnswer('GET', '', 'bytes=100-', '"anders"'), $fileAnswer('HEAD', '', 'bytes=100-', '"'.$fileTag.'"'),
 ), 'whole, headers only, 304 for the tag and a weak tag, another tag gets the file; parts from, between, the last bytes, beyond the end cut, beyond the start 416; several ranges or a range that is none: whole; If-Range with another tag: whole');
 same('private, no-cache', VereineFileRules::answer('GET', 1, $fileTag, '', '', '')['headers']['Cache-Control'], 'a cache asks again every time');
+
+// The board votes in Dolibarr or on paper, a general assembly every way; whoever votes in Dolibarr holds the right and is present (#267).
+same(array(array('dolibarr', 'paper'), array('app', 'dolibarr', 'paper'), true, true, false), array(VereineBallotRules::channelsFor(VereineMeetingRules::KIND_BOARD),
+	VereineBallotRules::channelsFor(VereineMeetingRules::KIND_GENERAL), VereineBallotRules::personal('dolibarr'), VereineBallotRules::personal('app'),
+	VereineBallotRules::personal('paper')), 'ways of voting by kind of meeting, and which of them the person casts');
+$boardDay = '2026-10-02';
+$boardBallot = array('status' => 'open', 'day' => $boardDay, 'closes' => '', 'channels' => array('dolibarr', 'paper'));
+$chairRight = array('eligible' => true, 'holder' => 7, 'used' => false);
+same(array('', 'not_found', 'not_present', '', 'channel'), array(
+	VereineBallotRules::castProblem($boardBallot, $chairRight, 7, 'dolibarr', $boardDay, '19:00', true),
+	VereineBallotRules::castProblem($boardBallot, $chairRight, 8, 'dolibarr', $boardDay, '19:00', true),
+	VereineBallotRules::castProblem($boardBallot, $chairRight, 7, 'dolibarr', $boardDay, '19:00', false),
+	VereineBallotRules::castProblem($boardBallot, $chairRight, 0, 'paper', $boardDay, '19:00', false),
+	VereineBallotRules::castProblem($boardBallot, $chairRight, 7, 'app', $boardDay, '19:00', true),
+), 'in Dolibarr only the holder of the right who is present; on paper the board enters it; no application in the board');
+same(array(array(), array('VereineBallotErrorBoard')), array(
+	VereineBallotRules::releaseProblems(array('status' => 'draft', 'channels' => array('dolibarr', 'paper')), array(), array('kind' => 'board', 'status' => 'invited')),
+	VereineBallotRules::releaseProblems(array('status' => 'draft', 'channels' => array('app', 'paper')), array(), array('kind' => 'board', 'status' => 'invited')),
+), 'a vote of the board is released in Dolibarr and on paper, never through an application');
 
 // A meeting goes only when it was planned or called off and nothing is recorded in it (#266).
 same(array(array(), array(), array('VereineMeetingDeleteInvited'), array('VereineMeetingDeleteHeld', 'VereineMeetingDeleteHas_votes'),

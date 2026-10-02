@@ -36,7 +36,7 @@ Modulversion und API-Version – ein günstiger Weg, die Verbindung zu testen.
 
 ```json
 {
-  "module_version": "1.5.0",
+  "module_version": "1.6.0",
   "api_version": 2,
   "server_time": "2026-09-17T08:00:00Z"
 }
@@ -1054,7 +1054,8 @@ Website erfährt die Änderung über Änderungsfeed und Webhooks.
 ### GET /vereine/me/ballots
 
 `subject`, Fähigkeit `votes`. Abstimmungen der Generalversammlungen, zu denen die Person eingeladen ist,
-ab der Freigabe durch die Versammlungsleitung:
+ab der Freigabe durch die Versammlungsleitung. Abstimmungen einer **Vorstandssitzung** kommen hier nie vor:
+Im Vorstand stimmt jede Person selbst in Dolibarr ab oder auf einem Stimmzettel (seit 1.6.0):
 
 ```json
 [{"id": 3, "meeting_id": 12, "meeting": "Generalversammlung 2026", "day": "2026-10-10", "item": 4, "kind": "resolution",

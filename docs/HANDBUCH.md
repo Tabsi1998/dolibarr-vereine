@@ -85,6 +85,15 @@ Meldungen, Wahlen, Anträge, Unterschriften und Rückstände, das Dringendste zu
   lässt sich alles ändern (*Bearbeiten* oben auf der Sitzung); danach bleibt die Sitzung so, wie sie
   verschickt wurde – für eine Änderung absagen und *Als neue Sitzung kopieren*. Eine geplante oder
   abgesagte Sitzung, in der nichts festgehalten wurde, lässt sich *löschen*.
+- **Abstimmen im Vorstand**: In einer Vorstandssitzung stimmt jede anwesende Person **selbst in Dolibarr**
+  ab. Zuerst die Anwesenheit eintragen, dann unter *Sitzung > Abstimmen lassen* die **Abstimmung starten**.
+  Bei jedem Vorstandsmitglied erscheint oben in Dolibarr ein Zähler „wartet auf dich“, und ein Hinweis
+  poppt auf. Es klickt auf *Ja*, *Nein* oder *Enthaltung*. Wer keinen eigenen Benutzer hat, dessen Stimme
+  trägst du als Stimmzettel ein. **Schließen und Ergebnis übernehmen** schreibt das Ergebnis in die
+  Sitzung und den Beschluss ins Beschlussbuch – ohne Eintippen. Dafür braucht jedes Vorstandsmitglied
+  einen Dolibarr-Benutzer, der mit seinem Mitglied verknüpft ist (*Benutzer > Mitglied*), mit den Rechten
+  *Vereinsübersicht lesen* und *Mitglieder lesen*. Derselbe Zähler zeigt offene Umlaufbeschlüsse und
+  Unterschriften.
 - **Abstimmungen in der App**: In einer Generalversammlung können Mitglieder über ihre App oder das
   Webportal abstimmen, der Vorstand trägt Stimmzettel ein. Unter *Sitzung > Abstimmungen in der App*:
   anlegen, **Freigeben** (die Regeln werden festgehalten), am Versammlungstag **Öffnen** (die Stimmrechte

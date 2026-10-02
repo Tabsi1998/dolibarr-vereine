@@ -243,9 +243,13 @@ dol_include_once('/vereine/class/vereinewaiting.class.php');
 $waiting = new VereineWaiting($db);
 $todoToday = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
 $todo = $waiting->forAssociation($todoToday);
-$mine = (int) $user->fk_member > 0 ? $waiting->forMember((int) $user->fk_member) : array('votes' => array(), 'signatures' => array(), 'tasks' => array());
+$mine = $waiting->forMember((int) $user->fk_member);
 print '<br>'.load_fiche_titre($langs->trans('VereineTodoTitle'), '', 'fa-tasks', 0, 'vereinetodo');
-print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-todo="'.(count($todo) + count($mine['votes']) + count($mine['signatures']) + count($mine['tasks'])).'">';
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-todo="'.(count($todo) + count($mine['ballots']) + count($mine['votes']) + count($mine['signatures']) + count($mine['tasks'])).'">';
+foreach ($mine['ballots'] as $entry) {
+	print '<tr class="oddeven" data-todo-kind="ballot" data-todo-state="mine"><td class="nowraponall">'.img_picto('', 'fa-vote-yea').' '.$langs->trans('VereineTodoBallot').'</td>';
+	print '<td><a href="'.$entry['url'].'">'.dol_escape_htmltag($entry['title']).'</a></td><td class="right"></td></tr>';
+}
 foreach ($mine['signatures'] as $entry) {
 	print '<tr class="oddeven" data-todo-kind="signature" data-todo-state="mine"><td class="nowraponall">'.img_picto('', 'fa-pen-nib').' '.$langs->trans('VereineTodoSignature').'</td>';
 	print '<td><a href="'.$entry['url'].'">'.dol_escape_htmltag($entry['title']).'</a></td><td class="right"></td></tr>';
@@ -267,7 +271,7 @@ foreach ($todo as $entry) {
 	print '<td><a href="'.$entry['url'].'">'.dol_escape_htmltag($entry['title']).'</a></td>';
 	print '<td class="right nowraponall">'.($entry['deadline'] !== '' ? vereineFormatDay($entry['deadline']) : '').'</td></tr>';
 }
-if (!$todo && !$mine['votes'] && !$mine['signatures'] && !$mine['tasks']) {
+if (!$todo && !$mine['ballots'] && !$mine['votes'] && !$mine['signatures'] && !$mine['tasks']) {
 	print '<tr class="oddeven"><td colspan="3"><span class="opacitymedium" data-todo-none="1">'.$langs->trans('VereineTodoNone').'</span></td></tr>';
 }
 print '</table></div>';

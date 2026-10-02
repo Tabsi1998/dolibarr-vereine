@@ -78,10 +78,9 @@ class box_vereine_waiting extends ModeleBoxes
 		$this->info_box_head = array('text' => $langs->trans('VereineBoxWaiting'));
 
 		$waiting = new VereineWaiting($this->db);
-		$open = (int) $user->fk_member > 0 ? $waiting->forMember((int) $user->fk_member)
-			: array('votes' => array(), 'signatures' => array(), 'tasks' => array());
+		$open = $waiting->forMember((int) $user->fk_member);
 		$line = 0;
-		foreach (array('votes' => 'VereineBoxWaitingVote', 'signatures' => 'VereineBoxWaitingSignature', 'tasks' => 'VereineBoxWaitingTask') as $kind => $label) {
+		foreach (array('ballots' => 'VereineBoxWaitingBallot', 'votes' => 'VereineBoxWaitingVote', 'signatures' => 'VereineBoxWaitingSignature', 'tasks' => 'VereineBoxWaitingTask') as $kind => $label) {
 			foreach (array_slice($open[$kind], 0, max(1, (int) $max)) as $entry) {
 				$when = isset($entry['deadline']) && $entry['deadline'] !== '' ? $langs->trans('VereineBoxWaitingUntil', vereineFormatDay($entry['deadline'])) : '';
 				$this->info_box_contents[$line][0] = array('td' => 'data-box-waiting="'.$kind.'"', 'asis' => 1,

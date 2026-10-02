@@ -137,6 +137,23 @@ if ($action === 'create' && $canWrite) {
 	header('Content-Length: '.filesize($file));
 	readfile($file);
 	exit;
+} elseif ($action === 'startnow' && $canWrite && $meeting['kind'] === VereineMeetingRules::KIND_BOARD) {
+	// The board votes at once: every member present votes in Dolibarr, paper for whoever has no user (#267).
+	$entered = array('item' => GETPOST('item', 'aZ09'), 'kind' => GETPOST('kind', 'aZ09'), 'question' => GETPOST('question', 'alphanohtml'),
+		'closes' => GETPOST('closes', 'alphanohtml'), 'function_id' => GETPOST('function_id', 'aZ09'), 'candidates' => (array) GETPOST('candidates', 'array'));
+	$entered['consent'] = GETPOSTISSET('consent') ? $entered['candidates'] : array();
+	$result = $ballots->startNow($meeting['id'], $entered, $today, $user);
+} elseif ($ballot !== null && $canWrite && $action === 'closenow') {
+	$result = $ballots->closeNow($ballot['id'], $user, $langs);
+} elseif ($ballot !== null && $action === 'mine' && (int) $user->fk_member > 0) {
+	// The own vote in Dolibarr, with a right the user's member holds, for itself or by proxy (#267).
+	$result = $ballots->cast($ballot['id'], GETPOSTINT('right'), GETPOST('option', 'aZ09'), (int) $user->fk_member, VereineBallotRules::CHANNEL_DOLIBARR, '', '', $user);
+	if ($result === 0) {
+		$ballots->errors = array('VereineBallotRefused_'.$ballots->reason);
+	}
+	if ($result === 2) {
+		$result = 1;
+	}
 } elseif ($ballot !== null && $canWrite && $action === 'paper') {
 	// A paper ballot the board collected: the same voting right, used once whichever way.
 	$result = $ballots->cast($ballot['id'], GETPOSTINT('right'), GETPOST('option', 'aZ09'), 0, VereineBallotRules::CHANNEL_PAPER, '', '', $user);
@@ -150,7 +167,7 @@ if ($result !== null) {
 		setEventMessages($langs->trans('VereineBallotProofMissing'), null, 'warnings');
 	}
 	if ($result > 0) {
-		setEventMessages($langs->trans('VereineBallotSaved'), null, 'mesgs');
+		setEventMessages($langs->trans($action === 'mine' ? 'VereineBallotMineSaved' : 'VereineBallotSaved'), null, 'mesgs');
 		header('Location: '.$self.'#vereineballots');
 		exit;
 	}
@@ -166,7 +183,14 @@ $title = $langs->trans('VereineBallotsTitle');
 llxHeader('', $title, '', '', 0, 0, '', '', '', 'mod-vereine page-ballots');
 print load_fiche_titre($title.': '.dol_escape_htmltag($meeting['title']).' ('.vereineFormatDay($meeting['day']).')',
 	'<a href="'.dol_buildpath('/vereine/meetings.php', 1).'?id='.$meeting['id'].'">'.$langs->trans('BackToList').'</a>', 'fa-vote-yea', 0, 'vereineballots');
-print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereineBallotsHowTo').'</div>';
+print '<div class="opacitymedium paddingbottom">'.$langs->trans($meeting['kind'] === VereineMeetingRules::KIND_BOARD ? 'VereineBallotsHowToBoard' : 'VereineBallotsHowTo').'</div>';
+// What the user may vote now, at the top: own rights and proxies of the member the user is linked to (#267).
+$mine = array();
+foreach ($ballots->openRights((int) $user->fk_member) as $right) {
+	if ($right['meeting_id'] === $meeting['id']) {
+		$mine[$right['ballot_id']][] = $right;
+	}
+}
 $option = function ($code, $label) use ($langs) {
 	return $label !== '' ? dol_escape_htmltag($label) : $langs->trans('VereineBallotOption_'.$code);
 };
@@ -196,6 +220,8 @@ foreach ($ballots->forMeeting($meeting['id']) as $shown) {
 			print $form('vereineballotrelease'.$id, 'release', $id, $langs->trans('VereineBallotRelease'));
 		} elseif ($shown['status'] === VereineBallotRules::STATUS_RELEASED) {
 			print $form('vereineballotopen'.$id, 'open', $id, $langs->trans('VereineBallotOpen'));
+		} elseif ($shown['status'] === VereineBallotRules::STATUS_OPEN && $shown['meeting_kind'] === VereineMeetingRules::KIND_BOARD) {
+			print $form('vereineballotclosenow'.$id, 'closenow', $id, $langs->trans('VereineBallotCloseNow'));
 		} elseif ($shown['status'] === VereineBallotRules::STATUS_OPEN) {
 			print $form('vereineballotclose'.$id, 'close', $id, $langs->trans('VereineBallotClose'));
 		} elseif ($shown['status'] === VereineBallotRules::STATUS_CLOSED) {
@@ -207,6 +233,18 @@ foreach ($ballots->forMeeting($meeting['id']) as $shown) {
 		print '</td></tr>';
 	}
 	print '</table>';
+	if (!empty($mine[$id])) {
+		print '<div class="warning paddingtop" data-ballot-mine="'.$id.'"><strong>'.$langs->trans('VereineBallotMine').'</strong>';
+		foreach ($mine[$id] as $right) {
+			print '<div class="paddingtop">'.($right['for'] === 'proxy' ? $langs->trans('VereineBallotMineFor', dol_escape_htmltag($right['name'])).' ' : '');
+			foreach ($shown['options'] as $entry) {
+				print $form('vereineballotmine'.$id.'_'.$right['right_id'].'_'.$entry['code'], 'mine', $id, html_entity_decode(strip_tags($option($entry['code'], $entry['label'])), ENT_QUOTES, 'UTF-8'),
+					'<input type="hidden" name="right" value="'.$right['right_id'].'"><input type="hidden" name="option" value="'.dol_escape_htmltag($entry['code']).'">');
+			}
+			print '</div>';
+		}
+		print '</div>';
+	}
 	if (in_array($shown['status'], array(VereineBallotRules::STATUS_OPEN, VereineBallotRules::STATUS_CLOSED, VereineBallotRules::STATUS_EVALUATED, VereineBallotRules::STATUS_CANCELLED), true)) {
 		$rights = $ballots->rights($id);
 		$eligible = count(array_filter($rights, function ($right) {
@@ -275,8 +313,9 @@ foreach ($ballots->forMeeting($meeting['id']) as $shown) {
 	print '</div>';
 }
 
-// A new ballot for an agenda item of a general assembly.
-if ($canWrite && $meeting['kind'] !== VereineMeetingRules::KIND_BOARD) {
+// A new ballot for an agenda item; in the board it starts at once and everybody present votes in Dolibarr (#267).
+if ($canWrite) {
+	$board = $meeting['kind'] === VereineMeetingRules::KIND_BOARD;
 	$items = array();
 	foreach (array_values($meeting['agenda']) as $index => $entry) {
 		$items[$index + 1] = ($index + 1).'. '.(is_array($entry) && isset($entry['title']) ? $entry['title'] : (string) $entry);
@@ -294,8 +333,8 @@ if ($canWrite && $meeting['kind'] !== VereineMeetingRules::KIND_BOARD) {
 	while ($resql && ($obj = $db->fetch_object($resql))) {
 		$candidates[(int) $obj->rowid] = trim($obj->firstname.' '.$obj->lastname);
 	}
-	print '<br>'.load_fiche_titre($langs->trans('VereineBallotNew'), '', '', 0, 'vereineballotnew');
-	print '<form method="POST" action="'.$self.'" name="vereineballot"><input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="create">';
+	print '<br>'.load_fiche_titre($langs->trans($board ? 'VereineBallotNewBoard' : 'VereineBallotNew'), '', '', 0, 'vereineballotnew');
+	print '<form method="POST" action="'.$self.'" name="vereineballot"><input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="'.($board ? 'startnow' : 'create').'">';
 	print '<table class="border centpercent">';
 	print '<tr><td class="titlefield fieldrequired">'.$langs->trans('VereineVoteItem').'</td><td>'.Form::selectarray('item', $items, '', 0, 0, 0, '', 0, 0, 0, '', 'maxwidth300').'</td></tr>';
 	print '<tr><td>'.$langs->trans('VereineVoteKind').'</td><td>'.Form::selectarray('kind', $kinds, '', 0).'</td></tr>';
@@ -308,12 +347,16 @@ if ($canWrite && $meeting['kind'] !== VereineMeetingRules::KIND_BOARD) {
 	print '</select><br><label><input type="checkbox" name="consent" value="1"> '.$langs->trans('VereineBallotConsent').'</label>';
 	print '<br><span class="opacitymedium small">'.$langs->trans('VereineBallotElectionHint').'</span></td></tr>';
 	print '<tr><td>'.$langs->trans('VereineBallotChannels').'</td><td>';
-	foreach (VereineBallotRules::CHANNELS as $channel) {
-		print '<label class="paddingright"><input type="checkbox" name="channels[]" value="'.$channel.'" checked> '.$langs->trans('VereineBallotChannel_'.$channel).'</label>';
+	if ($board) {
+		print $langs->trans('VereineBallotChannelsBoard');
+	} else {
+		foreach (VereineBallotRules::CHANNELS as $channel) {
+			print '<label class="paddingright"><input type="checkbox" name="channels[]" value="'.$channel.'" checked> '.$langs->trans('VereineBallotChannel_'.$channel).'</label>';
+		}
 	}
 	print '</td></tr>';
 	print '<tr><td>'.$langs->trans('VereineBallotCloses').'</td><td><input type="time" name="closes"> <span class="opacitymedium small">'.$langs->trans('VereineBallotClosesHint').'</span></td></tr>';
-	print '</table><div class="center paddingtop"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('VereineBallotCreate')).'"></div></form>';
+	print '</table><div class="center paddingtop"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans($board ? 'VereineBallotStartNow' : 'VereineBallotCreate')).'"></div></form>';
 }
 
 llxFooter();

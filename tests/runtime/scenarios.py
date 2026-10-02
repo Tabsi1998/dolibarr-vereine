@@ -6407,6 +6407,7 @@ def profileapi(stack: Stack) -> str:
         expect(status == expected, f"{what}: HTTP {status}, expected {expected}")
     voter = secrets.token_hex(16)
     stack.php_fixture("apiclient", RT_LOGIN="rtvoter", RT_CLIENT_KEY=voter, RT_EXTRA_RIGHTS="members/vote")
+    stack.notes["voter"] = voter
     status, ballots = stack.api(f"vereine/me/ballots?member_id={member}", voter)
     expect(status == 200 and isinstance(ballots, list), f"ballots with the right to vote: HTTP {status} {ballots}")
 
@@ -7078,12 +7079,90 @@ SCENARIOS = (
     ("ballotapi", "Ballots of a general assembly: two applications and paper, proxies, frozen rights, one right counts once", ballotapi, ("documentmore",)),
     ("ballotresult", "Counting ballots: proof as PDF, provisional until confirmed, confirmed once, an election's term once", ballotresult, ("ballotapi",)),
     ("portal", "Dolibarr's web portal: the page of the association, the same documents and ballots as the API, no second vote", portal, ("ballotresult",)),
+    ("boardvote", "The board votes itself in Dolibarr: each person with the own user, paper without one, the result taken over at once", boardvote, ("portal",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),
     ("disable", "Disabling keeps data and rights for the next activation", disable, ("partners",)),
     ("arrears", "With the Mahnwesen module: one proposal per fee at the last step, updated by payment and pause, board only", arrears, ("erasure", "disable")),
 )
+
+
+def boardvote(stack: Stack) -> str:
+    """The board votes in its meeting: each person in Dolibarr with the own user, paper for whoever has none; closing takes the result
+    into the meeting and the register without typing; it pops up for the person and stays out of applications (#267)."""
+    browser = stack.browser()
+    base = "/custom/vereine/meetings.php"
+    today = stack.notes["website"]["dates"]["today"]
+    board = [row[0] for row in stack.sql(
+        "SELECT DISTINCT t.fk_adherent FROM llx_vereine_function_term as t INNER JOIN llx_vereine_function as f ON f.rowid = t.fk_function AND f.board = 1 AND f.active = 1 "
+        f"INNER JOIN llx_adherent as d ON d.rowid = t.fk_adherent AND d.statut = 1 WHERE t.date_start <= '{today}' AND (t.date_end IS NULL OR t.date_end >= '{today}') "
+        "ORDER BY t.fk_adherent")]
+    expect(len(board) >= 2, f"the board needs two members for this test: {board}")
+    chair = board[0]
+    linked = stack.value("SELECT fk_member FROM llx_user WHERE login = 'admin'")
+    stack.sql(f"UPDATE llx_user SET fk_member = {chair} WHERE login = 'admin'")
+
+    page = page_ok(browser.get(base), "meetings")
+    page_ok(browser.submit(page.form(name="vereinemeeting"), {"kind": "board", "title": "Vorstand stimmt selbst ab", "day": today, "time": "00:01",
+                                                              "format": "physical", "place": "Vereinsheim", "agenda": "Neue Trikots\nAllfälliges"}),
+            "a board meeting today")
+    meeting = stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting WHERE title = 'Vorstand stimmt selbst ab'")
+    page_ok(browser.submit(page_ok(browser.get(f"{base}?id={meeting}"), "the board meeting").form(name="vereinemeetinginvite"), {"checked": "1"}), "invite the board")
+    page = page_ok(browser.get(f"{base}?id={meeting}"), "the board meeting before the attendance")
+    fields = [("token", token_of(page)), ("action", "saveattendance")] + [(f"attendance[{member}][state]", "present") for member in board]
+    page_ok(browser.post(f"{base}?id={meeting}", fields), "everybody of the board is present")
+
+    # Started at once in the meeting: no application, only Dolibarr and paper.
+    ballots = f"/custom/vereine/ballots.php?meeting={meeting}"
+    page = page_ok(browser.get(ballots), "votes of the board meeting")
+    expect('name="channels[]"' not in page.text and 'value="startnow"' in page.text, "the board is offered a vote through an application, or no vote at once")
+    page_ok(browser.submit(page.form(name="vereineballot"), {"item": "1", "kind": "resolution", "question": "Neue Trikots kaufen"}), "start the vote")
+    ballot = stack.value(f"SELECT rowid FROM llx_vereine_ballot WHERE fk_meeting = {meeting}")
+    state = stack.sql(f"SELECT status, channels FROM llx_vereine_ballot WHERE rowid = {ballot}")
+    expect(state == [["open", "dolibarr,paper"]], f"the vote of the board: {state}")
+
+    # It pops up for the chair: the counter in the top bar, the notice, the hint in the meeting.
+    home = page_ok(browser.get("/index.php"), "Dolibarr's home with the counter")
+    expect('data-vereine-waiting="1"' in home.text and "vereine/js/waiting.js" in home.text, "the top bar does not count the vote waiting for the chair")
+    notice = json.loads(page_ok(browser.get("/custom/vereine/ajax/waiting.php"), "what waits for the chair").text)
+    expect([item["key"].split("-")[0] for item in notice["items"]] == ["ballot"] and "Neue Trikots kaufen" in notice["items"][0]["text"],
+           f"the notice for the chair: {notice}")
+    card = page_ok(browser.get(f"{base}?id={meeting}"), "the board meeting with the open vote")
+    expect('data-meeting-vote-waiting="1"' in card.text, "the meeting does not show the vote waiting for the chair")
+
+    # The chair votes in Dolibarr with the own user, once.
+    page = page_ok(browser.get(ballots), "the vote for the chair")
+    right = stack.value(f"SELECT rowid FROM llx_vereine_ballot_right WHERE fk_ballot = {ballot} AND fk_holder = {chair}")
+    page_ok(browser.submit(page.form(name=f"vereineballotmine{ballot}_{right}_yes")), "the chair votes yes in Dolibarr")
+    expect(stack.sql(f"SELECT channel FROM llx_vereine_ballot_right WHERE rowid = {right} AND used_at IS NOT NULL") == [["dolibarr"]],
+           "the vote of the chair was not taken in Dolibarr")
+    again = page_ok(browser.post(ballots, [("token", token_of(page)), ("action", "mine"), ("ballot", ballot), ("right", right), ("option", "no")]), "vote a second time")
+    expect("schon abgestimmt" in html.unescape(again.text) and stack.value(f"SELECT COUNT(*) FROM llx_vereine_ballot_vote WHERE fk_ballot = {ballot}") == "1",
+           "the chair voted twice")
+    expect('data-vereine-waiting="0"' in page_ok(browser.get("/index.php"), "the home after voting").text, "the counter still counts the vote given")
+
+    # The others have no user of their own: their votes come as paper ballots.
+    for member in board[1:]:
+        page = page_ok(browser.get(ballots), "the vote before a paper ballot")
+        other = stack.value(f"SELECT rowid FROM llx_vereine_ballot_right WHERE fk_ballot = {ballot} AND fk_adherent = {member}")
+        page_ok(browser.submit(page.form(name=f"vereineballotpaper{ballot}"), {"right": other, "option": "yes"}), "a paper ballot of the board")
+
+    # Closing takes the result into the meeting and the register, without typing anything.
+    page = page_ok(browser.get(ballots), "the vote before closing")
+    page_ok(browser.submit(page.form(name=f"vereineballotclosenow{ballot}")), "close and take the result over")
+    taken = stack.sql(f"SELECT yes, no, passed FROM llx_vereine_meeting_vote WHERE fk_meeting = {meeting}")
+    registered = stack.value(f"SELECT COUNT(*) FROM llx_vereine_resolution WHERE fk_meeting = {meeting}")
+    counted = stack.sql(f"SELECT status FROM llx_vereine_ballot_result WHERE fk_ballot = {ballot}")
+    expect(taken == [[str(len(board)), "0", "1"]] and registered == "1" and counted == [["confirmed"]],
+           f"after closing: vote {taken}, register {registered}, count {counted}")
+
+    # Applications never see a vote of the board (#118).
+    status, seen = stack.api(f"vereine/me/ballots?member_id={chair}", stack.notes["voter"])
+    expect(status == 200 and all(entry["id"] != int(ballot) for entry in seen), f"an application sees the vote of the board: HTTP {status} {seen}")
+    stack.sql(f"UPDATE llx_user SET fk_member = {linked if linked not in (None, '', 'NULL') else 'NULL'} WHERE login = 'admin'")
+    return (f"board meeting of {len(board)}: started at once, only Dolibarr and paper; counter, notice and hint for the chair; the chair voted in Dolibarr "
+            "once, the others on paper; closing took result and resolution over; applications do not see it")
 
 
 def wait_http(url: str, seconds: int) -> None:

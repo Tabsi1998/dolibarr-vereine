@@ -140,10 +140,6 @@ class VereineBallots
 			$this->errors[] = 'VereineBallotErrorMeeting';
 			return 0;
 		}
-		if ($meeting['kind'] === VereineMeetingRules::KIND_BOARD) {
-			$this->errors[] = 'VereineBallotErrorBoard';
-			return 0;
-		}
 		$candidates = array();
 		$resql = $this->db->query("SELECT rowid, firstname, lastname FROM ".MAIN_DB_PREFIX."adherent WHERE entity IN (".getEntity('adherent').") AND statut = 1 ORDER BY lastname, firstname");
 		while ($resql && ($obj = $this->db->fetch_object($resql))) {
@@ -159,6 +155,12 @@ class VereineBallots
 			return 0;
 		}
 		$ballot = $checked['ballot'];
+		// The board votes in Dolibarr or on paper only (#267); a way the meeting has not is left out.
+		$ballot['channels'] = array_values(array_intersect($ballot['channels'], VereineBallotRules::channelsFor($meeting['kind'])));
+		if (!$ballot['channels']) {
+			$this->errors[] = 'VereineBallotErrorChannels';
+			return 0;
+		}
 		$this->db->begin();
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_ballot (entity, fk_meeting, item, kind, question, secret, channels, status, closes, fk_function, datec, fk_user_creat)";
 		$sql .= " VALUES (".((int) $conf->entity).", ".((int) $meetingId).", ".((int) $ballot['item']).", '".$this->db->escape($ballot['kind'])."',";
@@ -376,7 +378,7 @@ class VereineBallots
 		$today = dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver');
 		$now = dol_print_date(dol_now(), '%H:%M', 'tzserver');
 		$present = false;
-		if ($right !== null && $channel === VereineBallotRules::CHANNEL_APP) {
+		if ($right !== null && VereineBallotRules::personal($channel)) {
 			$attendance = (new VereineMeetings($this->db))->attendance($ballot['meeting_id']);
 			$present = isset($attendance['rows'][(int) $actor]) && VereineAttendanceRules::presentAt($attendance['rows'][(int) $actor], $now);
 		}
@@ -429,6 +431,8 @@ class VereineBallots
 
 		$p = MAIN_DB_PREFIX;
 		$sql = "SELECT b.rowid FROM ".$p."vereine_ballot as b INNER JOIN ".$p."vereine_meeting_invitation as i ON i.fk_meeting = b.fk_meeting AND i.fk_adherent = ".((int) $memberId);
+		// A ballot of the board stays in Dolibarr (#118, #267): applications see those of general assemblies only.
+		$sql .= " INNER JOIN ".$p."vereine_meeting as m ON m.rowid = b.fk_meeting AND m.kind <> '".VereineMeetingRules::KIND_BOARD."'";
 		$sql .= " WHERE b.entity = ".((int) $conf->entity)." AND b.status <> '".VereineBallotRules::STATUS_DRAFT."' GROUP BY b.rowid ORDER BY b.rowid DESC";
 		$list = array();
 		$resql = $this->db->query($sql);
@@ -457,6 +461,94 @@ class VereineBallots
 				'timezone' => (string) getServerTimeZoneString(), 'options' => $options, 'rights' => $rights, 'result' => $this->confirmedResult($ballot['id']));
 		}
 		return $list;
+	}
+
+	/**
+	 * The voting rights a person may use in Dolibarr now (#267): open ballots that take votes in Dolibarr, rights the
+	 * person holds - as own or by proxy - and has not used.
+	 *
+	 * @param int $memberId Member the Dolibarr user is linked to
+	 * @return array<int,array{ballot_id:int,right_id:int,meeting_id:int,meeting:string,question:string,for:string,name:string}>
+	 */
+	public function openRights($memberId)
+	{
+		global $conf;
+
+		$list = array();
+		if ((int) $memberId <= 0) {
+			return $list;
+		}
+		$p = MAIN_DB_PREFIX;
+		$sql = "SELECT r.rowid as right_id, r.fk_adherent, b.rowid as ballot_id, b.question, b.fk_meeting, m.title, d.firstname, d.lastname FROM ".$p."vereine_ballot_right as r";
+		$sql .= " INNER JOIN ".$p."vereine_ballot as b ON b.rowid = r.fk_ballot AND b.entity = r.entity";
+		$sql .= " INNER JOIN ".$p."vereine_meeting as m ON m.rowid = b.fk_meeting";
+		$sql .= " LEFT JOIN ".$p."adherent as d ON d.rowid = r.fk_adherent";
+		$sql .= " WHERE r.entity = ".((int) $conf->entity)." AND r.fk_holder = ".((int) $memberId)." AND r.eligible = 1 AND r.used_at IS NULL";
+		$sql .= " AND b.status = '".VereineBallotRules::STATUS_OPEN."' AND b.channels LIKE '%".VereineBallotRules::CHANNEL_DOLIBARR."%' ORDER BY b.rowid, r.rowid";
+		$resql = $this->db->query($sql);
+		while ($resql && ($obj = $this->db->fetch_object($resql))) {
+			$own = (int) $obj->fk_adherent === (int) $memberId;
+			$list[] = array('ballot_id' => (int) $obj->ballot_id, 'right_id' => (int) $obj->right_id, 'meeting_id' => (int) $obj->fk_meeting,
+				'meeting' => (string) $obj->title, 'question' => (string) $obj->question, 'for' => $own ? 'self' : 'proxy',
+				'name' => $own ? '' : trim($obj->firstname.' '.$obj->lastname));
+		}
+		return $list;
+	}
+
+	/**
+	 * Start a vote of the board at once (#267): prepared, released and opened in one step, as the board decides in its meeting.
+	 *
+	 * @param int                 $meetingId Meeting of the board
+	 * @param array<string,mixed> $entered   Entered ballot
+	 * @param string              $today     Today
+	 * @param User                $user      Who chairs
+	 * @return int Id of the ballot, 0 when refused (see errors), -1 on error
+	 */
+	public function startNow($meetingId, array $entered, $today, $user)
+	{
+		$entered['channels'] = VereineBallotRules::channelsFor(VereineMeetingRules::KIND_BOARD);
+		$id = $this->create($meetingId, $entered, $user);
+		if ($id <= 0) {
+			return $id;
+		}
+		foreach (array('release', 'open') as $step) {
+			$result = $step === 'release' ? $this->release($id, $user) : $this->open($id, $today, $user);
+			if ($result <= 0) {
+				// What was prepared stays visible as a draft or released ballot; the reason is in errors.
+				return $result;
+			}
+		}
+		return $id;
+	}
+
+	/**
+	 * Close a vote of the board and take its result over at once (#267): closed, counted with its proof and confirmed,
+	 * so the vote of the meeting and the register of resolutions follow without typing anything.
+	 *
+	 * @param int       $id          Ballot
+	 * @param User      $user        Who chairs
+	 * @param Translate $outputlangs Language of the proof
+	 * @return int 1 when taken over, 0 when refused (see errors), -1 on error
+	 */
+	public function closeNow($id, $user, $outputlangs)
+	{
+		$ballot = $this->fetch($id);
+		if ($ballot === null || $ballot['meeting_kind'] !== VereineMeetingRules::KIND_BOARD) {
+			$this->errors = array('VereineBallotErrorStatus');
+			return 0;
+		}
+		if ($ballot['status'] === VereineBallotRules::STATUS_OPEN) {
+			$result = $this->finish($id, VereineBallotRules::STATUS_CLOSED, $user);
+			if ($result <= 0) {
+				return $result;
+			}
+		}
+		$ballot = $this->fetch($id);
+		if ($ballot['status'] === VereineBallotRules::STATUS_CLOSED && $this->evaluate($id, '', $user, $outputlangs) <= 0) {
+			return $this->errors ? 0 : -1;
+		}
+		$result = $this->confirm($id, $user, $outputlangs);
+		return $result === 2 ? 1 : $result;
 	}
 
 	/**

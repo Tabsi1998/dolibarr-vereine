@@ -145,6 +145,39 @@ class ActionsVereine
 	}
 
 	/**
+	 * The counter in Dolibarr's top bar (#267): how many votes, circular resolutions and signatures wait for the user,
+	 * with a link to the first; js/waiting.js keeps it up to date and lets anything new pop up once.
+	 *
+	 * @param array<string,mixed> $parameters  Hook parameters
+	 * @param CommonObject|null   $object      Not used
+	 * @param string              $action      Not used
+	 * @param HookManager         $hookmanager Hook manager
+	 * @return int 0, Dolibarr adds the counter to its top bar
+	 */
+	public function printTopRightMenu($parameters, &$object, &$action, $hookmanager)
+	{
+		global $langs, $user;
+
+		$this->resprints = '';
+		if (!isModEnabled('vereine')) {
+			return 0;
+		}
+		dol_include_once('/vereine/class/vereinewaiting.class.php');
+		if (!VereineWaiting::showsFor($user)) {
+			return 0;
+		}
+		$langs->load('vereine@vereine');
+		$items = (new VereineWaiting($this->db))->urgent((int) $user->fk_member);
+		$count = count($items);
+		$this->resprints = '<div class="inline-block nowrap vereine-waiting" data-vereine-waiting="'.$count.'"'
+			.' data-vereine-waiting-url="'.dol_escape_htmltag(dol_buildpath('/vereine/ajax/waiting.php', 1)).'"'.($count ? '' : ' style="display: none;"').'>'
+			.'<a href="'.dol_escape_htmltag($count ? $items[0]['url'] : dol_buildpath('/vereine/vereineindex.php', 1).'#vereinetodo').'"'
+			.' title="'.dol_escape_htmltag($langs->transnoentitiesnoconv('VereineWaitingCounter')).'" class="valignmiddle">'
+			.img_picto('', 'fa-vote-yea', 'class="paddingright"').'<span class="badge badge-warning vereine-waiting-count">'.$count.'</span></a></div>';
+		return 0;
+	}
+
+	/**
 	 * Before Dolibarr's actions on the member card: note the third party of a member about to be linked.
 	 *
 	 * @param array<string,mixed> $parameters  Hook parameters

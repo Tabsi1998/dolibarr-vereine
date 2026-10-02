@@ -7,6 +7,27 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-02
+
+Im Vorstand stimmt jetzt jede Person selbst in Dolibarr ab – und was auf jemanden wartet, poppt bei dieser Person auf: Abstimmungen, Umlaufbeschlüsse, Unterschriften.
+
+Nach dem Update das Modul einmal aus- und wieder einschalten: erst dann erscheint der Zähler oben in Dolibarr.
+
+### Neu
+
+- **Selbst abstimmen im Vorstand** (#267): In einer Vorstandssitzung startet der Vorsitz eine Abstimmung zu
+  einem Tagesordnungspunkt; jede anwesende Person stimmt mit ihrem eigenen Dolibarr-Benutzer ab, für wen
+  keinen Benutzer hat, trägt der Schriftführer einen Stimmzettel ein. Jede Stimme zählt einmal.
+  *Schließen und Ergebnis übernehmen* schreibt Ergebnis und Beschluss in Sitzung und Beschlussbuch, mit
+  Nachweis als PDF – ohne Eintippen. Vorstandsabstimmungen bleiben in Dolibarr und kommen über die API
+  nicht vor.
+- **Wartet auf dich – mit Hinweis, der aufpoppt** (#267): Oben in Dolibarr zählt ein Zähler, was auf die
+  angemeldete Person wartet – Abstimmungen in Sitzungen, Umlaufbeschlüsse, Unterschriften –, mit Link
+  direkt dorthin. Kommt etwas Neues dazu, poppt ein Hinweis auf, auch ohne die Seite neu zu laden. Der
+  Kasten *Wartet auf dich* auf der Startseite und die Übersicht des Vereins zeigen die Abstimmungen mit.
+- In einer Generalversammlung können Vorstandsmitglieder ihre Stimme jetzt auch direkt in Dolibarr
+  abgeben, neben App, Webportal und Stimmzettel.
+
 ## [1.5.0] - 2026-10-02
 
 Sitzungen, die aus Versehen angelegt oder abgesagt wurden, lassen sich löschen. Bearbeiten, Absagen und Kopieren stehen jetzt oben auf der Sitzung.
@@ -2186,7 +2207,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.6.0
 [1.5.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.5.0
 [1.4.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.4.0
 [1.3.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.3.0
