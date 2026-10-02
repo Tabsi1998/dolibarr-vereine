@@ -7077,7 +7077,11 @@ def boardvote(stack: Stack) -> str:
     stack.sql(f"UPDATE llx_user SET fk_member = {keeper} WHERE login = 'rtreader'")
     reader = stack.browser("rtreader")
     home = page_ok(reader.get("/index.php"), "the keeper's home")
-    expect('data-vereine-waiting="1"' in home.text, "the counter of the keeper does not show the signature waiting")
+    counted = re.search(r'data-vereine-waiting="(\d+)"', home.text)
+    notice = json.loads(page_ok(reader.get("/custom/vereine/ajax/waiting.php"), "what waits for the keeper").text)
+    # Earlier scenarios may leave other signatures for the same member: the minutes must be among them.
+    expect(counted is not None and int(counted.group(1)) >= 1 and f"signature-{run}" in [item["key"] for item in notice["items"]],
+           f"the keeper is not shown the signature of the minutes: counter {counted.group(1) if counted else None}, notice {notice}")
     card = page_ok(reader.get(f"{base}?id={meeting}"), "the meeting for the keeper")
     expect(f'name="vereinesign{run}"' in card.text, "the keeper, who may only read members, is not offered to sign")
     refused = page_ok(reader.submit(card.form(name=f"vereinesign{run}"), {"password": "falsch"}), "sign with a wrong password")
