@@ -149,9 +149,22 @@ Meldungen, Wahlen, Anträge, Unterschriften und Rückstände, das Dringendste zu
 
   ![Inventar und Ausleihe](bilder/inventar.png)
 
-- **Ehrungen und Jubiläen**: vor der Generalversammlung nachsehen, wer ein Jubiläum hat; die Ehrung
-  festhalten und die Urkunde drucken. Geburtstage nur mit Einwilligung.
-- **Mitgliederstatistik**: Zahlen an einem Stichtag für den Verband, als Datei.
+- **Ehrungen und Jubiläen**: vor der Generalversammlung nachsehen, wer ein Jubiläum hat – noch nicht
+  geehrte Jubiläen des Jahres stehen auch unter *Was ist zu tun?*. Die Ehrung festhalten und die Urkunde
+  drucken. Neben Jubiläum und Ehrenmitgliedschaft gibt es Auszeichnung und Verdienstabzeichen; eigene
+  Arten wie „Goldenes Ehrenzeichen“ legt ihr unter *Einstellungen › Wörterbücher › Vereine: Arten von
+  Ehrungen* an. Jede Ehrung hat eine Notiz, die nur der Vorstand sieht, und den Haken *darf veröffentlicht
+  werden*: Nur solche Ehrungen bekommt eine angebundene Website. Setzt den Haken am besten erst, wenn das
+  Mitglied einverstanden ist. Geburtstage nur mit Einwilligung.
+- **Teilnahmen**: woran Mitglieder teilgenommen haben – Veranstaltungen, Wettbewerbe, Helferdienste. Ihr
+  haltet sie am Mitglied fest (Reiter *Verein*) oder unter *Teilnahmen* für viele Mitglieder auf einmal,
+  etwa alle von einer Veranstaltung (Link *Teilnahmen festhalten* bei der Veranstaltung). Eine App kann
+  sie über die API melden. Bestätigte Helferdienste stehen von selbst da. Unter *Teilnahmen* steht je
+  Jahr, wer aktiv war, mit Zahl und Stunden je Art – als Liste und als Datei, etwa für einen
+  Förderantrag; die Zahl steht auch in der Mitgliederstatistik. Weitere Arten legt ihr unter
+  *Einstellungen › Wörterbücher › Vereine: Arten von Teilnahmen* an.
+- **Mitgliederstatistik**: Zahlen an einem Stichtag für den Verband, als Datei, dazu die aktiven
+  Mitglieder des Jahres.
 - **Vereinsakte**: jedes fertige Dokument mit seiner Kennung. Dort gibst du Dokumente für Vorstand,
   Mitglieder oder Öffentlichkeit frei, von Hand oder je Dokumentart automatisch, sobald sie unterschrieben
   sind; eine angebundene App oder die Website holt sie dann über die API. Für eine Übergabe an einen neuen
@@ -187,13 +200,14 @@ und, wenn es eine gibt, die Kontaktperson für Datenschutz.
 | Freiwilligenpauschale | Einsätze abrechnen und auszahlen | gesetzliche Pflicht (Art. 6 Abs. 1 lit. c DSGVO) | Einsätze, Beträge; Helferinnen und Helfer | Kassa, Rechnungsprüfer | sieben Jahre ab Ende des Jahres |
 | Spendenmeldung | Spenden an das Finanzamt melden | gesetzliche Pflicht (Art. 6 Abs. 1 lit. c DSGVO, § 18 Abs. 8 EStG) | Name, Geburtsdatum (verschlüsselt), vbPK, Beträge; Spender | Finanzamt über FinanzOnline, Stammzahlenregister | sieben Jahre ab Ende des Jahres der letzten Spende |
 | Beitragsrückstände (mit Mahnwesen) | Vorstand entscheidet über säumige Mitglieder | Mitgliedschaft nach den Statuten (Art. 6 Abs. 1 lit. b DSGVO) | Rechnung, Mahnstufe, Stand; Mitglieder | Vorstand | drei Jahre nach dem Austritt |
-| Ehrungen und Jubiläen | Ehrungen, Jubiläen, Ehrenmitgliedschaft; Geburtstage | Mitgliedschaft nach den Statuten (Art. 6 Abs. 1 lit. b DSGVO); die Geburtstagsliste nur mit Einwilligung (lit. a) | Art der Ehrung, Jahre, Tag; Mitglieder | Vorstand | Vereinsunterlagen |
+| Ehrungen und Jubiläen | Ehrungen, Jubiläen, Ehrenmitgliedschaft; Geburtstage | Mitgliedschaft nach den Statuten (Art. 6 Abs. 1 lit. b DSGVO); die Geburtstagsliste nur mit Einwilligung (lit. a) | Art der Ehrung, Jahre, Tag, interne Notiz, ob veröffentlicht werden darf; Mitglieder | Vorstand; eine angebundene Website nur die Ehrungen, die veröffentlicht werden dürfen | Vereinsunterlagen; Notiz und Veröffentlichung enden mit dem Namen |
+| Teilnahmen | Ehrungen, Jahresbericht, Förderanträge mit aktiven Mitgliedern | Mitgliedschaft (Art. 6 Abs. 1 lit. b DSGVO) | Art, woran, Tag, Stunden, Herkunft; Mitglieder | Vorstand; eine angebundene Anwendung mit dem Recht für Teilnahmen | ein Jahr nach dem Austritt |
 | Mitgliederstatistik | Meldungen an Dachverbände und Fördergeber | berechtigtes Interesse des Vereins (Art. 6 Abs. 1 lit. f DSGVO) | nur Zahlen je Mitgliedsart, Geschlecht, Altersgruppe und Kategorie, keine Namen | Dachverband | – |
 | Geräte und Ausleihe | Vereinsgeräte ausgeben, zurücknehmen, an die Rückgabe erinnern | Mitgliedschaft, Leihe (Art. 6 Abs. 1 lit. b DSGVO) | Gerät, Tag, Zustand bei Ausgabe und Rückgabe; Mitglieder | Vorstand, Gerätewart | zurückgegebene Ausleihen ein Jahr nach dem Austritt; offene bleiben, solange der Verein das Gerät zurückfordert |
 | Veröffentlichte Dokumente | Protokolle, Beschlüsse und Berichte für Mitglieder oder die Öffentlichkeit, persönliche Bestätigungen für eine Person | Statuten und Vereinsgesetz (Art. 6 Abs. 1 lit. b und c DSGVO) | die veröffentlichte Fassung, auch eine gekürzte; bei persönlichen Dokumenten die Person | Mitglieder, Öffentlichkeit oder nur die Person | bis zum Zurückziehen; die Vereinsakte bleibt |
 | Abstimmungen in der App | Stimmen in der Generalversammlung über Apps oder Stimmzettel, genau einmal je Stimmrecht | Statuten und Vereinsgesetz (Art. 6 Abs. 1 lit. b DSGVO) | Stimmrecht, Vollmacht, offene Stimme, Weg; Mitglieder der Versammlung. Der Nachweis enthält nur Summen | Versammlungsleitung | Vereinsunterlagen |
 | Veranstaltungen und Helferdienste | Dienste einteilen, auch auf Anfrage aus der App | Mitgliedschaft (Art. 6 Abs. 1 lit. b DSGVO) | Dienst, Stand, geleistete Stunden; Helferinnen und Helfer | Vorstand, Veranstaltungsleitung | ein Jahr nach dem Austritt; für die Freiwilligenpauschale sieben Jahre |
-| Eigene Daten über App oder Portal | Mitglieder berichtigen Kontaktdaten und erklären den Austritt | Mitgliedschaft und Recht auf Berichtigung (Art. 6 Abs. 1 lit. b, Art. 16 DSGVO) | beantragte Änderung, Stand, Grund einer Ablehnung; Mitglieder | Vorstand | drei Jahre nach dem Austritt |
+| Eigene Daten über App oder Portal | Mitglieder berichtigen Kontaktdaten und erklären den Austritt | Mitgliedschaft und Recht auf Berichtigung (Art. 6 Abs. 1 lit. b, Art. 16 DSGVO) | beantragte Änderung, Stand, Grund einer Ablehnung, ob der Vorstand eine Änderung ohne Prüfung erlaubt hat; Mitglieder | Vorstand | drei Jahre nach dem Austritt |
 | Website, Apps und Webportal (wenn angebunden) | Mitglieder sehen ihre eigenen Daten, Anträge kommen herein | Mitgliedschaft (Art. 6 Abs. 1 lit. b DSGVO) | was die Rechte des technischen Benutzers bzw. die eingeschalteten Dienste des Portals erlauben | die angebundene Anwendung und ihr Betreiber; das Portal läuft in eurem Dolibarr | Verbindung bis zum Austritt; das Portal-Konto sperrt ihr beim Austritt |
 
 Die Fristen stehen im Modul unter *Einstellungen > Datenschutz*. Ändert ihr dort eine Frist, ändert
@@ -255,6 +269,11 @@ sie braucht, und einen eigenen API-Schlüssel (siehe README). Weitere Punkte:
 - **Verbindungen einzelner Personen** (*Einrichtung > Externe Identitäten*): Hier seht ihr, welche
   Person mit welcher Anwendung verbunden ist, und könnt die Verbindung widerrufen. Nach dem Austritt
   widerruft das Löschen sie ohnehin.
+- **Eigene Daten ändern**: Anschrift und Telefon übernimmt das Modul sofort, wenn ihr das so eingestellt
+  habt; alles andere, vor allem eine neue E-Mail-Adresse, prüft der Vorstand am Reiter *Verein*. Sollen
+  veraltete Daten bereinigt werden, erlaubt dort mit *Einmal erlauben*, dass die nächste Änderung des
+  Mitglieds ohne Prüfung gilt – über App, Website oder Webportal, auch die E-Mail-Adresse. Danach ist die
+  Erlaubnis von selbst wieder aus; am Reiter steht „Einmalig selbst geändert“ mit Tag und Feldern.
 - **Änderungen weitergeben**: Über den Änderungsfeed oder Webhooks erfährt eine Anwendung, dass sich
   ein Mitglied geändert hat, auch nach einem Löschen. Ob sie ihre eigene Kopie dann wirklich löscht,
   liegt bei ihr. Eine Benachrichtigung ist **kein Beweis** für eine Löschung beim Empfänger.

@@ -72,6 +72,44 @@ class VereineHonours
 	}
 
 	/**
+	 * Put the suggested kinds into the dictionary; a kind the association changed or switched off stays as it is.
+	 *
+	 * @return int 1 when done, -1 on error
+	 */
+	public function ensureStandard()
+	{
+		global $conf;
+
+		foreach (VereineHonourRules::STANDARD as $code => $kind) {
+			$sql = "INSERT INTO ".MAIN_DB_PREFIX."c_vereine_honour_kind (entity, code, label, position, active) SELECT ".((int) $conf->entity).", '".$this->db->escape($code)."',";
+			$sql .= " '".$this->db->escape($kind[0])."', ".((int) $kind[1]).", 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM ".MAIN_DB_PREFIX."c_vereine_honour_kind";
+			$sql .= " WHERE entity = ".((int) $conf->entity)." AND code = '".$this->db->escape($code)."')";
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
+				return -1;
+			}
+		}
+		return 1;
+	}
+
+	/**
+	 * The kinds of honours of the dictionary.
+	 *
+	 * @param bool $activeOnly Only those switched on, for new honours
+	 * @return array<string,string> Code => name, in the order of the dictionary
+	 */
+	public function kinds($activeOnly = true)
+	{
+		$kinds = array();
+		$sql = "SELECT code, label FROM ".MAIN_DB_PREFIX."c_vereine_honour_kind WHERE entity IN (".getEntity('c_vereine_honour_kind').")";
+		$resql = $this->db->query($sql.($activeOnly ? " AND active = 1" : "")." ORDER BY position, label");
+		while ($resql && ($obj = $this->db->fetch_object($resql))) {
+			$kinds[(string) $obj->code] = (string) $obj->label;
+		}
+		return $kinds;
+	}
+
+	/**
 	 * The settings in force.
 	 *
 	 * @return array{milestones:int[],birthday_consent:string,honorary_type:int,ages:int[]}
@@ -228,24 +266,30 @@ class VereineHonours
 	/**
 	 * Keep an honour that was given.
 	 *
-	 * @param int    $memberId Member
-	 * @param string $kind     jubilee, honorary or award
-	 * @param int    $years    Years of membership for a jubilee, else 0
-	 * @param string $label    What for, for an award
-	 * @param string $day      Day it was given or decided, YYYY-MM-DD
-	 * @param User   $user     Who
+	 * @param int    $memberId    Member
+	 * @param string $kind        A kind of the dictionary; jubilee and honorary through their own way
+	 * @param int    $years       Years of membership for a jubilee, else 0
+	 * @param string $label       What for; an award needs it
+	 * @param string $day         Day it was given or decided, YYYY-MM-DD
+	 * @param User   $user        Who
+	 * @param string $note        Only for the association, never published
+	 * @param bool   $publishable Whether the website may show it
 	 * @return int Id when kept, 0 when refused (see errors), -1 on error
 	 */
-	public function record($memberId, $kind, $years, $label, $day, $user)
+	public function record($memberId, $kind, $years, $label, $day, $user, $note = '', $publishable = false)
 	{
 		global $conf;
 
 		$this->errors = array();
 		$label = mb_substr(trim((string) $label), 0, 255, 'UTF-8');
-		if ((int) $memberId < 1 || !in_array($kind, VereineHonourRules::KINDS, true)) {
+		$note = mb_substr(trim((string) $note), 0, 2000, 'UTF-8');
+		if ((int) $memberId < 1) {
 			$this->errors[] = 'VereineHonourErrorKind';
 		}
-		if ($kind === 'award' && $label === '') {
+		if (!in_array($kind, VereineHonourRules::SPECIAL, true) && !array_key_exists((string) $kind, $this->kinds())) {
+			$this->errors[] = 'VereineHonourErrorKindUnknown';
+		}
+		if ($kind === VereineHonourRules::KIND_AWARD && $label === '') {
 			$this->errors[] = 'VereineHonourErrorLabel';
 		}
 		if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', (string) $day, $parts) || !checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1])) {
@@ -254,9 +298,9 @@ class VereineHonours
 		if ($this->errors) {
 			return 0;
 		}
-		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_honour (entity, fk_adherent, kind, years, label, given_on, datec, fk_user) VALUES (".((int) $conf->entity).",";
+		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_honour (entity, fk_adherent, kind, years, label, given_on, note, publishable, datec, fk_user) VALUES (".((int) $conf->entity).",";
 		$sql .= " ".((int) $memberId).", '".$this->db->escape($kind)."', ".((int) $years).", '".$this->db->escape($label)."', '".$this->db->escape($day)."',";
-		$sql .= " '".$this->db->idate(dol_now())."', ".((int) $user->id).")";
+		$sql .= " ".($note !== '' ? "'".$this->db->escape($note)."'" : "NULL").", ".($publishable ? 1 : 0).", '".$this->db->idate(dol_now())."', ".((int) $user->id).")";
 		if (!$this->db->query($sql)) {
 			$this->error = $this->db->lasterror();
 			return -1;
@@ -264,6 +308,51 @@ class VereineHonours
 		$id = (int) $this->db->last_insert_id(MAIN_DB_PREFIX.'vereine_honour');
 		VereineLog::add($this->db, $user, VereineLog::HONOUR, (int) $memberId, 0, $kind.($years > 0 ? ' '.$years : '').($label !== '' ? ': '.$label : ''));
 		return $id;
+	}
+
+	/**
+	 * Change what is kept about an honour: the day, what it was for, the internal note and whether it may be published.
+	 *
+	 * @param int                 $id      Honour
+	 * @param array<string,mixed> $entered given_on, label, note, publishable
+	 * @param User                $user    Who
+	 * @return int 1 when saved, 0 when refused (see errors), -1 on error
+	 */
+	public function update($id, array $entered, $user)
+	{
+		global $conf;
+
+		$this->errors = array();
+		$honour = null;
+		foreach ($this->honours() as $candidate) {
+			if ($candidate['id'] === (int) $id) {
+				$honour = $candidate;
+			}
+		}
+		if ($honour === null) {
+			$this->errors[] = 'VereineHonourErrorUnknown';
+			return 0;
+		}
+		$day = isset($entered['given_on']) ? (string) $entered['given_on'] : '';
+		$label = mb_substr(trim(isset($entered['label']) ? (string) $entered['label'] : ''), 0, 255, 'UTF-8');
+		$note = mb_substr(trim(isset($entered['note']) ? (string) $entered['note'] : ''), 0, 2000, 'UTF-8');
+		if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $day, $parts) || !checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1])) {
+			$this->errors[] = 'VereineHonourErrorDay';
+		}
+		if ($honour['kind'] === VereineHonourRules::KIND_AWARD && $label === '') {
+			$this->errors[] = 'VereineHonourErrorLabel';
+		}
+		if ($this->errors) {
+			return 0;
+		}
+		$sql = "UPDATE ".MAIN_DB_PREFIX."vereine_honour SET given_on = '".$this->db->escape($day)."', label = '".$this->db->escape($label)."',";
+		$sql .= " note = ".($note !== '' ? "'".$this->db->escape($note)."'" : "NULL").", publishable = ".(!empty($entered['publishable']) ? 1 : 0);
+		if (!$this->db->query($sql." WHERE rowid = ".((int) $id)." AND entity = ".((int) $conf->entity))) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		VereineLog::add($this->db, $user, VereineLog::HONOUR, $honour['member_id'], 0, 'changed '.$honour['kind'].(!empty($entered['publishable']) ? ', may be published' : ''));
+		return 1;
 	}
 
 	/**
@@ -308,25 +397,48 @@ class VereineHonours
 	}
 
 	/**
-	 * Honours kept, newest first.
+	 * Honours kept, newest first, with the name of their kind and what they are in words.
 	 *
-	 * @param int $memberId Only this member's, 0 for all
-	 * @return array<int,array{id:int,member_id:int,name:string,kind:string,years:int,label:string,given_on:string}>
+	 * @param int  $memberId        Only this member's, 0 for all
+	 * @param bool $publishableOnly Only those the website may show
+	 * @return array<int,array{id:int,member_id:int,name:string,kind:string,kind_label:string,title:string,years:int,label:string,given_on:string,note:string,publishable:bool}>
 	 */
-	public function honours($memberId = 0)
+	public function honours($memberId = 0, $publishableOnly = false)
 	{
-		global $conf;
+		global $conf, $langs;
 
-		$sql = "SELECT h.rowid, h.fk_adherent, h.kind, h.years, h.label, h.given_on, a.firstname, a.lastname FROM ".MAIN_DB_PREFIX."vereine_honour as h";
+		if (is_object($langs)) {
+			$langs->load('vereine@vereine');
+		}
+		$kinds = $this->kinds(false);
+		$sql = "SELECT h.rowid, h.fk_adherent, h.kind, h.years, h.label, h.given_on, h.note, h.publishable, a.firstname, a.lastname FROM ".MAIN_DB_PREFIX."vereine_honour as h";
 		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."adherent as a ON a.rowid = h.fk_adherent WHERE h.entity = ".((int) $conf->entity);
-		$sql .= ((int) $memberId > 0 ? " AND h.fk_adherent = ".((int) $memberId) : "")." ORDER BY h.given_on DESC, h.rowid DESC";
+		$sql .= ((int) $memberId > 0 ? " AND h.fk_adherent = ".((int) $memberId) : "").($publishableOnly ? " AND h.publishable = 1" : "")." ORDER BY h.given_on DESC, h.rowid DESC";
 		$list = array();
 		$resql = $this->db->query($sql);
 		while ($resql && ($obj = $this->db->fetch_object($resql))) {
-			$list[] = array('id' => (int) $obj->rowid, 'member_id' => (int) $obj->fk_adherent, 'name' => trim($obj->firstname.' '.$obj->lastname),
-				'kind' => (string) $obj->kind, 'years' => (int) $obj->years, 'label' => (string) $obj->label, 'given_on' => substr((string) $obj->given_on, 0, 10));
+			$honour = array('id' => (int) $obj->rowid, 'member_id' => (int) $obj->fk_adherent, 'name' => trim($obj->firstname.' '.$obj->lastname),
+				'kind' => (string) $obj->kind, 'kind_label' => isset($kinds[(string) $obj->kind]) ? $kinds[(string) $obj->kind] : (string) $obj->kind,
+				'years' => (int) $obj->years, 'label' => (string) $obj->label, 'given_on' => substr((string) $obj->given_on, 0, 10), 'note' => (string) $obj->note,
+				'publishable' => (int) $obj->publishable === 1);
+			$honour['title'] = VereineHonourRules::title($honour, $honour['kind_label'],
+				is_object($langs) ? $langs->transnoentitiesnoconv('VereineHonourKind_jubilee', $honour['years']) : (string) $honour['years'],
+				is_object($langs) ? $langs->transnoentitiesnoconv('VereineHonourKind_honorary') : 'honorary');
+			$list[] = $honour;
 		}
 		return $list;
+	}
+
+	/**
+	 * An honour as an application sees it: never the internal note.
+	 *
+	 * @param array<string,mixed> $honour From honours()
+	 * @return array{kind:string,kind_label:string,title:string,years:int,label:string,given_on:string,publishable:bool}
+	 */
+	public static function apiView(array $honour)
+	{
+		return array('kind' => $honour['kind'], 'kind_label' => $honour['kind_label'], 'title' => $honour['title'], 'years' => $honour['years'], 'label' => $honour['label'],
+			'given_on' => $honour['given_on'], 'publishable' => $honour['publishable']);
 	}
 
 	/**
@@ -371,8 +483,14 @@ class VereineHonours
 			$reason = $outputlangs->transnoentitiesnoconv('VereineHonourCertificateJubilee', $honour['years']);
 		} elseif ($honour['kind'] === 'honorary') {
 			$reason = $outputlangs->transnoentitiesnoconv('VereineHonourCertificateHonorary');
-		} else {
+		} elseif ($honour['kind'] === VereineHonourRules::KIND_AWARD) {
 			$reason = $outputlangs->transnoentitiesnoconv('VereineHonourCertificateAward', $honour['label']);
+		} else {
+			// A kind of the association's own, such as a badge of honour: its name, then what it was given for.
+			$pdf->SetFont($font, 'B', 16);
+			$pdf->MultiCell(0, 9, $honour['kind_label'], 0, 'C');
+			$pdf->SetFont($font, '', 13);
+			$reason = $honour['label'] !== '' ? $outputlangs->transnoentitiesnoconv('VereineHonourCertificateAward', $honour['label']) : '';
 		}
 		$pdf->MultiCell(0, 7, $reason, 0, 'C');
 		$pdf->Ln(24);

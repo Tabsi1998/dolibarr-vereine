@@ -36,7 +36,7 @@ Modulversion und API-Version – ein günstiger Weg, die Verbindung zu testen.
 
 ```json
 {
-  "module_version": "1.7.0",
+  "module_version": "1.8.0",
   "api_version": 2,
   "server_time": "2026-09-17T08:00:00Z"
 }
@@ -661,6 +661,63 @@ Recht, die Mitglieds-Zusammenfassung für die Website zu lesen.
 - Seit 1.2.0. Aus 1.1.0 übernimmt das Update die festen Felder als Zusatzfelder mit den Kürzeln
   `gamertag`, `bio`, `games` und `platforms` (nur die, die irgendwo gefüllt waren).
 
+## GET /vereine/members/{id}/honours
+
+Die **Ehrungen** eines Mitglieds, die veröffentlicht werden dürfen (seit 1.8.0, #274) – etwa für eine
+Ehrentafel auf der Website. Nur Ehrungen, bei denen der Verein *darf veröffentlicht werden* angehakt
+hat, neueste zuerst. Die interne Notiz kommt nie mit. Braucht das Recht, die Mitglieds-Zusammenfassung
+für die Website zu lesen.
+
+```json
+[{"kind": "gold", "kind_label": "Goldenes Ehrenzeichen", "title": "Goldenes Ehrenzeichen – 30 Jahre Jugendarbeit",
+  "years": 0, "label": "30 Jahre Jugendarbeit", "given_on": "2026-05-01", "publishable": true},
+ {"kind": "jubilee", "kind_label": "Jubiläum", "title": "10 Jahre Mitgliedschaft", "years": 10, "label": "",
+  "given_on": "2026-04-20", "publishable": true}]
+```
+
+- `kind` ist der Code aus dem Wörterbuch *Vereine: Arten von Ehrungen*, das der Verein in Dolibarr
+  erweitert (vorbelegt `jubilee`, `honorary`, `award`, `merit`). `title` ist die Ehrung in Worten, fertig
+  zum Anzeigen.
+
+## GET /vereine/members/{id}/participations
+
+Woran ein Mitglied **teilgenommen** hat (seit 1.8.0, #273): Veranstaltungen, Wettbewerbe, Helferdienste,
+neueste zuerst. Braucht das eigene Recht **„Teilnahmen von Mitgliedern erfassen und lesen“**
+(`vereine:participation:write`).
+
+```json
+[{"kind": "competition", "kind_label": "Wettbewerb", "title": "Frühjahrsturnier", "day": "2026-03-14",
+  "hours": 2.5, "source": "api", "external_id": "turnier-14-anna"},
+ {"kind": "shift", "kind_label": "Helferdienst", "title": "Sommerfest – Ausschank", "day": "2026-07-04",
+  "hours": 3.5, "source": "shift", "external_id": ""}]
+```
+
+- `source`: `dolibarr` (in Dolibarr festgehalten), `api` (von einer Anwendung gemeldet) oder `shift` (ein
+  bestätigter Helferdienst einer Veranstaltung, sobald sein Tag war – er wird nie doppelt erfasst).
+- `external_id` ist nur bei den eigenen Meldungen der fragenden Anwendung gefüllt.
+- `hours` ist `null`, wenn keine Stunden erfasst sind; bei einem Helferdienst die für die Person
+  notierten Stunden oder die Länge der Schicht.
+
+## POST /vereine/members/{id}/participations
+
+Eine Teilnahme melden, etwa wenn eine App einen Wettbewerb ausgerichtet hat. Body:
+
+```json
+{"kind": "competition", "title": "Frühjahrsturnier", "day": "2026-03-14", "hours": 2.5, "external_id": "turnier-14-anna"}
+```
+
+- `kind` muss eine eingeschaltete Art aus dem Wörterbuch *Vereine: Arten von Teilnahmen* sein
+  (vorbelegt `event`, `competition`, `shift`). `day` liegt nicht in der Zukunft, `hours` ist freiwillig.
+- Dieselbe `external_id` mit demselben Inhalt ergibt **einen** Eintrag und dieselbe Antwort; mit anderem
+  Inhalt `409`. Ein abgelehntes Feld: `400` mit seinem Code in `error.field`.
+- Antwort: die Teilnahme wie bei `GET`.
+
+## DELETE /vereine/members/{id}/participations/{external_id}
+
+Nimmt eine Teilnahme zurück, die **dieselbe Anwendung** für dieses Mitglied gemeldet hat. Antwort
+`{"external_id": "turnier-14-anna", "deleted": true}`; gibt es keine: `404`. Was in Dolibarr
+festgehalten wurde oder ein Helferdienst ist, bleibt.
+
 ## GET /vereine/members/{id}/photo
 
 Das Foto der Mitgliedskarte, nur mit derselben Einwilligung: `{"filename", "content_type", "filesize",
@@ -866,8 +923,8 @@ bestehender Schlüssel ein zusätzliches Recht.
    **Bindung** – bei **genau dieser Anwendung** und in **diesem Mandanten**.
 3. Die Bindung ist nicht widerrufen.
 4. Die Bindung trägt die **Fähigkeit**, um die es geht (`consents`, `applications`, `documents`,
-   `votes`, `accounts`, `meetings`, `profile`, `events`, `invoices`, `attendance`). Alle sind aus, bis der Verein
-   sie einschaltet.
+   `votes`, `accounts`, `meetings`, `profile`, `events`, `invoices`, `attendance`, `record`). Alle sind aus,
+   bis der Verein sie einschaltet.
 5. Das Objekt ist **das eigene**: das gebundene Mitglied oder der gebundene Antrag. Wer nach einem
    fremden fragt, wird abgewiesen, nicht umgeleitet.
 
@@ -1018,7 +1075,9 @@ rejected); angenommen steht er als letzter Punkt auf der Tagesordnung.
 
 `subject`, Fähigkeit `profile`. Die eigenen Daten: Name, Geburtsdatum (nur lesen), Anschrift, Telefon,
 E-Mail, Mitgliedsart, Status, ein geplanter oder vollzogener Austritt. Dazu `version` (der Stand der
-Kontaktdaten) und `direct` (Felder, die der Verein sofort übernimmt).
+Kontaktdaten), `direct` (Felder, die der Verein sofort übernimmt) und `direct_once` (seit 1.8.0):
+`true`, wenn der Vorstand erlaubt hat, dass die **nächste** Änderung ohne Prüfung gilt – für alle Felder,
+auch die E-Mail-Adresse. Die Anwendung sagt das dem Mitglied am besten vor dem Absenden.
 
 ### POST /vereine/me/profile/changes
 
@@ -1027,8 +1086,17 @@ Kontaktdaten) und `direct` (Felder, die der Verein sofort übernimmt).
 Nur `address`, `zip`, `town`, `country_code`, `phone`, `phone_mobile`, `email`; alles andere wird abgewiesen.
 Hat sich der Stand seither geändert, kommt `409` statt eines stillen Überschreibens. Felder aus `direct`
 werden sofort übernommen (`status: applied`), sonst entscheidet der Vorstand in Dolibarr
-(`received` → `applied` oder `rejected` mit `reason`). Eine neue E-Mail-Adresse braucht immer den Vorstand.
+(`received` → `applied` oder `rejected` mit `reason`). Eine neue E-Mail-Adresse braucht den Vorstand –
+außer `direct_once` ist `true`: Dann gilt diese eine Änderung sofort (`applied`), und danach ist
+`direct_once` wieder `false`.
 Dieselbe `external_id` mit demselben Inhalt antwortet mit demselben Auftrag.
+
+### GET /vereine/me/honours und GET /vereine/me/participations
+
+`subject`, Fähigkeit `record` (seit 1.8.0). Die eigene Mitgliederakte: **alle** eigenen Ehrungen – mit
+`publishable`, damit die Person sieht, was öffentlich ist, aber nie mit der internen Notiz – und die
+eigenen Teilnahmen samt bestätigten Helferdiensten. Felder wie bei `members/{id}/honours` und
+`members/{id}/participations`.
 
 ### GET /vereine/me/profile/changes
 

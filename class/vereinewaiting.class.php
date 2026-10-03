@@ -123,6 +123,16 @@ class VereineWaiting
 			$add('profile', '', $langs->transnoentities('VereineTodoProfiles', $waitingChanges), dol_buildpath('/vereine/partners.php', 1));
 		}
 
+		// Jubilees of this year that are not honoured yet; the list names nobody (#274).
+		require_once __DIR__.'/vereinehonours.class.php';
+		$year = (int) substr((string) $today, 0, 4);
+		$openJubilees = count(array_filter((new VereineHonours($this->db))->jubilees($year), function ($jubilee) {
+			return !$jubilee['honoured'];
+		}));
+		if ($openJubilees > 0) {
+			$add('jubilee', '', $langs->transnoentities('VereineTodoJubilees', $openJubilees, $year), dol_buildpath('/vereine/honours.php', 1).'?year='.$year.'#vereinejubilees');
+		}
+
 		// Equipment that is late; the list names nobody (#26).
 		require_once __DIR__.'/vereineloans.class.php';
 		$lateLoans = (new VereineLoans($this->db))->overdue($today);

@@ -13,22 +13,13 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- A member's request through an application (#164): a change of the own contact data, or the notice of the
--- exit, with the application's id, what was asked and what became of it.
-CREATE TABLE llx_vereine_profile_request(
+-- Kinds of honours (#274), a dictionary of Dolibarr the association extends itself. A jubilee and an
+-- honorary membership keep what they do; every other kind is an honour with what it was given for.
+CREATE TABLE llx_c_vereine_honour_kind(
 	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
 	entity INTEGER DEFAULT 1 NOT NULL,
-	fk_adherent INTEGER NOT NULL,
-	client VARCHAR(64) NOT NULL,
-	external_id VARCHAR(64) NOT NULL,
-	kind VARCHAR(16) NOT NULL,
-	payload TEXT,
-	fingerprint VARCHAR(64) NOT NULL,
-	status VARCHAR(16) NOT NULL,
-	reason VARCHAR(255),
-	note_internal VARCHAR(255),
-	fk_exit INTEGER DEFAULT 0 NOT NULL,
-	received_at DATETIME NOT NULL,
-	decided_at DATETIME,
-	fk_user_decided INTEGER
+	code VARCHAR(32) NOT NULL,
+	label VARCHAR(128) NOT NULL,
+	position INTEGER DEFAULT 0 NOT NULL,
+	active TINYINT DEFAULT 1 NOT NULL
 ) ENGINE=innodb;

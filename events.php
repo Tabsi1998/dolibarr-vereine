@@ -290,6 +290,10 @@ if ($event === null) {
 	if ($event['project_id'] > 0 && isModEnabled('project')) {
 		print ' · <a href="'.dol_buildpath('/projet/card.php', 1).'?id='.((int) $event['project_id']).'">'.$langs->trans('Project').'</a>';
 	}
+	if ($user->hasRight('adherent', 'creer') && $event['status'] !== VereineEventRules::STATUS_CANCELLED && $event['event_day'] <= $today) {
+		print ' · <a href="'.dol_buildpath('/vereine/participations.php', 1).'?event='.((int) $event['id']).'#vereineparticipationnew" data-event-participations="1">'
+			.$langs->trans('VereineParticipationFromEvent').'</a>';
+	}
 	print '</div>';
 	print '<div class="paddingbottom" data-event-progress="'.((int) $progress['percent']).'">';
 	print $langs->trans('VereineEventProgressValue', $progress['done'], $progress['total']);

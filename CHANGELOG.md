@@ -7,6 +7,51 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-03
+
+Die Mitgliederakte: woran jemand teilgenommen hat, alle Ehrungen an einer Stelle – mit dem, was veröffentlicht werden darf – und auf Wunsch eine Änderung der eigenen Daten ohne Prüfung.
+
+Nach dem Update das Modul einmal aus- und wieder einschalten: erst dann gibt es die Teilnahmen, die Wörterbücher und das neue Recht.
+
+### Neu
+
+- **Teilnahmen** (#273): Am Mitglied (Reiter *Verein*) und unter *Mitglieder › Verein › Teilnahmen* haltet
+  ihr fest, woran jemand teilgenommen hat – Art, woran, Tag, Stunden. Unter *Teilnahmen* geht das für viele
+  Mitglieder auf einmal, etwa alle von einer Veranstaltung; die Veranstaltung hat dafür einen Link.
+  Bestätigte Helferdienste stehen von selbst da, sobald ihr Tag war, und werden nie doppelt gezählt. Die
+  Arten (vorbelegt Veranstaltung, Wettbewerb, Helferdienst) erweitert ihr im Dolibarr-Wörterbuch
+  *Vereine: Arten von Teilnahmen*.
+- **Aktive Mitglieder je Jahr** (#273): wer mindestens eine Teilnahme hatte, mit Zahl und Stunden je Art,
+  als Liste und als Datei – etwa für einen Förderantrag. Die Zahl steht auch in der Mitgliederstatistik.
+- **Teilnahmen über die API** (#273): `POST /vereine/members/{id}/participations` mit eigener Kennung
+  (dieselbe Meldung zweimal ergibt einen Eintrag), `DELETE …/participations/{external_id}` zum
+  Zurücknehmen, `GET …/participations` und `GET /vereine/me/participations` für die eigene Liste. Dafür
+  gibt es das neue Recht „Nur für Website oder App (API-Benutzer): Teilnahmen von Mitgliedern erfassen und
+  lesen“.
+- **Ehrungen aus dem Wörterbuch** (#274): Neben Jubiläum und Ehrenmitgliedschaft gibt es Auszeichnung und
+  Verdienstabzeichen; eigene Arten wie „Goldenes Ehrenzeichen“ legt ihr im Wörterbuch *Vereine: Arten von
+  Ehrungen* an. Bestehende Ehrungen behalten ihre Art. Jede Ehrung hat jetzt eine **Notiz nur für den
+  Vorstand** und den Haken **darf veröffentlicht werden** (ab Werk aus); beides lässt sich nachträglich
+  bearbeiten.
+- **Ehrungen über die API** (#274): `GET /vereine/members/{id}/honours` gibt der Website nur Ehrungen, die
+  veröffentlicht werden dürfen, `GET /vereine/me/honours` dem Mitglied alle eigenen – nie die Notiz. Für
+  die eigene Mitgliederakte gibt es die Fähigkeit `record`.
+- **Jubiläen unter „Was ist zu tun?“** (#274): Noch nicht geehrte Jubiläen des laufenden Jahres stehen in
+  der Übersicht.
+- **Eigene Daten einmal ohne Prüfung** (#275): Am Reiter *Verein* erlaubt der Vorstand mit *Einmal
+  erlauben*, dass die nächste Änderung der eigenen Daten – über App, Website oder Webportal – sofort gilt,
+  auch eine neue E-Mail-Adresse. Danach ist die Erlaubnis von selbst wieder aus. Am Reiter und im
+  Protokoll steht „einmalig selbst geändert“; `GET /vereine/me/profile` meldet `direct_once: true`, und das
+  Webportal sagt es dem Mitglied vor dem Absenden.
+
+### Geändert
+
+- Die Auskunft über die eigenen Daten zeigt die Teilnahmen, bei Ehrungen Notiz und Veröffentlichung und
+  die Erlaubnis zur einmaligen Selbständerung. Beim Löschen nach dem Austritt gehen die Teilnahmen mit
+  der Zuteilung von Aufgaben und Diensten; bei Ehrungen verschwinden mit dem Namen auch Notiz und
+  Veröffentlichung.
+- Die Beschreibung des Website-Profils im API-Reiter nennt keine festen Felder mehr.
+
 ## [1.7.0] - 2026-10-03
 
 Die Generalversammlung läuft live: Einlass über eine App am Eingang, geheime Wahlen auf Papier mit abgehakten Stimmzetteln, und Website oder App erfahren sofort, wenn die Versammlung beginnt, eine Abstimmung öffnet oder ein Ergebnis bestätigt ist.
@@ -2254,7 +2299,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.8.0
 [1.7.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.7.0
 [1.6.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.6.0
 [1.5.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.5.0

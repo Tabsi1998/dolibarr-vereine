@@ -36,8 +36,15 @@ class VereineHonourRules
 	/** Age groups of the statistics unless the association chooses others: upper ends of the groups. */
 	const AGES = '14,18,26,40,60';
 
-	/** Kinds of honours. */
-	const KINDS = array('jubilee', 'honorary', 'award');
+	/** Kinds the module suggests for the dictionary (#274), with their German names and positions. */
+	const STANDARD = array('jubilee' => array('Jubiläum', 10), 'honorary' => array('Ehrenmitglied', 20), 'award' => array('Auszeichnung', 30),
+		'merit' => array('Verdienstabzeichen', 40));
+
+	/** Kinds with a way of their own: a jubilee counts years, an honorary membership changes the member type. */
+	const SPECIAL = array('jubilee', 'honorary');
+
+	/** The kind that has to say what it was given for. */
+	const KIND_AWARD = 'award';
 
 	/**
 	 * Numbers as the setup stores them, such as "10,20,25": whole numbers from 1 to 120, sorted, each once.
@@ -55,6 +62,32 @@ class VereineHonourRules
 		}
 		sort($numbers);
 		return array_values($numbers);
+	}
+
+	/**
+	 * An honour in words: the years of a jubilee, an honorary membership, what an award was for, or the kind
+	 * with what it was given for.
+	 *
+	 * @param array{kind:string,years:int,label:string} $honour    Honour
+	 * @param string                                    $kindLabel Name of the kind in the dictionary
+	 * @param string                                    $jubilee   Words for this jubilee, with its years
+	 * @param string                                    $honorary  Words for an honorary membership
+	 * @return string
+	 */
+	public static function title(array $honour, $kindLabel, $jubilee, $honorary)
+	{
+		if ($honour['kind'] === 'jubilee') {
+			return (string) $jubilee;
+		}
+		if ($honour['kind'] === 'honorary') {
+			return (string) $honorary;
+		}
+		$label = trim((string) $honour['label']);
+		if ($honour['kind'] === self::KIND_AWARD && $label !== '') {
+			return $label;
+		}
+		$kindLabel = trim((string) $kindLabel) !== '' ? trim((string) $kindLabel) : (string) $honour['kind'];
+		return $label !== '' ? $kindLabel.' – '.$label : $kindLabel;
 	}
 
 	/**

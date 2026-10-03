@@ -13,22 +13,16 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- A member's request through an application (#164): a change of the own contact data, or the notice of the
--- exit, with the application's id, what was asked and what became of it.
-CREATE TABLE llx_vereine_profile_request(
+-- The board lets a member change their own data once without looking at it (#275): when and by whom it was
+-- allowed, and the change that used it, or when it was taken back.
+CREATE TABLE llx_vereine_profile_once(
 	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
 	entity INTEGER DEFAULT 1 NOT NULL,
 	fk_adherent INTEGER NOT NULL,
-	client VARCHAR(64) NOT NULL,
-	external_id VARCHAR(64) NOT NULL,
-	kind VARCHAR(16) NOT NULL,
-	payload TEXT,
-	fingerprint VARCHAR(64) NOT NULL,
-	status VARCHAR(16) NOT NULL,
-	reason VARCHAR(255),
-	note_internal VARCHAR(255),
-	fk_exit INTEGER DEFAULT 0 NOT NULL,
-	received_at DATETIME NOT NULL,
-	decided_at DATETIME,
-	fk_user_decided INTEGER
+	granted_at DATETIME NOT NULL,
+	fk_user_granted INTEGER,
+	used_at DATETIME,
+	fk_request INTEGER,
+	revoked_at DATETIME,
+	fk_user_revoked INTEGER
 ) ENGINE=innodb;

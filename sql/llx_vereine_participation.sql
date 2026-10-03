@@ -13,22 +13,19 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- A member's request through an application (#164): a change of the own contact data, or the notice of the
--- exit, with the application's id, what was asked and what became of it.
-CREATE TABLE llx_vereine_profile_request(
+-- What a member took part in (#273): an event, a competition, a helper service. Recorded in Dolibarr or
+-- through an application with its own id; confirmed helper shifts are read from the shifts and never kept twice.
+CREATE TABLE llx_vereine_participation(
 	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
 	entity INTEGER DEFAULT 1 NOT NULL,
 	fk_adherent INTEGER NOT NULL,
-	client VARCHAR(64) NOT NULL,
-	external_id VARCHAR(64) NOT NULL,
-	kind VARCHAR(16) NOT NULL,
-	payload TEXT,
-	fingerprint VARCHAR(64) NOT NULL,
-	status VARCHAR(16) NOT NULL,
-	reason VARCHAR(255),
-	note_internal VARCHAR(255),
-	fk_exit INTEGER DEFAULT 0 NOT NULL,
-	received_at DATETIME NOT NULL,
-	decided_at DATETIME,
-	fk_user_decided INTEGER
+	kind VARCHAR(32) NOT NULL,
+	title VARCHAR(255) NOT NULL,
+	day DATE NOT NULL,
+	hours DECIMAL(6,2),
+	source VARCHAR(16) DEFAULT 'dolibarr' NOT NULL,
+	client VARCHAR(64),
+	external_id VARCHAR(64),
+	datec DATETIME NOT NULL,
+	fk_user INTEGER
 ) ENGINE=innodb;

@@ -77,6 +77,7 @@ require_once __DIR__.'/class/vereinesocial.class.php';
 require_once __DIR__.'/class/vereinehonours.class.php';
 require_once __DIR__.'/class/vereineloans.class.php';
 require_once __DIR__.'/class/vereineprofiles.class.php';
+require_once __DIR__.'/class/vereineparticipations.class.php';
 require_once __DIR__.'/class/vereinewebsiteprofiles.class.php';
 require_once __DIR__.'/class/vereinememberform.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
@@ -281,6 +282,36 @@ if (($action === 'applyprofile' || $action === 'rejectprofile') && $canExit) {
 		setEventMessages(null, array_map(array($langs, 'trans'), $profiles->errors), 'errors');
 	} else {
 		header('Location: '.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereineprofilerequests');
+		exit;
+	}
+}
+// One change of the own data without the board looking, allowed or taken back by the board (#275).
+if (($action === 'allowonce' || $action === 'revokeonce') && $canExit) {
+	$profiles = new VereineProfiles($db);
+	if ($profiles->setOnce((int) $object->id, $action === 'allowonce', $user) < 0) {
+		setEventMessages($profiles->error, null, 'errors');
+	} else {
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereineprofileonce');
+		exit;
+	}
+}
+// What the member took part in, recorded or removed here (#273).
+if (($action === 'addparticipation' || $action === 'removeparticipation') && $canExit) {
+	$participations = new VereineParticipations($db);
+	if ($action === 'addparticipation') {
+		$result = $participations->record(array((int) $object->id), array('kind' => GETPOST('kind', 'aZ09'), 'title' => GETPOST('title', 'alphanohtml'),
+			'day' => GETPOST('day', 'alphanohtml'), 'hours' => GETPOST('hours', 'alphanohtml')), $today, $user);
+	} else {
+		$result = $participations->remove(GETPOSTINT('participation'), (int) $object->id, $user);
+	}
+	if ($result < 0) {
+		setEventMessages($participations->error, null, 'errors');
+	} elseif ($result === 0 && $participations->errors) {
+		setEventMessages(null, array_map(function ($field) use ($langs) {
+			return $langs->trans('VereineParticipationError_'.$field);
+		}, $participations->errors), 'errors');
+	} else {
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'#vereineparticipations');
 		exit;
 	}
 }
@@ -657,6 +688,35 @@ if ($profileRequests) {
 	print '<br>';
 }
 
+// One change of the own data without the board looking (#275): allowed here, used up by the next change.
+$profileStore = new VereineProfiles($db);
+$once = $profileStore->onceFor((int) $object->id);
+$changedOnce = $profileStore->changedOnce((int) $object->id);
+if ($canExit || $once !== null || $changedOnce) {
+	print load_fiche_titre($langs->trans('VereineProfileOnceTitle'), '', '', 0, 'vereineprofileonce');
+	print '<div class="paddingbottom" data-profile-once="'.($once !== null ? 1 : 0).'">';
+	if ($once !== null) {
+		print dol_escape_htmltag($langs->transnoentitiesnoconv('VereineProfileOnceAllowed', dol_print_date($once['granted_at'], 'dayhour'), $once['granted_by']));
+	} else {
+		print '<span class="opacitymedium">'.$langs->trans('VereineProfileOnceHowTo').'</span>';
+	}
+	if ($canExit) {
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'" name="vereineprofileonce" class="inline-block paddingleft">';
+		print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="'.($once !== null ? 'revokeonce' : 'allowonce').'">';
+		print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans($once !== null ? 'VereineProfileOnceRevoke' : 'VereineProfileOnceAllow')).'"></form>';
+	}
+	print '</div>';
+	foreach ($changedOnce as $request) {
+		$fields = array();
+		foreach ($request['changes'] as $field => $value) {
+			$fields[] = $langs->trans('VereineProfileField_'.$field).': '.dol_escape_htmltag((string) $value);
+		}
+		print '<div class="opacitymedium small" data-profile-changed-once="'.$request['id'].'">'.$langs->trans('VereineProfileChangedOnce', dol_print_date($request['received_at'], 'dayhour'));
+		print ' – '.implode(', ', $fields).'</div>';
+	}
+	print '<br>';
+}
+
 // Equipment the member borrowed (#26).
 $memberLoans = (new VereineLoans($db))->loans((int) $object->id, 20);
 if ($memberLoans) {
@@ -670,18 +730,55 @@ if ($memberLoans) {
 	print '</table></div><br>';
 }
 
-// Honours the member was given (#27).
+// Honours the member was given (#27), and which of them may be published (#274).
 $memberHonours = (new VereineHonours($db))->honours((int) $object->id);
 if ($memberHonours) {
-	print load_fiche_titre($langs->trans('VereineHonourList'), '', '', 0, 'vereinehonours');
+	print load_fiche_titre($langs->trans('VereineHonourList'), '<a href="'.dol_buildpath('/vereine/honours.php', 1).'#vereinehonourlist">'.$langs->trans('VereineMenuHonours').'</a>', '', 0, 'vereinehonours');
 	print '<div class="div-table-responsive-no-min"><table class="noborder centpercent">';
 	foreach ($memberHonours as $honour) {
-		$what = $honour['kind'] === 'jubilee' ? $langs->trans('VereineHonourKind_jubilee', $honour['years'])
-			: ($honour['kind'] === 'award' ? dol_escape_htmltag($honour['label']) : $langs->trans('VereineHonourKind_honorary'));
-		print '<tr class="oddeven" data-member-honour="'.dol_escape_htmltag($honour['kind']).'"><td class="nowraponall">'.vereineFormatDay($honour['given_on']).'</td><td>'.$what.'</td></tr>';
+		print '<tr class="oddeven" data-member-honour="'.dol_escape_htmltag($honour['kind']).'" data-member-honour-public="'.($honour['publishable'] ? 1 : 0).'">';
+		print '<td class="nowraponall">'.vereineFormatDay($honour['given_on']).'</td><td>'.dol_escape_htmltag($honour['title']);
+		if ($honour['publishable']) {
+			print ' <span class="badge badge-status4">'.$langs->trans('VereineHonourPublishable').'</span>';
+		}
+		print '</td></tr>';
 	}
 	print '</table></div><br>';
 }
+
+// What the member took part in (#273): recorded here or by an application, and the confirmed helper shifts.
+$participationStore = new VereineParticipations($db);
+$memberParticipations = $participationStore->forMember((int) $object->id, $today);
+print load_fiche_titre($langs->trans('VereineParticipationsTitle'), '<a href="'.dol_buildpath('/vereine/participations.php', 1).'">'.$langs->trans('VereineParticipationActiveLink').'</a>', '', 0, 'vereineparticipations');
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-participations="'.count($memberParticipations).'">';
+print '<tr class="liste_titre"><td>'.$langs->trans('VereineParticipationDay').'</td><td>'.$langs->trans('VereineParticipationKind').'</td><td>'.$langs->trans('VereineParticipationTitle').'</td>';
+print '<td class="right">'.$langs->trans('VereineParticipationHours').'</td><td>'.$langs->trans('VereineParticipationSource').'</td><td></td></tr>';
+foreach (array_slice($memberParticipations, 0, 100) as $participation) {
+	print '<tr class="oddeven" data-participation="'.$participation['id'].'" data-participation-source="'.$participation['source'].'" data-participation-kind="'.dol_escape_htmltag($participation['kind']).'">';
+	print '<td class="nowraponall">'.vereineFormatDay($participation['day']).'</td><td>'.dol_escape_htmltag($participation['kind_label']).'</td><td>'.dol_escape_htmltag($participation['title']).'</td>';
+	print '<td class="right">'.($participation['hours'] !== null ? price2num($participation['hours']) : '').'</td><td>'.$langs->trans('VereineParticipationSource_'.$participation['source']).'</td><td class="right">';
+	if ($canExit && $participation['id'] > 0) {
+		print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'" name="vereineparticipationremove'.$participation['id'].'" class="inline-block">';
+		print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="removeparticipation">';
+		print '<input type="hidden" name="participation" value="'.$participation['id'].'"><input type="submit" class="button small butActionDelete" value="'.dol_escape_htmltag($langs->trans('Delete')).'"></form>';
+	}
+	print '</td></tr>';
+}
+if (!$memberParticipations) {
+	print '<tr class="oddeven"><td colspan="6"><span class="opacitymedium">'.$langs->trans('VereineParticipationNoneMember').'</span></td></tr>';
+}
+print '</table></div>';
+if ($canExit) {
+	$participationKinds = $participationStore->kinds();
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.((int) $object->id).'" name="vereineparticipation" class="paddingtop">';
+	print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="addparticipation">';
+	print Form::selectarray('kind', $participationKinds, isset($participationKinds['event']) ? 'event' : '', 0, 0, 0, '', 0, 0, 0, '', 'minwidth150').' ';
+	print '<input type="text" name="title" size="30" maxlength="255" placeholder="'.dol_escape_htmltag($langs->trans('VereineParticipationTitlePlaceholder')).'"> ';
+	print '<input type="date" name="day" max="'.dol_escape_htmltag($today).'" value="'.dol_escape_htmltag($today).'"> ';
+	print '<input type="text" name="hours" size="5" placeholder="'.dol_escape_htmltag($langs->trans('VereineParticipationHours')).'"> ';
+	print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineParticipationRecord')).'"></form>';
+}
+print '<br>';
 
 // Accounts at Discord, Twitch and the like, and whether an application confirmed them (#233).
 $memberAccounts = (new VereineSocial($db))->accounts($object);

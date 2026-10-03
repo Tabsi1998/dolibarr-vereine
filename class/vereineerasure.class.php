@@ -182,7 +182,8 @@ class VereineErasure
 				." AND r.fk_adherent = ".$id." AND m.meeting_day <= '".$this->db->escape($cut)."'"));
 		$found['tasks'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_resolution_task WHERE entity = ".$entity." AND fk_adherent = ".$id)
 			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_duty_task WHERE entity = ".$entity." AND fk_adherent = ".$id)
-			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_event_shift_entry WHERE entity = ".$entity." AND fk_adherent = ".$id), 'last' => '', 'due' => 0);
+			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_event_shift_entry WHERE entity = ".$entity." AND fk_adherent = ".$id)
+			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_participation WHERE entity = ".$entity." AND fk_adherent = ".$id), 'last' => '', 'due' => 0);
 		$found['consents'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_consent WHERE entity = ".$entity." AND fk_adherent = ".$id), 'last' => '', 'due' => 0);
 		$found['applications'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_application WHERE entity = ".$entity." AND fk_adherent = ".$id)
 			+ count($this->files($member, '/^mitgliedsantrag-.*\.pdf$/')), 'last' => '', 'due' => 0);
@@ -196,7 +197,8 @@ class VereineErasure
 			'due' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_disclosure WHERE entity = ".$entity." AND fk_adherent = ".$id." AND datec <= '".$this->db->escape($cut)." 23:59:59'"));
 		$found['log'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_log WHERE entity = ".$entity." AND fk_adherent = ".$id
 			." AND action NOT IN ('".VereineLog::ERASURE."', '".VereineLog::ERASURE_HOLD."')")
-			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_profile_request WHERE entity = ".$entity." AND fk_adherent = ".$id), 'last' => '', 'due' => 0);
+			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_profile_request WHERE entity = ".$entity." AND fk_adherent = ".$id)
+			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_profile_once WHERE entity = ".$entity." AND fk_adherent = ".$id), 'last' => '', 'due' => 0);
 		$found['volunteer'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_volunteer WHERE entity = ".$entity." AND fk_adherent = ".$id),
 			'last' => $this->day("SELECT MAX(duty_day) as v FROM ".$p."vereine_volunteer WHERE entity = ".$entity." AND fk_adherent = ".$id), 'due' => 0);
 		$found['donations'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_donor WHERE entity = ".$entity." AND fk_adherent = ".$id),
@@ -278,7 +280,8 @@ class VereineErasure
 			} elseif ($kind === 'tasks') {
 				$changed = $this->change("UPDATE ".$p."vereine_resolution_task SET fk_adherent = 0 WHERE entity = ".$entity." AND fk_adherent = ".$id)
 					+ $this->change("UPDATE ".$p."vereine_duty_task SET fk_adherent = 0 WHERE entity = ".$entity." AND fk_adherent = ".$id)
-					+ $this->change("UPDATE ".$p."vereine_event_shift_entry SET fk_adherent = 0, note = NULL WHERE entity = ".$entity." AND fk_adherent = ".$id);
+					+ $this->change("UPDATE ".$p."vereine_event_shift_entry SET fk_adherent = 0, note = NULL WHERE entity = ".$entity." AND fk_adherent = ".$id)
+					+ $this->change("DELETE FROM ".$p."vereine_participation WHERE entity = ".$entity." AND fk_adherent = ".$id);
 			} elseif ($kind === 'consents') {
 				foreach ($this->column("SELECT scan_name as v FROM ".$p."vereine_consent WHERE entity = ".$entity." AND fk_adherent = ".$id." AND scan_name IS NOT NULL AND scan_name <> ''") as $scan) {
 					$files[] = $this->folder($member).'/'.basename((string) $scan);
@@ -298,7 +301,8 @@ class VereineErasure
 			} elseif ($kind === 'log') {
 				$changed = $this->change("DELETE FROM ".$p."vereine_log WHERE entity = ".$entity." AND fk_adherent = ".$id
 					." AND action NOT IN ('".VereineLog::ERASURE."', '".VereineLog::ERASURE_HOLD."')")
-					+ $this->change("DELETE FROM ".$p."vereine_profile_request WHERE entity = ".$entity." AND fk_adherent = ".$id);
+					+ $this->change("DELETE FROM ".$p."vereine_profile_request WHERE entity = ".$entity." AND fk_adherent = ".$id)
+					+ $this->change("DELETE FROM ".$p."vereine_profile_once WHERE entity = ".$entity." AND fk_adherent = ".$id);
 			} elseif ($kind === 'volunteer') {
 				$changed = $this->change("DELETE FROM ".$p."vereine_volunteer WHERE entity = ".$entity." AND fk_adherent = ".$id);
 			} elseif ($kind === 'donations') {
@@ -307,6 +311,10 @@ class VereineErasure
 				$changed = $this->change("DELETE FROM ".$p."vereine_donor WHERE entity = ".$entity." AND fk_adherent = ".$id);
 			} elseif ($kind === 'name') {
 				$changed = $this->change("UPDATE ".$p."adherent SET lastname = '".$this->db->escape(self::ANONYMOUS)."', firstname = NULL, civility = NULL, login = NULL, pass_crypted = NULL WHERE rowid = ".$id);
+				// The honours stay with the history of the association; what was noted about the person and publishing them go (#274).
+				if ($changed >= 0 && $this->change("UPDATE ".$p."vereine_honour SET note = NULL, publishable = 0 WHERE entity = ".$entity." AND fk_adherent = ".$id) < 0) {
+					$changed = -1;
+				}
 			}
 			if ($changed < 0) {
 				return $this->fail($this->error);
