@@ -326,6 +326,11 @@ class VereinePortalController extends Controller
 			print '<div data-vereine-portal-ballot="'.$ballot['id'].'" data-vereine-portal-ballot-status="'.$ballot['status'].'"><p><strong>'.dol_escape_htmltag($ballot['question']).'</strong> · '
 				.$langs->trans('VereineBallotStatus_'.$ballot['status']).'</p>';
 			$labels = array_column($ballot['options'], 'label', 'code');
+			if (!empty($ballot['secret'])) {
+				// A secret election is voted on paper in the room; here it only says so (#276).
+				print '<p data-vereine-portal-ballot-secret="1"><small>'.$langs->trans('VereineBallotSecretPaperPortal').'</small></p></div>';
+				continue;
+			}
 			foreach ($ballot['rights'] as $right) {
 				$for = $right['for'] === 'proxy' ? $langs->trans('VereinePortalFor', dol_escape_htmltag($right['name'])) : $langs->trans('VereinePortalOwn');
 				if ($right['state'] === 'used') {

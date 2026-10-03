@@ -40,6 +40,7 @@ require_once $root.'/class/vereinetaxrules.class.php';
 require_once $root.'/class/vereinethresholds.class.php';
 require_once $root.'/class/vereinewebsiteprofilerules.class.php';
 require_once $root.'/class/vereinefilerules.class.php';
+require_once $root.'/class/vereinecheckinrules.class.php';
 require_once $root.'/class/vereinecashregister.class.php';
 require_once $root.'/class/vereinemembersummary.class.php';
 require_once $root.'/class/vereinewebsiteevents.class.php';
@@ -1885,6 +1886,7 @@ $prefixes = array(
 	'VereineMeetingStatus_' => VereineMeetingRules::STATUSES,
 	'VereineMeetingDeleteHas_' => VereineMeetingRules::RECORDS,
 	'VereineWaitingNotice_' => array('ballot', 'vote', 'signature'),
+	'VereineCheckInAction_' => array(VereineCheckInRules::ACTION_PRESENT, VereineCheckInRules::ACTION_REVOKED),
 	'VereineMeetingFormat_' => VereineMeetingRules::FORMATS,
 	'VereineMeetingChannel_' => array(VereineMeetingRules::CHANNEL_EMAIL, VereineMeetingRules::CHANNEL_LETTER),
 	'VereineMeetingRecipientsHelp_' => VereineMeetingRules::KINDS,
@@ -1906,7 +1908,7 @@ $prefixes = array(
 	'VereineVatCode_' => array_column(VereineTaxRules::zeroCodes(), 'key'),
 	'VereineBallotResult_' => VereineBallotRules::RESULTS,
 	'VereineBallotOutcome_' => VereineBallotRules::OUTCOMES,
-	'VereineBallotRefused_' => array('not_found', 'not_open', 'closed', 'channel', 'used', 'not_present', 'option', 'external_id'),
+	'VereineBallotRefused_' => array('not_found', 'not_open', 'closed', 'channel', 'used', 'not_present', 'option', 'external_id', 'secret'),
 	'VereineMinutesPlaceholder_' => VereineMinutesRules::PLACEHOLDERS,
 	'VereineMinutesItemKind_' => VereineMinutesRules::ITEM_KINDS,
 	'VereineMeetingStep_' => VereineMeetingRules::STEPS,
@@ -3094,6 +3096,18 @@ same(array('VereinePublicationErrorFile', 'VereineExcerptErrorMissing', 'Vereine
 		VereineArchiveRules::excerptProblem(5, 'a.pdf', 10, 'PK', 100), VereineArchiveRules::excerptProblem(5, 'Kurz.PDF', 10, '%PDF-', 100)),
 	'a shortened version needs an original, a PDF, not too large');
 same(true, in_array('document', VereineChangeRules::TYPES, true), 'the change feed carries documents');
+// Ballots and assemblies name the state they reached; other kinds name none (#271).
+same(array(true, true, true, false, false, true), array(VereineChangeRules::knownState('ballot', 'opened'), VereineChangeRules::knownState('meeting', 'started'),
+	VereineChangeRules::knownState('membership', ''), VereineChangeRules::knownState('membership', 'opened'), VereineChangeRules::knownState('ballot', 'started'),
+	VereineChangeRules::knownState('meeting', '')), 'states only where the kind of object has them');
+same(array(true, true), array(in_array('ballot', VereineChangeRules::TYPES, true), in_array('meeting', VereineChangeRules::TYPES, true)),
+	'the change feed carries ballots and assemblies');
+$withState = json_decode(VereineHookRules::body(array('event_id' => 'e1', 'object_type' => 'ballot', 'object_id' => 7, 'revision' => 2, 'change' => 'updated',
+	'state' => 'opened', 'occurred_at' => '2026-10-10T19:04:12Z')), true);
+same(array('version', 'event_id', 'object_type', 'object_id', 'revision', 'change', 'state', 'occurred_at'), array_keys($withState),
+	'a webhook of a ballot names its state before the moment');
+same(false, array_key_exists('state', json_decode(VereineHookRules::body(array('event_id' => 'e2', 'object_type' => 'membership', 'object_id' => 1, 'revision' => 1,
+	'change' => 'updated', 'state' => '', 'occurred_at' => '2026-10-10T19:04:12Z')), true)), 'a webhook of a member has no state');
 
 // ------------------------------------------------------------- who sees an event (#165)
 
@@ -3265,6 +3279,49 @@ same(array(array(), array('VereineBallotErrorBoard')), array(
 	VereineBallotRules::releaseProblems(array('status' => 'draft', 'channels' => array('dolibarr', 'paper')), array(), array('kind' => 'board', 'status' => 'invited')),
 	VereineBallotRules::releaseProblems(array('status' => 'draft', 'channels' => array('app', 'paper')), array(), array('kind' => 'board', 'status' => 'invited')),
 ), 'a vote of the board is released in Dolibarr and on paper, never through an application');
+
+// Check-in at a general assembly through an application (#272): on its day, while it is open, for invited members, by the board.
+$assembly = array('id' => 4, 'kind' => VereineMeetingRules::KIND_GENERAL, 'day' => '2026-10-10', 'status' => VereineMeetingRules::STATUS_INVITED);
+same(array('', 'not_found', 'not_found', 'not_board', 'not_invited', 'not_today', 'not_open'), array(
+	VereineCheckInRules::problem($assembly, '2026-10-10', true, true),
+	VereineCheckInRules::problem(null, '2026-10-10', true, true),
+	VereineCheckInRules::problem(array('kind' => VereineMeetingRules::KIND_BOARD) + $assembly, '2026-10-10', true, true),
+	VereineCheckInRules::problem($assembly, '2026-10-10', false, false),
+	VereineCheckInRules::problem($assembly, '2026-10-10', false, true),
+	VereineCheckInRules::problem($assembly, '2026-10-11', true, true),
+	VereineCheckInRules::problem(array('status' => VereineMeetingRules::STATUS_HELD) + $assembly, '2026-10-10', true, true),
+), 'a check-in needs an assembly that is open on its day, an invited member and somebody on the board; whoever is not on the board learns nothing about the invitations');
+same(array(404, 403, 409, 409, 400, 400), array(VereineCheckInRules::status('not_found'), VereineCheckInRules::status('not_board'), VereineCheckInRules::status('not_today'),
+	VereineCheckInRules::status('external_id'), VereineCheckInRules::status('reason_missing'), VereineCheckInRules::status('time')), 'the answers of the API for each problem');
+same(array('scan-0042', '', '', '19:05', '18:58', null), array(VereineCheckInRules::externalId(' scan-0042 '), VereineCheckInRules::externalId('mit leer'),
+	VereineCheckInRules::externalId(str_repeat('x', 65)), VereineCheckInRules::arrival('', '19:05'), VereineCheckInRules::arrival('18:58', '19:05'),
+	VereineCheckInRules::arrival('7 Uhr', '19:05')), 'the id of a request and the time of arrival as an application sends them');
+same(array(true, false), array(VereineCheckInRules::sameRequest(array('meeting_id' => 4, 'member_id' => 7, 'action' => 'present'), 4, 7, 'present'),
+	VereineCheckInRules::sameRequest(array('meeting_id' => 4, 'member_id' => 7, 'action' => 'present'), 4, 8, 'present')), 'the same request again, or another under the same id');
+same(array('member_id' => 7, 'state' => 'present', 'arrived' => '18:58', 'voting' => true, 'reason' => 'own', 'present' => 12, 'eligible' => 40, 'quorum_from' => 20,
+	'quorum_reached' => false), VereineCheckInRules::answer(7, array('state' => 'present', 'arrived' => '18:58'), array('eligible' => true, 'reason' => 'own'),
+	array('present' => 12, 'eligible' => 40, 'required' => 20, 'reached' => false)), 'the answer names the voting right and how far the quorum is');
+same(array(false, 'absent', ''), array_values(array_intersect_key(VereineCheckInRules::answer(7, array('state' => 'absent', 'arrived' => ''), array('eligible' => true, 'reason' => 'own'),
+	array('present' => 11, 'eligible' => 40, 'required' => 20, 'reached' => false)), array('voting' => 1, 'reason' => 1, 'arrived' => 1))),
+	'taken back, the member does not vote');
+
+// A secret election on paper (#276): ballot papers only, totals no more than the papers handed out, invalid ones apart.
+$secretEntered = VereineBallotRules::entered(array('item' => '1', 'kind' => 'resolution', 'question' => 'Wahl geheim', 'secret' => '1', 'channels' => array('app')),
+	array(), 4, array());
+same(array(array(), true, array('paper')), array($secretEntered['errors'], $secretEntered['ballot']['secret'], $secretEntered['ballot']['channels']),
+	'a secret election runs on ballot papers only, whatever ways were ticked');
+same(array(array(), array('VereineBallotErrorSecret')), array(
+	VereineBallotRules::releaseProblems(array('status' => 'draft', 'secret' => true, 'channels' => array('paper')), array(), array('kind' => 'general', 'status' => 'invited')),
+	VereineBallotRules::releaseProblems(array('status' => 'draft', 'secret' => true, 'channels' => array('app', 'paper')), array(), array('kind' => 'general', 'status' => 'invited')),
+), 'secret only on paper in the room');
+same(array('totals' => array('yes' => 30, 'no' => 12, 'abstain' => 3), 'invalid' => 2, 'errors' => array()),
+	VereineBallotRules::totals(array('yes', 'no', 'abstain'), array('yes' => '30', 'no' => ' 12 ', 'abstain' => '3', 'invalid' => '2'), 47), 'totals as counted');
+same(array(array('VereineBallotErrorTotalTooMany'), array('VereineBallotErrorTotal')), array(
+	VereineBallotRules::totals(array('yes', 'no'), array('yes' => '30', 'no' => '12', 'invalid' => '6'), 47)['errors'],
+	VereineBallotRules::totals(array('yes', 'no'), array('yes' => '-1', 'no' => 'zwölf'), 47)['errors'],
+), 'more votes than ballot papers, or no whole number, is refused');
+same(array('counts' => array('yes' => 30, 'no' => 12, 'abstain' => 3), 'valid' => 42, 'abstain' => 3, 'invalid' => 2),
+	VereineBallotRules::tallyTotals(array('yes', 'no', 'abstain'), array('yes' => 30, 'no' => 12, 'abstain' => 3), 2), 'abstentions and invalid papers are no valid votes');
 
 // A meeting goes only when it was planned or called off and nothing is recorded in it (#266).
 same(array(array(), array(), array('VereineMeetingDeleteInvited'), array('VereineMeetingDeleteHeld', 'VereineMeetingDeleteHas_votes'),

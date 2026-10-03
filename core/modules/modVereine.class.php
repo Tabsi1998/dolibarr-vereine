@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '1.6.0';
+		$this->version = '1.7.0';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -212,6 +212,12 @@ class modVereine extends DolibarrModules
 		$this->rights[$r][1] = 'Vote through the API for any member by member id';
 		$this->rights[$r][4] = 'members';
 		$this->rights[$r][5] = 'vote';
+		$r++;
+		// Checking members in at a general assembly through an application, in the name of the board (#272).
+		$this->rights[$r][0] = $this->numero.'10';
+		$this->rights[$r][1] = 'Check members in at a general assembly through the API, in the name of a board member';
+		$this->rights[$r][4] = 'attendance';
+		$this->rights[$r][5] = 'write';
 		$r++;
 
 		$this->menu = array();

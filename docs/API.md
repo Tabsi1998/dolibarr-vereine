@@ -36,7 +36,7 @@ Modulversion und API-Version – ein günstiger Weg, die Verbindung zu testen.
 
 ```json
 {
-  "module_version": "1.6.0",
+  "module_version": "1.7.0",
   "api_version": 2,
   "server_time": "2026-09-17T08:00:00Z"
 }
@@ -764,7 +764,7 @@ kein Mitglied, das seine eigenen Daten liest.
 | --- | --- |
 | `cursor` | Stand des Lesers. Leer beginnt am Anfang. Undurchsichtig – unverändert zurückgeben. |
 | `limit` | Ereignisse je Seite, 1 bis 500, ohne Angabe 100. |
-| `types` | Objektarten mit Komma getrennt: `membership`, `function`, `fee`, `application`, `consent`. |
+| `types` | Objektarten mit Komma getrennt: `membership`, `function`, `fee`, `application`, `consent`, `document`, `ballot`, `meeting`. |
 
 ```json
 {
@@ -795,13 +795,32 @@ schon kennt, darf ihn verwerfen.
 nicht von diesem Verein, antwortet der Feed mit `resync_required: true` und **ohne** Ereignisse.
 Dann ist ein Vollabgleich fällig – eine stille Lücke gibt es nicht.
 
+**Abstimmungen und Versammlungen** (seit 1.7.0). Damit eine Anwendung ihre Mitglieder binnen Sekunden auf
+eine offene Abstimmung hinweisen kann, meldet der Feed auch diese beiden Objektarten. Ihre Einträge nennen
+zusätzlich den erreichten **Zustand** in `state`:
+
+| `object_type` | `state` |
+| --- | --- |
+| `ballot` (Abstimmung einer Generalversammlung, Kennung wie in `me/ballots`) | `released` freigegeben, `opened` eröffnet, `closed` geschlossen, `confirmed` Ergebnis festgestellt, `cancelled` abgesagt |
+| `meeting` (Generalversammlung, Kennung wie in `me/meetings`) | `invited` eingeladen, `started` begonnen, `ended` beendet, `cancelled` abgesagt; eine gelöschte Versammlung erscheint mit `change: "deleted"` ohne `state` |
+
+```json
+{"event_id": "4c1a…", "object_type": "ballot", "object_id": 7, "revision": 2,
+ "change": "updated", "state": "opened", "occurred_at": "2026-10-10T19:04:12Z"}
+```
+
+Einträge nennen nur Kennung, Zustand und Zeitpunkt – nie Stimmen, und es gibt keinen Eintrag je
+abgegebener Stimme, aus dem sich ablesen ließe, wer wann abgestimmt hat. Vorstandssitzungen und ihre
+Abstimmungen erscheinen nicht: Sie bleiben in Dolibarr. „Begonnen“ und „beendet“ setzt die
+Versammlungsleitung mit *Sitzung beginnen* und *Sitzung beenden* auf der Sitzung.
+
 ## GET /vereine/changes/snapshot
 
 Der Vollabgleich. Eine Seite führt die IDs **einer** Objektart auf, sonst nichts.
 
 | Parameter | Bedeutung |
 | --- | --- |
-| `object_type` | `membership`, `function`, `fee`, `application`, `consent` oder `document`. |
+| `object_type` | `membership`, `function`, `fee`, `application`, `consent`, `document`, `ballot` oder `meeting`. |
 | `after` | Weiter nach dieser ID, 0 zum Beginnen. |
 | `limit` | Objekte je Seite, 1 bis 500, ohne Angabe 100. |
 
@@ -847,8 +866,8 @@ bestehender Schlüssel ein zusätzliches Recht.
    **Bindung** – bei **genau dieser Anwendung** und in **diesem Mandanten**.
 3. Die Bindung ist nicht widerrufen.
 4. Die Bindung trägt die **Fähigkeit**, um die es geht (`consents`, `applications`, `documents`,
-   `votes`, `accounts`, `meetings`, `profile`, `events`, `invoices`). Alle sind aus, bis der Verein sie
-   einschaltet.
+   `votes`, `accounts`, `meetings`, `profile`, `events`, `invoices`, `attendance`). Alle sind aus, bis der Verein
+   sie einschaltet.
 5. Das Objekt ist **das eigene**: das gebundene Mitglied oder der gebundene Antrag. Wer nach einem
    fremden fragt, wird abgewiesen, nicht umgeleitet.
 
@@ -1068,6 +1087,11 @@ Im Vorstand stimmt jede Person selbst in Dolibarr ab oder auf einem Stimmzettel 
 Eine Abstimmung gehört immer zu einem Tagesordnungspunkt einer Generalversammlung; eine Umfrage allein ist
 keine Versammlung. `status`: `released` (angekündigt), `open`, `closed`, `evaluated`, `cancelled`.
 
+`secret: true` (seit 1.7.0) ist eine **geheime Wahl auf Papier**: Abgestimmt wird auf Stimmzetteln im Saal, nie
+über eine Anwendung. Die Stimmrechte erscheinen trotzdem – `state: "used"` heißt dann „Stimmzettel erhalten“,
+`option` bleibt leer. Eine Stimmabgabe darauf antwortet mit `409` (`secret`). Das bestätigte Ergebnis kommt wie
+bei jeder anderen Abstimmung, nur als Summen.
+
 `rights` sind die Stimmrechte, die die Person nutzen kann: das eigene und die von Mitgliedern, die ihr
 eine schriftliche Vollmacht gegeben haben. Sie werden beim **Öffnen** festgehalten – aus Einladung
 (stimmberechtigt oder nicht), Mitgliedschaft am Versammlungstag und den Vollmachten der Anwesenheitsliste.
@@ -1130,6 +1154,32 @@ was der Verein als geleistet bestätigt.
 
 `subject`, Fähigkeit `events`. Zieht eine noch **nicht bestätigte** Anfrage zurück. Einen bestätigten
 Dienst sagt die Person beim Verein ab (`409`).
+
+### PUT und DELETE /vereine/meetings/{id}/attendance/{member}
+
+**Einlass bei der Generalversammlung** (seit 1.7.0), etwa nach dem Scan des Mitgliedsausweises. Die
+Anwendung löst den Ausweis selbst in eine Mitglieds-ID auf (zum Beispiel über `members/lookup`); das Modul
+speichert keine Ausweisdaten.
+
+- **Im Namen eines Vorstandsmitglieds:** `subject` einer Bindung mit der Fähigkeit `attendance` – oder
+  `member_id` des Vorstandsmitglieds, wenn der API-Benutzer das Recht *Mitglieder bei einer
+  Generalversammlung einlassen* hat. Wer am Tag keine Funktion im Vorstand hat, bekommt `403`.
+- **`PUT`** setzt „anwesend“, Body `{"external_id": "scan-0042", "arrived": "18:58"}` (`arrived` ohne Angabe =
+  jetzt). **`DELETE`** nimmt den Einlass zurück: `?external_id=scan-0043&reason=falscher Ausweis`.
+- **Dieselbe `external_id` noch einmal** ändert nichts und gibt dieselbe Antwort; eine andere Änderung unter
+  derselben `external_id` gibt `409`.
+- Nur am **Tag** einer **eingeladenen, offenen** Generalversammlung (sonst `409`) und nur für ein **eingeladenes**
+  Mitglied (sonst `404`). Vorstandssitzungen gibt es hier nicht (`404`).
+- Jeder Einlass steht auf der Sitzung unter *Einlass über Anwendungen*: wann, wer, im Namen von wem, über
+  welche Anwendung, mit welchem Grund.
+
+```json
+{"member_id": 42, "state": "present", "arrived": "18:58", "voting": true, "reason": "own",
+ "present": 23, "eligible": 61, "quorum_from": 31, "quorum_reached": false}
+```
+
+`voting` sagt, ob das Mitglied jetzt abstimmen darf, `reason` warum (`own`, `no_voting_right`, `not_member`,
+`absent`). `quorum_from` ist die Zahl der Stimmen, ab der die Versammlung laut Statuten beschlussfähig ist.
 
 ### GET /vereine/me/invoices
 
@@ -1197,7 +1247,8 @@ Nie während einer Fachtransaktion. Eine geplante Aufgabe (alle fünf Minuten) m
  "revision":3,"change":"updated","occurred_at":"2026-09-23T14:05:11Z"}
 ```
 
-Mehr nicht: keine Namen, Beträge, Dokumente, Bankdaten oder Stimmen.
+Mehr nicht: keine Namen, Beträge, Dokumente, Bankdaten oder Stimmen. Bei `ballot` und `meeting` steht
+wie im Feed zusätzlich `state` vor `occurred_at` (seit 1.7.0).
 
 ### Die Signatur
 

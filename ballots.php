@@ -106,7 +106,7 @@ $result = null;
 if ($action === 'create' && $canWrite) {
 	$entered = array('item' => GETPOST('item', 'aZ09'), 'kind' => GETPOST('kind', 'aZ09'), 'question' => GETPOST('question', 'alphanohtml'),
 		'channels' => (array) GETPOST('channels', 'array'), 'closes' => GETPOST('closes', 'alphanohtml'), 'function_id' => GETPOST('function_id', 'aZ09'),
-		'candidates' => (array) GETPOST('candidates', 'array'));
+		'candidates' => (array) GETPOST('candidates', 'array'), 'secret' => GETPOSTISSET('secret'));
 	$entered['consent'] = GETPOSTISSET('consent') ? $entered['candidates'] : array();
 	$result = $ballots->create($meeting['id'], $entered, $user);
 } elseif ($ballot !== null && $canWrite && $action === 'release') {
@@ -154,6 +154,18 @@ if ($action === 'create' && $canWrite) {
 	if ($result === 2) {
 		$result = 1;
 	}
+} elseif ($ballot !== null && $canWrite && $action === 'handout') {
+	// A ballot paper of a secret election handed out: the right is used, the vote stays on the paper (#276).
+	$result = $ballots->handOut($ballot['id'], GETPOSTINT('right'), $user);
+	if ($result === 0) {
+		$ballots->errors = array('VereineBallotRefused_'.$ballots->reason);
+	}
+} elseif ($ballot !== null && $canWrite && $action === 'totals') {
+	$entered = array('invalid' => GETPOST('total_invalid', 'alphanohtml'));
+	foreach ($ballot['options'] as $entry) {
+		$entered[$entry['code']] = GETPOST('total_'.$entry['code'], 'alphanohtml');
+	}
+	$result = $ballots->saveTotals($ballot['id'], $entered, $user);
 } elseif ($ballot !== null && $canWrite && $action === 'paper') {
 	// A paper ballot the board collected: the same voting right, used once whichever way.
 	$result = $ballots->cast($ballot['id'], GETPOSTINT('right'), GETPOST('option', 'aZ09'), 0, VereineBallotRules::CHANNEL_PAPER, '', '', $user);
@@ -204,7 +216,9 @@ foreach ($ballots->forMeeting($meeting['id']) as $shown) {
 	print '<div class="fichecenter paddingbottom" data-ballot="'.$id.'" data-ballot-status="'.$shown['status'].'">';
 	print '<table class="border centpercent"><tr><td class="titlefield">'.$langs->trans('VereineVoteItem').' '.$shown['item'].'</td>';
 	print '<td><strong>'.dol_escape_htmltag($shown['question']).'</strong> · '.$langs->trans('VereineVoteKind_'.$shown['kind']);
-	print ' · <span class="badge badge-status4">'.$langs->trans('VereineBallotStatus_'.$shown['status']).'</span></td></tr>';
+	print ' · <span class="badge badge-status4">'.$langs->trans('VereineBallotStatus_'.$shown['status']).'</span>';
+	print $shown['secret'] ? ' · <span class="badge badge-status8" data-ballot-secret="1">'.$langs->trans('VereineBallotSecretPaper').'</span>' : '';
+	print '</td></tr>';
 	print '<tr><td>'.$langs->trans('VereineBallotOptions').'</td><td>';
 	$labels = array();
 	foreach ($shown['options'] as $entry) {
@@ -260,21 +274,43 @@ foreach ($ballots->forMeeting($meeting['id']) as $shown) {
 		foreach ($rights as $right) {
 			print '<tr class="oddeven" data-ballot-right="'.$right['id'].'" data-ballot-right-member="'.$right['member_id'].'"><td>'.dol_escape_htmltag($right['name']).'</td><td>'
 				.$langs->trans('VereineBallotReason_'.$right['reason']).($right['reason'] === VereineBallotRules::REASON_PROXY ? ': '.dol_escape_htmltag($right['holder_name']) : '').'</td><td>';
-			// An open ballot shows who voted, never what; the choice is counted after closing.
-			print $right['used'] ? $langs->trans('VereineBallotVoted', $langs->trans('VereineBallotChannel_'.$right['channel'])) : ($right['eligible'] ? $langs->trans('VereineBallotNotVoted') : '');
+			// An open ballot shows who voted, never what; the choice is counted after closing. Secret: only who got a ballot paper (#276).
+			if ($shown['secret']) {
+				print $right['used'] ? $langs->trans('VereineBallotHandedOut') : ($right['eligible'] ? $langs->trans('VereineBallotNotHandedOut') : '');
+			} else {
+				print $right['used'] ? $langs->trans('VereineBallotVoted', $langs->trans('VereineBallotChannel_'.$right['channel'])) : ($right['eligible'] ? $langs->trans('VereineBallotNotVoted') : '');
+			}
 			print '</td></tr>';
 			if ($right['eligible'] && !$right['used']) {
 				$unused[$right['id']] = $right['name'].($right['reason'] === VereineBallotRules::REASON_PROXY ? ' ('.$right['holder_name'].')' : '');
 			}
 		}
 		print '</table></div>';
-		if ($canWrite && $shown['status'] === VereineBallotRules::STATUS_OPEN && in_array(VereineBallotRules::CHANNEL_PAPER, $shown['channels'], true) && $unused) {
+		if ($canWrite && $shown['secret'] && $shown['status'] === VereineBallotRules::STATUS_OPEN && $unused) {
+			print '<div class="paddingtop">'.$langs->trans('VereineBallotHandOut').' ';
+			print $form('vereineballothandout'.$id, 'handout', $id, $langs->trans('VereineBallotHandOutButton'), Form::selectarray('right', $unused, '', 0, 0, 0, '', 0, 0, 0, '', 'maxwidth200').' ');
+			print '</div>';
+		}
+		if ($canWrite && $shown['secret'] && $shown['status'] === VereineBallotRules::STATUS_CLOSED) {
+			// The totals after counting the ballot papers in the room (#276).
+			$totalsEntered = $ballots->totals($id);
+			$inputs = '';
+			foreach ($shown['options'] as $entry) {
+				$inputs .= '<label class="paddingright">'.$option($entry['code'], $entry['label']).' <input type="number" min="0" class="width50" name="total_'.dol_escape_htmltag($entry['code'])
+					.'" value="'.(isset($totalsEntered['totals'][$entry['code']]) ? (int) $totalsEntered['totals'][$entry['code']] : '').'"></label>';
+			}
+			$inputs .= '<label class="paddingright">'.$langs->trans('VereineBallotInvalid').' <input type="number" min="0" class="width50" name="total_invalid" value="'.($totalsEntered['entered'] ? (int) $totalsEntered['invalid'] : '').'"></label>';
+			print '<div class="paddingtop" data-ballot-totals="'.($totalsEntered['entered'] ? 1 : 0).'">'.$langs->trans('VereineBallotTotals').'<br>';
+			print $form('vereineballottotals'.$id, 'totals', $id, $langs->trans('VereineBallotTotalsSave'), $inputs);
+			print '</div>';
+		}
+		if ($canWrite && !$shown['secret'] && $shown['status'] === VereineBallotRules::STATUS_OPEN && in_array(VereineBallotRules::CHANNEL_PAPER, $shown['channels'], true) && $unused) {
 			print '<div class="paddingtop">'.$langs->trans('VereineBallotPaper').' ';
 			print $form('vereineballotpaper'.$id, 'paper', $id, $langs->trans('VereineBallotPaperButton'), Form::selectarray('right', $unused, '', 0, 0, 0, '', 0, 0, 0, '', 'maxwidth200')
 				.' '.Form::selectarray('option', $labels, '', 0, 0, 0, '', 0, 0, 0, '', 'maxwidth150', 0, '', 0, 1).' ');
 			print '</div>';
 		}
-		if (in_array($shown['status'], array(VereineBallotRules::STATUS_CLOSED, VereineBallotRules::STATUS_EVALUATED), true)) {
+		if (in_array($shown['status'], array(VereineBallotRules::STATUS_CLOSED, VereineBallotRules::STATUS_EVALUATED), true) && (!$shown['secret'] || $ballots->totals($id)['entered'])) {
 			$tally = $ballots->tally($shown);
 			print '<div class="paddingtop" data-ballot-valid="'.$tally['valid'].'"><strong>'.$langs->trans('VereineBallotTally').'</strong> ';
 			foreach ($tally['counts'] as $code => $count) {
@@ -346,6 +382,7 @@ if ($canWrite) {
 	}
 	print '</select><br><label><input type="checkbox" name="consent" value="1"> '.$langs->trans('VereineBallotConsent').'</label>';
 	print '<br><span class="opacitymedium small">'.$langs->trans('VereineBallotElectionHint').'</span></td></tr>';
+	print '<tr><td>'.$langs->trans('VereineBallotSecretPaper').'</td><td><label><input type="checkbox" name="secret" value="1"> '.$langs->trans('VereineBallotSecretPaperHelp').'</label></td></tr>';
 	print '<tr><td>'.$langs->trans('VereineBallotChannels').'</td><td>';
 	if ($board) {
 		print $langs->trans('VereineBallotChannelsBoard');

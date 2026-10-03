@@ -111,6 +111,19 @@ Meldungen, Wahlen, Anträge, Unterschriften und Rückstände, das Dringendste zu
   von selbst, und bei beiden poppt es auf. Unterschreiben darf, wer dran ist – auch ohne das Recht,
   Mitglieder zu ändern; Dolibarr fragt das eigene Passwort ab. Einen Scan hochladen oder Unterschriften
   neu starten bleibt beim Vorstand mit Schreibrecht.
+- **Geheime Wahl auf Papier**: Geheime Wahlen – etwa die Wahl des Vorstands – laufen auf Stimmzetteln im
+  Saal. So bleibt die Stimme auch gegenüber der Verwaltung und den Sicherungen geheim. Der Ablauf:
+  1. Unter *Sitzung > Abstimmungen* die Abstimmung mit dem Häkchen **geheim – Stimmzettel im Saal**
+     anlegen, freigeben und am Versammlungstag öffnen. Die Stimmrechte samt Vollmachten werden dabei
+     festgehalten.
+  2. Die Wahlkommission gibt die Stimmzettel aus und hakt für jede Person **Stimmzettel ausgegeben** ab.
+     Wer eine Vollmacht hat, bekommt einen Zettel je Stimmrecht. Festgehalten wird nur, wer einen
+     Zettel bekommen hat, nie was darauf steht.
+  3. Nach dem Wählen **schließen**, im Saal auszählen und die **Summen** eintragen: Stimmen je Antwort
+     bzw. Kandidat und die ungültigen Zettel. Mehr Stimmen als ausgegebene Zettel nimmt das Modul nicht an.
+  4. **Auswerten** erzeugt den Nachweis als PDF (ohne Personen), **Ergebnis bestätigen** trägt den
+     Beschluss bzw. die Wahl ein.
+  App und Webportal zeigen die Wahl an, bieten aber keine Stimmabgabe an.
 - **Abstimmungen in der App**: In einer Generalversammlung können Mitglieder über ihre App oder das
   Webportal abstimmen, der Vorstand trägt Stimmzettel ein. Unter *Sitzung > Abstimmungen in der App*:
   anlegen, **Freigeben** (die Regeln werden festgehalten), am Versammlungstag **Öffnen** (die Stimmrechte

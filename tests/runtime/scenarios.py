@@ -424,7 +424,8 @@ def enable(stack: Stack) -> str:
     expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"], ["49210003", "website", "read"],
                       ["49210004", "application", "write"], ["49210005", "sync", "read"],
                       ["49210006", "identity", "use"], ["49210007", "donation", "write"],
-                      ["49210008", "members", "act"], ["49210009", "members", "vote"]], f"rights after enabling: {rights}")
+                      ["49210008", "members", "act"], ["49210009", "members", "vote"], ["49210010", "attendance", "write"]],
+           f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_account", "/vereine/account.php"],
                     ["members", "vereine_application", "/vereine/application.php"],
@@ -2702,7 +2703,10 @@ def changes(stack: Stack) -> str:
             break
     expect(seen, "the feed holds nothing although members and invoices were changed")
     kinds = {event["object_type"] for event in seen}
-    expect(kinds <= {"membership", "function", "fee", "application", "consent"}, f"kinds in the feed: {sorted(kinds)}")
+    expect(kinds <= {"membership", "function", "fee", "application", "consent", "document", "ballot", "meeting"}, f"kinds in the feed: {sorted(kinds)}")
+    # Only ballots and general assemblies say which state they reached (#271); one that was deleted has none.
+    expect(all(("state" in event) == (event["object_type"] in ("ballot", "meeting") and event["change"] != "deleted") for event in seen),
+           f"a state where none belongs, or none where one does: {[event for event in seen if event['object_type'] in ('ballot', 'meeting')][:3]}")
     body = json.dumps(seen)
     for forbidden in ("firstname", "lastname", "iban", "amount", "email"):
         expect(forbidden not in body, f"the feed carries {forbidden}, which is content and does not belong in it")
@@ -7100,6 +7104,141 @@ def boardvote(stack: Stack) -> str:
             "the keeper who may only read saw it waiting, a wrong password was refused, the keeper signed, no scan offered")
 
 
+def assemblylive(stack: Stack) -> str:
+    """A general assembly live: begun and ended in the change feed (#271), members checked in through an application in the name of the
+    board (#272), a secret election on paper with ballot papers ticked off and only its totals counted (#276)."""
+    browser = stack.browser()
+    base = "/custom/vereine/meetings.php"
+    today = stack.today()
+    key = stack.notes["website"]["key"]
+    page = page_ok(browser.get(f"{base}?template=general"), "a new general assembly")
+    page_ok(browser.submit(page.form(name="vereinemeeting"), {"day": (datetime.date.fromisoformat(today) + datetime.timedelta(days=30)).isoformat(), "time": "18:00",
+                                                               "format": "hybrid", "place": "Vereinsheim", "access": "https://meet.example.org/live",
+                                                               "title": "Generalversammlung live"}), "store the assembly")
+    meeting = int(stack.value("SELECT MAX(rowid) FROM llx_vereine_meeting WHERE title = 'Generalversammlung live'"))
+    page_ok(browser.submit(page_ok(browser.get(f"{base}?id={meeting}"), "the assembly").form(name="vereinemeetinginvite"), {"checked": "1"}), "invite")
+    # The invitation went out in time; the assembly is today.
+    stack.sql(f"UPDATE llx_vereine_meeting SET meeting_day = '{today}' WHERE rowid = {meeting}")
+    card = page_ok(browser.get(f"{base}?id={meeting}"), "the assembly before it begins")
+    page_ok(browser.submit(card.form(name="vereinemeetingbegin")), "begin the assembly")
+    expect(stack.value(f"SELECT started_at IS NOT NULL FROM llx_vereine_meeting WHERE rowid = {meeting}") == "1", "the beginning of the assembly was not kept")
+    card = page_ok(browser.get(f"{base}?id={meeting}"), "the assembly that has begun")
+    expect('name="vereinemeetingcancel"' not in card.text and 'name="vereinemeetingheld"' in card.text, "a begun assembly offers to call it off, or not to end it")
+    page_ok(browser.post(f"{base}?id={meeting}", [("token", token_of(card)), ("action", "cancel")]), "call off a begun assembly")
+    expect(stack.value(f"SELECT status FROM llx_vereine_meeting WHERE rowid = {meeting}") == "invited", "a begun assembly was called off")
+
+    # Checked in through an application, in the name of somebody on the board (#272).
+    board = [int(row[0]) for row in stack.sql(
+        "SELECT DISTINCT t.fk_adherent FROM llx_vereine_function_term as t INNER JOIN llx_vereine_function as f ON f.rowid = t.fk_function AND f.board = 1 AND f.active = 1 "
+        f"INNER JOIN llx_adherent as d ON d.rowid = t.fk_adherent AND d.statut = 1 WHERE t.date_start <= '{today}' AND (t.date_end IS NULL OR t.date_end >= '{today}') "
+        "ORDER BY t.fk_adherent")]
+    expect(board, "the assembly needs somebody on the board for the check-in")
+    actor = board[0]
+    voters = [int(row[0]) for row in stack.sql(f"SELECT i.fk_adherent FROM llx_vereine_meeting_invitation i INNER JOIN llx_adherent a ON a.rowid = i.fk_adherent"
+                                                f" WHERE i.fk_meeting = {meeting} AND i.voting = 1 AND a.statut = 1 AND i.fk_adherent NOT IN"
+                                                " (SELECT fk_adherent FROM llx_vereine_member_exit WHERE status <> 'cancelled') ORDER BY i.fk_adherent LIMIT 3")]
+    expect(len(voters) == 3, f"too few voting members for the check-in: {voters}")
+    outsider = [member for member in voters if member not in board]
+    desk = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtdesk", RT_CLIENT_KEY=desk, RT_EXTRA_RIGHTS="attendance/write")
+
+    def check_in(member: int, external_id: str, by: int = actor, client: str = desk) -> tuple[int, object]:
+        return stack.api(f"vereine/meetings/{meeting}/attendance/{member}?member_id={by}", client, method="PUT", data={"external_id": external_id, "arrived": "00:01"})
+
+    status, answer = check_in(voters[0], "scan-1")
+    expect(status == 200 and answer["state"] == "present" and answer["arrived"] == "00:01" and answer["voting"] is True and answer["reason"] == "own"
+           and answer["present"] >= 1 and answer["quorum_from"] >= 1, f"the check-in: HTTP {status} {answer}")
+    status, again = check_in(voters[0], "scan-1")
+    expect(status == 200 and again == answer and stack.value(f"SELECT COUNT(*) FROM llx_vereine_checkin WHERE fk_meeting = {meeting}") == "1",
+           f"the same check-in twice: HTTP {status} {again}")
+    status, _ = check_in(voters[1], "scan-1")
+    expect(status == 409, f"another check-in under the same id: HTTP {status}")
+    if outsider:
+        status, _ = check_in(voters[1], "scan-outsider", by=outsider[0])
+        expect(status == 403, f"somebody not on the board checked a member in: HTTP {status}")
+    status, _ = check_in(voters[1], "scan-website", client=key)
+    expect(status == 403, f"a client without the right to check members in did: HTTP {status}")
+    uninvited = stack.value(f"SELECT rowid FROM llx_adherent WHERE rowid NOT IN (SELECT fk_adherent FROM llx_vereine_meeting_invitation WHERE fk_meeting = {meeting})"
+                            " ORDER BY rowid LIMIT 1")
+    if uninvited not in (None, "", "NULL"):
+        status, _ = check_in(int(uninvited), "scan-uninvited")
+        expect(status == 404, f"a member who was not invited was checked in: HTTP {status}")
+    for number, member in ((2, voters[1]), (3, voters[2])):
+        status, _ = check_in(member, f"scan-{number}")
+        expect(status == 200, f"check-in {number}: HTTP {status}")
+    gone = f"vereine/meetings/{meeting}/attendance/{voters[2]}?member_id={actor}&external_id=scan-4"
+    status, _ = stack.api(gone, desk, method="DELETE")
+    expect(status == 400, f"a check-in taken back without a reason: HTTP {status}")
+    status, revoked = stack.api(gone + "&reason=Falscher%20Ausweis", desk, method="DELETE")
+    expect(status == 200 and revoked["state"] == "absent" and revoked["voting"] is False and revoked["reason"] == "absent",
+           f"the check-in taken back: HTTP {status} {revoked}")
+    card = page_ok(browser.get(f"{base}?id={meeting}"), "the assembly with check-ins")
+    expect('data-checkins="4"' in card.text and f'data-checkin-member="{voters[2]}" data-checkin-action="revoked"' in card.text,
+           "the assembly does not show where its attendance came from")
+
+    # A secret election on paper: ballot papers ticked off, only the totals counted, no vote of a person anywhere (#276).
+    ballots = f"/custom/vereine/ballots.php?meeting={meeting}"
+    page = page_ok(browser.get(ballots), "the ballots of the assembly")
+    page_ok(browser.submit(page.form(name="vereineballot"), {"item": "1", "kind": "resolution", "question": "Geheime Wahl", "secret": "1"}), "prepare a secret election")
+    ballot = int(stack.value(f"SELECT MAX(rowid) FROM llx_vereine_ballot WHERE fk_meeting = {meeting}"))
+    expect(stack.sql(f"SELECT secret, channels FROM llx_vereine_ballot WHERE rowid = {ballot}") == [["1", "paper"]], "the secret election does not run on paper only")
+    for step in ("release", "open"):
+        page_ok(browser.submit(page_ok(browser.get(ballots), f"the election before {step}").form(name=f"vereineballot{step}{ballot}")), step)
+    rights = {int(row[1]): int(row[0]) for row in stack.sql(f"SELECT rowid, fk_adherent FROM llx_vereine_ballot_right WHERE fk_ballot = {ballot} AND eligible = 1")}
+    for member in voters[:2]:
+        page = page_ok(browser.get(ballots), "the election before a ballot paper")
+        page_ok(browser.submit(page.form(name=f"vereineballothandout{ballot}"), {"right": str(rights[member])}), "hand a ballot paper out")
+    status, seen = stack.api(f"vereine/me/ballots?member_id={voters[0]}", stack.notes["voter"])
+    mine = next((entry for entry in seen if entry["id"] == ballot), None) if status == 200 else None
+    expect(mine is not None and mine["secret"] is True and [right["state"] for right in mine["rights"]] == ["used"] and mine["rights"][0]["option"] == "",
+           f"an application sees the secret election as: {mine}")
+    status, _ = stack.api(f"vereine/me/ballots/{ballot}/votes?member_id={voters[1]}", stack.notes["voter"], method="POST",
+                          data={"right_id": rights[voters[1]], "option": "yes", "external_id": "secret-1"})
+    expect(status == 409, f"a vote of a secret election came through an application: HTTP {status}")
+    page_ok(browser.submit(page_ok(browser.get(ballots), "the election before closing").form(name=f"vereineballotclose{ballot}")), "close")
+    page = page_ok(browser.get(ballots), "the election before the totals")
+    refused = page_ok(browser.submit(page.form(name=f"vereineballottotals{ballot}"), {"total_yes": "2", "total_no": "0", "total_abstain": "0", "total_invalid": "1"}),
+                      "more votes than ballot papers")
+    expect("mehr Stimmen" in html.unescape(refused.text) and stack.value(f"SELECT COUNT(*) FROM llx_vereine_ballot_total WHERE fk_ballot = {ballot}") == "0",
+           "more votes than ballot papers were taken")
+    page = page_ok(browser.get(ballots), "the election before the right totals")
+    page_ok(browser.submit(page.form(name=f"vereineballottotals{ballot}"), {"total_yes": "1", "total_no": "0", "total_abstain": "0", "total_invalid": "1"}), "the totals")
+    for step in ("evaluate", "confirm"):
+        page_ok(browser.submit(page_ok(browser.get(ballots), f"the election before {step}").form(name=f"vereineballot{step}{ballot}")), step)
+    taken = stack.sql(f"SELECT secret, yes, no FROM llx_vereine_meeting_vote WHERE fk_meeting = {meeting}")
+    votes = stack.value(f"SELECT COUNT(*) FROM llx_vereine_ballot_vote WHERE fk_ballot = {ballot}")
+    proof = stack.value(f"SELECT LENGTH(doc_sha) FROM llx_vereine_ballot_result WHERE fk_ballot = {ballot} AND status = 'confirmed'")
+    expect(taken == [["1", "1", "0"]] and votes == "0" and proof == "64", f"the secret election taken over: vote {taken}, single votes {votes}, proof {proof}")
+
+    # Ended; the change feed carried every state of the assembly and its ballot, nothing of the board (#271).
+    card = page_ok(browser.get(f"{base}?id={meeting}"), "the assembly before it ends")
+    page_ok(browser.submit(card.form(name="vereinemeetingheld")), "end the assembly")
+    expect(stack.sql(f"SELECT status, ended_at IS NOT NULL FROM llx_vereine_meeting WHERE rowid = {meeting}") == [["held", "1"]], "the end of the assembly was not kept")
+    time.sleep(6)
+    seen = []
+    cursor = ""
+    for _ in range(50):
+        status, page_of = stack.api(f"vereine/changes?types=ballot,meeting&limit=500&cursor={cursor}", key)
+        expect(status == 200, f"the feed answered HTTP {status}")
+        seen.extend(page_of["events"])
+        cursor = page_of["next_cursor"]
+        if not page_of["has_more"]:
+            break
+    states = {(event["object_type"], event["object_id"]): [] for event in seen}
+    for event in seen:
+        states[(event["object_type"], event["object_id"])].append(event.get("state"))
+    expect(states.get(("meeting", meeting)) == ["invited", "started", "ended"], f"the feed of the assembly: {states.get(('meeting', meeting))}")
+    expect(states.get(("ballot", ballot)) == ["released", "opened", "closed", "confirmed"], f"the feed of the secret election: {states.get(('ballot', ballot))}")
+    boards = {int(row[0]) for row in stack.sql("SELECT rowid FROM llx_vereine_meeting WHERE kind = 'board'")}
+    expect(not any(kind == "meeting" and identifier in boards for kind, identifier in states), "the feed carried a meeting of the board")
+    status, snapshot = stack.api("vereine/changes/snapshot?object_type=meeting&limit=500", key)
+    expect(status == 200 and {"object_type": "meeting", "object_id": meeting} in snapshot["objects"]
+           and not any(entry["object_id"] in boards for entry in snapshot["objects"]), f"the reconciliation of assemblies: HTTP {status}")
+    return (f"assembly begun, {len(voters)} checked in through an application for the board, once per id, refused for others, one taken back with its "
+            "reason; secret election on paper: ballot papers ticked off, too many votes refused, totals counted and taken over, no single vote stored; "
+            "feed: invited, started, ended and released, opened, closed, confirmed, nothing of the board")
+
+
 SCENARIOS = (
     ("upgrade", "An installation of the previous release upgrades to this package", upgrade, ()),
     ("deploy", "The package deploys through Deploy an external module", deploy, ("upgrade",)),
@@ -7189,6 +7328,7 @@ SCENARIOS = (
     ("ballotresult", "Counting ballots: proof as PDF, provisional until confirmed, confirmed once, an election's term once", ballotresult, ("ballotapi",)),
     ("portal", "Dolibarr's web portal: the page of the association, the same documents and ballots as the API, no second vote", portal, ("ballotresult",)),
     ("boardvote", "The board votes itself in Dolibarr: each person with the own user, paper without one, the result taken over at once", boardvote, ("portal",)),
+    ("assemblylive", "A general assembly live: check-in through an application, a secret election on paper, its states in the change feed", assemblylive, ("boardvote", "changes")),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),

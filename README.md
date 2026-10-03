@@ -102,8 +102,8 @@ und bringt eine REST-API für die Vereinswebsite mit.
   eine App, das Webportal oder per Stimmzettel ab. Die Stimmrechte samt Vollmachten
   werden beim Öffnen festgehalten, jedes zählt genau einmal. Die Auswertung erzeugt
   einen Nachweis als PDF; erst die Bestätigung durch die Versammlungsleitung trägt
-  den Beschluss ein und löst die Folgen aus. Geheime Wahlen folgen nach einer
-  eigenen Sicherheitsprüfung.
+  den Beschluss ein und löst die Folgen aus. Geheime Wahlen laufen auf Stimmzetteln
+  im Saal: Das Modul hakt die ausgegebenen Zettel ab und nimmt nur die Summen.
 
 - **Freiwilligenpauschale und PRAE**: Einsätze je Person mit Tag, Tätigkeit,
   Art und Betrag. Was über einer Tages-, Monats- oder Jahresgrenze liegt, markiert

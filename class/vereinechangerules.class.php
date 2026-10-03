@@ -49,9 +49,19 @@ class VereineChangeRules
 	const TYPE_CONSENT = 'consent';
 	/** A published document: published, replaced by a newer revision, withdrawn (#239). */
 	const TYPE_DOCUMENT = 'document';
+	/** A ballot of a general assembly, with the state it reached (#271). */
+	const TYPE_BALLOT = 'ballot';
+	/** A general assembly, with the state it reached (#271). */
+	const TYPE_MEETING = 'meeting';
 
 	/** Every kind of object the feed carries. */
-	const TYPES = array('membership', 'function', 'fee', 'application', 'consent', 'document');
+	const TYPES = array('membership', 'function', 'fee', 'application', 'consent', 'document', 'ballot', 'meeting');
+
+	/** The states an entry may name, by kind of object; other kinds name none (#271). */
+	const STATES = array(
+		'ballot' => array('released', 'opened', 'closed', 'confirmed', 'cancelled'),
+		'meeting' => array('invited', 'started', 'ended', 'cancelled'),
+	);
 
 	/** The object came into being. */
 	const KIND_CREATED = 'created';
@@ -107,6 +117,21 @@ class VereineChangeRules
 	public static function known($type, $kind)
 	{
 		return in_array((string) $type, self::TYPES, true) && in_array((string) $kind, self::KINDS, true);
+	}
+
+	/**
+	 * Whether an entry may name a state: only one of its kind of object, and none for a kind without states (#271).
+	 *
+	 * @param string $type  Kind of object
+	 * @param string $state State, empty for none
+	 * @return bool
+	 */
+	public static function knownState($type, $state)
+	{
+		if ((string) $state === '') {
+			return true;
+		}
+		return isset(self::STATES[(string) $type]) && in_array((string) $state, self::STATES[(string) $type], true);
 	}
 
 	/**

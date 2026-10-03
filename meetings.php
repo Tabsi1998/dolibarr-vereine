@@ -70,6 +70,7 @@ require_once __DIR__.'/class/vereinearrears.class.php';
 require_once __DIR__.'/class/vereinemeetingportal.class.php';
 require_once __DIR__.'/class/vereinemeetingdocs.class.php';
 require_once __DIR__.'/class/vereineballots.class.php';
+require_once __DIR__.'/class/vereinecheckin.class.php';
 require_once __DIR__.'/class/vereinemail.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
@@ -221,6 +222,14 @@ if ($action === 'document') {
 	if ($result > 0) {
 		setEventMessages($langs->trans('VereineMeetingDeleted'), null, 'mesgs');
 		header('Location: '.$_SERVER['PHP_SELF']);
+		exit;
+	}
+	setEventMessages($result < 0 ? $meetings->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $meetings->errors), 'errors');
+} elseif ($action === 'begin' && $canWrite) {
+	// The assembly begins now; applications that follow the change feed learn of it (#271).
+	$result = $meetings->begin($id, $user);
+	if ($result > 0) {
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id);
 		exit;
 	}
 	setEventMessages($result < 0 ? $meetings->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $meetings->errors), 'errors');
@@ -926,7 +935,13 @@ foreach ($meeting['agenda'] as $item) {
 	print '<li>'.dol_escape_htmltag($item).'</li>';
 }
 print '</ol></td></tr>';
-print '<tr><td>'.$langs->trans('Status').'</td><td>'.$langs->trans('VereineMeetingStatus_'.$meeting['status']).'</td></tr>';
+print '<tr><td>'.$langs->trans('Status').'</td><td>'.$langs->trans('VereineMeetingStatus_'.$meeting['status']);
+if ($meeting['started_at'] > 0) {
+	print ' <span class="opacitymedium" data-meeting-started="1">'.$langs->trans('VereineMeetingStartedAt', dol_print_date($meeting['started_at'], 'hour', 'tzuserrel'));
+	print $meeting['ended_at'] > 0 ? ', '.$langs->trans('VereineMeetingEndedAt', dol_print_date($meeting['ended_at'], 'hour', 'tzuserrel')) : '';
+	print '</span>';
+}
+print '</td></tr>';
 if ($inviteBy !== '') {
 	print '<tr><td>'.$langs->trans('VereineMeetingInviteBy').'</td><td>'.vereineFormatDay($inviteBy).' <span class="opacitymedium small">'.$langs->trans('VereineMeetingInviteByHelp', $rules['invite_days']).'</span></td></tr>';
 }
@@ -946,7 +961,10 @@ if ($canWrite) {
 		print '<a class="butAction" href="#vereinemeetingedit">'.$langs->trans('VereineMeetingEdit').'</a>';
 	}
 	if ($meeting['status'] === VereineMeetingRules::STATUS_INVITED) {
-		foreach (array('held' => 'VereineMeetingMarkHeld', 'cancel' => 'VereineMeetingMarkCancelled') as $status => $label) {
+		// Begun, the meeting is ended rather than marked held; not begun yet, it can still be called off (#271).
+		$moves = $meeting['started_at'] > 0 ? array('held' => 'VereineMeetingEnd')
+			: array('begin' => 'VereineMeetingBegin', 'held' => 'VereineMeetingMarkHeld', 'cancel' => 'VereineMeetingMarkCancelled');
+		foreach ($moves as $status => $label) {
 			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'" name="vereinemeeting'.$status.'" class="inline-block">';
 			print '<input type="hidden" name="token" value="'.newToken().'">';
 			print '<input type="hidden" name="action" value="'.$status.'">';
@@ -1149,6 +1167,23 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 	if ($canWrite) {
 		print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('VereineAttendanceSave')).'"></div>';
 		print '</form>';
+	}
+	// Where the attendance came from when an application checked members in (#272).
+	$checkins = (new VereineCheckIn($db))->history($meeting['id']);
+	if ($checkins) {
+		print '<div class="paddingtop"><strong>'.$langs->trans('VereineCheckInHistory').'</strong></div>';
+		print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-checkins="'.count($checkins).'">';
+		print '<tr class="liste_titre"><td>'.$langs->trans('VereineCheckInAt').'</td><td>'.$langs->trans('Member').'</td><td>'.$langs->trans('VereineCheckInWhat').'</td>';
+		print '<td>'.$langs->trans('VereineCheckInBy').'</td><td>'.$langs->trans('VereineCheckInApp').'</td><td>'.$langs->trans('VereineCheckInReason').'</td></tr>';
+		foreach ($checkins as $checkin) {
+			print '<tr class="oddeven" data-checkin-member="'.$checkin['member_id'].'" data-checkin-action="'.$checkin['action'].'">';
+			print '<td class="nowraponall">'.dol_print_date($checkin['at'], 'dayhour', 'tzuserrel').'</td>';
+			print '<td>'.dol_escape_htmltag(isset($attendance['names'][$checkin['member_id']]) ? $attendance['names'][$checkin['member_id']] : '#'.$checkin['member_id']).'</td>';
+			print '<td>'.$langs->trans('VereineCheckInAction_'.$checkin['action'], $checkin['arrived']).'</td>';
+			print '<td>'.dol_escape_htmltag(isset($attendance['names'][$checkin['actor_id']]) ? $attendance['names'][$checkin['actor_id']] : '#'.$checkin['actor_id']).'</td>';
+			print '<td>'.dol_escape_htmltag($checkin['client']).'</td><td>'.dol_escape_htmltag($checkin['reason']).'</td></tr>';
+		}
+		print '</table></div>';
 	}
 
 	// Votes and elections.

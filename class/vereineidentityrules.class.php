@@ -64,7 +64,10 @@ class VereineIdentityRules
 	/** The person's own invoices: the list and the PDFs (#263). */
 	const CAPABILITY_INVOICES = 'invoices';
 
-	const CAPABILITIES = array('consents', 'applications', 'documents', 'votes', 'accounts', 'meetings', 'profile', 'events', 'invoices');
+	/** Check members in at a general assembly, in the name of the person on the board (#272). */
+	const CAPABILITY_ATTENDANCE = 'attendance';
+
+	const CAPABILITIES = array('consents', 'applications', 'documents', 'votes', 'accounts', 'meetings', 'profile', 'events', 'invoices', 'attendance');
 
 	/** The binding came from a one-time invitation the person used. */
 	const PROOF_INVITATION = 'invitation';

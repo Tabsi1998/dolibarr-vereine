@@ -734,6 +734,62 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Check a member in at a general assembly
+	 *
+	 * In the name of the person on the board the caller acts for - through a binding with the ability attendance or by
+	 * member_id with the right to check members in. Only on the day of an assembly that is open, and only for a member
+	 * who was invited. The same external_id again changes nothing. The answer tells whether the member may vote, and
+	 * how many are present against the quorum.
+	 *
+	 * @param int    $id           Assembly
+	 * @param int    $member       Member who came in
+	 * @param string $subject      How the application calls the person on the board
+	 * @param array  $request_data external_id, arrived (HH:MM, empty for now)
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url PUT meetings/{id}/attendance/{member}
+	 *
+	 * @throws RestException 400 external_id missing, arrived no time, or subject and member_id together
+	 * @throws RestException 403 Not allowed, or the person is not on the board
+	 * @throws RestException 404 No such assembly, or the member was not invited
+	 * @throws RestException 409 Not the day of the assembly, the assembly is not open, or the external_id names another change
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function putAttendance($id, $member, $subject = '', $request_data = null)
+	{
+		$this->checkAccess();
+		$data = is_array($request_data) ? $request_data : array();
+		return $this->checkIn((int) $id, (int) $member, true, (string) $subject, isset($data['external_id']) ? $data['external_id'] : '',
+			isset($data['arrived']) ? $data['arrived'] : '', '');
+	}
+
+	/**
+	 * Take a check-in back
+	 *
+	 * As PUT meetings/{id}/attendance/{member}, with a reason: the member counts as absent again.
+	 *
+	 * @param int    $id          Assembly
+	 * @param int    $member      Member
+	 * @param string $subject     How the application calls the person on the board
+	 * @param string $external_id The application's id of this request
+	 * @param string $reason      Why it is taken back
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url DELETE meetings/{id}/attendance/{member}
+	 *
+	 * @throws RestException 400 external_id or reason missing, or subject and member_id together
+	 * @throws RestException 403 Not allowed, or the person is not on the board
+	 * @throws RestException 404 No such assembly, or the member was not invited
+	 * @throws RestException 409 Not the day of the assembly, the assembly is not open, or the external_id names another change
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function deleteAttendance($id, $member, $subject = '', $external_id = '', $reason = '')
+	{
+		$this->checkAccess();
+		return $this->checkIn((int) $id, (int) $member, false, (string) $subject, (string) $external_id, '', (string) $reason);
+	}
+
+	/**
 	 * Invoices of the person the caller acts for
 	 *
 	 * The same list as members/{id}/invoices for the bound member: the validated invoices of the member's
@@ -801,9 +857,10 @@ class Vereine extends DolibarrApi
 	 * Changes since a cursor
 	 *
 	 * What changed about the objects an external application may follow: membership, functions, fees,
-	 * applications and consents. An entry says only that something changed, never what: kind of object,
-	 * its id, its revision, the kind of change and when it happened. The current data is read through
-	 * the ordinary endpoints, which decide for themselves what a client may see.
+	 * applications, consents, documents, ballots and general assemblies. An entry says only that something
+	 * changed, never what: kind of object, its id, its revision, the kind of change and when it happened;
+	 * for ballots and assemblies also the state they reached, such as opened or started. The current data
+	 * is read through the ordinary endpoints, which decide for themselves what a client may see.
 	 *
 	 * A reader follows the feed with the opaque cursor it got last. Entries younger than a few seconds
 	 * are held back, so a transaction that is still open cannot slip in behind a cursor that was already
@@ -845,7 +902,7 @@ class Vereine extends DolibarrApi
 	 * continues with the feed from there and loses nothing in between. Needs the right to follow the
 	 * change feed.
 	 *
-	 * @param string $object_type Kind of object: membership, function, fee, application or consent
+	 * @param string $object_type Kind of object: membership, function, fee, application, consent, document, ballot or meeting
 	 * @param int    $after       Continue after this object, 0 to start
 	 * @param int    $limit       Objects per page, 1 to 500
 	 * @return array Fields as documented in docs/API.md
@@ -1943,9 +2000,12 @@ class Vereine extends DolibarrApi
 		if ($objectType !== 'member') {
 			throw new RestException(400, 'member_id names a member; an application is followed by its subject');
 		}
-		$vote = $capability === VereineIdentityRules::CAPABILITY_VOTES;
-		if (!DolibarrApiAccess::$user->hasRight('vereine', 'members', $vote ? 'vote' : 'act')) {
-			throw new RestException(403, 'Not allowed: the user needs the right to '.($vote ? 'vote' : 'act').' for members');
+		// Each act by member id has its right: voting and checking in are rights of their own (#264, #272).
+		$rights = array(VereineIdentityRules::CAPABILITY_VOTES => array('members', 'vote', 'vote for members'),
+			VereineIdentityRules::CAPABILITY_ATTENDANCE => array('attendance', 'write', 'check members in for the board'));
+		$right = isset($rights[$capability]) ? $rights[$capability] : array('members', 'act', 'act for members');
+		if (!DolibarrApiAccess::$user->hasRight('vereine', $right[0], $right[1])) {
+			throw new RestException(403, 'Not allowed: the user needs the right to '.$right[2]);
 		}
 		$resql = $this->db->query("SELECT rowid FROM ".MAIN_DB_PREFIX."adherent WHERE rowid = ".((int) $memberId)." AND entity IN (".getEntity('adherent').")");
 		if (!$resql || !$this->db->fetch_object($resql)) {
@@ -2130,6 +2190,42 @@ class Vereine extends DolibarrApi
 		dol_include_once('/vereine/class/vereineeventportal.class.php');
 		$identity = $this->allowed($subject, VereineIdentityRules::CAPABILITY_EVENTS, 'member');
 		return (int) $identity['member_id'];
+	}
+
+	/**
+	 * A check-in or its withdrawal in the name of the person on the board the caller acts for (#272).
+	 *
+	 * @param int    $meetingId  Assembly
+	 * @param int    $memberId   Member
+	 * @param bool   $present    Present, or taken back
+	 * @param string $subject    How the application calls the person on the board
+	 * @param mixed  $externalId The application's id of the request
+	 * @param mixed  $arrived    Time of arrival
+	 * @param string $reason     Why it is taken back
+	 * @return array<string,mixed>
+	 *
+	 * @throws RestException
+	 */
+	private function checkIn($meetingId, $memberId, $present, $subject, $externalId, $arrived, $reason)
+	{
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		dol_include_once('/vereine/class/vereinecheckin.class.php');
+		$actor = $this->allowed($subject, VereineIdentityRules::CAPABILITY_ATTENDANCE, 'member');
+		$desk = new VereineCheckIn($this->db);
+		$answer = $desk->record($meetingId, $memberId, $present, (int) $actor['member_id'], is_scalar($externalId) ? (string) $externalId : '',
+			is_scalar($arrived) ? (string) $arrived : '', $reason, (string) DolibarrApiAccess::$user->login, DolibarrApiAccess::$user);
+		if ($answer === null) {
+			if ($desk->problem === '') {
+				dol_syslog(__METHOD__.' '.$desk->error, LOG_ERR);
+				throw new RestException(500, 'The check-in could not be kept');
+			}
+			$messages = array('not_found' => 'No such assembly', 'not_invited' => 'The member was not invited to this assembly',
+				'not_board' => 'Not allowed: the person checking in is not on the board', 'not_today' => 'Check-in is possible on the day of the assembly only',
+				'not_open' => 'The assembly is not open for check-in', 'external_id' => 'This external_id names another change',
+				'external_id_missing' => 'external_id is needed', 'reason_missing' => 'A reason is needed to take a check-in back', 'time' => 'arrived must be HH:MM');
+			throw new RestException(VereineCheckInRules::status($desk->problem), isset($messages[$desk->problem]) ? $messages[$desk->problem] : $desk->problem);
+		}
+		return $answer;
 	}
 
 	/**

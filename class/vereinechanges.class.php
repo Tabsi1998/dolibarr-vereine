@@ -66,23 +66,26 @@ class VereineChanges
 	 * @param string      $kind     One of VereineChangeRules::KINDS
 	 * @param User|null   $user     Who caused it, null for the system
 	 * @param string|null $moment   When it happened, null for now
+	 * @param string      $state    The state a ballot or an assembly reached, empty for other kinds (#271)
 	 * @return int 1 when noted, 0 when it was already there, -1 on error
 	 */
-	public static function record($db, $type, $objectId, $kind, $user = null, $moment = null)
+	public static function record($db, $type, $objectId, $kind, $user = null, $moment = null, $state = '')
 	{
 		global $conf;
 
-		if (!VereineChangeRules::known($type, $kind) || (int) $objectId < 1) {
+		if (!VereineChangeRules::known($type, $kind) || !VereineChangeRules::knownState($type, $state) || (int) $objectId < 1) {
 			return -1;
 		}
 		$entity = (int) $conf->entity;
 		$now = dol_now();
 		$occurred = $moment !== null ? (string) $moment : dol_print_date($now, '%Y-%m-%d %H:%M:%S', 'gmt');
-		$eventId = VereineChangeRules::eventId($entity, $type, (int) $objectId, $kind, $occurred);
+		// Two states reached in the same second are two changes, not one repeated.
+		$eventId = VereineChangeRules::eventId($entity, $type, (int) $objectId, $kind.((string) $state !== '' ? ':'.$state : ''), $occurred);
 		$revision = self::nextRevision($db, $entity, (string) $type, (int) $objectId);
-		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_change (entity, event_id, object_type, object_id, revision, change_kind,";
+		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_change (entity, event_id, object_type, object_id, revision, change_kind, state,";
 		$sql .= " occurred_at, fk_user, datec) VALUES (".$entity.", '".$db->escape($eventId)."', '".$db->escape((string) $type)."',";
-		$sql .= " ".((int) $objectId).", ".$revision.", '".$db->escape((string) $kind)."', '".$db->escape($occurred)."',";
+		$sql .= " ".((int) $objectId).", ".$revision.", '".$db->escape((string) $kind)."', ".((string) $state !== '' ? "'".$db->escape((string) $state)."'" : "NULL").",";
+		$sql .= " '".$db->escape($occurred)."',";
 		$sql .= " ".(is_object($user) && (int) $user->id > 0 ? (int) $user->id : "NULL").", '".$db->idate($now)."')";
 		if (!$db->query($sql)) {
 			// The same change again: the unique key holds, and the entry that is there stays as it is.
@@ -180,7 +183,7 @@ class VereineChanges
 		foreach ($wanted as $type) {
 			$quoted[] = "'".$this->db->escape($type)."'";
 		}
-		$sql = "SELECT rowid, event_id, object_type, object_id, revision, change_kind, occurred_at, datec";
+		$sql = "SELECT rowid, event_id, object_type, object_id, revision, change_kind, state, occurred_at, datec";
 		$sql .= " FROM ".MAIN_DB_PREFIX."vereine_change WHERE entity = ".$entity;
 		$sql .= " AND object_type IN (".implode(', ', $quoted).")";
 		// Never past the safety margin, so nothing appears behind a cursor the reader already confirmed.
@@ -205,7 +208,7 @@ class VereineChanges
 			$rows = array_slice($rows, 0, $size);
 		}
 		foreach ($rows as $obj) {
-			$answer['events'][] = array(
+			$event = array(
 				'event_id' => (string) $obj->event_id,
 				'object_type' => (string) $obj->object_type,
 				'object_id' => (int) $obj->object_id,
@@ -213,6 +216,11 @@ class VereineChanges
 				'change' => (string) $obj->change_kind,
 				'occurred_at' => str_replace(' ', 'T', substr((string) $obj->occurred_at, 0, 19)).'Z',
 			);
+			// A ballot or an assembly names the state it reached, nothing else (#271).
+			if ((string) $obj->state !== '') {
+				$event['state'] = (string) $obj->state;
+			}
+			$answer['events'][] = $event;
 			$answer['next_cursor'] = VereineChangeRules::cursor(substr((string) $obj->datec, 0, 19), (int) $obj->rowid);
 		}
 		return $answer;
@@ -284,6 +292,18 @@ class VereineChanges
 			VereineChangeRules::TYPE_APPLICATION => 'vereine_application',
 			VereineChangeRules::TYPE_CONSENT => 'vereine_consent',
 		);
+		if ($type === VereineChangeRules::TYPE_BALLOT) {
+			// Ballots of general assemblies once released; the board's stay in Dolibarr (#118, #271).
+			$sql = "SELECT b.rowid FROM ".MAIN_DB_PREFIX."vereine_ballot as b INNER JOIN ".MAIN_DB_PREFIX."vereine_meeting as m ON m.rowid = b.fk_meeting";
+			$sql .= " WHERE b.entity = ".((int) $entity)." AND m.kind <> 'board' AND b.status <> 'draft' AND b.rowid > ".((int) $after);
+			return $sql." ORDER BY b.rowid LIMIT ".((int) $limit);
+		}
+		if ($type === VereineChangeRules::TYPE_MEETING) {
+			// General assemblies once invited; one that is only planned is nobody's business outside.
+			$sql = "SELECT rowid FROM ".MAIN_DB_PREFIX."vereine_meeting WHERE entity = ".((int) $entity)." AND kind <> 'board'";
+			$sql .= " AND invited_at IS NOT NULL AND rowid > ".((int) $after);
+			return $sql." ORDER BY rowid LIMIT ".((int) $limit);
+		}
 		if ($type === VereineChangeRules::TYPE_DOCUMENT) {
 			// Only documents published now; what is not published is nobody's business outside.
 			$sql = "SELECT DISTINCT fk_document as rowid FROM ".MAIN_DB_PREFIX."vereine_publication WHERE entity = ".((int) $entity)." AND withdrawn_at IS NULL";

@@ -210,6 +210,7 @@ class VereineErasure
 		$found['records'] = array('count' => $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_function_term WHERE fk_adherent = ".$id)
 			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_signature_person WHERE fk_adherent = ".$id)
 			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_meeting_attendance WHERE entity = ".$entity." AND fk_adherent = ".$id)
+			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_checkin WHERE entity = ".$entity." AND fk_adherent = ".$id)
 			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_circular_vote WHERE entity = ".$entity." AND fk_adherent = ".$id)
 			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_honour WHERE entity = ".$entity." AND fk_adherent = ".$id)
 			+ $this->count("SELECT COUNT(*) as v FROM ".$p."vereine_publication WHERE entity = ".$entity." AND fk_adherent = ".$id)
