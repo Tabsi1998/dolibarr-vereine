@@ -70,6 +70,7 @@ require_once __DIR__.'/class/vereinearrears.class.php';
 require_once __DIR__.'/class/vereinemeetingportal.class.php';
 require_once __DIR__.'/class/vereinemeetingdocs.class.php';
 require_once __DIR__.'/class/vereineballots.class.php';
+require_once __DIR__.'/class/vereinecheckin.class.php';
 require_once __DIR__.'/class/vereinemail.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
@@ -1166,6 +1167,23 @@ if ($meeting['status'] === VereineMeetingRules::STATUS_PLANNED) {
 	if ($canWrite) {
 		print '<div class="center"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('VereineAttendanceSave')).'"></div>';
 		print '</form>';
+	}
+	// Where the attendance came from when an application checked members in (#272).
+	$checkins = (new VereineCheckIn($db))->history($meeting['id']);
+	if ($checkins) {
+		print '<div class="paddingtop"><strong>'.$langs->trans('VereineCheckInHistory').'</strong></div>';
+		print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-checkins="'.count($checkins).'">';
+		print '<tr class="liste_titre"><td>'.$langs->trans('VereineCheckInAt').'</td><td>'.$langs->trans('Member').'</td><td>'.$langs->trans('VereineCheckInWhat').'</td>';
+		print '<td>'.$langs->trans('VereineCheckInBy').'</td><td>'.$langs->trans('VereineCheckInApp').'</td><td>'.$langs->trans('VereineCheckInReason').'</td></tr>';
+		foreach ($checkins as $checkin) {
+			print '<tr class="oddeven" data-checkin-member="'.$checkin['member_id'].'" data-checkin-action="'.$checkin['action'].'">';
+			print '<td class="nowraponall">'.dol_print_date($checkin['at'], 'dayhour', 'tzuserrel').'</td>';
+			print '<td>'.dol_escape_htmltag(isset($attendance['names'][$checkin['member_id']]) ? $attendance['names'][$checkin['member_id']] : '#'.$checkin['member_id']).'</td>';
+			print '<td>'.$langs->trans('VereineCheckInAction_'.$checkin['action'], $checkin['arrived']).'</td>';
+			print '<td>'.dol_escape_htmltag(isset($attendance['names'][$checkin['actor_id']]) ? $attendance['names'][$checkin['actor_id']] : '#'.$checkin['actor_id']).'</td>';
+			print '<td>'.dol_escape_htmltag($checkin['client']).'</td><td>'.dol_escape_htmltag($checkin['reason']).'</td></tr>';
+		}
+		print '</table></div>';
 	}
 
 	// Votes and elections.

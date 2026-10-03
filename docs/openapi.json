@@ -3979,6 +3979,227 @@
           ]
         ]
       }
+    },
+    "/vereine/meetings/{id}/attendance/{member}": {
+      "put": {
+        "operationId": "putAttendance",
+        "summary": "Mitglied bei einer Generalversammlung einlassen",
+        "description": "Setzt das Mitglied auf anwesend, im Namen eines Vorstandsmitglieds – nur am Tag einer eingeladenen, offenen Generalversammlung und nur für eingeladene Mitglieder. Dieselbe external_id noch einmal ändert nichts. Die Antwort nennt das Stimmrecht und die Beschlussfähigkeit.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Generalversammlung",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "member",
+            "in": "path",
+            "required": true,
+            "description": "Mitglied, das eingelassen wird (die Anwendung löst den Ausweis selbst auf)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": false,
+            "description": "Kennung des Vorstandsmitglieds bei dieser Anwendung (Bindung mit der Fähigkeit attendance). Oder statt dessen member_id",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID des Vorstandsmitglieds, in dessen Namen eingelassen wird – mit dem Recht, Mitglieder einzulassen",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "external_id"
+                ],
+                "properties": {
+                  "external_id": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z0-9._:-]+$",
+                    "description": "Kennung dieser Anfrage bei der Anwendung"
+                  },
+                  "arrived": {
+                    "type": "string",
+                    "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+                    "description": "Ankunft HH:MM; ohne Angabe jetzt"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stand des Mitglieds und der Versammlung",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckIn"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use",
+            "vereine:attendance:write"
+          ]
+        ]
+      },
+      "delete": {
+        "operationId": "deleteAttendance",
+        "summary": "Einlass zurücknehmen",
+        "description": "Nimmt den Einlass mit Grund zurück; das Mitglied gilt wieder als abwesend. Sonst wie PUT.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Generalversammlung",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "member",
+            "in": "path",
+            "required": true,
+            "description": "Mitglied, das eingelassen wird (die Anwendung löst den Ausweis selbst auf)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": false,
+            "description": "Kennung des Vorstandsmitglieds bei dieser Anwendung (Bindung mit der Fähigkeit attendance). Oder statt dessen member_id",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "description": "Statt subject: die Mitglieds-ID des Vorstandsmitglieds, in dessen Namen eingelassen wird – mit dem Recht, Mitglieder einzulassen",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "external_id",
+            "in": "query",
+            "required": true,
+            "description": "Kennung dieser Anfrage bei der Anwendung",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": true,
+            "description": "Warum der Einlass zurückgenommen wird",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stand des Mitglieds und der Versammlung",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckIn"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:identity:use",
+            "vereine:attendance:write"
+          ]
+        ]
+      }
     }
   },
   "components": {
@@ -5423,7 +5644,8 @@
                 "meetings",
                 "profile",
                 "events",
-                "invoices"
+                "invoices",
+                "attendance"
               ]
             }
           },
@@ -6818,6 +7040,70 @@
                 }
               }
             }
+          }
+        }
+      },
+      "CheckIn": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "member_id",
+          "state",
+          "arrived",
+          "voting",
+          "reason",
+          "present",
+          "eligible",
+          "quorum_from",
+          "quorum_reached"
+        ],
+        "properties": {
+          "member_id": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "present",
+              "absent",
+              "excused",
+              "represented"
+            ],
+            "description": "Anwesenheit des Mitglieds jetzt"
+          },
+          "arrived": {
+            "type": "string",
+            "description": "Ankunft HH:MM, leer wenn nicht anwesend"
+          },
+          "voting": {
+            "type": "boolean",
+            "description": "Darf das Mitglied jetzt abstimmen?"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "own",
+              "proxy",
+              "no_voting_right",
+              "not_member",
+              "absent"
+            ],
+            "description": "own eigenes Stimmrecht; no_voting_right ohne Stimmrecht eingeladen; not_member kein Mitglied mehr am Tag; absent nicht anwesend"
+          },
+          "present": {
+            "type": "integer",
+            "description": "Anwesende jetzt"
+          },
+          "eligible": {
+            "type": "integer",
+            "description": "Stimmberechtigte der Versammlung"
+          },
+          "quorum_from": {
+            "type": "integer",
+            "description": "Beschlussfähig ab so vielen Stimmen (laut Statuten)"
+          },
+          "quorum_reached": {
+            "type": "boolean"
           }
         }
       }

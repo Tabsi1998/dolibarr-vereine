@@ -866,8 +866,8 @@ bestehender Schlüssel ein zusätzliches Recht.
    **Bindung** – bei **genau dieser Anwendung** und in **diesem Mandanten**.
 3. Die Bindung ist nicht widerrufen.
 4. Die Bindung trägt die **Fähigkeit**, um die es geht (`consents`, `applications`, `documents`,
-   `votes`, `accounts`, `meetings`, `profile`, `events`, `invoices`). Alle sind aus, bis der Verein sie
-   einschaltet.
+   `votes`, `accounts`, `meetings`, `profile`, `events`, `invoices`, `attendance`). Alle sind aus, bis der Verein
+   sie einschaltet.
 5. Das Objekt ist **das eigene**: das gebundene Mitglied oder der gebundene Antrag. Wer nach einem
    fremden fragt, wird abgewiesen, nicht umgeleitet.
 
@@ -1149,6 +1149,32 @@ was der Verein als geleistet bestätigt.
 
 `subject`, Fähigkeit `events`. Zieht eine noch **nicht bestätigte** Anfrage zurück. Einen bestätigten
 Dienst sagt die Person beim Verein ab (`409`).
+
+### PUT und DELETE /vereine/meetings/{id}/attendance/{member}
+
+**Einlass bei der Generalversammlung** (seit 1.7.0), etwa nach dem Scan des Mitgliedsausweises. Die
+Anwendung löst den Ausweis selbst in eine Mitglieds-ID auf (zum Beispiel über `members/lookup`); das Modul
+speichert keine Ausweisdaten.
+
+- **Im Namen eines Vorstandsmitglieds:** `subject` einer Bindung mit der Fähigkeit `attendance` – oder
+  `member_id` des Vorstandsmitglieds, wenn der API-Benutzer das Recht *Mitglieder bei einer
+  Generalversammlung einlassen* hat. Wer am Tag keine Funktion im Vorstand hat, bekommt `403`.
+- **`PUT`** setzt „anwesend“, Body `{"external_id": "scan-0042", "arrived": "18:58"}` (`arrived` ohne Angabe =
+  jetzt). **`DELETE`** nimmt den Einlass zurück: `?external_id=scan-0043&reason=falscher Ausweis`.
+- **Dieselbe `external_id` noch einmal** ändert nichts und gibt dieselbe Antwort; eine andere Änderung unter
+  derselben `external_id` gibt `409`.
+- Nur am **Tag** einer **eingeladenen, offenen** Generalversammlung (sonst `409`) und nur für ein **eingeladenes**
+  Mitglied (sonst `404`). Vorstandssitzungen gibt es hier nicht (`404`).
+- Jeder Einlass steht auf der Sitzung unter *Einlass über Anwendungen*: wann, wer, im Namen von wem, über
+  welche Anwendung, mit welchem Grund.
+
+```json
+{"member_id": 42, "state": "present", "arrived": "18:58", "voting": true, "reason": "own",
+ "present": 23, "eligible": 61, "quorum_from": 31, "quorum_reached": false}
+```
+
+`voting` sagt, ob das Mitglied jetzt abstimmen darf, `reason` warum (`own`, `no_voting_right`, `not_member`,
+`absent`). `quorum_from` ist die Zahl der Stimmen, ab der die Versammlung laut Statuten beschlussfähig ist.
 
 ### GET /vereine/me/invoices
 

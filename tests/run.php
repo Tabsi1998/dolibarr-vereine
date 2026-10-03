@@ -40,6 +40,7 @@ require_once $root.'/class/vereinetaxrules.class.php';
 require_once $root.'/class/vereinethresholds.class.php';
 require_once $root.'/class/vereinewebsiteprofilerules.class.php';
 require_once $root.'/class/vereinefilerules.class.php';
+require_once $root.'/class/vereinecheckinrules.class.php';
 require_once $root.'/class/vereinecashregister.class.php';
 require_once $root.'/class/vereinemembersummary.class.php';
 require_once $root.'/class/vereinewebsiteevents.class.php';
@@ -1885,6 +1886,7 @@ $prefixes = array(
 	'VereineMeetingStatus_' => VereineMeetingRules::STATUSES,
 	'VereineMeetingDeleteHas_' => VereineMeetingRules::RECORDS,
 	'VereineWaitingNotice_' => array('ballot', 'vote', 'signature'),
+	'VereineCheckInAction_' => array(VereineCheckInRules::ACTION_PRESENT, VereineCheckInRules::ACTION_REVOKED),
 	'VereineMeetingFormat_' => VereineMeetingRules::FORMATS,
 	'VereineMeetingChannel_' => array(VereineMeetingRules::CHANNEL_EMAIL, VereineMeetingRules::CHANNEL_LETTER),
 	'VereineMeetingRecipientsHelp_' => VereineMeetingRules::KINDS,
@@ -3277,6 +3279,31 @@ same(array(array(), array('VereineBallotErrorBoard')), array(
 	VereineBallotRules::releaseProblems(array('status' => 'draft', 'channels' => array('dolibarr', 'paper')), array(), array('kind' => 'board', 'status' => 'invited')),
 	VereineBallotRules::releaseProblems(array('status' => 'draft', 'channels' => array('app', 'paper')), array(), array('kind' => 'board', 'status' => 'invited')),
 ), 'a vote of the board is released in Dolibarr and on paper, never through an application');
+
+// Check-in at a general assembly through an application (#272): on its day, while it is open, for invited members, by the board.
+$assembly = array('id' => 4, 'kind' => VereineMeetingRules::KIND_GENERAL, 'day' => '2026-10-10', 'status' => VereineMeetingRules::STATUS_INVITED);
+same(array('', 'not_found', 'not_found', 'not_board', 'not_invited', 'not_today', 'not_open'), array(
+	VereineCheckInRules::problem($assembly, '2026-10-10', true, true),
+	VereineCheckInRules::problem(null, '2026-10-10', true, true),
+	VereineCheckInRules::problem(array('kind' => VereineMeetingRules::KIND_BOARD) + $assembly, '2026-10-10', true, true),
+	VereineCheckInRules::problem($assembly, '2026-10-10', false, false),
+	VereineCheckInRules::problem($assembly, '2026-10-10', false, true),
+	VereineCheckInRules::problem($assembly, '2026-10-11', true, true),
+	VereineCheckInRules::problem(array('status' => VereineMeetingRules::STATUS_HELD) + $assembly, '2026-10-10', true, true),
+), 'a check-in needs an assembly that is open on its day, an invited member and somebody on the board; whoever is not on the board learns nothing about the invitations');
+same(array(404, 403, 409, 409, 400, 400), array(VereineCheckInRules::status('not_found'), VereineCheckInRules::status('not_board'), VereineCheckInRules::status('not_today'),
+	VereineCheckInRules::status('external_id'), VereineCheckInRules::status('reason_missing'), VereineCheckInRules::status('time')), 'the answers of the API for each problem');
+same(array('scan-0042', '', '', '19:05', '18:58', null), array(VereineCheckInRules::externalId(' scan-0042 '), VereineCheckInRules::externalId('mit leer'),
+	VereineCheckInRules::externalId(str_repeat('x', 65)), VereineCheckInRules::arrival('', '19:05'), VereineCheckInRules::arrival('18:58', '19:05'),
+	VereineCheckInRules::arrival('7 Uhr', '19:05')), 'the id of a request and the time of arrival as an application sends them');
+same(array(true, false), array(VereineCheckInRules::sameRequest(array('meeting_id' => 4, 'member_id' => 7, 'action' => 'present'), 4, 7, 'present'),
+	VereineCheckInRules::sameRequest(array('meeting_id' => 4, 'member_id' => 7, 'action' => 'present'), 4, 8, 'present')), 'the same request again, or another under the same id');
+same(array('member_id' => 7, 'state' => 'present', 'arrived' => '18:58', 'voting' => true, 'reason' => 'own', 'present' => 12, 'eligible' => 40, 'quorum_from' => 20,
+	'quorum_reached' => false), VereineCheckInRules::answer(7, array('state' => 'present', 'arrived' => '18:58'), array('eligible' => true, 'reason' => 'own'),
+	array('present' => 12, 'eligible' => 40, 'required' => 20, 'reached' => false)), 'the answer names the voting right and how far the quorum is');
+same(array(false, 'absent', ''), array_values(array_intersect_key(VereineCheckInRules::answer(7, array('state' => 'absent', 'arrived' => ''), array('eligible' => true, 'reason' => 'own'),
+	array('present' => 11, 'eligible' => 40, 'required' => 20, 'reached' => false)), array('voting' => 1, 'reason' => 1, 'arrived' => 1))),
+	'taken back, the member does not vote');
 
 // A meeting goes only when it was planned or called off and nothing is recorded in it (#266).
 same(array(array(), array(), array('VereineMeetingDeleteInvited'), array('VereineMeetingDeleteHeld', 'VereineMeetingDeleteHas_votes'),
