@@ -68,20 +68,25 @@ class VereineHookRules
 	/**
 	 * The body of a delivery: the same reference the change feed gives, and nothing more.
 	 *
-	 * @param array<string,mixed> $event Keys event_id, object_type, object_id, revision, change, occurred_at
+	 * @param array<string,mixed> $event Keys event_id, object_type, object_id, revision, change, occurred_at; state for a ballot or an assembly
 	 * @return string JSON, exactly the bytes that are signed and sent
 	 */
 	public static function body(array $event)
 	{
-		return (string) json_encode(array(
+		$body = array(
 			'version' => self::VERSION,
 			'event_id' => (string) $event['event_id'],
 			'object_type' => (string) $event['object_type'],
 			'object_id' => (int) $event['object_id'],
 			'revision' => (int) $event['revision'],
 			'change' => (string) $event['change'],
-			'occurred_at' => (string) $event['occurred_at'],
-		));
+		);
+		// The state a ballot or an assembly reached, as the feed names it (#271).
+		if (isset($event['state']) && (string) $event['state'] !== '') {
+			$body['state'] = (string) $event['state'];
+		}
+		$body['occurred_at'] = (string) $event['occurred_at'];
+		return (string) json_encode($body);
 	}
 
 	/**

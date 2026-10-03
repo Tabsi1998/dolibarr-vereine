@@ -31,6 +31,7 @@ require_once __DIR__.'/vereineresolutions.class.php';
 require_once __DIR__.'/vereinemail.class.php';
 require_once __DIR__.'/vereinemailtemplates.class.php';
 require_once __DIR__.'/vereinelog.class.php';
+require_once __DIR__.'/vereinechanges.class.php';
 
 /**
  * Meetings of the association.
@@ -76,9 +77,9 @@ class VereineMeetings
 	{
 		global $conf;
 
-		$sql = "SELECT rowid, kind, title, meeting_day, meeting_time, place, format, access, agenda, status, invited_at, fk_actioncomm, fk_chair, fk_keeper FROM ".MAIN_DB_PREFIX."vereine_meeting";
+		$sql = "SELECT rowid, kind, title, meeting_day, meeting_time, place, format, access, agenda, status, invited_at, started_at, ended_at, fk_actioncomm, fk_chair, fk_keeper";
+		$sql .= " FROM ".MAIN_DB_PREFIX."vereine_meeting";
 		$sql .= " WHERE entity = ".((int) $conf->entity)." ORDER BY meeting_day DESC, meeting_time DESC, rowid DESC";
-		// The table exists only after the module was enabled with 0.5.4.
 		$resql = $this->db->query($sql);
 		if (!$resql) {
 			$this->error = $this->db->lasterror();
@@ -90,6 +91,7 @@ class VereineMeetings
 			$meetings[] = array('id' => (int) $obj->rowid, 'kind' => (string) $obj->kind, 'title' => (string) $obj->title, 'day' => (string) $obj->meeting_day,
 				'time' => (string) $obj->meeting_time, 'place' => (string) $obj->place, 'format' => (string) $obj->format, 'access' => (string) $obj->access,
 				'agenda' => is_array($agenda) ? $agenda : array(), 'status' => (string) $obj->status, 'invited_at' => $obj->invited_at ? $this->db->jdate($obj->invited_at) : 0,
+				'started_at' => $obj->started_at ? $this->db->jdate($obj->started_at) : 0, 'ended_at' => $obj->ended_at ? $this->db->jdate($obj->ended_at) : 0,
 				'actioncomm_id' => (int) $obj->fk_actioncomm, 'chair_id' => (int) $obj->fk_chair, 'keeper_id' => (int) $obj->fk_keeper);
 		}
 		$this->db->free($resql);
@@ -239,6 +241,10 @@ class VereineMeetings
 			dol_delete_file($letters);
 		}
 		VereineLog::add($this->db, $user, VereineLog::MEETING_DELETED, 0, 0, $meeting['kind'].' '.$meeting['day'].' '.$meeting['title'].' ('.$meeting['status'].', '.$invited.' invited)');
+		// An assembly applications have heard of is gone for them too (#271).
+		if ($meeting['invited_at'] > 0) {
+			$this->announce($meeting, VereineChangeRules::KIND_DELETED, '', $user);
+		}
 		return 1;
 	}
 
@@ -405,6 +411,7 @@ class VereineMeetings
 			return -1;
 		}
 		VereineLog::add($this->db, $user, VereineLog::MEETING_INVITED, 0, 0, $meeting['title'].': '.$written.' ('.count($letters).' letters)');
+		$this->announce($meeting, VereineChangeRules::KIND_CREATED, 'invited', $user);
 		return $written;
 	}
 
@@ -484,13 +491,61 @@ class VereineMeetings
 			return 0;
 		}
 		$sql = "UPDATE ".MAIN_DB_PREFIX."vereine_meeting SET status = '".$this->db->escape($status)."', fk_user_modif = ".((int) $user->id);
+		// An assembly that was held ended now, unless the moment it ended is known already (#271).
+		$sql .= $status === VereineMeetingRules::STATUS_HELD ? ", ended_at = COALESCE(ended_at, '".$this->db->idate(dol_now())."')" : '';
 		$sql .= " WHERE rowid = ".((int) $id)." AND entity = ".((int) $conf->entity);
 		if (!$this->db->query($sql)) {
 			$this->error = $this->db->lasterror();
 			return -1;
 		}
 		VereineLog::add($this->db, $user, VereineLog::MEETING_STATUS, 0, 0, $meeting['title'].': '.$status);
+		$this->announce($meeting, VereineChangeRules::KIND_UPDATED, $status === VereineMeetingRules::STATUS_HELD ? 'ended' : 'cancelled', $user);
 		return 1;
+	}
+
+	/**
+	 * Begin an invited meeting: the moment is kept, and a general assembly is announced as started (#271).
+	 *
+	 * @param int  $id   Meeting
+	 * @param User $user Who chairs
+	 * @return int 1 when begun, 0 when refused (see errors), -1 on error
+	 */
+	public function begin($id, $user)
+	{
+		global $conf;
+
+		$meeting = $this->fetch($id);
+		if ($meeting === null || $meeting['status'] !== VereineMeetingRules::STATUS_INVITED || $meeting['started_at'] > 0) {
+			$this->errors = array('VereineMeetingErrorStatus');
+			return 0;
+		}
+		$sql = "UPDATE ".MAIN_DB_PREFIX."vereine_meeting SET started_at = '".$this->db->idate(dol_now())."', fk_user_modif = ".((int) $user->id);
+		$sql .= " WHERE rowid = ".((int) $id)." AND entity = ".((int) $conf->entity)." AND started_at IS NULL";
+		if (!$this->db->query($sql)) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		VereineLog::add($this->db, $user, VereineLog::MEETING_STATUS, 0, 0, $meeting['title'].': started');
+		$this->announce($meeting, VereineChangeRules::KIND_UPDATED, 'started', $user);
+		return 1;
+	}
+
+	/**
+	 * Tell the change feed that a general assembly reached a state (#271): only its id, the state and the moment.
+	 * A meeting of the board stays in Dolibarr (#118).
+	 *
+	 * @param array<string,mixed> $meeting Meeting
+	 * @param string              $kind    Kind of change
+	 * @param string              $state   State reached, empty for none
+	 * @param User                $user    Who caused it
+	 * @return void
+	 */
+	private function announce(array $meeting, $kind, $state, $user)
+	{
+		if ($meeting['kind'] === VereineMeetingRules::KIND_BOARD) {
+			return;
+		}
+		VereineChanges::record($this->db, VereineChangeRules::TYPE_MEETING, (int) $meeting['id'], $kind, $user, null, $state);
 	}
 
 	/**

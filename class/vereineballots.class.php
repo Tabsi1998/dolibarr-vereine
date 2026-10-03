@@ -30,6 +30,7 @@ require_once __DIR__.'/vereinemeetings.class.php';
 require_once __DIR__.'/vereinestatutes.class.php';
 require_once __DIR__.'/vereinelog.class.php';
 require_once __DIR__.'/vereinepdf.class.php';
+require_once __DIR__.'/vereinechanges.class.php';
 
 /**
  * Ballots of general assemblies.
@@ -743,6 +744,7 @@ class VereineBallots
 		}
 		$this->db->commit();
 		VereineLog::add($this->db, $user, VereineLog::BALLOT, (int) $outcome['candidate_id'], 0, $ballot['question'].': confirmed ('.$outcome['outcome'].')');
+		$this->announce($ballot, VereineChangeRules::KIND_UPDATED, 'confirmed', $user);
 		return 1;
 	}
 
@@ -933,6 +935,29 @@ class VereineBallots
 			return 0;
 		}
 		VereineLog::add($this->db, $user, VereineLog::BALLOT, 0, 0, $ballot['meeting_title'].': '.$ballot['question'].' ('.$status.')');
+		$states = array(VereineBallotRules::STATUS_RELEASED => 'released', VereineBallotRules::STATUS_OPEN => 'opened',
+			VereineBallotRules::STATUS_CLOSED => 'closed', VereineBallotRules::STATUS_CANCELLED => 'cancelled');
+		if (isset($states[$status])) {
+			$this->announce($ballot, $status === VereineBallotRules::STATUS_RELEASED ? VereineChangeRules::KIND_CREATED : VereineChangeRules::KIND_UPDATED, $states[$status], $user);
+		}
 		return 1;
+	}
+
+	/**
+	 * Tell the change feed that a ballot of a general assembly reached a state (#271): its id, the state and the
+	 * moment - never a vote, and nothing that tells who voted. A ballot of the board stays in Dolibarr (#118).
+	 *
+	 * @param array<string,mixed> $ballot Ballot of fetch()
+	 * @param string              $kind   Kind of change
+	 * @param string              $state  State reached
+	 * @param User                $user   Who caused it
+	 * @return void
+	 */
+	private function announce(array $ballot, $kind, $state, $user)
+	{
+		if ($ballot['meeting_kind'] === VereineMeetingRules::KIND_BOARD) {
+			return;
+		}
+		VereineChanges::record($this->db, VereineChangeRules::TYPE_BALLOT, (int) $ballot['id'], $kind, $user, null, $state);
 	}
 }

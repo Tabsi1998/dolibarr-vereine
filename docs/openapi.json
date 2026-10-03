@@ -1049,7 +1049,7 @@
             "name": "types",
             "in": "query",
             "required": false,
-            "description": "Objektarten mit Komma getrennt; leer für alle",
+            "description": "Objektarten mit Komma: membership, function, fee, application, consent, document, ballot, meeting",
             "schema": {
               "type": "string"
             }
@@ -1108,7 +1108,9 @@
                 "fee",
                 "application",
                 "consent",
-                "document"
+                "document",
+                "ballot",
+                "meeting"
               ]
             }
           },
@@ -5265,7 +5267,9 @@
               "fee",
               "application",
               "consent",
-              "document"
+              "document",
+              "ballot",
+              "meeting"
             ]
           },
           "object_id": {
@@ -5284,6 +5288,20 @@
               "unlinked",
               "revoked"
             ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "released",
+              "opened",
+              "closed",
+              "confirmed",
+              "cancelled",
+              "invited",
+              "started",
+              "ended"
+            ],
+            "description": "Nur bei ballot und meeting: der erreichte Zustand. ballot: released, opened, closed, confirmed, cancelled; meeting: invited, started, ended, cancelled"
           },
           "occurred_at": {
             "$ref": "#/components/schemas/Moment"

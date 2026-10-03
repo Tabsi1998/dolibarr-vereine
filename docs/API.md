@@ -764,7 +764,7 @@ kein Mitglied, das seine eigenen Daten liest.
 | --- | --- |
 | `cursor` | Stand des Lesers. Leer beginnt am Anfang. Undurchsichtig – unverändert zurückgeben. |
 | `limit` | Ereignisse je Seite, 1 bis 500, ohne Angabe 100. |
-| `types` | Objektarten mit Komma getrennt: `membership`, `function`, `fee`, `application`, `consent`. |
+| `types` | Objektarten mit Komma getrennt: `membership`, `function`, `fee`, `application`, `consent`, `document`, `ballot`, `meeting`. |
 
 ```json
 {
@@ -795,13 +795,32 @@ schon kennt, darf ihn verwerfen.
 nicht von diesem Verein, antwortet der Feed mit `resync_required: true` und **ohne** Ereignisse.
 Dann ist ein Vollabgleich fällig – eine stille Lücke gibt es nicht.
 
+**Abstimmungen und Versammlungen** (seit 1.7.0). Damit eine Anwendung ihre Mitglieder binnen Sekunden auf
+eine offene Abstimmung hinweisen kann, meldet der Feed auch diese beiden Objektarten. Ihre Einträge nennen
+zusätzlich den erreichten **Zustand** in `state`:
+
+| `object_type` | `state` |
+| --- | --- |
+| `ballot` (Abstimmung einer Generalversammlung, Kennung wie in `me/ballots`) | `released` freigegeben, `opened` eröffnet, `closed` geschlossen, `confirmed` Ergebnis festgestellt, `cancelled` abgesagt |
+| `meeting` (Generalversammlung, Kennung wie in `me/meetings`) | `invited` eingeladen, `started` begonnen, `ended` beendet, `cancelled` abgesagt; eine gelöschte Versammlung erscheint mit `change: "deleted"` ohne `state` |
+
+```json
+{"event_id": "4c1a…", "object_type": "ballot", "object_id": 7, "revision": 2,
+ "change": "updated", "state": "opened", "occurred_at": "2026-10-10T19:04:12Z"}
+```
+
+Einträge nennen nur Kennung, Zustand und Zeitpunkt – nie Stimmen, und es gibt keinen Eintrag je
+abgegebener Stimme, aus dem sich ablesen ließe, wer wann abgestimmt hat. Vorstandssitzungen und ihre
+Abstimmungen erscheinen nicht: Sie bleiben in Dolibarr. „Begonnen“ und „beendet“ setzt die
+Versammlungsleitung mit *Sitzung beginnen* und *Sitzung beenden* auf der Sitzung.
+
 ## GET /vereine/changes/snapshot
 
 Der Vollabgleich. Eine Seite führt die IDs **einer** Objektart auf, sonst nichts.
 
 | Parameter | Bedeutung |
 | --- | --- |
-| `object_type` | `membership`, `function`, `fee`, `application`, `consent` oder `document`. |
+| `object_type` | `membership`, `function`, `fee`, `application`, `consent`, `document`, `ballot` oder `meeting`. |
 | `after` | Weiter nach dieser ID, 0 zum Beginnen. |
 | `limit` | Objekte je Seite, 1 bis 500, ohne Angabe 100. |
 
@@ -1197,7 +1216,8 @@ Nie während einer Fachtransaktion. Eine geplante Aufgabe (alle fünf Minuten) m
  "revision":3,"change":"updated","occurred_at":"2026-09-23T14:05:11Z"}
 ```
 
-Mehr nicht: keine Namen, Beträge, Dokumente, Bankdaten oder Stimmen.
+Mehr nicht: keine Namen, Beträge, Dokumente, Bankdaten oder Stimmen. Bei `ballot` und `meeting` steht
+wie im Feed zusätzlich `state` vor `occurred_at` (seit 1.7.0).
 
 ### Die Signatur
 

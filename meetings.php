@@ -224,6 +224,14 @@ if ($action === 'document') {
 		exit;
 	}
 	setEventMessages($result < 0 ? $meetings->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $meetings->errors), 'errors');
+} elseif ($action === 'begin' && $canWrite) {
+	// The assembly begins now; applications that follow the change feed learn of it (#271).
+	$result = $meetings->begin($id, $user);
+	if ($result > 0) {
+		header('Location: '.$_SERVER['PHP_SELF'].'?id='.$id);
+		exit;
+	}
+	setEventMessages($result < 0 ? $meetings->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $meetings->errors), 'errors');
 } elseif (($action === 'held' || $action === 'cancel') && $canWrite) {
 	$result = $meetings->setStatus($id, $action === 'held' ? VereineMeetingRules::STATUS_HELD : VereineMeetingRules::STATUS_CANCELLED, $user);
 	if ($result <= 0) {
@@ -926,7 +934,13 @@ foreach ($meeting['agenda'] as $item) {
 	print '<li>'.dol_escape_htmltag($item).'</li>';
 }
 print '</ol></td></tr>';
-print '<tr><td>'.$langs->trans('Status').'</td><td>'.$langs->trans('VereineMeetingStatus_'.$meeting['status']).'</td></tr>';
+print '<tr><td>'.$langs->trans('Status').'</td><td>'.$langs->trans('VereineMeetingStatus_'.$meeting['status']);
+if ($meeting['started_at'] > 0) {
+	print ' <span class="opacitymedium" data-meeting-started="1">'.$langs->trans('VereineMeetingStartedAt', dol_print_date($meeting['started_at'], 'hour', 'tzuserrel'));
+	print $meeting['ended_at'] > 0 ? ', '.$langs->trans('VereineMeetingEndedAt', dol_print_date($meeting['ended_at'], 'hour', 'tzuserrel')) : '';
+	print '</span>';
+}
+print '</td></tr>';
 if ($inviteBy !== '') {
 	print '<tr><td>'.$langs->trans('VereineMeetingInviteBy').'</td><td>'.vereineFormatDay($inviteBy).' <span class="opacitymedium small">'.$langs->trans('VereineMeetingInviteByHelp', $rules['invite_days']).'</span></td></tr>';
 }
@@ -946,7 +960,10 @@ if ($canWrite) {
 		print '<a class="butAction" href="#vereinemeetingedit">'.$langs->trans('VereineMeetingEdit').'</a>';
 	}
 	if ($meeting['status'] === VereineMeetingRules::STATUS_INVITED) {
-		foreach (array('held' => 'VereineMeetingMarkHeld', 'cancel' => 'VereineMeetingMarkCancelled') as $status => $label) {
+		// Begun, the meeting is ended rather than marked held; not begun yet, it can still be called off (#271).
+		$moves = $meeting['started_at'] > 0 ? array('held' => 'VereineMeetingEnd')
+			: array('begin' => 'VereineMeetingBegin', 'held' => 'VereineMeetingMarkHeld', 'cancel' => 'VereineMeetingMarkCancelled');
+		foreach ($moves as $status => $label) {
 			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?id='.$meeting['id'].'" name="vereinemeeting'.$status.'" class="inline-block">';
 			print '<input type="hidden" name="token" value="'.newToken().'">';
 			print '<input type="hidden" name="action" value="'.$status.'">';

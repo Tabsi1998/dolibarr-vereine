@@ -3094,6 +3094,18 @@ same(array('VereinePublicationErrorFile', 'VereineExcerptErrorMissing', 'Vereine
 		VereineArchiveRules::excerptProblem(5, 'a.pdf', 10, 'PK', 100), VereineArchiveRules::excerptProblem(5, 'Kurz.PDF', 10, '%PDF-', 100)),
 	'a shortened version needs an original, a PDF, not too large');
 same(true, in_array('document', VereineChangeRules::TYPES, true), 'the change feed carries documents');
+// Ballots and assemblies name the state they reached; other kinds name none (#271).
+same(array(true, true, true, false, false, true), array(VereineChangeRules::knownState('ballot', 'opened'), VereineChangeRules::knownState('meeting', 'started'),
+	VereineChangeRules::knownState('membership', ''), VereineChangeRules::knownState('membership', 'opened'), VereineChangeRules::knownState('ballot', 'started'),
+	VereineChangeRules::knownState('meeting', '')), 'states only where the kind of object has them');
+same(array(true, true), array(in_array('ballot', VereineChangeRules::TYPES, true), in_array('meeting', VereineChangeRules::TYPES, true)),
+	'the change feed carries ballots and assemblies');
+$withState = json_decode(VereineHookRules::body(array('event_id' => 'e1', 'object_type' => 'ballot', 'object_id' => 7, 'revision' => 2, 'change' => 'updated',
+	'state' => 'opened', 'occurred_at' => '2026-10-10T19:04:12Z')), true);
+same(array('version', 'event_id', 'object_type', 'object_id', 'revision', 'change', 'state', 'occurred_at'), array_keys($withState),
+	'a webhook of a ballot names its state before the moment');
+same(false, array_key_exists('state', json_decode(VereineHookRules::body(array('event_id' => 'e2', 'object_type' => 'membership', 'object_id' => 1, 'revision' => 1,
+	'change' => 'updated', 'state' => '', 'occurred_at' => '2026-10-10T19:04:12Z')), true)), 'a webhook of a member has no state');
 
 // ------------------------------------------------------------- who sees an event (#165)
 

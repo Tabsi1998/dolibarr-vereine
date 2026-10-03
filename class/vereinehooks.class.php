@@ -293,11 +293,12 @@ class VereineHooks
 	private function addDelivery($targetId, array $event, $entity)
 	{
 		$occurred = str_replace(array('T', 'Z'), array(' ', ''), (string) $event['occurred_at']);
+		$state = isset($event['state']) ? (string) $event['state'] : '';
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_hook_delivery (entity, fk_target, event_id, object_type, object_id,";
-		$sql .= " revision, change_kind, occurred_at, status, attempts, next_try, datec) VALUES (".((int) $entity).",";
+		$sql .= " revision, change_kind, state, occurred_at, status, attempts, next_try, datec) VALUES (".((int) $entity).",";
 		$sql .= " ".((int) $targetId).", '".$this->db->escape((string) $event['event_id'])."',";
 		$sql .= " '".$this->db->escape((string) $event['object_type'])."', ".((int) $event['object_id']).",";
-		$sql .= " ".((int) $event['revision']).", '".$this->db->escape((string) $event['change'])."',";
+		$sql .= " ".((int) $event['revision']).", '".$this->db->escape((string) $event['change'])."', ".($state !== '' ? "'".$this->db->escape($state)."'" : "NULL").",";
 		$sql .= " '".$this->db->escape($occurred)."', '".VereineHookRules::STATUS_PENDING."', 0,";
 		$sql .= " '".$this->db->idate(dol_now())."', '".$this->db->idate(dol_now())."')";
 		if (!$this->db->query($sql)) {
@@ -352,7 +353,7 @@ class VereineHooks
 
 		$entity = (int) $conf->entity;
 		$now = dol_now();
-		$sql = "SELECT rowid, fk_target, event_id, object_type, object_id, revision, change_kind, occurred_at, attempts";
+		$sql = "SELECT rowid, fk_target, event_id, object_type, object_id, revision, change_kind, state, occurred_at, attempts";
 		$sql .= " FROM ".MAIN_DB_PREFIX."vereine_hook_delivery WHERE entity = ".$entity;
 		$sql .= " AND status = '".VereineHookRules::STATUS_PENDING."'";
 		$sql .= " AND (next_try IS NULL OR next_try <= '".$this->db->idate($now)."') ORDER BY rowid LIMIT ".((int) $limit);
@@ -391,7 +392,7 @@ class VereineHooks
 		$body = VereineHookRules::body(array(
 			'event_id' => (string) $job->event_id, 'object_type' => (string) $job->object_type,
 			'object_id' => (int) $job->object_id, 'revision' => (int) $job->revision,
-			'change' => (string) $job->change_kind,
+			'change' => (string) $job->change_kind, 'state' => (string) $job->state,
 			'occurred_at' => str_replace(' ', 'T', substr((string) $job->occurred_at, 0, 19)).'Z',
 		));
 		$stamp = (int) dol_now();
