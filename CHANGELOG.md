@@ -7,6 +7,31 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-03
+
+Partner und Sponsoren für die Website: mit Logo und Banner, jeweils für hellen und dunklen Hintergrund.
+
+Nach dem Update das Modul einmal aus- und wieder einschalten: erst dann gibt es die neue Tabelle für die Bilder.
+
+### Neu
+
+- **Partner und Sponsoren über die API** (#278): Unter *Einstellungen > Vereine > Kanäle, Konten und Partner*
+  wählt ihr Kategorien von Geschäftspartnern, etwa „Hauptsponsor“, „Sponsor“ oder „Partner“.
+  `GET /vereine/partners` gibt deren Geschäftspartner an die Website – mit Name, Website, Kategorien und
+  Bildern, in der Reihenfolge der Kategorien und dann nach Namen, nie mit Kontaktdaten. Es reicht das Recht,
+  das der Website-Benutzer schon hat.
+- **Logos und Banner für hellen und dunklen Hintergrund** (#278): Am Geschäftspartner (Reiter *Verein*) gibt
+  es vier Plätze – Logo hell, Logo dunkel, Banner hell, Banner dunkel – als PNG, JPG oder WebP bis 5 MB. Die
+  Vorschau zeigt jedes Bild auf seinem Hintergrund. Jeder Platz ist freiwillig; ohne eigenes helles Logo gilt
+  das Logo der Dolibarr-Karte. Die Website holt jedes Bild einzeln über
+  `GET /vereine/partners/{id}/images/{kind}/{variant}`, mit ETag, damit nur Geändertes neu geladen wird. Die
+  Bilder liegen bei den Dokumenten des Geschäftspartners und gehen mit ihm.
+
+### Geändert
+
+- Der Reiter des Moduls am Geschäftspartner heißt jetzt „Verein“ statt „Mitgliedschaft“, die Einstellungsseite
+  „Kanäle, Konten und Partner“.
+
 ## [1.8.0] - 2026-10-03
 
 Die Mitgliederakte: woran jemand teilgenommen hat, alle Ehrungen an einer Stelle – mit dem, was veröffentlicht werden darf – und auf Wunsch eine Änderung der eigenen Daten ohne Prüfung.
@@ -2304,7 +2329,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.9.0
 [1.8.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.8.0
 [1.7.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.7.0
 [1.6.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.6.0

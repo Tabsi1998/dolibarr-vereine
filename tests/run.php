@@ -42,6 +42,7 @@ require_once $root.'/class/vereinewebsiteprofilerules.class.php';
 require_once $root.'/class/vereinefilerules.class.php';
 require_once $root.'/class/vereinecheckinrules.class.php';
 require_once $root.'/class/vereineparticipationrules.class.php';
+require_once $root.'/class/vereinepartnerimagerules.class.php';
 require_once $root.'/class/vereinecashregister.class.php';
 require_once $root.'/class/vereinemembersummary.class.php';
 require_once $root.'/class/vereinewebsiteevents.class.php';
@@ -1815,7 +1816,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked', 'honour', 'loan', 'loan_returned', 'loan_reminded', 'publication', 'meeting_response', 'motion', 'profile', 'ballot', 'ballot_vote', 'portal', 'participation'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked', 'honour', 'loan', 'loan_returned', 'loan_reminded', 'publication', 'meeting_response', 'motion', 'profile', 'ballot', 'ballot_vote', 'portal', 'participation', 'partner_image'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1890,6 +1891,8 @@ $prefixes = array(
 	'VereineCheckInAction_' => array(VereineCheckInRules::ACTION_PRESENT, VereineCheckInRules::ACTION_REVOKED),
 	'VereineParticipationError_' => array('members', 'kind', 'title', 'day', 'hours'),
 	'VereineParticipationSource_' => VereineParticipationRules::SOURCES,
+	'VereinePartnerImageError_' => array('slot', 'empty', 'size', 'type', 'dimensions'),
+	'VereinePartnerImage_' => array('logo_light', 'logo_dark', 'banner_light', 'banner_dark'),
 	'VereineMeetingFormat_' => VereineMeetingRules::FORMATS,
 	'VereineMeetingChannel_' => array(VereineMeetingRules::CHANNEL_EMAIL, VereineMeetingRules::CHANNEL_LETTER),
 	'VereineMeetingRecipientsHelp_' => VereineMeetingRules::KINDS,
@@ -3379,6 +3382,29 @@ same(array('10 Jahre Mitgliedschaft', 'Ehrenmitgliedschaft', 'Turniersieg 2026',
 ), 'an honour in words for the website and the lists');
 same(array('jubilee', 'honorary'), VereineHonourRules::SPECIAL, 'a jubilee and an honorary membership keep a way of their own');
 expect(in_array('record', VereineIdentityRules::CAPABILITIES, true), 'an application can be allowed to read the own member file');
+
+// Partners for the website (#278): four places for pictures, only pictures a browser shows safely, the order of the categories.
+same(array(true, true, false, false), array(VereinePartnerImageRules::slot('logo', 'light'), VereinePartnerImageRules::slot('banner', 'dark'),
+	VereinePartnerImageRules::slot('poster', 'light'), VereinePartnerImageRules::slot('logo', 'grey')), 'a logo and a banner, each for a light and a dark background');
+same(array(array(), array('type'), array('size'), array('empty', 'type'), array('dimensions'), array('slot')), array(
+	VereinePartnerImageRules::check('logo', 'dark', 20000, 'image/png', 400, 200),
+	VereinePartnerImageRules::check('logo', 'dark', 20000, 'image/svg+xml', 400, 200),
+	VereinePartnerImageRules::check('banner', 'light', VereinePartnerImageRules::MAX_BYTES + 1, 'image/webp', 1200, 300),
+	VereinePartnerImageRules::check('banner', 'light', 0, '', 0, 0),
+	VereinePartnerImageRules::check('logo', 'light', 20000, 'image/jpeg', 9000, 200),
+	VereinePartnerImageRules::check('poster', 'light', 20000, 'image/jpeg', 400, 200),
+), 'PNG, JPEG and WebP up to 5 MB and 8000 pixels; no SVG, nothing empty, no unknown place');
+same(array('logo-dark.webp', 'banner-light.jpg'), array(VereinePartnerImageRules::fileName('logo', 'dark', 'image/webp'),
+	VereinePartnerImageRules::fileName('banner', 'light', 'image/jpeg')), 'a place has always the same file name');
+same(array(7, 3, 12), VereinePartnerImageRules::categories('7, 3,7;12,0,x'), 'categories in the chosen order, each once');
+same(array(4, 9, 2), VereinePartnerImageRules::numbered(array(2 => '3', 4 => '1', 9 => '1', 5 => '', 6 => '0', 8 => 'x', 77 => '2'), array(2, 4, 5, 6, 8, 9)),
+	'numbered categories in their order, ties by id; empty, 0, no number and unknown ones stay off the website');
+same(array('Bäckerei Gold', 'Autohaus Alpen', 'Zimmerei Holz', 'Café Ecke'), array_column(VereinePartnerImageRules::order(array(
+	array('name' => 'Café Ecke', 'categories' => array(array('id' => 3, 'label' => 'Partner'))),
+	array('name' => 'Zimmerei Holz', 'categories' => array(array('id' => 7, 'label' => 'Hauptsponsor'))),
+	array('name' => 'Bäckerei Gold', 'categories' => array(array('id' => 9, 'label' => 'Gold'), array('id' => 2, 'label' => 'Platin'))),
+	array('name' => 'Autohaus Alpen', 'categories' => array(array('id' => 7, 'label' => 'Hauptsponsor'))),
+), array(2, 7, 3)), 'name'), 'partners in the order of their best category, then by name');
 
 // A meeting goes only when it was planned or called off and nothing is recorded in it (#266).
 same(array(array(), array(), array('VereineMeetingDeleteInvited'), array('VereineMeetingDeleteHeld', 'VereineMeetingDeleteHas_votes'),

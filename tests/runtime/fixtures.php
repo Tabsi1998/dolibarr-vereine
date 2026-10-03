@@ -688,6 +688,53 @@ if ($stage === 'memberphoto') {
 	exit(0);
 }
 
+if ($stage === 'partnersite') {
+	// Partners for the website (#278): two categories of customers, two third parties in them, one outside.
+	require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+	$categories = array();
+	foreach (array('main' => 'Hauptsponsor RT', 'partner' => 'Partner RT') as $key => $label) {
+		$category = new Categorie($db);
+		$category->label = $label;
+		$category->type = 'customer';
+		$category->visible = 1;
+		if ($category->create($admin) <= 0) {
+			rt_fail('category '.$label.': '.$category->error);
+		}
+		$categories[$key] = (int) $category->id;
+	}
+	$parties = array();
+	foreach (array('alpen' => array('Autohaus Alpen RT', 'https://autohaus-alpen.example', 'main'), 'gold' => array('Bäckerei Gold RT', '', 'partner'),
+		'none' => array('Kein Partner RT', '', '')) as $key => $data) {
+		$party = new Societe($db);
+		$party->name = $data[0];
+		$party->client = 2;
+		$party->url = $data[1];
+		$party->status = 1;
+		if ($party->create($admin) <= 0) {
+			rt_fail('third party '.$data[0].': '.$party->error);
+		}
+		if ($data[2] !== '') {
+			$category = new Categorie($db);
+			$category->fetch($categories[$data[2]]);
+			if ($category->add_type($party, 'customer') < 0) {
+				rt_fail('category of '.$data[0].': '.$category->error);
+			}
+		}
+		$parties[$key] = (int) $party->id;
+	}
+	// The bakery has a logo on its Dolibarr card, where Dolibarr keeps it.
+	$dir = $conf->societe->multidir_output[$conf->entity].'/'.$parties['gold'].'/logos';
+	dol_mkdir($dir);
+	$png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
+	if (file_put_contents($dir.'/gold.png', $png) === false || !$db->query("UPDATE ".MAIN_DB_PREFIX."societe SET logo = 'gold.png' WHERE rowid = ".$parties['gold'])) {
+		rt_fail('logo of the bakery');
+	}
+	print json_encode(array('categories' => $categories, 'parties' => $parties, 'logo_sha256' => hash('sha256', $png)))."\n";
+	exit(0);
+}
+
 if ($stage === 'website') {
 	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
 	require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent_type.class.php';
@@ -1984,4 +2031,4 @@ if ($stage === 'statutedir') {
 	exit(0);
 }
 
-rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers, inventory, runloans, signedcopy, signedrun, ballotconfirm, vatline, portalmember, statutedir or reset');
+rt_fail('unknown stage "'.$stage.'", use base, rights, readmembers, members, cardmember, invoicing, turnover, cashpayments, website, onlinepayment, websiteinvoices, websitechange, websiteflip, webhook, webhookchanges, webhookdown, feerunmember, payinvoice, discountmembers, familymembers, familychild, exitmembers, runexits, sepamembers, applicationuser, agenda, reportpeople, groupuser, mailing, resiliate, guardian, apiclient, memberextra, overpaid, donors, donorsmore, erasuremember, mahnwesen, arrearmembers, arrearevent, arrearstale, honourmembers, inventory, runloans, signedcopy, signedrun, ballotconfirm, vatline, portalmember, statutedir, partnersite or reset');

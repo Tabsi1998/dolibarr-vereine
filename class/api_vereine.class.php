@@ -679,6 +679,59 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Partners and sponsors for the website
+	 *
+	 * The active third parties of the categories the association chose, in the order of those categories and
+	 * then by name: name, address of their website, categories and the pictures there are - a logo and a banner,
+	 * each for a light and for a dark background - with type, size, dimensions and checksum. Never contact data.
+	 * Needs the right to read member summaries for a website.
+	 *
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET partners
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getPartners()
+	{
+		$this->checkAccess();
+		$this->checkWebsiteRight();
+		dol_include_once('/vereine/class/vereinepartnerimages.class.php');
+		return array_map(array('VereinePartnerImages', 'apiView'), (new VereinePartnerImages($this->db))->partners());
+	}
+
+	/**
+	 * A picture of a partner, as it is
+	 *
+	 * The file itself, with its checksum as ETag: If-None-Match answered with 304, Range for a part (206). Only of
+	 * partners that go to the website. Needs the right to read member summaries for a website.
+	 *
+	 * @param int    $id      Third party
+	 * @param string $kind    logo or banner
+	 * @param string $variant light or dark: for a light or for a dark background
+	 * @return null The file itself, not JSON
+	 *
+	 * @url GET partners/{id}/images/{kind}/{variant}
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such partner on the website, or no such picture
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getPartnerImage($id, $kind, $variant)
+	{
+		$this->checkAccess();
+		$this->checkWebsiteRight();
+		dol_include_once('/vereine/class/vereinepartnerimages.class.php');
+		$file = (new VereinePartnerImages($this->db))->file((int) $id, (string) $kind, (string) $variant);
+		if ($file === null) {
+			throw new RestException(404, 'No such picture of a partner on the website');
+		}
+		$this->sendFile($file);
+		return null;
+	}
+
+	/**
 	 * Photo of a member
 	 *
 	 * The photo of Dolibarr's member card, base64 with its checksum, only with the consent the association

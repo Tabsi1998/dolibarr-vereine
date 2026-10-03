@@ -46,6 +46,8 @@ und bringt eine REST-API für die Vereinswebsite mit.
   in Dolibarr oder von einer App gemeldet; je Jahr die aktiven Mitglieder als Liste und Datei.
 - **Kanäle und Konten**: Discord, Twitch, YouTube & Co. des Vereins (mehrere je Netzwerk, mit
   Livestream-Link) für die Website; Konten der Mitglieder im Antrag, von der App bestätigt.
+- **Partner und Sponsoren**: Geschäftspartner gewählter Kategorien für die Website, je mit Logo und
+  Banner für hellen und dunklen Hintergrund.
 - **Website-Profil je Mitglied**: Felder, die der Verein selbst festlegt, und das Foto der
   Mitgliedskarte für die Website – nur mit der Einwilligung, die der Verein dafür wählt; welche Felder
   das Mitglied selbst pflegt, bestimmt der Verein.

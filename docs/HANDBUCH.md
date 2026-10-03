@@ -165,6 +165,12 @@ Meldungen, Wahlen, Anträge, Unterschriften und Rückstände, das Dringendste zu
   *Einstellungen › Wörterbücher › Vereine: Arten von Teilnahmen* an.
 - **Mitgliederstatistik**: Zahlen an einem Stichtag für den Verband, als Datei, dazu die aktiven
   Mitglieder des Jahres.
+- **Partner und Sponsoren für die Website**: Unter *Einstellungen > Vereine > Kanäle, Konten und Partner*
+  wählt ihr Kategorien von Geschäftspartnern, etwa „Hauptsponsor“, „Sponsor“, „Partner“ – in der
+  Reihenfolge, in der die Website sie zeigen soll. Am Geschäftspartner (Reiter *Verein*) hinterlegt ihr je
+  ein Logo und ein Banner für hellen und für dunklen Hintergrund; die Vorschau zeigt jedes Bild auf seinem
+  Hintergrund. Jeder Platz ist freiwillig, ohne eigenes helles Logo gilt das Logo der Dolibarr-Karte. Die
+  Website holt sich über die API, was sie braucht.
 - **Vereinsakte**: jedes fertige Dokument mit seiner Kennung. Dort gibst du Dokumente für Vorstand,
   Mitglieder oder Öffentlichkeit frei, von Hand oder je Dokumentart automatisch, sobald sie unterschrieben
   sind; eine angebundene App oder die Website holt sie dann über die API. Für eine Übergabe an einen neuen
