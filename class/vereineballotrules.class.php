@@ -173,6 +173,11 @@ class VereineBallotRules
 				$channels[] = $channel;
 			}
 		}
+		// A secret election runs on ballot papers in the room, and nowhere else (#276).
+		$secret = !empty($entered['secret']);
+		if ($secret) {
+			$channels = array(self::CHANNEL_PAPER);
+		}
 		if (!$channels) {
 			$errors[] = 'VereineBallotErrorChannels';
 		}
@@ -216,7 +221,7 @@ class VereineBallotRules
 			}
 		}
 		$options[] = array('code' => self::ABSTAIN, 'label' => '', 'member_id' => 0, 'consent' => false);
-		return array('ballot' => array('item' => $item, 'kind' => $kind, 'question' => $question, 'channels' => $channels, 'closes' => $closes,
+		return array('ballot' => array('item' => $item, 'kind' => $kind, 'question' => $question, 'secret' => $secret, 'channels' => $channels, 'closes' => $closes,
 			'function_id' => $functionId), 'options' => $options, 'errors' => array_values(array_unique($errors)));
 	}
 
@@ -241,7 +246,8 @@ class VereineBallotRules
 		if (!in_array((string) $meeting['status'], array(VereineMeetingRules::STATUS_INVITED, VereineMeetingRules::STATUS_HELD), true)) {
 			$errors[] = 'VereineMeetingErrorNotInvited';
 		}
-		if (!empty($ballot['secret'])) {
+		// Secret only on paper in the room: nothing anywhere links a person to a vote (#162, #276).
+		if (!empty($ballot['secret']) && array_values(isset($ballot['channels']) ? (array) $ballot['channels'] : array()) !== array(self::CHANNEL_PAPER)) {
 			$errors[] = 'VereineBallotErrorSecret';
 		}
 		foreach ($options as $option) {
@@ -358,6 +364,59 @@ class VereineBallotRules
 		}
 		$abstain = isset($counts[self::ABSTAIN]) ? $counts[self::ABSTAIN] : 0;
 		return array('counts' => $counts, 'valid' => array_sum($counts) - $abstain, 'abstain' => $abstain);
+	}
+
+	/**
+	 * The totals of a secret election on paper as entered (#276): a whole number for every option and for the invalid
+	 * ballot papers, together no more than the ballot papers handed out.
+	 *
+	 * @param string[]            $codes     Codes of the options
+	 * @param array<string,mixed> $entered   Votes by code, and invalid
+	 * @param int                 $handedOut Ballot papers handed out
+	 * @return array{totals:array<string,int>,invalid:int,errors:string[]}
+	 */
+	public static function totals(array $codes, array $entered, $handedOut)
+	{
+		$errors = array();
+		$number = function ($value) use (&$errors) {
+			$value = is_scalar($value) ? trim((string) $value) : '';
+			if ($value === '') {
+				return 0;
+			}
+			if (!preg_match('/^\d{1,6}$/', $value)) {
+				$errors[] = 'VereineBallotErrorTotal';
+				return 0;
+			}
+			return (int) $value;
+		};
+		$totals = array();
+		foreach ($codes as $code) {
+			$totals[(string) $code] = $number(isset($entered[$code]) ? $entered[$code] : '');
+		}
+		$invalid = $number(isset($entered['invalid']) ? $entered['invalid'] : '');
+		if (!$errors && array_sum($totals) + $invalid > (int) $handedOut) {
+			$errors[] = 'VereineBallotErrorTotalTooMany';
+		}
+		return array('totals' => $totals, 'invalid' => $invalid, 'errors' => array_values(array_unique($errors)));
+	}
+
+	/**
+	 * Votes per option from the totals of a secret election, counted like single votes: abstentions and invalid
+	 * ballot papers are no valid votes cast.
+	 *
+	 * @param string[]          $codes   Codes of the options
+	 * @param array<string,int> $totals  Votes by code
+	 * @param int               $invalid Invalid ballot papers
+	 * @return array{counts:array<string,int>,valid:int,abstain:int,invalid:int}
+	 */
+	public static function tallyTotals(array $codes, array $totals, $invalid)
+	{
+		$counts = array();
+		foreach ($codes as $code) {
+			$counts[(string) $code] = isset($totals[$code]) ? max(0, (int) $totals[$code]) : 0;
+		}
+		$abstain = isset($counts[self::ABSTAIN]) ? $counts[self::ABSTAIN] : 0;
+		return array('counts' => $counts, 'valid' => array_sum($counts) - $abstain, 'abstain' => $abstain, 'invalid' => max(0, (int) $invalid));
 	}
 
 	/**

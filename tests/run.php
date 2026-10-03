@@ -1908,7 +1908,7 @@ $prefixes = array(
 	'VereineVatCode_' => array_column(VereineTaxRules::zeroCodes(), 'key'),
 	'VereineBallotResult_' => VereineBallotRules::RESULTS,
 	'VereineBallotOutcome_' => VereineBallotRules::OUTCOMES,
-	'VereineBallotRefused_' => array('not_found', 'not_open', 'closed', 'channel', 'used', 'not_present', 'option', 'external_id'),
+	'VereineBallotRefused_' => array('not_found', 'not_open', 'closed', 'channel', 'used', 'not_present', 'option', 'external_id', 'secret'),
 	'VereineMinutesPlaceholder_' => VereineMinutesRules::PLACEHOLDERS,
 	'VereineMinutesItemKind_' => VereineMinutesRules::ITEM_KINDS,
 	'VereineMeetingStep_' => VereineMeetingRules::STEPS,
@@ -3304,6 +3304,24 @@ same(array('member_id' => 7, 'state' => 'present', 'arrived' => '18:58', 'voting
 same(array(false, 'absent', ''), array_values(array_intersect_key(VereineCheckInRules::answer(7, array('state' => 'absent', 'arrived' => ''), array('eligible' => true, 'reason' => 'own'),
 	array('present' => 11, 'eligible' => 40, 'required' => 20, 'reached' => false)), array('voting' => 1, 'reason' => 1, 'arrived' => 1))),
 	'taken back, the member does not vote');
+
+// A secret election on paper (#276): ballot papers only, totals no more than the papers handed out, invalid ones apart.
+$secretEntered = VereineBallotRules::entered(array('item' => '1', 'kind' => 'resolution', 'question' => 'Wahl geheim', 'secret' => '1', 'channels' => array('app')),
+	array(), 4, array());
+same(array(array(), true, array('paper')), array($secretEntered['errors'], $secretEntered['ballot']['secret'], $secretEntered['ballot']['channels']),
+	'a secret election runs on ballot papers only, whatever ways were ticked');
+same(array(array(), array('VereineBallotErrorSecret')), array(
+	VereineBallotRules::releaseProblems(array('status' => 'draft', 'secret' => true, 'channels' => array('paper')), array(), array('kind' => 'general', 'status' => 'invited')),
+	VereineBallotRules::releaseProblems(array('status' => 'draft', 'secret' => true, 'channels' => array('app', 'paper')), array(), array('kind' => 'general', 'status' => 'invited')),
+), 'secret only on paper in the room');
+same(array('totals' => array('yes' => 30, 'no' => 12, 'abstain' => 3), 'invalid' => 2, 'errors' => array()),
+	VereineBallotRules::totals(array('yes', 'no', 'abstain'), array('yes' => '30', 'no' => ' 12 ', 'abstain' => '3', 'invalid' => '2'), 47), 'totals as counted');
+same(array(array('VereineBallotErrorTotalTooMany'), array('VereineBallotErrorTotal')), array(
+	VereineBallotRules::totals(array('yes', 'no'), array('yes' => '30', 'no' => '12', 'invalid' => '6'), 47)['errors'],
+	VereineBallotRules::totals(array('yes', 'no'), array('yes' => '-1', 'no' => 'zwölf'), 47)['errors'],
+), 'more votes than ballot papers, or no whole number, is refused');
+same(array('counts' => array('yes' => 30, 'no' => 12, 'abstain' => 3), 'valid' => 42, 'abstain' => 3, 'invalid' => 2),
+	VereineBallotRules::tallyTotals(array('yes', 'no', 'abstain'), array('yes' => 30, 'no' => 12, 'abstain' => 3), 2), 'abstentions and invalid papers are no valid votes');
 
 // A meeting goes only when it was planned or called off and nothing is recorded in it (#266).
 same(array(array(), array(), array('VereineMeetingDeleteInvited'), array('VereineMeetingDeleteHeld', 'VereineMeetingDeleteHas_votes'),

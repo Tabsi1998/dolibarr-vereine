@@ -6727,6 +6727,7 @@
           "item",
           "kind",
           "question",
+          "secret",
           "status",
           "closes",
           "timezone",
@@ -6762,6 +6763,10 @@
           },
           "question": {
             "type": "string"
+          },
+          "secret": {
+            "type": "boolean",
+            "description": "Geheime Wahl auf Papier: abgestimmt wird auf Stimmzetteln im Saal, hier nie (seit 1.7.0)"
           },
           "status": {
             "type": "string",

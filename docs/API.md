@@ -1087,6 +1087,11 @@ Im Vorstand stimmt jede Person selbst in Dolibarr ab oder auf einem Stimmzettel 
 Eine Abstimmung gehört immer zu einem Tagesordnungspunkt einer Generalversammlung; eine Umfrage allein ist
 keine Versammlung. `status`: `released` (angekündigt), `open`, `closed`, `evaluated`, `cancelled`.
 
+`secret: true` (seit 1.7.0) ist eine **geheime Wahl auf Papier**: Abgestimmt wird auf Stimmzetteln im Saal, nie
+über eine Anwendung. Die Stimmrechte erscheinen trotzdem – `state: "used"` heißt dann „Stimmzettel erhalten“,
+`option` bleibt leer. Eine Stimmabgabe darauf antwortet mit `409` (`secret`). Das bestätigte Ergebnis kommt wie
+bei jeder anderen Abstimmung, nur als Summen.
+
 `rights` sind die Stimmrechte, die die Person nutzen kann: das eigene und die von Mitgliedern, die ihr
 eine schriftliche Vollmacht gegeben haben. Sie werden beim **Öffnen** festgehalten – aus Einladung
 (stimmberechtigt oder nicht), Mitgliedschaft am Versammlungstag und den Vollmachten der Anwesenheitsliste.

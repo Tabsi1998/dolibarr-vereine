@@ -1,8 +1,11 @@
 # Geheime Wahl: Bedrohungsmodell und Architekturvorschlag (#162)
 
-Stand: Entwurf zur unabhängigen Sicherheitsprüfung, 24. September 2026. **Nichts davon ist aktiviert.**
-Geheime Abstimmungen über Apps bleiben gesperrt (`VereineBallotErrorSecret`), bis dieses Dokument
-geprüft, das Verfahren entschieden und ein synthetischer Testlauf bestanden ist.
+**Entschieden am 3. Oktober 2026: Geheime Wahlen laufen auf Papier im Saal (Verfahren D).** Seit 1.7.0
+hakt das Modul die ausgegebenen Stimmzettel ab und nimmt nur die ausgezählten Summen (#276); wer wie
+gewählt hat, steht nirgends. Eine geheime Stimmabgabe über App, Webportal oder Dolibarr gibt es nicht und
+ist nicht geplant (#162) – geheime Abstimmungen auf anderen Wegen bleiben gesperrt
+(`VereineBallotErrorSecret`). Der Rest dieses Dokuments ist die Begründung: warum eine Online-Variante
+eine unabhängige Prüfung und einen externen Dienst bräuchte.
 
 ## Worum es geht
 

@@ -165,7 +165,7 @@ class VereineBallots
 		$this->db->begin();
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_ballot (entity, fk_meeting, item, kind, question, secret, channels, status, closes, fk_function, datec, fk_user_creat)";
 		$sql .= " VALUES (".((int) $conf->entity).", ".((int) $meetingId).", ".((int) $ballot['item']).", '".$this->db->escape($ballot['kind'])."',";
-		$sql .= " '".$this->db->escape($ballot['question'])."', 0, '".$this->db->escape(implode(',', $ballot['channels']))."', '".VereineBallotRules::STATUS_DRAFT."',";
+		$sql .= " '".$this->db->escape($ballot['question'])."', ".(!empty($ballot['secret']) ? 1 : 0).", '".$this->db->escape(implode(',', $ballot['channels']))."', '".VereineBallotRules::STATUS_DRAFT."',";
 		$sql .= " '".$this->db->escape($ballot['closes'])."', ".((int) $ballot['function_id']).", '".$this->db->idate(dol_now())."', ".((int) $user->id).")";
 		$ok = (bool) $this->db->query($sql);
 		$id = $ok ? (int) $this->db->last_insert_id(MAIN_DB_PREFIX.'vereine_ballot') : 0;
@@ -323,6 +323,11 @@ class VereineBallots
 	 */
 	public function tally(array $ballot)
 	{
+		if (!empty($ballot['secret'])) {
+			// A secret election knows only its totals (#276).
+			$totals = $this->totals((int) $ballot['id']);
+			return VereineBallotRules::tallyTotals(array_column($ballot['options'], 'code'), $totals['totals'], $totals['invalid']);
+		}
 		$votes = array();
 		$resql = $this->db->query("SELECT option_code FROM ".MAIN_DB_PREFIX."vereine_ballot_vote WHERE fk_ballot = ".((int) $ballot['id']));
 		while ($resql && ($obj = $this->db->fetch_object($resql))) {
@@ -353,6 +358,11 @@ class VereineBallots
 		$ballot = $this->fetch($id);
 		if ($ballot === null) {
 			$this->reason = 'not_found';
+			return 0;
+		}
+		if (!empty($ballot['secret'])) {
+			// In a secret election nobody's vote is stored: ballot papers are handed out, the totals counted (#276).
+			$this->reason = 'secret';
 			return 0;
 		}
 		$externalId = mb_substr(trim((string) $externalId), 0, 64, 'UTF-8');
@@ -458,10 +468,108 @@ class VereineBallots
 				}
 			}
 			$list[] = array('id' => $ballot['id'], 'meeting_id' => $ballot['meeting_id'], 'meeting' => $ballot['meeting_title'], 'day' => $ballot['day'], 'item' => $ballot['item'],
-				'kind' => $ballot['kind'], 'question' => $ballot['question'], 'status' => $ballot['status'], 'closes' => $ballot['closes'],
+				'kind' => $ballot['kind'], 'question' => $ballot['question'], 'secret' => !empty($ballot['secret']), 'status' => $ballot['status'], 'closes' => $ballot['closes'],
 				'timezone' => (string) getServerTimeZoneString(), 'options' => $options, 'rights' => $rights, 'result' => $this->confirmedResult($ballot['id']));
 		}
 		return $list;
+	}
+
+	/**
+	 * The totals of a secret election on paper, as entered after counting (#276).
+	 *
+	 * @param int $id Ballot
+	 * @return array{totals:array<string,int>,invalid:int,entered:bool}
+	 */
+	public function totals($id)
+	{
+		$answer = array('totals' => array(), 'invalid' => 0, 'entered' => false);
+		$resql = $this->db->query("SELECT option_code, votes FROM ".MAIN_DB_PREFIX."vereine_ballot_total WHERE fk_ballot = ".((int) $id));
+		while ($resql && ($obj = $this->db->fetch_object($resql))) {
+			$answer['entered'] = true;
+			if ((string) $obj->option_code === '_invalid') {
+				$answer['invalid'] = (int) $obj->votes;
+			} else {
+				$answer['totals'][(string) $obj->option_code] = (int) $obj->votes;
+			}
+		}
+		return $answer;
+	}
+
+	/**
+	 * Hand a ballot paper out in a secret election: the voting right counts as used, and nothing about the vote is kept (#276).
+	 *
+	 * @param int  $id      Ballot
+	 * @param int  $rightId The voting right
+	 * @param User $user    Who hands it out
+	 * @return int 1 when handed out, 0 when refused (see reason), -1 on error
+	 */
+	public function handOut($id, $rightId, $user)
+	{
+		$this->reason = '';
+		$ballot = $this->fetch($id);
+		if ($ballot === null || empty($ballot['secret'])) {
+			$this->reason = 'not_found';
+			return 0;
+		}
+		if ($ballot['status'] !== VereineBallotRules::STATUS_OPEN) {
+			$this->reason = $ballot['status'] === VereineBallotRules::STATUS_RELEASED ? 'not_open' : 'closed';
+			return 0;
+		}
+		$resql = $this->db->query("UPDATE ".MAIN_DB_PREFIX."vereine_ballot_right SET used_at = '".$this->db->idate(dol_now())."', channel = '".VereineBallotRules::CHANNEL_PAPER."'"
+			." WHERE rowid = ".((int) $rightId)." AND fk_ballot = ".((int) $id)." AND eligible = 1 AND used_at IS NULL");
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		if ((int) $this->db->affected_rows($resql) !== 1) {
+			$this->reason = 'used';
+			return 0;
+		}
+		VereineLog::add($this->db, $user, VereineLog::BALLOT, 0, 0, $ballot['question'].': ballot paper handed out');
+		return 1;
+	}
+
+	/**
+	 * Enter the counted totals of a secret election once it is closed (#276): no more than the ballot papers handed out.
+	 *
+	 * @param int                 $id      Ballot
+	 * @param array<string,mixed> $entered Votes by code, and invalid
+	 * @param User                $user    Who enters them
+	 * @return int 1 when kept, 0 when refused (see errors), -1 on error
+	 */
+	public function saveTotals($id, array $entered, $user)
+	{
+		global $conf;
+
+		$this->errors = array();
+		$ballot = $this->fetch($id);
+		if ($ballot === null || empty($ballot['secret']) || $ballot['status'] !== VereineBallotRules::STATUS_CLOSED) {
+			$this->errors[] = 'VereineBallotErrorStatus';
+			return 0;
+		}
+		$handedOut = 0;
+		foreach ($this->rights($id) as $right) {
+			$handedOut += $right['used'] ? 1 : 0;
+		}
+		$checked = VereineBallotRules::totals(array_column($ballot['options'], 'code'), $entered, $handedOut);
+		if ($checked['errors']) {
+			$this->errors = $checked['errors'];
+			return 0;
+		}
+		$this->db->begin();
+		$ok = (bool) $this->db->query("DELETE FROM ".MAIN_DB_PREFIX."vereine_ballot_total WHERE fk_ballot = ".((int) $id));
+		foreach ($checked['totals'] + array('_invalid' => $checked['invalid']) as $code => $votes) {
+			$ok = $ok && $this->db->query("INSERT INTO ".MAIN_DB_PREFIX."vereine_ballot_total (entity, fk_ballot, option_code, votes, fk_user, datec) VALUES ("
+				.((int) $conf->entity).", ".((int) $id).", '".$this->db->escape((string) $code)."', ".((int) $votes).", ".((int) $user->id).", '".$this->db->idate(dol_now())."')");
+		}
+		if (!$ok) {
+			$this->error = $this->db->lasterror();
+			$this->db->rollback();
+			return -1;
+		}
+		$this->db->commit();
+		VereineLog::add($this->db, $user, VereineLog::BALLOT, 0, 0, $ballot['question'].': totals entered ('.array_sum($checked['totals']).' votes, '.$checked['invalid'].' invalid)');
+		return 1;
 	}
 
 	/**
@@ -610,6 +718,11 @@ class VereineBallots
 			$this->errors[] = 'VereineBallotErrorStatus';
 			return 0;
 		}
+		if (!empty($ballot['secret']) && !$this->totals($id)['entered']) {
+			// A secret election is counted from its totals; without them there is nothing to count (#276).
+			$this->errors[] = 'VereineBallotErrorTotals';
+			return 0;
+		}
 		$reason = mb_substr(trim((string) $reason), 0, 255, 'UTF-8');
 		if ($again && ($results === array() || $results[0]['status'] !== VereineBallotRules::RESULT_PROVISIONAL)) {
 			// A confirmed count is not counted again; that is a matter of a new resolution.
@@ -725,7 +838,7 @@ class VereineBallots
 			$this->db->rollback();
 			return $resql ? 2 : -1;
 		}
-		$vote = array('kind' => $ballot['kind'], 'item' => $ballot['item'], 'title' => $ballot['question'], 'secret' => false, 'yes' => (int) $outcome['yes'],
+		$vote = array('kind' => $ballot['kind'], 'item' => $ballot['item'], 'title' => $ballot['question'], 'secret' => !empty($ballot['secret']), 'yes' => (int) $outcome['yes'],
 			'no' => (int) $outcome['no'], 'abstain' => (int) $latest['snapshot']['abstain'], 'tie' => '', 'time' => (string) $latest['snapshot']['opened_time'],
 			'function_id' => $ballot['function_id'], 'candidate_id' => (int) $outcome['candidate_id']);
 		$voteId = $meeting !== null ? $meetings->applyVote($meeting, $vote, (string) $outcome['majority'], array('passed' => (bool) $outcome['passed'], 'tie' => false,
@@ -800,6 +913,7 @@ class VereineBallots
 			'question' => $ballot['question'], 'rules' => $ballot['rules'], 'opened_at' => $ballot['opened_at'] > 0 ? dol_print_date($ballot['opened_at'], 'dayhourrfc') : '',
 			'closed_at' => $ballot['closed_at'] > 0 ? dol_print_date($ballot['closed_at'], 'dayhourrfc') : '', 'opened_time' => $opened, 'options' => $options,
 			'counts' => $tally['counts'], 'valid' => $tally['valid'], 'abstain' => $tally['abstain'],
+			'secret' => !empty($ballot['secret']), 'invalid' => isset($tally['invalid']) ? (int) $tally['invalid'] : 0,
 			'rights' => array('eligible' => $eligible, 'represented' => $represented, 'used' => $used, 'unused' => $eligible - $used), 'quorum' => $quorum,
 			'outcome' => VereineBallotRules::outcome($ballot, $tally, $quorum));
 	}
@@ -850,6 +964,10 @@ class VereineBallots
 			$line($label($option).': '.(int) $option['count']);
 		}
 		$line($outputlangs->transnoentities('VereineBallotProofValid', (int) $snapshot['valid'], (int) $snapshot['abstain']));
+		if (!empty($snapshot['secret'])) {
+			// A secret election on paper: ballot papers handed out, the invalid ones, and no person anywhere (#276).
+			$line($outputlangs->transnoentities('VereineBallotProofSecret', (int) $snapshot['rights']['used'], (int) $snapshot['invalid']));
+		}
 		VereinePdf::heading($pdf, $outputlangs, $outputlangs->transnoentities('VereineBallotProofOutcome'));
 		$line($outputlangs->transnoentitiesnoconv('VereineBallotOutcome_'.$snapshot['outcome']['outcome']), 'B');
 		if ((string) $snapshot['outcome']['winner'] !== '') {
