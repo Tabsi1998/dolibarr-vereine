@@ -7283,7 +7283,9 @@ def memberfile(stack: Stack) -> str:
 
     # An own kind of honour, added in Dolibarr's dictionary editor itself (#274).
     overview = page_ok(browser.get("/admin/dict.php"), "Dolibarr's dictionaries")
-    found = dict((label, number) for number, label in re.findall(r'dict\.php\?id=(\d+)">\s*(?:<[^>]*>\s*)*(Vereine: Arten von (?:Teilnahmen|Ehrungen))</a>', overview.text))
+    # The link on the name itself; the pencil of each row links the same way, so tags in between may not close a link.
+    found = dict((label, number) for number, label in re.findall(r'<a href="[^"]*dict\.php\?id=(\d+)">\s*(?:<(?!/a>)[^>]*>\s*)*(Vereine: Arten von (?:Teilnahmen|Ehrungen))</a>',
+                                                                  overview.text))
     expect(set(found) == {"Vereine: Arten von Teilnahmen", "Vereine: Arten von Ehrungen"}, f"the dictionaries of the module in Dolibarr: {found}")
     dictionary = f"/admin/dict.php?id={found['Vereine: Arten von Ehrungen']}"
     page = page_ok(browser.get(dictionary), "the kinds of honours")
