@@ -2703,7 +2703,10 @@ def changes(stack: Stack) -> str:
             break
     expect(seen, "the feed holds nothing although members and invoices were changed")
     kinds = {event["object_type"] for event in seen}
-    expect(kinds <= {"membership", "function", "fee", "application", "consent"}, f"kinds in the feed: {sorted(kinds)}")
+    expect(kinds <= {"membership", "function", "fee", "application", "consent", "document", "ballot", "meeting"}, f"kinds in the feed: {sorted(kinds)}")
+    # Only ballots and general assemblies say which state they reached (#271); one that was deleted has none.
+    expect(all(("state" in event) == (event["object_type"] in ("ballot", "meeting") and event["change"] != "deleted") for event in seen),
+           f"a state where none belongs, or none where one does: {[event for event in seen if event['object_type'] in ('ballot', 'meeting')][:3]}")
     body = json.dumps(seen)
     for forbidden in ("firstname", "lastname", "iban", "amount", "email"):
         expect(forbidden not in body, f"the feed carries {forbidden}, which is content and does not belong in it")
