@@ -424,7 +424,8 @@ def enable(stack: Stack) -> str:
     expect(rights == [["49210001", "association", "read"], ["49210002", "partner", "write"], ["49210003", "website", "read"],
                       ["49210004", "application", "write"], ["49210005", "sync", "read"],
                       ["49210006", "identity", "use"], ["49210007", "donation", "write"],
-                      ["49210008", "members", "act"], ["49210009", "members", "vote"], ["49210010", "attendance", "write"]],
+                      ["49210008", "members", "act"], ["49210009", "members", "vote"], ["49210010", "attendance", "write"],
+                      ["49210011", "participation", "write"]],
            f"rights after enabling: {rights}")
     menu = sorted(stack.sql("SELECT mainmenu, leftmenu, url FROM llx_menu WHERE module = 'vereine' AND entity = 1"))
     expect(menu == [["members", "vereine", "/vereine/vereineindex.php"], ["members", "vereine_account", "/vereine/account.php"],
@@ -444,6 +445,7 @@ def enable(stack: Stack) -> str:
                     ["members", "vereine_inventory", "/vereine/inventory.php"],
                     ["members", "vereine_meetings", "/vereine/meetings.php"],
                     ["members", "vereine_overpayments", "/vereine/overpayments.php"],
+                    ["members", "vereine_participations", "/vereine/participations.php"],
                     ["members", "vereine_partners", "/vereine/partners.php"], ["members", "vereine_partnersetup", "/vereine/admin/partners.php"],
                     ["members", "vereine_resolutions", "/vereine/resolutions.php"],
                     ["members", "vereine_statistics", "/vereine/statistics.php"],
@@ -5689,13 +5691,19 @@ def erasure(stack: Stack) -> str:
     fixture = stack.php_fixture("erasuremember")
     member = int(fixture["member"])
     tab = f"/custom/vereine/member_association.php?id={member}"
+    # What the member file kept about the former member (#273, #274, #275).
+    stack.sql(f"INSERT INTO llx_vereine_participation (entity, fk_adherent, kind, title, day, source, datec) VALUES (1, {member}, 'event', 'Sommerfest',"
+              " DATE_SUB(CURDATE(), INTERVAL 5 YEAR), 'dolibarr', NOW())")
+    stack.sql(f"INSERT INTO llx_vereine_honour (entity, fk_adherent, kind, years, label, given_on, note, publishable, datec) VALUES (1, {member}, 'merit', 0,"
+              " 'Platzwart', DATE_SUB(CURDATE(), INTERVAL 6 YEAR), 'Rede hielt die Obfrau', 1, NOW())")
+    stack.sql(f"INSERT INTO llx_vereine_profile_once (entity, fk_adherent, granted_at) VALUES (1, {member}, DATE_SUB(NOW(), INTERVAL 5 YEAR))")
 
     def states() -> dict:
         page = page_ok(browser.get(tab), "the former member's tab")
         return dict(re.findall(r'data-erasure-kind="(\w+)" data-erasure-state="(\w+)"', page.text))
 
     before = states()
-    expected = {"identities": "due", "contact": "due", "invitations": "due", "consents": "due", "disclosures": "due", "log": "due",
+    expected = {"identities": "due", "contact": "due", "invitations": "due", "tasks": "due", "consents": "due", "disclosures": "due", "log": "due",
                 "applications": "none", "bookkeeping": "kept", "records": "kept", "name": "waiting"}
     expect(all(before.get(kind) == state for kind, state in expected.items()), f"preview of a member gone four years: {before}")
     member_tab = page_ok(browser.get(f"/custom/vereine/member_association.php?id={stack.value('SELECT MIN(rowid) FROM llx_adherent WHERE statut = 1')}"), "an active member's tab")
@@ -5734,7 +5742,11 @@ def erasure(stack: Stack) -> str:
     expect(set(actions) == {"erasure_hold"}, f"the log of the member from before the run: {actions}")
     expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_log WHERE fk_adherent = {member} AND action = 'erasure'") == "1", "the run was not logged")
     run = json.loads(stack.value(f"SELECT done FROM llx_vereine_erasure WHERE fk_adherent = {member} AND kind = 'run'") or "{}")
-    expect(set(run) == {"identities", "contact", "invitations", "consents", "disclosures", "log"} and "Vergessen" not in json.dumps(run), f"the run kept: {run}")
+    expect(set(run) == {"identities", "contact", "invitations", "tasks", "consents", "disclosures", "log"} and "Vergessen" not in json.dumps(run), f"the run kept: {run}")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_participation WHERE fk_adherent = {member}") == "0"
+           and stack.value(f"SELECT COUNT(*) FROM llx_vereine_profile_once WHERE fk_adherent = {member}") == "0"
+           and stack.sql(f"SELECT note, publishable FROM llx_vereine_honour WHERE fk_adherent = {member}") == [["Rede hielt die Obfrau", "1"]],
+           "participations or the allowed self change stayed, or the honour changed before the name goes")
     expect(int(stack.value(feed) or 0) > 0, "the change feed did not learn about the erasure")
     status, summary = stack.api(f"vereine/members/{member}/summary", key)
     expect(status == 200, f"the summary of the erased member: HTTP {status} {summary}")
@@ -5751,6 +5763,8 @@ def erasure(stack: Stack) -> str:
     page_ok(browser.post(tab, [("token", token_of(page)), ("action", "confirm_erase"), ("confirm", "yes")]), "erase the name")
     name = stack.sql(f"SELECT lastname, IFNULL(firstname, '-'), IFNULL(login, '-') FROM llx_adherent WHERE rowid = {member}")
     expect(name == [["Anonymisiert", "-", "-"]], f"the name after the second run: {name}")
+    expect(stack.sql(f"SELECT IFNULL(note, '-'), publishable, label FROM llx_vereine_honour WHERE fk_adherent = {member}") == [["-", "0", "Platzwart"]],
+           "the honour kept its note or stays published once the name went")
     expect(stack.value(f"SELECT COUNT(*) FROM llx_subscription WHERE fk_adherent = {member}") == "1", "the fee was touched")
     return (f"15 kinds listed, 40 years refused; the member gone four years ago had {sum(1 for state in before.values() if state == 'due')} kinds due; "
             "on hold nothing went; the run emptied contact data, took the binding back, deleted consent with scan, access record and log, "
@@ -5962,6 +5976,9 @@ def honours(stack: Stack) -> str:
 
     page = page_ok(browser.get(f"{base}?year={year}"), "honours of the year")
     expect(f'data-jubilee="{members["hannah"]}" data-jubilee-years="10" data-jubilee-honoured="0"' in page.text, "Hannah's ten years are not listed")
+    if str(year) == stack.today()[:4]:
+        overview = page_ok(browser.get("/custom/vereine/vereineindex.php"), "what is to do with a jubilee open")
+        expect('data-todo-kind="jubilee"' in overview.text, "the open jubilee of this year is not under what is to do")
     expect(f'data-birthday="{members["ben"]}"' in page.text and f'data-birthday="{members["clara"]}"' not in page.text,
            "the birthdays do not follow the consent")
     page_ok(browser.submit(page.form(name=f"vereinejubilee{members['hannah']}"), {"given_on": f"{year}-04-20"}), "honour Hannah's ten years")
@@ -7239,6 +7256,169 @@ def assemblylive(stack: Stack) -> str:
             "feed: invited, started, ended and released, opened, closed, confirmed, nothing of the board")
 
 
+def memberfile(stack: Stack) -> str:
+    """The member file (#273, #274, #275): participations kept in Dolibarr, for several members at once and by an application under its own
+    id, confirmed helper shifts by themselves, the active members of a year; honours of an own kind of Dolibarr's dictionary with an internal
+    note, only published ones for the website; one change of the own data without the board looking."""
+    browser = stack.browser()
+    today = stack.today()
+    year = today[:4]
+    key = stack.notes["website"]["key"]
+    expect([row[0] for row in stack.sql("SELECT code FROM llx_c_vereine_participation_kind WHERE entity = 1 ORDER BY position")] == ["event", "competition", "shift"]
+           and [row[0] for row in stack.sql("SELECT code FROM llx_c_vereine_honour_kind WHERE entity = 1 ORDER BY position")] == ["jubilee", "honorary", "award", "merit"],
+           "the suggested kinds are not in the dictionaries")
+    members = [int(row[0]) for row in stack.sql("SELECT rowid FROM llx_adherent WHERE statut = 1 AND entity = 1 AND email LIKE '%@%' ORDER BY rowid DESC LIMIT 3")]
+    expect(len(members) == 3, f"three active members are needed: {members}")
+    anna, ben, carla = members
+    record = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtrecord", RT_CLIENT_KEY=record, RT_EXTRA_RIGHTS="participation/write,members/act")
+    other = secrets.token_hex(16)
+    stack.php_fixture("apiclient", RT_LOGIN="rtrecord2", RT_CLIENT_KEY=other, RT_EXTRA_RIGHTS="participation/write")
+    # Helper shifts of earlier checks may count already; what this check adds comes on top.
+    before = {}
+    for member in members:
+        status, listed = stack.api(f"vereine/members/{member}/participations", record)
+        expect(status == 200, f"the participations before: HTTP {status} {listed}")
+        before[member] = (len(listed), sum(1 for item in listed if item["day"][:4] == year))
+
+    # An own kind of honour, added in Dolibarr's dictionary editor itself (#274).
+    overview = page_ok(browser.get("/admin/dict.php"), "Dolibarr's dictionaries")
+    found = dict((label, number) for number, label in re.findall(r'dict\.php\?id=(\d+)">\s*(?:<[^>]*>\s*)*(Vereine: Arten von (?:Teilnahmen|Ehrungen))</a>', overview.text))
+    expect(set(found) == {"Vereine: Arten von Teilnahmen", "Vereine: Arten von Ehrungen"}, f"the dictionaries of the module in Dolibarr: {found}")
+    dictionary = f"/admin/dict.php?id={found['Vereine: Arten von Ehrungen']}"
+    page = page_ok(browser.get(dictionary), "the kinds of honours")
+    expect("Verdienstabzeichen" in page.text, "the dictionary does not show the suggested kinds")
+    page_ok(browser.post(dictionary, [("token", token_of(page)), ("from", ""), ("code", "gold"), ("label", "Goldenes Ehrenzeichen"), ("position", "50"),
+                                      ("actionadd", "Hinzufügen")]), "add a kind of honour")
+    expect(stack.sql("SELECT label, active FROM llx_c_vereine_honour_kind WHERE code = 'gold' AND entity = 1") == [["Goldenes Ehrenzeichen", "1"]],
+           "the own kind of honour was not added through Dolibarr's dictionary")
+
+    # Honours with an internal note; only what may be published goes to the website, never the note.
+    honours = "/custom/vereine/honours.php"
+    page = page_ok(browser.get(honours), "the honours")
+    page_ok(browser.submit(page.form(name="vereinehonouraward"), {"member": str(anna), "kind": "gold", "label": "30 Jahre Jugendarbeit", "given_on": today,
+                                                                  "note": "Rede hielt die Obfrau", "publishable": "1"}), "an honour of the own kind")
+    page = page_ok(browser.get(honours), "the honours again")
+    page_ok(browser.submit(page.form(name="vereinehonouraward"), {"member": str(anna), "kind": "merit", "label": "", "given_on": today, "note": "intern"}),
+            "a badge of merit, not published")
+    gold = stack.value(f"SELECT rowid FROM llx_vereine_honour WHERE fk_adherent = {anna} AND kind = 'gold'")
+    merit = stack.value(f"SELECT rowid FROM llx_vereine_honour WHERE fk_adherent = {anna} AND kind = 'merit'")
+    expect(stack.sql(f"SELECT note, publishable FROM llx_vereine_honour WHERE rowid IN ({gold}, {merit}) ORDER BY rowid") == [["Rede hielt die Obfrau", "1"], ["intern", "0"]],
+           "the honours were not kept with their note and publishing")
+    status, public = stack.api(f"vereine/members/{anna}/honours", key)
+    expect(status == 200 and [entry["kind"] for entry in public] == ["gold"] and public[0]["title"] == "Goldenes Ehrenzeichen – 30 Jahre Jugendarbeit"
+           and "Obfrau" not in json.dumps(public), f"the honours for the website: HTTP {status} {public}")
+    status, own = stack.api(f"vereine/me/honours?member_id={anna}", record)
+    kinds = {entry["kind"]: entry["publishable"] for entry in own} if status == 200 else {}
+    expect(kinds.get("gold") is True and kinds.get("merit") is False and "intern" not in json.dumps(own), f"the own honours: HTTP {status} {own}")
+    page = page_ok(browser.get(f"{honours}?action=edit&id={merit}"), "edit the badge of merit")
+    page_ok(browser.submit(page.form(name="vereinehonouredit"), {"note": "Rede hielt der Kassier", "publishable": "1"}), "publish the badge of merit")
+    status, public = stack.api(f"vereine/members/{anna}/honours", key)
+    expect(status == 200 and sorted(entry["kind"] for entry in public) == ["gold", "merit"], f"the honours after publishing the badge: {public}")
+    page = page_ok(browser.get(honours), "the honours before the certificate")
+    certificate = browser.get(f"{honours}?action=certificate&id={gold}&token={token_of(page)}")
+    text = pdf_bytes_text(certificate.body) if certificate.body[:4] == b"%PDF" else ""
+    expect("Goldenes Ehrenzeichen" in text and "30 Jahre Jugendarbeit" in text, f"the certificate of the own kind: {text[:300]!r}")
+
+    # Participations in Dolibarr: at the member and for several members at once.
+    tab = f"/custom/vereine/member_association.php?id={ben}"
+    page = page_ok(browser.get(tab), "the tab of a member")
+    page_ok(browser.submit(page.form(name="vereineparticipation"), {"kind": "event", "title": "Sommerfest", "day": today, "hours": "3,5"}), "a participation at the member")
+    expect(stack.sql(f"SELECT kind, title, hours, source FROM llx_vereine_participation WHERE fk_adherent = {ben}") == [["event", "Sommerfest", "3.50", "dolibarr"]],
+           "the participation at the member was not kept")
+    page = page_ok(browser.get("/custom/vereine/participations.php"), "the participations")
+    refused = page_ok(browser.post("/custom/vereine/participations.php", [("token", token_of(page)), ("action", "record"), ("members[]", str(anna)),
+                                                                          ("kind", "competition"), ("title", "Herbstturnier"), ("day", "2999-01-01")]), "a day to come")
+    expect("Zukunft" in html.unescape(refused.text) and stack.value("SELECT COUNT(*) FROM llx_vereine_participation WHERE title = 'Herbstturnier'") == "0",
+           "a participation on a day to come was kept")
+    page_ok(browser.post("/custom/vereine/participations.php", [("token", token_of(page)), ("action", "record"), ("members[]", str(anna)), ("members[]", str(ben)),
+                                                                ("members[]", str(carla)), ("kind", "competition"), ("title", "Herbstturnier"), ("day", today)]),
+            "three members at once")
+    expect(stack.value("SELECT COUNT(*) FROM llx_vereine_participation WHERE title = 'Herbstturnier'") == "3", "not every member of the tournament was kept")
+
+    # A confirmed helper shift counts by itself, once its day has come.
+    yesterday = (datetime.date.fromisoformat(today) - datetime.timedelta(days=1)).isoformat()
+    stack.sql(f"INSERT INTO llx_vereine_event (entity, label, event_day, status, datec) VALUES (1, 'Vereinsfest Akte', '{yesterday}', 'done', NOW())")
+    event = stack.value("SELECT MAX(rowid) FROM llx_vereine_event WHERE label = 'Vereinsfest Akte'")
+    stack.sql(f"INSERT INTO llx_vereine_event_shift (entity, fk_event, label, shift_day, start_time, end_time, capacity, datec) VALUES (1, {event}, 'Ausschank',"
+              f" '{yesterday}', '14:00', '17:30', 2, NOW())")
+    shift = stack.value(f"SELECT MAX(rowid) FROM llx_vereine_event_shift WHERE fk_event = {event}")
+    stack.sql(f"INSERT INTO llx_vereine_event_shift_entry (entity, fk_shift, fk_adherent, status, datec) VALUES (1, {shift}, {ben}, 'confirmed', NOW())")
+
+    # An application records under its own id: once, refused with another content, taken back only by itself.
+    entry = {"kind": "competition", "title": "Online-Cup Runde 1", "day": today, "hours": 1.5, "external_id": "cup-1-carla"}
+    answers = [stack.api(f"vereine/members/{carla}/participations", record, method="POST", data=entry) for _ in range(2)]
+    expect(answers[0] == answers[1] and answers[0][0] == 200 and answers[0][1]["source"] == "api" and answers[0][1]["external_id"] == "cup-1-carla"
+           and stack.value("SELECT COUNT(*) FROM llx_vereine_participation WHERE external_id = 'cup-1-carla'") == "1", f"the participation of an application: {answers}")
+    status, _ = stack.api(f"vereine/members/{carla}/participations", record, method="POST", data={**entry, "title": "Online-Cup Runde 2"})
+    expect(status == 409, f"another participation under the same id: HTTP {status}")
+    status, refused = stack.api(f"vereine/members/{carla}/participations", record, method="POST", data={**entry, "kind": "party", "external_id": "cup-x"})
+    expect(status == 400 and refused.get("error", {}).get("field") == "kind", f"an unknown kind: HTTP {status} {refused}")
+    status, _ = stack.api(f"vereine/members/{carla}/participations", key)
+    expect(status == 403, f"the website reads participations without the right: HTTP {status}")
+    status, seen = stack.api(f"vereine/members/{carla}/participations", other)
+    expect(status == 200 and any(item["title"] == "Online-Cup Runde 1" and item["external_id"] == "" for item in seen), f"another application sees: {seen}")
+    status, _ = stack.api(f"vereine/members/{carla}/participations/cup-1-carla", other, method="DELETE")
+    expect(status == 404, f"another application took the participation back: HTTP {status}")
+    status, listed = stack.api(f"vereine/members/{ben}/participations", record)
+    shifts = [item for item in listed if item["source"] == "shift" and item["title"] == "Vereinsfest Akte – Ausschank"] if status == 200 else []
+    expect(len(shifts) == 1 and shifts[0]["hours"] == 3.5 and shifts[0]["day"] == yesterday and shifts[0]["kind_label"] == "Helferdienst",
+           f"the confirmed helper shift as a participation: {listed}")
+    status, mine = stack.api(f"vereine/me/participations?member_id={ben}", record)
+    expect(status == 200 and {"Sommerfest", "Herbstturnier", "Vereinsfest Akte – Ausschank"} <= {item["title"] for item in mine}, f"the own participations: HTTP {status} {mine}")
+
+    # Who was active this year, with the number per kind, as list, as file and in the statistics.
+    page = page_ok(browser.get(f"/custom/vereine/participations.php?year={year}"), "the active members")
+    active = int(re.search(r'data-active-members="(\d+)"', page.text).group(1))
+    expect(active >= 3 and f'data-active-member="{ben}" data-active-count="{before[ben][1] + 3}"' in page.text
+           and f'data-active-member="{carla}" data-active-count="{before[carla][1] + 2}"' in page.text, f"the active members of {year}: {active}")
+    csv = browser.get(f"/custom/vereine/participations.php?year={year}&action=csv&token={token_of(page)}")
+    expect(csv.body[:3] == b"\xef\xbb\xbf" and csv.body.decode("utf-8").splitlines()[0].startswith("\ufeffName;Teilnahmen;Stunden"), f"the file: {csv.body[:120]!r}")
+    statistics = page_ok(browser.get(f"/custom/vereine/statistics.php?day={today}"), "the statistics")
+    expect(f'data-statistics-active="{active}"' in statistics.text, "the statistics do not name the active members")
+    status, gone = stack.api(f"vereine/members/{carla}/participations/cup-1-carla", record, method="DELETE")
+    expect(status == 200 and gone == {"external_id": "cup-1-carla", "deleted": True}
+           and stack.value("SELECT COUNT(*) FROM llx_vereine_participation WHERE external_id = 'cup-1-carla'") == "0", f"taking it back: HTTP {status} {gone}")
+    status, _ = stack.api(f"vereine/members/{carla}/participations/cup-1-carla", record, method="DELETE")
+    expect(status == 404, f"taking it back twice: HTTP {status}")
+    page = page_ok(browser.get(tab), "the tab with the participations")
+    expect('data-participation-source="shift"' in page.text and f'data-participations="{before[ben][0] + 3}"' in page.text, "the tab does not show the participations")
+    summer = stack.value(f"SELECT rowid FROM llx_vereine_participation WHERE fk_adherent = {ben} AND title = 'Sommerfest'")
+    page_ok(browser.submit(page.form(name=f"vereineparticipationremove{summer}")), "remove a participation at the member")
+    expect(stack.value(f"SELECT COUNT(*) FROM llx_vereine_participation WHERE rowid = {summer}") == "0", "the participation was not removed")
+
+    # One change of the own data without the board looking: allowed, used up by the next change, then the board looks again (#275).
+    tab = f"/custom/vereine/member_association.php?id={carla}"
+    status, profile = stack.api(f"vereine/me/profile?member_id={carla}", record)
+    expect(status == 200 and profile["direct_once"] is False, f"the own data before: HTTP {status} {profile}")
+    page = page_ok(browser.get(tab), "the tab before allowing")
+    page_ok(browser.submit(page.form(name="vereineprofileonce")), "allow one change")
+    status, profile = stack.api(f"vereine/me/profile?member_id={carla}", record)
+    expect(status == 200 and profile["direct_once"] is True, f"the own data once allowed: {profile}")
+    status, changed = stack.api(f"vereine/me/profile/changes?member_id={carla}", record, method="POST",
+                                data={"external_id": "once-1", "version": profile["version"], "changes": {"email": "neu.akte@runtime-verein.test"}})
+    expect(status == 200 and changed["status"] == "applied" and stack.value(f"SELECT email FROM llx_adherent WHERE rowid = {carla}") == "neu.akte@runtime-verein.test",
+           f"the change allowed once: HTTP {status} {changed}")
+    expect(stack.value(f"SELECT direct_once FROM llx_vereine_profile_request WHERE external_id = 'once-1'") == "1"
+           and stack.value(f"SELECT COUNT(*) FROM llx_vereine_profile_once WHERE fk_adherent = {carla} AND used_at IS NOT NULL") == "1"
+           and stack.value(f"SELECT COUNT(*) FROM llx_vereine_log WHERE fk_adherent = {carla} AND message LIKE '%changed by the member once%'") == "1",
+           "the change allowed once is not kept as such")
+    status, profile = stack.api(f"vereine/me/profile?member_id={carla}", record)
+    status, waiting = stack.api(f"vereine/me/profile/changes?member_id={carla}", record, method="POST",
+                                data={"external_id": "once-2", "version": profile["version"], "changes": {"email": "noch.neuer@runtime-verein.test"}})
+    expect(profile["direct_once"] is False and status == 200 and waiting["status"] == "received", f"the next change: HTTP {status} {waiting}, {profile}")
+    page = page_ok(browser.get(tab), "the tab after the change")
+    expect('data-profile-once="0"' in page.text and 'data-profile-changed-once=' in page.text, "the tab does not show the change made once")
+    page_ok(browser.submit(page.form(name="vereineprofileonce")), "allow once more")
+    page_ok(browser.submit(page_ok(browser.get(tab), "the tab to take it back").form(name="vereineprofileonce")), "take it back")
+    status, profile = stack.api(f"vereine/me/profile?member_id={carla}", record)
+    expect(profile["direct_once"] is False and stack.value(f"SELECT COUNT(*) FROM llx_vereine_profile_once WHERE fk_adherent = {carla} AND revoked_at IS NOT NULL") == "1",
+           f"taken back, the member still may: {profile}")
+    return (f"own kind of honour added in Dolibarr's dictionary; website gets only published honours, never the note, the member all; participations at the "
+            f"member, for three at once, by an application once per id, the helper shift by itself; {active} active members in {year} as list, file and "
+            "statistics; one change without the board, then the board again")
+
+
 SCENARIOS = (
     ("upgrade", "An installation of the previous release upgrades to this package", upgrade, ()),
     ("deploy", "The package deploys through Deploy an external module", deploy, ("upgrade",)),
@@ -7329,6 +7509,8 @@ SCENARIOS = (
     ("portal", "Dolibarr's web portal: the page of the association, the same documents and ballots as the API, no second vote", portal, ("ballotresult",)),
     ("boardvote", "The board votes itself in Dolibarr: each person with the own user, paper without one, the result taken over at once", boardvote, ("portal",)),
     ("assemblylive", "A general assembly live: check-in through an application, a secret election on paper, its states in the change feed", assemblylive, ("boardvote", "changes")),
+    ("memberfile", "The member file: participations, honours of the dictionary with what may be published, one change without the board", memberfile,
+     ("honours", "profileapi")),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),
