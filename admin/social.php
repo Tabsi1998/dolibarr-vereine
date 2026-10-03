@@ -63,6 +63,7 @@ if (!$res) {
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once __DIR__.'/../lib/vereine.lib.php';
 require_once __DIR__.'/../class/vereinesocial.class.php';
+require_once __DIR__.'/../class/vereinepartnerimages.class.php';
 
 $langs->loadLangs(array('admin', 'members', 'vereine@vereine'));
 
@@ -75,6 +76,7 @@ if (empty($user->admin)) {
 
 $action = GETPOST('action', 'aZ09');
 $social = new VereineSocial($db);
+$partnerImages = new VereinePartnerImages($db);
 
 if ($action === 'savechannel') {
 	$entered = array('network' => GETPOST('network', 'aZ09'), 'label' => GETPOST('label', 'alphanohtml'), 'target' => GETPOST('target', 'alphanohtml'),
@@ -103,6 +105,14 @@ if ($action === 'savechannel') {
 	} else {
 		setEventMessages($langs->trans('SetupSaved'), null, 'mesgs');
 		header('Location: '.$_SERVER['PHP_SELF'].'#vereineaccounts');
+		exit;
+	}
+} elseif ($action === 'savepartners') {
+	if ($partnerImages->saveCategories((array) GETPOST('partner_position', 'array'), $user) < 0) {
+		setEventMessages($partnerImages->error, null, 'errors');
+	} else {
+		setEventMessages($langs->trans('SetupSaved'), null, 'mesgs');
+		header('Location: '.$_SERVER['PHP_SELF'].'#vereinepartners');
 		exit;
 	}
 } elseif ($action === 'addnetwork') {
@@ -195,6 +205,33 @@ print $langs->trans('VereineSocialCode').' <input type="text" name="code" size="
 print $langs->trans('VereineChannelLabel').' <input type="text" name="label" size="16" maxlength="64" placeholder="Steam"> ';
 print $langs->trans('VereineSocialPattern').' <input type="text" name="pattern" size="40" maxlength="255" placeholder="https://steamcommunity.com/id/{socialid}"> ';
 print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineSocialAdd')).'"></form>';
+
+// Partners and sponsors for the website: the third parties of the chosen categories, with their pictures (#278).
+$chosen = VereinePartnerImages::categories();
+$partners = $partnerImages->partners();
+print '<br>'.load_fiche_titre($langs->trans('VereineSitePartnersTitle'), '', '', 0, 'vereinepartners');
+print '<div class="opacitymedium paddingbottom">'.$langs->trans('VereinePartnersHowTo').'</div>';
+print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'#vereinepartners" name="vereinepartners">';
+print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="savepartners">';
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-partner-categories="'.count($chosen).'">';
+print '<tr class="liste_titre"><td>'.$langs->trans('Category').'</td><td class="right">'.$langs->trans('VereineSitePartnersPosition').'</td></tr>';
+$choices = $partnerImages->choices();
+foreach ($choices as $id => $label) {
+	$position = array_search($id, $chosen, true);
+	print '<tr class="oddeven" data-partner-category="'.$id.'"><td>'.dol_escape_htmltag($label).'</td>';
+	print '<td class="right"><input type="number" name="partner_position['.$id.']" min="0" max="999" class="width50" value="'.($position !== false ? $position + 1 : '').'"></td></tr>';
+}
+if (!$choices) {
+	print '<tr class="oddeven"><td colspan="2"><span class="opacitymedium">'.$langs->trans('VereineSitePartnersNoCategory').'</span></td></tr>';
+}
+print '</table></div>';
+print '<div class="center paddingtop"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('Save')).'"></div></form>';
+print '<div class="paddingtop" data-partners="'.count($partners).'">'.$langs->trans('VereinePartnersCount', count($partners));
+foreach (array_slice($partners, 0, 30) as $partner) {
+	print '<br><a href="'.dol_buildpath('/vereine/partner_membership.php', 1).'?socid='.$partner['id'].'#vereinepartnerimages">'.dol_escape_htmltag($partner['name']).'</a>';
+	print ' <span class="opacitymedium small">'.dol_escape_htmltag(implode(', ', array_column($partner['categories'], 'label'))).' · '.$langs->trans('VereinePartnersImages', count($partner['images'])).'</span>';
+}
+print '</div>';
 
 print dol_get_fiche_end();
 llxFooter();

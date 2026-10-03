@@ -150,6 +150,7 @@ class VereineLog
 	const BALLOT_VOTE = 'ballot_vote';
 	const PORTAL = 'portal';
 	const PARTICIPATION = 'participation';
+	const PARTNER_IMAGE = 'partner_image';
 
 	/**
 	 * Append one entry.

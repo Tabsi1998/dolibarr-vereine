@@ -4570,6 +4570,171 @@
           ]
         ]
       }
+    },
+    "/vereine/partners": {
+      "get": {
+        "operationId": "getPartners",
+        "summary": "Partner und Sponsoren für die Website, mit ihren Bildern",
+        "description": "Die aktiven Geschäftspartner der Kategorien, die der Verein gewählt hat, in der Reihenfolge dieser Kategorien und dann nach Namen. Name, Website, Kategorien und die hinterlegten Bilder – Logo und Banner, je für hellen und dunklen Hintergrund –, nie Kontaktdaten. Braucht das Recht, den Verein zu lesen, und das Recht, die Mitglieds-Zusammenfassung für die Website zu lesen (seit 1.9.0).",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Partner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Partner"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:website:read"
+          ]
+        ]
+      }
+    },
+    "/vereine/partners/{id}/images/{kind}/{variant}": {
+      "get": {
+        "operationId": "getPartnerImage",
+        "summary": "Ein Bild eines Partners als Datei",
+        "description": "Logo oder Banner für hellen oder dunklen Hintergrund, unverändert. ETag ist die Prüfsumme sha256 aus GET /vereine/partners in Anführungszeichen; If-None-Match bekommt 304, Range einen Teil (206). Nur von Partnern, die an die Website gehen. Braucht das Recht, den Verein zu lesen, und das Recht, die Mitglieds-Zusammenfassung für die Website zu lesen (seit 1.9.0).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Geschäftspartner",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "description": "logo oder banner",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "logo",
+                "banner"
+              ]
+            }
+          },
+          {
+            "name": "variant",
+            "in": "path",
+            "required": true,
+            "description": "light (für hellen Hintergrund) oder dark (für dunklen)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "light",
+                "dark"
+              ]
+            }
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "required": false,
+            "description": "ETag einer früheren Antwort: dann 304 ohne Inhalt, wenn sich nichts geändert hat",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Das ganze Bild",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "description": "Die Bytes des Bildes, unverändert"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "description": "Die Bytes des Bildes, unverändert"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "description": "Die Bytes des Bildes, unverändert"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Der erbetene Teil; Content-Range nennt ihn",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "description": "Die Bytes des Bildes, unverändert"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "description": "Die Bytes des Bildes, unverändert"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "description": "Die Bytes des Bildes, unverändert"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Unverändert seit dem ETag aus If-None-Match; kein Inhalt"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-vereine-rights": [
+          [
+            "vereine:association:read"
+          ],
+          [
+            "vereine:website:read"
+          ]
+        ]
+      }
     }
   },
   "components": {
@@ -7630,6 +7795,126 @@
           "publishable": {
             "type": "boolean",
             "description": "Darf veröffentlicht werden"
+          }
+        }
+      },
+      "PartnerImage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "variant",
+          "source",
+          "content_type",
+          "size",
+          "width",
+          "height",
+          "sha256",
+          "updated_at"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "logo",
+              "banner"
+            ]
+          },
+          "variant": {
+            "type": "string",
+            "enum": [
+              "light",
+              "dark"
+            ],
+            "description": "light: für hellen Hintergrund; dark: für dunklen Hintergrund"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "vereine",
+              "dolibarr"
+            ],
+            "description": "dolibarr: das Logo der Dolibarr-Karte, solange kein eigenes Logo für hellen Hintergrund hinterlegt ist"
+          },
+          "content_type": {
+            "type": "string",
+            "enum": [
+              "image/png",
+              "image/jpeg",
+              "image/webp"
+            ]
+          },
+          "size": {
+            "type": "integer",
+            "description": "Bytes"
+          },
+          "width": {
+            "type": "integer",
+            "description": "Breite in Pixeln"
+          },
+          "height": {
+            "type": "integer",
+            "description": "Höhe in Pixeln"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Prüfsumme; dieselbe steht als ETag beim Abruf der Datei"
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "Stand, UTC"
+          }
+        }
+      },
+      "Partner": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "url",
+          "categories",
+          "images"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Geschäftspartner in Dolibarr"
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "Website des Partners, leer wenn keine"
+          },
+          "categories": {
+            "type": "array",
+            "description": "Die gewählten Kategorien des Partners, in der Reihenfolge der Einstellungen",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "label"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "label": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "images": {
+            "type": "array",
+            "description": "Genau die hinterlegten Bilder; ein fehlender Platz fehlt hier",
+            "items": {
+              "$ref": "#/components/schemas/PartnerImage"
+            }
           }
         }
       }

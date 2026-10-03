@@ -17,12 +17,14 @@ import io
 import json
 import re
 import secrets
+import struct
 import subprocess
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -7427,6 +7429,84 @@ def memberfile(stack: Stack) -> str:
             "statistics; one change without the board, then the board again")
 
 
+def tiny_png(width: int, height: int, color: tuple[int, int, int]) -> bytes:
+    """A real PNG of one colour, for pictures the module has to accept."""
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+    rows = b"".join(b"\x00" + bytes(color) * width for _ in range(height))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(rows))
+            + chunk(b"IEND", b""))
+
+
+def partnersite(stack: Stack) -> str:
+    """Partners and sponsors for the website (#278): the categories numbered in the setup, a logo and a banner for a light and a dark
+    background at the third party, the Dolibarr logo when there is no own light one, each picture as a file with its ETag."""
+    browser = stack.browser()
+    key = stack.notes["website"]["key"]
+    fixture = stack.php_fixture("partnersite")
+    categories, parties = fixture["categories"], fixture["parties"]
+    alpen, gold, none = parties["alpen"], parties["gold"], parties["none"]
+
+    setup = "/custom/vereine/admin/social.php"
+    page = page_ok(browser.get(setup), "channels, accounts and partners")
+    page_ok(browser.post(setup, [("token", token_of(page)), ("action", "savepartners"), (f"partner_position[{categories['partner']}]", "2"),
+                                 (f"partner_position[{categories['main']}]", "1")]), "number the categories")
+    expect(stack.const("VEREINE_WEBSITE_PARTNER_CATEGORIES") == f"{categories['main']},{categories['partner']}",
+           f"stored categories: {stack.const('VEREINE_WEBSITE_PARTNER_CATEGORIES')}")
+    status, listed = stack.api("vereine/partners", key)
+    expect(status == 200 and [partner["id"] for partner in listed] == [alpen, gold], f"the partners in the order of their categories: {listed}")
+    expect(listed[0]["url"] == "https://autohaus-alpen.example" and listed[0]["categories"] == [{"id": categories["main"], "label": "Hauptsponsor RT"}]
+           and listed[0]["images"] == [], f"the main sponsor before any picture: {listed[0]}")
+    expect([(image["kind"], image["variant"], image["source"], image["sha256"]) for image in listed[1]["images"]] == [("logo", "light", "dolibarr", fixture["logo_sha256"])],
+           f"the logo of the Dolibarr card is the light logo: {listed[1]}")
+    expect("phone" not in json.dumps(listed) and "email" not in json.dumps(listed), "the partners carry contact data")
+
+    # Pictures at the third party: refused when no picture, kept for each place, shown on their background.
+    tab = f"/custom/vereine/partner_membership.php?socid={alpen}"
+    pictures = {("logo", "light"): tiny_png(6, 2, (200, 30, 30)), ("logo", "dark"): tiny_png(6, 2, (250, 250, 250)), ("banner", "dark"): tiny_png(12, 2, (20, 20, 20))}
+
+    def upload(kind: str, variant: str, name: str, data: bytes) -> Page:
+        page = page_ok(browser.get(tab), "the tab of the partner")
+        return page_ok(browser.post_multipart(tab, [("token", token_of(page)), ("action", "partnerimage"), ("kind", kind), ("variant", variant)],
+                                              [("image", name, data)]), f"upload {kind} {variant}")
+
+    refused = upload("logo", "dark", "logo.svg", b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>')
+    expect("PNG, JPG oder WebP" in html.unescape(refused.text) and stack.value(f"SELECT COUNT(*) FROM llx_vereine_partner_image WHERE fk_soc = {alpen}") == "0",
+           "an SVG with a script was taken")
+    for (kind, variant), data in pictures.items():
+        upload(kind, variant, f"{kind}-{variant}.png", data)
+    status, listed = stack.api("vereine/partners", key)
+    images = {(image["kind"], image["variant"]): image for image in listed[0]["images"]} if status == 200 else {}
+    expect(set(images) == set(pictures) and all(images[slot]["sha256"] == hashlib.sha256(data).hexdigest() and images[slot]["source"] == "vereine" for slot, data in pictures.items())
+           and images[("banner", "dark")]["width"] == 12 and images[("banner", "dark")]["height"] == 2, f"the pictures of the main sponsor: {listed[0]}")
+    page = page_ok(browser.get(tab), "the tab with the pictures")
+    expect('data-partner-site="1"' in page.text and 'data-partner-image="logo-dark" data-partner-image-source="vereine"' in page.text
+           and "viewimage.php?modulepart=societe" in page.text, "the tab does not show the pictures on the website")
+
+    # Each picture as a file with its checksum as ETag; nothing of third parties off the website.
+    status, headers, raw = stack.fetch(f"vereine/partners/{alpen}/images/logo/dark", key)
+    expect(status == 200 and raw == pictures[("logo", "dark")] and headers.get("ETag") == f'"{hashlib.sha256(raw).hexdigest()}"'
+           and (headers.get("Content-Type") or "").startswith("image/png"), f"the dark logo: HTTP {status} {dict(headers)}")
+    status, _, raw = stack.fetch(f"vereine/partners/{alpen}/images/logo/dark", key, headers={"If-None-Match": headers.get("ETag")})
+    expect(status == 304 and raw == b"", f"the same dark logo again: HTTP {status}")
+    status, _, raw = stack.fetch(f"vereine/partners/{gold}/images/logo/light", key)
+    expect(status == 200 and hashlib.sha256(raw).hexdigest() == fixture["logo_sha256"], f"the logo of the Dolibarr card: HTTP {status}")
+    for path in (f"vereine/partners/{alpen}/images/banner/light", f"vereine/partners/{none}/images/logo/light"):
+        status, _, _ = stack.fetch(path, key)
+        expect(status == 404, f"{path}: HTTP {status}")
+    page = page_ok(browser.get(f"/custom/vereine/partner_membership.php?socid={none}"), "the tab of a third party off the website")
+    expect('data-partner-site="0"' in page.text, "a third party off the website is shown as on it")
+
+    # Removed, the picture is gone for the website and from the documents of the third party.
+    page = page_ok(browser.get(tab), "the tab before removing")
+    page_ok(browser.submit(page.form(name="vereinepartnerimageremovebannerdark")), "remove the dark banner")
+    status, listed = stack.api("vereine/partners", key)
+    expect(status == 200 and ("banner", "dark") not in {(image["kind"], image["variant"]) for image in listed[0]["images"]}
+           and stack.value(f"SELECT COUNT(*) FROM llx_vereine_partner_image WHERE fk_soc = {alpen} AND kind = 'banner'") == "0", f"the banner after removing: {listed[0]}")
+    return (f"categories numbered, {len(listed)} partners in their order without contact data; the Dolibarr logo counts as light logo; three pictures "
+            "kept, an SVG refused, each as a file with ETag and 304, nothing of third parties off the website; a removed banner gone")
+
+
 SCENARIOS = (
     ("upgrade", "An installation of the previous release upgrades to this package", upgrade, ()),
     ("deploy", "The package deploys through Deploy an external module", deploy, ("upgrade",)),
@@ -7519,6 +7599,8 @@ SCENARIOS = (
     ("assemblylive", "A general assembly live: check-in through an application, a secret election on paper, its states in the change feed", assemblylive, ("boardvote", "changes")),
     ("memberfile", "The member file: participations, honours of the dictionary with what may be published, one change without the board", memberfile,
      ("honours", "profileapi")),
+    ("partnersite", "Partners for the website: categories in their order, logos and banners for a light and a dark background, files with ETag",
+     partnersite, ("social",)),
     ("apidocs", "API tab: every endpoint with its rights, users with an API key, never the key", apidocs, ("account", "duties")),
     ("openapi", "Every endpoint answered and every answer matched docs/openapi.json", openapi, ("apidocs",)),
     ("erasure", "Erasing after the exit: preview, hold, only what is due, the name last", erasure, ("disclosure", "openapi")),

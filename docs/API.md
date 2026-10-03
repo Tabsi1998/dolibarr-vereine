@@ -36,7 +36,7 @@ Modulversion und API-Version – ein günstiger Weg, die Verbindung zu testen.
 
 ```json
 {
-  "module_version": "1.8.0",
+  "module_version": "1.9.0",
   "api_version": 2,
   "server_time": "2026-09-17T08:00:00Z"
 }
@@ -338,6 +338,35 @@ Ein `name` ist `null`, außer die Website darf ihn zeigen, eingestellt unter
 
 Eine leere Liste `holders` heißt, die Funktion ist unbesetzt. Wo `name` `null`
 ist, die Funktion ohne Namen zeigen.
+
+## GET /vereine/partners
+
+**Partner und Sponsoren** für die Website (seit 1.9.0, #278): die aktiven Geschäftspartner der Kategorien,
+die der Verein unter *Einstellungen > Vereine > Kanäle, Konten und Partner* gewählt hat – in der Reihenfolge
+dieser Kategorien, dann nach Namen. Nie Kontaktdaten. Braucht das Recht, die Mitglieds-Zusammenfassung für
+die Website zu lesen.
+
+```json
+[{"id": 41, "name": "Autohaus Alpen", "url": "https://autohaus-alpen.example",
+  "categories": [{"id": 7, "label": "Hauptsponsor"}],
+  "images": [
+   {"kind": "logo", "variant": "light", "source": "vereine", "content_type": "image/png", "size": 18342,
+    "width": 600, "height": 200, "sha256": "9b1f…", "updated_at": "2026-10-03T12:00:00Z"},
+   {"kind": "logo", "variant": "dark", "source": "vereine", "content_type": "image/webp", "size": 9120,
+    "width": 600, "height": 200, "sha256": "41c2…", "updated_at": "2026-10-03T12:01:00Z"}]}]
+```
+
+- Je Partner gibt es vier Plätze: `logo` und `banner`, jeweils `light` (für hellen Hintergrund) und `dark`
+  (für dunklen). `images` nennt **genau die hinterlegten**; was fehlt, fehlt. Die Website entscheidet selbst,
+  was sie zeigt – etwa auf dunklem Grund das dunkle Logo und sonst gar keines.
+- Ohne eigenes Logo für hellen Hintergrund gilt das Logo der Dolibarr-Karte (`source: "dolibarr"`).
+- Bilder sind PNG, JPEG oder WebP. Eine Website lädt ein Bild nur neu, wenn sich `sha256` geändert hat.
+
+## GET /vereine/partners/{id}/images/{kind}/{variant}
+
+Das Bild selbst, unverändert – etwa `GET /vereine/partners/41/images/logo/dark`. `ETag` ist die Prüfsumme
+aus `GET /vereine/partners` in Anführungszeichen; mit `If-None-Match` kommt `304` ohne Inhalt, mit `Range`
+ein Teil (`206`). Nur von Partnern, die an die Website gehen, sonst und ohne Bild in diesem Platz `404`.
 
 ## GET /vereine/consents
 

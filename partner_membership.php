@@ -65,6 +65,7 @@ if (!$res) {
 
 require_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
 require_once __DIR__.'/class/vereinepartnerservice.class.php';
+require_once __DIR__.'/class/vereinepartnerimages.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('companies', 'members', 'bills', 'categories', 'vereine@vereine'));
@@ -95,6 +96,8 @@ if ($memberId > 0) {
 	$member->fetch($memberId);
 }
 $canWrite = $user->hasRight('vereine', 'partner', 'write') && $user->hasRight('societe', 'creer');
+$canImages = $user->hasRight('societe', 'creer');
+$partnerImages = new VereinePartnerImages($db);
 
 
 /*
@@ -113,6 +116,25 @@ if ($action === 'apply' && $canWrite && $member) {
 	}
 	header('Location: '.$_SERVER['PHP_SELF'].'?socid='.((int) $object->id));
 	exit;
+}
+
+
+// Pictures for the website (#278): a logo and a banner, each for a light and for a dark background.
+if (($action === 'partnerimage' || $action === 'partnerimageremove') && $canImages) {
+	$kind = GETPOST('kind', 'aZ09');
+	$variant = GETPOST('variant', 'aZ09');
+	$result = $action === 'partnerimage' ? $partnerImages->upload((int) $object->id, $kind, $variant, isset($_FILES['image']) ? (array) $_FILES['image'] : array(), $user)
+		: $partnerImages->remove((int) $object->id, $kind, $variant, $user);
+	if ($result < 0) {
+		setEventMessages($partnerImages->error, null, 'errors');
+	} elseif ($result === 0 && $partnerImages->errors) {
+		setEventMessages(null, array_map(function ($code) use ($langs) {
+			return $langs->trans('VereinePartnerImageError_'.$code);
+		}, $partnerImages->errors), 'errors');
+	} else {
+		header('Location: '.$_SERVER['PHP_SELF'].'?socid='.((int) $object->id).'#vereinepartnerimages');
+		exit;
+	}
 }
 
 
@@ -163,6 +185,57 @@ if (!$member) {
 	vereinePrintOpenInvoices($db, (int) $object->id);
 	vereinePrintGuardians($db, (int) $object->id);
 }
+
+// Pictures for the website: shown on the background they are meant for, so a wrong one is seen at once (#278).
+$onSite = $partnerImages->onSite((int) $object->id);
+$images = $partnerImages->images((int) $object->id);
+print '<br>'.load_fiche_titre($langs->trans('VereinePartnerImagesTitle'), '', '', 0, 'vereinepartnerimages');
+print '<div class="paddingbottom" data-partner-site="'.($onSite !== null ? 1 : 0).'">';
+if ($onSite !== null) {
+	print $langs->trans('VereinePartnerImagesOnSite').' '.dol_escape_htmltag(implode(', ', array_column($onSite, 'label')));
+} else {
+	print '<span class="opacitymedium">'.$langs->trans('VereinePartnerImagesOffSite').'</span>';
+}
+print '</div>';
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-partner-images="'.count($images).'">';
+print '<tr class="liste_titre"><td>'.$langs->trans('VereinePartnerImageSlot').'</td><td>'.$langs->trans('VereinePartnerImagePreview').'</td><td>'.$langs->trans('VereinePartnerImageInfo').'</td><td></td></tr>';
+foreach (VereinePartnerImageRules::KINDS as $kind) {
+	foreach (VereinePartnerImageRules::VARIANTS as $variant) {
+		$image = isset($images[$kind.'-'.$variant]) ? $images[$kind.'-'.$variant] : null;
+		print '<tr class="oddeven" data-partner-image="'.$kind.'-'.$variant.'" data-partner-image-source="'.($image !== null ? $image['source'] : '').'">';
+		print '<td>'.$langs->trans('VereinePartnerImage_'.$kind.'_'.$variant).'</td>';
+		print '<td><div style="display: inline-block; padding: 8px; border-radius: 4px; background: '.($variant === 'dark' ? '#1e1e1e' : '#ffffff').'; border: 1px solid #ccc;">';
+		if ($image !== null) {
+			$src = DOL_URL_ROOT.'/viewimage.php?modulepart=societe&entity='.((int) $conf->entity).'&file='.urlencode(VereinePartnerImages::relativePath((int) $object->id, $image));
+			print '<img src="'.dol_escape_htmltag($src).'" alt="" style="max-height: 60px; max-width: 220px;">';
+		} else {
+			print '<span class="opacitymedium" style="color: '.($variant === 'dark' ? '#bbbbbb' : '#777777').';">–</span>';
+		}
+		print '</div></td><td class="small">';
+		if ($image !== null) {
+			print dol_escape_htmltag(strtoupper(VereinePartnerImageRules::TYPES[$image['content_type']]).' · '.$image['width'].' × '.$image['height'].' px · '.dol_print_size($image['size']));
+			if ($image['source'] === 'dolibarr') {
+				print '<br><span class="opacitymedium">'.$langs->trans('VereinePartnerImageFromCard').'</span>';
+			}
+		}
+		print '</td><td class="right nowraponall">';
+		if ($canImages) {
+			print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'?socid='.((int) $object->id).'" name="vereinepartnerimage'.$kind.$variant.'" enctype="multipart/form-data" class="inline-block">';
+			print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="partnerimage">';
+			print '<input type="hidden" name="kind" value="'.$kind.'"><input type="hidden" name="variant" value="'.$variant.'">';
+			print '<input type="file" name="image" accept="image/png,image/jpeg,image/webp"> <input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereinePartnerImageUpload')).'"></form>';
+			if ($image !== null && $image['source'] === 'vereine') {
+				print ' <form method="POST" action="'.$_SERVER['PHP_SELF'].'?socid='.((int) $object->id).'" name="vereinepartnerimageremove'.$kind.$variant.'" class="inline-block">';
+				print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="partnerimageremove">';
+				print '<input type="hidden" name="kind" value="'.$kind.'"><input type="hidden" name="variant" value="'.$variant.'">';
+				print '<input type="submit" class="button small butActionDelete" value="'.dol_escape_htmltag($langs->trans('Delete')).'"></form>';
+			}
+		}
+		print '</td></tr>';
+	}
+}
+print '</table></div>';
+print '<div class="opacitymedium small paddingtop">'.$langs->trans('VereinePartnerImagesHowTo').'</div><br>';
 
 vereinePrintLog($db, $member ? (int) $member->id : 0, (int) $object->id);
 
