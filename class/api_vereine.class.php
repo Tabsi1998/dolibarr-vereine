@@ -549,6 +549,136 @@ class Vereine extends DolibarrApi
 	}
 
 	/**
+	 * Honours of a member the website may show
+	 *
+	 * Only honours the association marked as "may be published", newest first, never the internal note.
+	 * Needs the right to read member summaries for a website.
+	 *
+	 * @param int $id Member id
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET members/{id}/honours
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such member
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMemberHonours($id)
+	{
+		$this->checkAccess();
+		$this->checkWebsiteRight();
+		$member = $this->memberOrFail((int) $id);
+		dol_include_once('/vereine/class/vereinehonours.class.php');
+		return array_map(array('VereineHonours', 'apiView'), (new VereineHonours($this->db))->honours((int) $member->id, true));
+	}
+
+	/**
+	 * Participations of a member
+	 *
+	 * What the member took part in, newest first: recorded in Dolibarr, by an application, and the helper
+	 * shifts the association confirmed. The ids of the caller's own entries come with them. Needs the right
+	 * to record participations.
+	 *
+	 * @param int $id Member id
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET members/{id}/participations
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such member
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMemberParticipations($id)
+	{
+		$this->checkAccess();
+		$this->checkParticipationRight();
+		$member = $this->memberOrFail((int) $id);
+		dol_include_once('/vereine/class/vereineparticipations.class.php');
+		$list = (new VereineParticipations($this->db))->forMember((int) $member->id, dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'), (string) DolibarrApiAccess::$user->login);
+		return array_map(array('VereineParticipations', 'apiView'), $list);
+	}
+
+	/**
+	 * Record a participation of a member
+	 *
+	 * Under the application's own external_id: the same request again is the same entry, another one under
+	 * the same id is refused. The kind is a code of the association's dictionary; the day is not in the
+	 * future. Needs the right to record participations.
+	 *
+	 * @param int   $id           Member id
+	 * @param array $request_data kind, title, day, hours (optional), external_id
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url POST members/{id}/participations
+	 *
+	 * @throws RestException 400 A field refused, its code in error.field
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such member
+	 * @throws RestException 409 The external_id holds another participation
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function postMemberParticipation($id, $request_data = null)
+	{
+		$this->checkAccess();
+		$this->checkParticipationRight();
+		$member = $this->memberOrFail((int) $id);
+		dol_include_once('/vereine/class/vereineparticipations.class.php');
+		$participations = new VereineParticipations($this->db);
+		$participation = $participations->receive((int) $member->id, $request_data, (string) DolibarrApiAccess::$user->login, dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'),
+			DolibarrApiAccess::$user);
+		if ($participation === null) {
+			if ($participations->errors === array('conflict')) {
+				throw new RestException(409, 'A participation with this external_id exists with other content');
+			}
+			if ($participations->errors) {
+				$messages = array('external_id' => 'external_id must be 1 to 64 letters, digits or . _ : -', 'kind' => 'kind must be a code of the dictionary of participations',
+					'title' => 'title is needed, at most 255 characters', 'day' => 'day must be YYYY-MM-DD and not in the future', 'hours' => 'hours must be a number from 0 to 9999');
+				$first = reset($participations->errors);
+				throw new RestException(400, implode('; ', array_map(function ($field) use ($messages) {
+					return isset($messages[$field]) ? $messages[$field] : $field;
+				}, $participations->errors)), array('field' => $first));
+			}
+			dol_syslog(__METHOD__.' '.$participations->error, LOG_ERR);
+			throw new RestException(500, 'The participation could not be kept');
+		}
+		return $participation;
+	}
+
+	/**
+	 * Take back a participation
+	 *
+	 * Only one the same application recorded for this member under its external_id. Needs the right to
+	 * record participations.
+	 *
+	 * @param int    $id          Member id
+	 * @param string $external_id The application's id of the participation
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url DELETE members/{id}/participations/{external_id}
+	 *
+	 * @throws RestException 403 Not allowed
+	 * @throws RestException 404 No such member, or no participation of this application under the id
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function deleteMemberParticipation($id, $external_id)
+	{
+		$this->checkAccess();
+		$this->checkParticipationRight();
+		$member = $this->memberOrFail((int) $id);
+		dol_include_once('/vereine/class/vereineparticipations.class.php');
+		$participations = new VereineParticipations($this->db);
+		$result = $participations->takeBack((int) $member->id, (string) $external_id, (string) DolibarrApiAccess::$user->login, DolibarrApiAccess::$user);
+		if ($result < 0) {
+			dol_syslog(__METHOD__.' '.$participations->error, LOG_ERR);
+			throw new RestException(500, 'The participation could not be taken back');
+		}
+		if ($result === 0) {
+			throw new RestException(404, 'No participation of this application for this member under this external_id');
+		}
+		return array('external_id' => (string) $external_id, 'deleted' => true);
+	}
+
+	/**
 	 * Photo of a member
 	 *
 	 * The photo of Dolibarr's member card, base64 with its checksum, only with the consent the association
@@ -1377,6 +1507,55 @@ class Vereine extends DolibarrApi
 		$this->checkAccess();
 		$member = $this->profileMember((string) $subject);
 		return (new VereineProfiles($this->db))->profile($member);
+	}
+
+	/**
+	 * The own honours of the person the caller acts for
+	 *
+	 * Every honour of the person, newest first, with whether it may be published; never the internal note.
+	 * Only with the ability record for this binding.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET me/honours
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyHonours($subject = '')
+	{
+		$this->checkAccess();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		dol_include_once('/vereine/class/vereinehonours.class.php');
+		$identity = $this->allowed((string) $subject, VereineIdentityRules::CAPABILITY_RECORD, 'member');
+		return array_map(array('VereineHonours', 'apiView'), (new VereineHonours($this->db))->honours((int) $identity['member_id']));
+	}
+
+	/**
+	 * The own participations of the person the caller acts for
+	 *
+	 * What the person took part in, newest first, the confirmed helper shifts with them. Only with the
+	 * ability record for this binding.
+	 *
+	 * @param string $subject How the application calls the person
+	 * @return array Fields as documented in docs/API.md
+	 *
+	 * @url GET me/participations
+	 *
+	 * @throws RestException 400 subject missing
+	 * @throws RestException 403 Not allowed, no binding or the ability is off
+	 * @throws RestException 501 Module not enabled
+	 */
+	public function getMyParticipations($subject = '')
+	{
+		$this->checkAccess();
+		dol_include_once('/vereine/class/vereineidentityrules.class.php');
+		dol_include_once('/vereine/class/vereineparticipations.class.php');
+		$identity = $this->allowed((string) $subject, VereineIdentityRules::CAPABILITY_RECORD, 'member');
+		$list = (new VereineParticipations($this->db))->forMember((int) $identity['member_id'], dol_print_date(dol_now(), '%Y-%m-%d', 'tzserver'));
+		return array_map(array('VereineParticipations', 'apiView'), $list);
 	}
 
 	/**
@@ -2481,6 +2660,20 @@ class Vereine extends DolibarrApi
 	{
 		if (!DolibarrApiAccess::$user->hasRight('vereine', 'website', 'read')) {
 			throw new RestException(403, 'Not allowed: the user needs the right to read member summaries for a website');
+		}
+	}
+
+	/**
+	 * Refuse the call unless the user may record participations of members (#273).
+	 *
+	 * @return void
+	 *
+	 * @throws RestException
+	 */
+	private function checkParticipationRight()
+	{
+		if (!DolibarrApiAccess::$user->hasRight('vereine', 'participation', 'write')) {
+			throw new RestException(403, 'Not allowed: the user needs the right to record participations');
 		}
 	}
 

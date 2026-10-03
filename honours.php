@@ -113,7 +113,13 @@ if ($action === 'savesettings' && !empty($user->admin)) {
 	if ($action === 'recordjubilee') {
 		$result = $honours->record(GETPOSTINT('member'), 'jubilee', GETPOSTINT('years'), '', $day, $user);
 	} elseif ($action === 'recordaward') {
-		$result = $honours->record(GETPOSTINT('member'), 'award', 0, GETPOST('label', 'alphanohtml'), $day, $user);
+		// Any kind of the dictionary but the two with a way of their own (#274).
+		$kind = GETPOST('kind', 'aZ09') !== '' ? GETPOST('kind', 'aZ09') : VereineHonourRules::KIND_AWARD;
+		$result = in_array($kind, VereineHonourRules::SPECIAL, true) ? 0 : $honours->record(GETPOSTINT('member'), $kind, 0, GETPOST('label', 'alphanohtml'), $day, $user,
+			GETPOST('note', 'restricthtml'), GETPOST('publishable', 'aZ09') !== '');
+		if ($result === 0 && !$honours->errors) {
+			$honours->errors = array('VereineHonourErrorKindUnknown');
+		}
 	} else {
 		$result = $honours->makeHonorary(GETPOSTINT('member'), $day, $user);
 	}
@@ -123,6 +129,16 @@ if ($action === 'savesettings' && !empty($user->admin)) {
 		exit;
 	}
 	setEventMessages($result < 0 ? $honours->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $honours->errors), 'errors');
+} elseif ($action === 'update' && $canWrite) {
+	$result = $honours->update(GETPOSTINT('id'), array('given_on' => GETPOST('given_on', 'alphanohtml'), 'label' => GETPOST('label', 'alphanohtml'),
+		'note' => GETPOST('note', 'restricthtml'), 'publishable' => GETPOST('publishable', 'aZ09') !== ''), $user);
+	if ($result > 0) {
+		setEventMessages($langs->trans('VereineHonourSaved'), null, 'mesgs');
+		header('Location: '.$here.'#vereinehonourlist');
+		exit;
+	}
+	setEventMessages($result < 0 ? $honours->error : null, $result < 0 ? null : array_map(array($langs, 'trans'), $honours->errors), 'errors');
+	$action = 'edit';
 } elseif ($action === 'certificate') {
 	$file = $honours->certificate(GETPOSTINT('id'), $langs);
 	if ($file === '') {
@@ -199,30 +215,70 @@ if ($birthdays === null) {
 	print '</table></div><br>';
 }
 
-// Honours given, with their certificates.
+// Honours given, with their certificates; what may be published and the internal note (#274).
 $given = $honours->honours();
 print load_fiche_titre($langs->trans('VereineHonourList'), '', '', 0, 'vereinehonourlist');
 print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-honours="'.count($given).'">';
 print '<tr class="liste_titre"><td>'.$langs->trans('VereineHonourDay').'</td><td>'.$langs->trans('Name').'</td><td>'.$langs->trans('VereineHonourKind').'</td><td></td></tr>';
 foreach ($given as $honour) {
-	$what = $honour['kind'] === 'jubilee' ? $langs->trans('VereineHonourKind_jubilee', $honour['years'])
-		: ($honour['kind'] === 'award' ? dol_escape_htmltag($honour['label']) : $langs->trans('VereineHonourKind_honorary'));
-	print '<tr class="oddeven" data-honour="'.$honour['id'].'" data-honour-kind="'.$honour['kind'].'"><td>'.vereineFormatDay($honour['given_on']).'</td>';
-	print '<td>'.dol_escape_htmltag($honour['name']).'</td><td>'.$what.'</td>';
-	print '<td class="right"><a href="'.$here.'&action=certificate&id='.$honour['id'].'&token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineHonourCertificate').'</a></td></tr>';
+	print '<tr class="oddeven" data-honour="'.$honour['id'].'" data-honour-kind="'.dol_escape_htmltag($honour['kind']).'" data-honour-public="'.($honour['publishable'] ? 1 : 0).'">';
+	print '<td>'.vereineFormatDay($honour['given_on']).'</td><td>'.dol_escape_htmltag($honour['name']).'</td><td>'.dol_escape_htmltag($honour['title']);
+	if ($honour['publishable']) {
+		print ' <span class="badge badge-status4">'.$langs->trans('VereineHonourPublishable').'</span>';
+	}
+	if ($honour['note'] !== '') {
+		print '<br><span class="opacitymedium small">'.dol_escape_htmltag($honour['note'], 0, 1).'</span>';
+	}
+	print '</td><td class="right nowraponall">';
+	if ($canWrite) {
+		print '<a href="'.$here.'&action=edit&id='.$honour['id'].'#vereinehonouredit">'.img_picto('', 'edit').' '.$langs->trans('Modify').'</a> &nbsp; ';
+	}
+	print '<a href="'.$here.'&action=certificate&id='.$honour['id'].'&token='.newToken().'">'.img_picto('', 'pdf').' '.$langs->trans('VereineHonourCertificate').'</a></td></tr>';
 }
 if (!$given) {
 	print '<tr class="oddeven"><td colspan="4"><span class="opacitymedium">'.$langs->trans('VereineHonourNone').'</span></td></tr>';
 }
 print '</table></div>';
 
+if ($canWrite && $action === 'edit') {
+	foreach ($given as $honour) {
+		if ($honour['id'] !== GETPOSTINT('id')) {
+			continue;
+		}
+		print '<br>'.load_fiche_titre(dol_escape_htmltag($langs->transnoentitiesnoconv('VereineHonourEdit', $honour['name'])), '', '', 0, 'vereinehonouredit');
+		print '<form method="POST" action="'.$here.'" name="vereinehonouredit">';
+		print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.$honour['id'].'">';
+		print '<table class="border centpercent"><tr><td class="titlefieldcreate">'.$langs->trans('VereineHonourKind').'</td><td>'.dol_escape_htmltag($honour['kind_label']).'</td></tr>';
+		print '<tr><td>'.$langs->trans('VereineHonourDay').'</td><td><input type="date" name="given_on" value="'.dol_escape_htmltag($honour['given_on']).'"></td></tr>';
+		print '<tr><td>'.$langs->trans('VereineHonourLabel').'</td><td><input type="text" name="label" size="40" maxlength="255" value="'.dol_escape_htmltag($honour['label']).'"></td></tr>';
+		print '<tr><td>'.$langs->trans('VereineHonourNote').'</td><td><textarea name="note" rows="3" class="quatrevingtpercent">'.dol_escape_htmltag($honour['note'], 0, 1).'</textarea></td></tr>';
+		print '<tr><td>'.$langs->trans('VereineHonourPublishable').'</td><td><label><input type="checkbox" name="publishable" value="1"'.($honour['publishable'] ? ' checked' : '').'> ';
+		print $langs->trans('VereineHonourPublishableHelp').'</label></td></tr>';
+		print '</table><div class="center paddingtop"><input type="submit" class="button button-save" value="'.dol_escape_htmltag($langs->trans('Save')).'"></div></form>';
+	}
+}
+
 if ($canWrite && $members) {
-	// An award or an honorary membership, decided by the board or the general assembly.
+	// An honour of any kind of the dictionary, or an honorary membership, decided by the board or the general assembly.
+	$kindChoices = array();
+	foreach ($honours->kinds() as $code => $kindLabel) {
+		if (!in_array($code, VereineHonourRules::SPECIAL, true)) {
+			$kindChoices[$code] = $kindLabel;
+		}
+	}
 	print '<form method="POST" action="'.$here.'" name="vereinehonouraward" class="paddingtop">';
 	print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="recordaward">';
 	print Form::selectarray('member', $members, '', 1, 0, 0, '', 0, 0, 0, '', 'minwidth200').' ';
+	print Form::selectarray('kind', $kindChoices, isset($kindChoices[VereineHonourRules::KIND_AWARD]) ? VereineHonourRules::KIND_AWARD : '', 0, 0, 0, '', 0, 0, 0, '', 'minwidth150').' ';
 	print '<input type="text" name="label" size="30" maxlength="255" placeholder="'.dol_escape_htmltag($langs->trans('VereineHonourLabelPlaceholder')).'"> ';
-	print '<input type="date" name="given_on" value="'.dol_escape_htmltag($today).'"> <input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineHonourAward')).'"></form>';
+	print '<input type="date" name="given_on" value="'.dol_escape_htmltag($today).'"> ';
+	print '<input type="text" name="note" size="25" maxlength="2000" placeholder="'.dol_escape_htmltag($langs->trans('VereineHonourNotePlaceholder')).'"> ';
+	print '<label><input type="checkbox" name="publishable" value="1"> '.$langs->trans('VereineHonourPublishable').'</label> ';
+	print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('VereineHonourAward')).'"></form>';
+	if (!empty($user->admin)) {
+		print '<div class="opacitymedium small paddingtop" data-honour-dictionary="1">'.$langs->trans('VereineHonourKindsHelp');
+		print ' <a href="'.DOL_URL_ROOT.'/admin/dict.php">'.$langs->trans('VereineDictionaries').'</a></div>';
+	}
 	print '<form method="POST" action="'.$here.'" name="vereinehonourhonorary" class="paddingtop">';
 	print '<input type="hidden" name="token" value="'.newToken().'"><input type="hidden" name="action" value="honorary">';
 	print Form::selectarray('member', $members, '', 1, 0, 0, '', 0, 0, 0, '', 'minwidth200').' ';

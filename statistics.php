@@ -64,6 +64,7 @@ if (!$res) {
  */
 
 require_once __DIR__.'/class/vereinehonours.class.php';
+require_once __DIR__.'/class/vereineparticipations.class.php';
 require_once __DIR__.'/lib/vereine.lib.php';
 
 $langs->loadLangs(array('members', 'other', 'vereine@vereine'));
@@ -108,6 +109,13 @@ $rows[] = array($langs->transnoentities('VereineStatisticsAgeGroups'), $langs->t
 foreach ($counts['categories'] as $category => $number) {
 	$rows[] = array($langs->transnoentities('VereineStatisticsCategories'), $category, $number);
 }
+// Active members of the year of the day: at least one participation, in total and per kind (#273).
+$activeYear = (int) substr($day, 0, 4);
+$active = (new VereineParticipations($db))->report($activeYear, $today);
+$rows[] = array($langs->transnoentities('VereineStatisticsActive', $activeYear), $langs->transnoentities('VereineStatisticsActiveTotal'), $active['total']);
+foreach ($active['kinds'] as $kind => $numbers) {
+	$rows[] = array($langs->transnoentities('VereineStatisticsActive', $activeYear), $active['labels'][$kind], $numbers['members']);
+}
 
 if ($action === 'csv') {
 	header('Content-Type: text/csv; charset=UTF-8');
@@ -124,7 +132,7 @@ print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'" name="vereinestatist
 print $langs->trans('VereineStatisticsDay').' <input type="date" name="day" value="'.dol_escape_htmltag($day).'"> ';
 print '<input type="submit" class="button small" value="'.dol_escape_htmltag($langs->trans('Refresh')).'"> ';
 print '<a class="button small" href="'.$_SERVER['PHP_SELF'].'?day='.urlencode($day).'&action=csv&token='.newToken().'">'.$langs->trans('VereineStatisticsCsv').'</a></form><br>';
-print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-statistics-total="'.$counts['total'].'">';
+print '<div class="div-table-responsive-no-min"><table class="noborder centpercent" data-statistics-total="'.$counts['total'].'" data-statistics-active="'.$active['total'].'">';
 foreach ($rows as $index => $row) {
 	print $index === 0 ? '<tr class="liste_titre">' : '<tr class="oddeven" data-statistics-row="'.dol_escape_htmltag($row[0].'|'.$row[1]).'">';
 	print '<td>'.dol_escape_htmltag($row[0]).'</td><td>'.dol_escape_htmltag((string) $row[1]).'</td><td class="right">'.dol_escape_htmltag((string) $row[2]).'</td></tr>';

@@ -39,8 +39,11 @@ und bringt eine REST-API für die Vereinswebsite mit.
   das Fällige nach Klick; Buchhaltung und Vereinsunterlagen bleiben.
 - **Inventar und Ausleihe**: Geräte als Dolibarr-Ressourcen, Ausgabe und Rückgabe mit Zustand,
   Erinnerung bei Überfälligkeit nur an die Person.
-- **Ehrungen und Statistik**: Jubiläen, Geburtstage mit Einwilligung, Ehrenmitgliedschaft und Urkunde;
+- **Ehrungen und Statistik**: Jubiläen, Geburtstage mit Einwilligung, Ehrenmitgliedschaft und Urkunde,
+  eigene Arten von Ehrungen im Wörterbuch, interne Notiz und „darf veröffentlicht werden“;
   Mitgliederzahlen an einem Stichtag für Verbände.
+- **Teilnahmen**: woran Mitglieder teilgenommen haben – Veranstaltungen, Wettbewerbe, Helferdienste –,
+  in Dolibarr oder von einer App gemeldet; je Jahr die aktiven Mitglieder als Liste und Datei.
 - **Kanäle und Konten**: Discord, Twitch, YouTube & Co. des Vereins (mehrere je Netzwerk, mit
   Livestream-Link) für die Website; Konten der Mitglieder im Antrag, von der App bestätigt.
 - **Website-Profil je Mitglied**: Felder, die der Verein selbst festlegt, und das Foto der

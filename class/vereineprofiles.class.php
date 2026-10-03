@@ -21,7 +21,8 @@
  * \brief   A member's own data through an application (#164): read it, ask for a change, give notice of the exit.
  *
  * Nothing here writes a member object freely. A change is a request with an id; it is applied at once
- * only for fields the association chose, otherwise the board looks at it in Dolibarr. The notice of the
+ * only for fields the association chose, otherwise the board looks at it in Dolibarr - unless the board
+ * allowed the member one change without looking (#275), which the next such change uses up. The notice of the
  * exit goes through the exits of the module and ends on the day its rule says; the member gets that day
  * back. What the board notes for itself never reaches the member.
  */
@@ -129,7 +130,7 @@ class VereineProfiles
 		return array('member_id' => (int) $member->id, 'ref' => (string) $member->ref, 'firstname' => (string) $member->firstname, 'lastname' => (string) $member->lastname,
 			'birth' => !empty($member->birth) ? dol_print_date($member->birth, '%Y-%m-%d', 'tzserver') : '') + $current + array(
 			'member_type' => (string) $member->type, 'status' => (int) $member->statut === 1 ? 'active' : ((int) $member->statut === -1 ? 'draft' : 'former'),
-			'version' => VereineProfileRules::version($current), 'direct' => self::directFields(), 'exit' => $exit);
+			'version' => VereineProfileRules::version($current), 'direct' => self::directFields(), 'direct_once' => $this->onceFor((int) $member->id) !== null, 'exit' => $exit);
 	}
 
 	/**
@@ -166,15 +167,101 @@ class VereineProfiles
 			return null;
 		}
 		$direct = VereineProfileRules::direct($checked['changes'], self::directFields());
-		$id = $this->insert((int) $member->id, $client, $checked['external_id'], 'change', $payload, $direct ? 'applied' : 'received', 0, VereineProfileRules::fingerprint($asked));
+		// A change that would wait for the board is taken over once, when the board allowed it (#275).
+		$once = !$direct ? $this->onceFor((int) $member->id) : null;
+		if ($once !== null) {
+			// Used up first, so two changes at the same moment cannot both take it.
+			$resql = $this->db->query("UPDATE ".MAIN_DB_PREFIX."vereine_profile_once SET used_at = '".$this->db->idate(dol_now())."' WHERE rowid = ".((int) $once['id'])
+				." AND used_at IS NULL AND revoked_at IS NULL");
+			if (!$resql) {
+				$this->error = $this->db->lasterror();
+				return null;
+			}
+			$once = (int) $this->db->affected_rows($resql) === 1 ? $once : null;
+		}
+		$id = $this->insert((int) $member->id, $client, $checked['external_id'], 'change', $payload, $direct || $once !== null ? 'applied' : 'received', 0,
+			VereineProfileRules::fingerprint($asked), $once !== null);
 		if ($id < 0) {
 			return null;
 		}
-		if ($direct && $this->apply($member, $checked['changes'], $user) < 0) {
+		if ($once !== null) {
+			$this->db->query("UPDATE ".MAIN_DB_PREFIX."vereine_profile_once SET fk_request = ".((int) $id)." WHERE rowid = ".((int) $once['id']));
+		}
+		if (($direct || $once !== null) && $this->apply($member, $checked['changes'], $user) < 0) {
 			return null;
 		}
-		VereineLog::add($this->db, $user, VereineLog::PROFILE, (int) $member->id, 0, 'change '.implode(',', array_keys($checked['changes'])).($direct ? ' applied' : ' received'));
+		VereineLog::add($this->db, $user, VereineLog::PROFILE, (int) $member->id, 0, 'change '.implode(',', array_keys($checked['changes']))
+			.($once !== null ? ' changed by the member once' : ($direct ? ' applied' : ' received')));
 		return $this->view($id);
+	}
+
+	/**
+	 * Whether the member may change their own data once without the board looking (#275).
+	 *
+	 * @param int $memberId Member
+	 * @return array{id:int,granted_at:int,granted_by:string}|null Null when not allowed now
+	 */
+	public function onceFor($memberId)
+	{
+		global $conf;
+
+		$sql = "SELECT o.rowid, o.granted_at, u.login, u.firstname, u.lastname FROM ".MAIN_DB_PREFIX."vereine_profile_once as o LEFT JOIN ".MAIN_DB_PREFIX."user as u ON u.rowid = o.fk_user_granted";
+		$sql .= " WHERE o.entity = ".((int) $conf->entity)." AND o.fk_adherent = ".((int) $memberId)." AND o.used_at IS NULL AND o.revoked_at IS NULL ORDER BY o.rowid DESC";
+		$resql = $this->db->query($sql);
+		$obj = $resql ? $this->db->fetch_object($resql) : null;
+		if (!$obj) {
+			return null;
+		}
+		$name = trim($obj->firstname.' '.$obj->lastname);
+		return array('id' => (int) $obj->rowid, 'granted_at' => (int) $this->db->jdate($obj->granted_at), 'granted_by' => $name !== '' ? $name : (string) $obj->login);
+	}
+
+	/**
+	 * Allow the member one change of their own data without the board looking, or take that back (#275).
+	 *
+	 * @param int  $memberId Member
+	 * @param bool $allow    Allow it, or take it back
+	 * @param User $user     Who
+	 * @return int 1 when done, 0 when it was so already, -1 on error
+	 */
+	public function setOnce($memberId, $allow, $user)
+	{
+		global $conf;
+
+		$open = $this->onceFor((int) $memberId);
+		if (($open !== null) === (bool) $allow) {
+			return 0;
+		}
+		$sql = $allow ? "INSERT INTO ".MAIN_DB_PREFIX."vereine_profile_once (entity, fk_adherent, granted_at, fk_user_granted) VALUES (".((int) $conf->entity).", ".((int) $memberId).", '"
+			.$this->db->idate(dol_now())."', ".((int) $user->id).")"
+			: "UPDATE ".MAIN_DB_PREFIX."vereine_profile_once SET revoked_at = '".$this->db->idate(dol_now())."', fk_user_revoked = ".((int) $user->id)." WHERE rowid = ".((int) $open['id']);
+		if (!$this->db->query($sql)) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		VereineLog::add($this->db, $user, VereineLog::PROFILE, (int) $memberId, 0, $allow ? 'allowed to change the own data once' : 'one change of the own data taken back');
+		return 1;
+	}
+
+	/**
+	 * The changes a member made once without the board, newest first (#275).
+	 *
+	 * @param int $memberId Member
+	 * @return array<int,array{id:int,changes:array<string,string>,received_at:int,client:string}>
+	 */
+	public function changedOnce($memberId)
+	{
+		global $conf;
+
+		$list = array();
+		$sql = "SELECT rowid, payload, received_at, client FROM ".MAIN_DB_PREFIX."vereine_profile_request WHERE entity = ".((int) $conf->entity)." AND fk_adherent = ".((int) $memberId);
+		$resql = $this->db->query($sql." AND kind = 'change' AND direct_once = 1 ORDER BY rowid DESC");
+		while ($resql && ($obj = $this->db->fetch_object($resql))) {
+			$payload = json_decode((string) $obj->payload, true);
+			$list[] = array('id' => (int) $obj->rowid, 'changes' => is_array($payload) && isset($payload['changes']) ? (array) $payload['changes'] : array(),
+				'received_at' => (int) $this->db->jdate($obj->received_at), 'client' => (string) $obj->client);
+		}
+		return $list;
 	}
 
 	/**
@@ -363,15 +450,16 @@ class VereineProfiles
 	 * @param string              $status   received or applied
 	 * @param int                 $exitId      The exit a notice made
 	 * @param string              $fingerprint What was sent, to recognise a repetition
+	 * @param bool                $once        Taken over because the board allowed one change without looking
 	 * @return int Id, -1 on error
 	 */
-	private function insert($memberId, $client, $external, $kind, array $payload, $status, $exitId, $fingerprint)
+	private function insert($memberId, $client, $external, $kind, array $payload, $status, $exitId, $fingerprint, $once = false)
 	{
 		global $conf;
 
-		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_profile_request (entity, fk_adherent, client, external_id, kind, payload, fingerprint, status, fk_exit, received_at) VALUES (";
-		$sql .= ((int) $conf->entity).", ".((int) $memberId).", '".$this->db->escape($client)."', '".$this->db->escape($external)."', '".$this->db->escape($kind)."',";
-		$sql .= " '".$this->db->escape((string) json_encode($payload))."', '".$this->db->escape($fingerprint)."', '".$this->db->escape($status)."', ".((int) $exitId).",";
+		$sql = "INSERT INTO ".MAIN_DB_PREFIX."vereine_profile_request (entity, fk_adherent, client, external_id, kind, payload, fingerprint, status, direct_once, fk_exit, received_at)";
+		$sql .= " VALUES (".((int) $conf->entity).", ".((int) $memberId).", '".$this->db->escape($client)."', '".$this->db->escape($external)."', '".$this->db->escape($kind)."',";
+		$sql .= " '".$this->db->escape((string) json_encode($payload))."', '".$this->db->escape($fingerprint)."', '".$this->db->escape($status)."', ".($once ? 1 : 0).", ".((int) $exitId).",";
 		$sql .= " '".$this->db->idate(dol_now())."')";
 		if (!$this->db->query($sql)) {
 			$this->error = $this->db->lasterror();

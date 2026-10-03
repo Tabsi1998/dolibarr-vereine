@@ -52,7 +52,7 @@ class modVereine extends DolibarrModules
 		$this->descriptionlong = 'ModuleVereineDescLong';
 		$this->editor_name = 'IT-Tabelander';
 		$this->editor_url = 'https://it.tabelander.co.at';
-		$this->version = '1.7.0';
+		$this->version = '1.8.0';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-landmark';
 
@@ -108,7 +108,22 @@ class modVereine extends DolibarrModules
 		$this->tabs = array();
 		$this->tabs[] = array('data' => 'thirdparty:+vereinemembership:VereineTabMembership:vereine@vereine:$user->hasRight("vereine", "association", "read") && $user->hasRight("adherent", "lire"):/vereine/partner_membership.php?socid=__ID__');
 		$this->tabs[] = array('data' => 'member:+vereineassociation:VereineTabAssociation:vereine@vereine:$user->hasRight("vereine", "association", "read") && $user->hasRight("adherent", "lire") && $user->hasRight("societe", "lire"):/vereine/member_association.php?id=__ID__');
-		$this->dictionaries = array();
+		// Kinds of participations and of honours, extended by the association in Dolibarr's dictionaries (#273, #274).
+		$this->dictionaries = array(
+			'langs' => 'vereine@vereine',
+			'tabname' => array('c_vereine_participation_kind', 'c_vereine_honour_kind'),
+			'tablib' => array('VereineDictParticipationKinds', 'VereineDictHonourKinds'),
+			'tabsql' => array(
+				'SELECT t.rowid as rowid, t.code, t.label, t.position, t.active FROM '.MAIN_DB_PREFIX.'c_vereine_participation_kind as t WHERE t.entity IN ('.getEntity('c_vereine_participation_kind').')',
+				'SELECT t.rowid as rowid, t.code, t.label, t.position, t.active FROM '.MAIN_DB_PREFIX.'c_vereine_honour_kind as t WHERE t.entity IN ('.getEntity('c_vereine_honour_kind').')',
+			),
+			'tabsqlsort' => array('position ASC, label ASC', 'position ASC, label ASC'),
+			'tabfield' => array('code,label,position', 'code,label,position'),
+			'tabfieldvalue' => array('code,label,position', 'code,label,position'),
+			'tabfieldinsert' => array('code,label,position,entity', 'code,label,position,entity'),
+			'tabrowid' => array('rowid', 'rowid'),
+			'tabcond' => array(isModEnabled('vereine'), isModEnabled('vereine')),
+		);
 		// Thresholds of the current year on the home page, for users who may read invoices.
 		$this->boxes = array(
 			0 => array('file' => 'box_vereine_thresholds.php@vereine', 'note' => '', 'enabledbydefaulton' => 'Home'),
@@ -217,6 +232,12 @@ class modVereine extends DolibarrModules
 		$this->rights[$r][0] = $this->numero.'10';
 		$this->rights[$r][1] = 'Check members in at a general assembly through the API, in the name of a board member';
 		$this->rights[$r][4] = 'attendance';
+		$this->rights[$r][5] = 'write';
+		$r++;
+		// Recording what members took part in, such as a competition an application ran (#273).
+		$this->rights[$r][0] = $this->numero.'11';
+		$this->rights[$r][1] = 'Record and read participations of members through the API: events, competitions, helper services';
+		$this->rights[$r][4] = 'participation';
 		$this->rights[$r][5] = 'write';
 		$r++;
 
@@ -418,6 +439,21 @@ class modVereine extends DolibarrModules
 			'mainmenu' => 'members',
 			'leftmenu' => 'vereine_honours',
 			'url' => '/vereine/honours.php',
+			'langs' => 'vereine@vereine',
+			'position' => 1100 + $r,
+			'enabled' => 'isModEnabled("vereine")',
+			'perms' => '$user->hasRight("vereine", "association", "read") && $user->hasRight("adherent", "lire")',
+			'target' => '',
+			'user' => 0,
+		);
+		// What members took part in, recorded for several at once, and who was active in a year (#273).
+		$this->menu[$r++] = array(
+			'fk_menu' => 'fk_mainmenu=members,fk_leftmenu=vereine',
+			'type' => 'left',
+			'titre' => 'VereineMenuParticipations',
+			'mainmenu' => 'members',
+			'leftmenu' => 'vereine_participations',
+			'url' => '/vereine/participations.php',
 			'langs' => 'vereine@vereine',
 			'position' => 1100 + $r,
 			'enabled' => 'isModEnabled("vereine")',
@@ -700,6 +736,23 @@ class modVereine extends DolibarrModules
 		if ($duties->ensureStandard() < 0) {
 			$this->error = $duties->error;
 			dol_syslog('modVereine::init '.$duties->error, LOG_ERR);
+		}
+
+		// The suggested kinds of participations and honours in their dictionaries (#273, #274).
+		dol_include_once('/vereine/class/vereineparticipations.class.php');
+		dol_include_once('/vereine/class/vereinehonours.class.php');
+		$participations = new VereineParticipations($this->db);
+		$honourStore = new VereineHonours($this->db);
+		if ($participations->ensureStandard() < 0 || $honourStore->ensureStandard() < 0) {
+			$this->error = $participations->error !== '' ? $participations->error : $honourStore->error;
+			dol_syslog('modVereine::init '.$this->error, LOG_ERR);
+		}
+		// Networks Dolibarr's dictionary lacks, such as TikTok and Linktree, for channels and accounts.
+		dol_include_once('/vereine/class/vereinesocial.class.php');
+		$socialStore = new VereineSocial($this->db);
+		if ($socialStore->ensureStandard() < 0) {
+			$this->error = $socialStore->error;
+			dol_syslog('modVereine::init '.$socialStore->error, LOG_ERR);
 		}
 
 		// The e-mails of the module as Dolibarr templates, with the text they always had.

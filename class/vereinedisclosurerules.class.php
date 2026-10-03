@@ -30,8 +30,9 @@ class VereineDisclosureRules
 	const CHECKS = array('known', 'id_document', 'member_email', 'id_austria', 'other');
 
 	/** Sections of the copy, in the order of the document. New data of the module get their section here. */
-	const SECTIONS = array('member', 'extra', 'subscriptions', 'invoices', 'consents', 'applications', 'functions', 'honours', 'exits', 'identities', 'accounts',
-		'invitations', 'attendance', 'checkins', 'responses', 'motions', 'requests', 'votes', 'signatures', 'documents', 'tasks', 'duties', 'shifts', 'volunteer', 'donations', 'arrears', 'loans', 'log');
+	const SECTIONS = array('member', 'extra', 'subscriptions', 'invoices', 'consents', 'applications', 'functions', 'honours', 'participations', 'exits', 'identities', 'accounts',
+		'invitations', 'attendance', 'checkins', 'responses', 'motions', 'requests', 'selfchange', 'votes', 'signatures', 'documents', 'tasks', 'duties', 'shifts', 'volunteer', 'donations',
+		'arrears', 'loans', 'log');
 
 	/**
 	 * A request as entered: the day it came in, how the person was checked, a short note.

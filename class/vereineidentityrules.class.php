@@ -67,7 +67,10 @@ class VereineIdentityRules
 	/** Check members in at a general assembly, in the name of the person on the board (#272). */
 	const CAPABILITY_ATTENDANCE = 'attendance';
 
-	const CAPABILITIES = array('consents', 'applications', 'documents', 'votes', 'accounts', 'meetings', 'profile', 'events', 'invoices', 'attendance');
+	/** The person's own member file: participations and honours (#273, #274). */
+	const CAPABILITY_RECORD = 'record';
+
+	const CAPABILITIES = array('consents', 'applications', 'documents', 'votes', 'accounts', 'meetings', 'profile', 'events', 'invoices', 'attendance', 'record');
 
 	/** The binding came from a one-time invitation the person used. */
 	const PROOF_INVITATION = 'invitation';

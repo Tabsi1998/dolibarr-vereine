@@ -13,8 +13,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- A request for access to one's own data (#10, Art. 15 GDPR): when it came in, how the person was
--- checked, when the copy went out and the checksum of what went out. The copy itself is not kept.
+-- Honours a member was given (#27): a jubilee with its years, an honorary membership or an honour of a kind
+-- of the dictionary with what it was given for. Since 1.8.0 also an internal note and whether it may be published.
 CREATE TABLE llx_vereine_honour(
 	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
 	entity INTEGER DEFAULT 1 NOT NULL,

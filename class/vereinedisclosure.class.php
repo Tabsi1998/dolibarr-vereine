@@ -131,7 +131,11 @@ class VereineDisclosure
 		$sections['consents'] = $this->rows("SELECT code, version, given, source, date_event as day, note, proof_at FROM ".MAIN_DB_PREFIX."vereine_consent WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY date_event, rowid");
 		$sections['applications'] = $this->rows("SELECT external_id, datec as received, status, decided_on, reason FROM ".MAIN_DB_PREFIX."vereine_application WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY rowid");
 		$sections['functions'] = $this->rows("SELECT f.label as function, t.date_start as start, t.date_end as end FROM ".MAIN_DB_PREFIX."vereine_function_term as t INNER JOIN ".MAIN_DB_PREFIX."vereine_function as f ON f.rowid = t.fk_function WHERE t.entity = ".$entity." AND t.fk_adherent = ".$id." ORDER BY t.date_start");
-		$sections['honours'] = $this->rows("SELECT kind, years, label, given_on as day FROM ".MAIN_DB_PREFIX."vereine_honour WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY given_on");
+		$sections['honours'] = $this->rows("SELECT kind, years, label, given_on as day, note, publishable as public FROM ".MAIN_DB_PREFIX."vereine_honour WHERE entity = ".$entity
+			." AND fk_adherent = ".$id." ORDER BY given_on");
+		// What the member took part in, as recorded; the helper shifts stand in their own section (#273).
+		$sections['participations'] = $this->rows("SELECT kind, title as activity, day, hours, source, client FROM ".MAIN_DB_PREFIX."vereine_participation WHERE entity = ".$entity
+			." AND fk_adherent = ".$id." ORDER BY day, rowid");
 		$sections['exits'] = $this->rows("SELECT reason, notice_day, last_day, status, date_done as done FROM ".MAIN_DB_PREFIX."vereine_member_exit WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY rowid");
 		// Bindings of apps and websites: who, what for and since when; never a secret.
 		$sections['identities'] = $this->rows("SELECT client, capabilities, linked_at, revoked_at FROM ".MAIN_DB_PREFIX."vereine_identity WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY rowid");
@@ -151,8 +155,11 @@ class VereineDisclosure
 			."vereine_meeting_response as r INNER JOIN ".MAIN_DB_PREFIX."vereine_meeting as m ON m.rowid = r.fk_meeting WHERE r.entity = ".$entity." AND r.fk_adherent = ".$id." ORDER BY m.meeting_day");
 		$sections['motions'] = $this->rows("SELECT m.title as meeting, o.title as task, o.text as note, o.received_at as received, o.status as state FROM ".MAIN_DB_PREFIX
 			."vereine_motion as o INNER JOIN ".MAIN_DB_PREFIX."vereine_meeting as m ON m.rowid = o.fk_meeting WHERE o.entity = ".$entity." AND o.fk_adherent = ".$id." ORDER BY o.rowid");
-		$sections['requests'] = $this->rows("SELECT kind, payload as value, status as state, reason, received_at as received FROM ".MAIN_DB_PREFIX
+		$sections['requests'] = $this->rows("SELECT kind, payload as value, status as state, direct_once as once, reason, received_at as received FROM ".MAIN_DB_PREFIX
 			."vereine_profile_request WHERE entity = ".$entity." AND fk_adherent = ".$id." ORDER BY rowid");
+		// When the board let the member change the own data once without looking, and what became of it (#275).
+		$sections['selfchange'] = $this->rows("SELECT granted_at, used_at, revoked_at FROM ".MAIN_DB_PREFIX."vereine_profile_once WHERE entity = ".$entity
+			." AND fk_adherent = ".$id." ORDER BY rowid");
 		// Only the member's own votes of circular resolutions, which are not secret.
 		$sections['votes'] = $this->rows("SELECT c.title as resolution, v.choice, v.voted_at FROM ".MAIN_DB_PREFIX."vereine_circular_vote as v INNER JOIN ".MAIN_DB_PREFIX."vereine_circular as c ON c.rowid = v.fk_circular WHERE v.entity = ".$entity." AND v.fk_adherent = ".$id." ORDER BY v.rowid");
 		// Open ballots of general assemblies (#161): the member's own votes, also those a proxy holder cast for the member.
@@ -332,6 +339,6 @@ class VereineDisclosure
 			'given', 'source', 'proof_at', 'external_id', 'received', 'decided_on', 'reason', 'function', 'notice_day', 'last_day', 'done', 'client',
 			'capabilities', 'linked_at', 'revoked_at', 'meeting', 'channel', 'voting', 'sent_at', 'state', 'resolution', 'choice', 'voted_at', 'document',
 			'signed_at', 'way', 'task', 'deadline', 'done_at', 'duty', 'year', 'due_on', 'done_on', 'shift', 'hours', 'activity', 'kind', 'paid_on', 'refnr',
-			'vbpk', 'action', 'invoice', 'level', 'network', 'handle', 'confirmed_at', 'years', 'label', 'condition_out', 'condition_in'), true);
+			'vbpk', 'action', 'invoice', 'level', 'network', 'handle', 'confirmed_at', 'years', 'label', 'condition_out', 'condition_in', 'once', 'granted_at', 'used_at'), true);
 	}
 }

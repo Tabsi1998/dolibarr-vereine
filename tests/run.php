@@ -41,6 +41,7 @@ require_once $root.'/class/vereinethresholds.class.php';
 require_once $root.'/class/vereinewebsiteprofilerules.class.php';
 require_once $root.'/class/vereinefilerules.class.php';
 require_once $root.'/class/vereinecheckinrules.class.php';
+require_once $root.'/class/vereineparticipationrules.class.php';
 require_once $root.'/class/vereinecashregister.class.php';
 require_once $root.'/class/vereinemembersummary.class.php';
 require_once $root.'/class/vereinewebsiteevents.class.php';
@@ -1814,7 +1815,7 @@ $prefixes = array(
 	'VereinePartnerPreview' => array('', 'Create', 'Attributes', 'Copy', 'Orphans'),
 	'VereinePartnerMatch_' => array(VereinePartnerRules::MATCH_EMAIL, VereinePartnerRules::MATCH_NAME_ZIP),
 	'VereineField_' => array('email', 'address', 'zip', 'town'),
-	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked', 'honour', 'loan', 'loan_returned', 'loan_reminded', 'publication', 'meeting_response', 'motion', 'profile', 'ballot', 'ballot_vote', 'portal'),
+	'VereineLog_' => array('partner_created', 'partner_linked', 'partner_suggested', 'partner_attributes', 'partner_updated', 'partner_error', 'partner_unlinked', 'fee_invoice', 'fee_run', 'fee_error', 'fee_period', 'fee_direct_debit', 'exit_planned', 'exit_done', 'exit_cancelled', 'exit_error', 'consent_given', 'consent_withdrawn', 'application_received', 'function_start', 'function_end', 'function_reported', 'function_report_pdf', 'function_group_add', 'function_group_remove', 'statute_rules', 'authority_letter', 'authority_letter_filed', 'statute_text', 'statute_version', 'meeting_created', 'meeting_invited', 'meeting_status', 'meeting_attendance', 'meeting_vote', 'signature_rules', 'signature_started', 'signature_signed', 'signature_done', 'minutes_final', 'minutes_sent', 'resolution_added', 'resolution_saved', 'resolution_task', 'resolution_task_done', 'circular_started', 'circular_vote', 'circular_reminded', 'circular_decided', 'circular_cancelled', 'meeting_document', 'qes_setup', 'qes_signed', 'tax_profile_set', 'audit_saved', 'audit_checked', 'audit_report', 'account_saved', 'account_pdf', 'account_assigned', 'application_pdf', 'consent_form', 'consent_scan', 'application_decided', 'duty_saved', 'duty_removed', 'duty_planned', 'duty_handover', 'duty_done', 'event_template', 'event_created', 'event_task', 'event_task_done', 'event_status', 'event_report', 'shift_saved', 'shift_signup', 'shift_done', 'hook_target', 'hook_rotated', 'hook_retry', 'identity_invite', 'identity_linked', 'identity_revoked', 'volunteer_recorded', 'volunteer_removed', 'volunteer_payout', 'volunteer_paid', 'overpayment_assigned', 'donation_setup', 'donation_donor', 'donation_szr', 'donation_report', 'donation_protocol', 'setup_guide', 'application_field', 'archive', 'disclosure', 'erasure', 'erasure_hold', 'erasure_setup', 'arrear', 'channel', 'social_setup', 'social_linked', 'social_unlinked', 'honour', 'loan', 'loan_returned', 'loan_reminded', 'publication', 'meeting_response', 'motion', 'profile', 'ballot', 'ballot_vote', 'portal', 'participation'),
 	'VereineDutyState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventState_' => array('overdue', 'due', 'ahead', 'done'),
 	'VereineEventPhase_' => VereineEventRules::PHASES,
@@ -1887,6 +1888,8 @@ $prefixes = array(
 	'VereineMeetingDeleteHas_' => VereineMeetingRules::RECORDS,
 	'VereineWaitingNotice_' => array('ballot', 'vote', 'signature'),
 	'VereineCheckInAction_' => array(VereineCheckInRules::ACTION_PRESENT, VereineCheckInRules::ACTION_REVOKED),
+	'VereineParticipationError_' => array('members', 'kind', 'title', 'day', 'hours'),
+	'VereineParticipationSource_' => VereineParticipationRules::SOURCES,
 	'VereineMeetingFormat_' => VereineMeetingRules::FORMATS,
 	'VereineMeetingChannel_' => array(VereineMeetingRules::CHANNEL_EMAIL, VereineMeetingRules::CHANNEL_LETTER),
 	'VereineMeetingRecipientsHelp_' => VereineMeetingRules::KINDS,
@@ -2942,6 +2945,17 @@ same('https://www.youtube.com/@lionsquad', VereineSocialRules::link('youtube', '
 same('https://discord.gg/abc', VereineSocialRules::link('discord', 'https://discord.gg/abc', '{socialid}'), 'an address stays as it is');
 same('', VereineSocialRules::link('discord', 'LionSquad', '{socialid}'), 'a Discord name has no address');
 same('https://steamcommunity.com/id/lion', VereineSocialRules::link('steam', 'lion', 'https://steamcommunity.com/id/{socialid}'), 'an own network with its address');
+same(array('https://www.tiktok.com/@lionsquad', 'https://www.tiktok.com/@lionsquad', 'https://linktr.ee/lionsquad', 'https://t.me/lionsquad', ''), array(
+	VereineSocialRules::link('tiktok', 'lionsquad', VereineSocialRules::STANDARD['tiktok'][1]),
+	VereineSocialRules::link('tiktok', '@lionsquad', VereineSocialRules::STANDARD['tiktok'][1]),
+	VereineSocialRules::link('linktree', 'lionsquad', VereineSocialRules::STANDARD['linktree'][1]),
+	VereineSocialRules::link('telegram', '@lionsquad', VereineSocialRules::STANDARD['telegram'][1]),
+	VereineSocialRules::link('kick', '@', VereineSocialRules::STANDARD['kick'][1]),
+), 'TikTok, Linktree and Telegram from a name, an @ before it or not');
+foreach (VereineSocialRules::STANDARD as $code => $network) {
+	expect(VereineSocialRules::networkCode($code) && strpos($network[1], 'https://') === 0 && strpos($network[1], '{socialid}') !== false,
+		'the suggested network '.$code.' has a valid code and an address with {socialid}');
+}
 same('https://www.youtube.com/@lionsquad/live', VereineSocialRules::liveUrl('youtube', 'https://www.youtube.com/@lionsquad/'), 'the live page of a YouTube channel');
 same('https://www.twitch.tv/lionsquad', VereineSocialRules::liveUrl('twitch', 'https://www.twitch.tv/lionsquad'), 'a Twitch channel is its own live page');
 same('', VereineSocialRules::liveUrl('discord', 'https://discord.gg/abc'), 'Discord has no live page');
@@ -3322,6 +3336,49 @@ same(array(array('VereineBallotErrorTotalTooMany'), array('VereineBallotErrorTot
 ), 'more votes than ballot papers, or no whole number, is refused');
 same(array('counts' => array('yes' => 30, 'no' => 12, 'abstain' => 3), 'valid' => 42, 'abstain' => 3, 'invalid' => 2),
 	VereineBallotRules::tallyTotals(array('yes', 'no', 'abstain'), array('yes' => 30, 'no' => 12, 'abstain' => 3), 2), 'abstentions and invalid papers are no valid votes');
+
+// Participations (#273): a kind of the dictionary, a title, a day not in the future, hours as a number if any.
+same(array('participation' => array('kind' => 'competition', 'title' => 'Frühjahrsturnier Runde 2', 'day' => '2026-03-14', 'hours' => 2.5), 'errors' => array()),
+	VereineParticipationRules::entered(array('kind' => 'competition', 'title' => "  Frühjahrsturnier \n Runde 2 ", 'day' => '2026-03-14', 'hours' => '2,5'),
+	array('event', 'competition'), '2026-10-03'), 'a participation as entered, the title on one line, a comma as decimal point');
+same(array(array('kind', 'title', 'day', 'hours'), array('day'), array()), array(
+	VereineParticipationRules::entered(array('kind' => 'party', 'title' => '', 'day' => '2026-02-30', 'hours' => 'zwei'), array('event'), '2026-10-03')['errors'],
+	VereineParticipationRules::entered(array('kind' => 'event', 'title' => 'Sommerfest', 'day' => '2026-10-04'), array('event'), '2026-10-03')['errors'],
+	VereineParticipationRules::entered(array('kind' => 'event', 'title' => 'Sommerfest', 'day' => '2026-10-03', 'hours' => ''), array('event'), '2026-10-03')['errors'],
+), 'an unknown kind, no title, no real day or a day to come, hours that are no number are refused; no hours is fine');
+same(array(null, 0.0, 1.5, false, false, false), array(VereineParticipationRules::hours(''), VereineParticipationRules::hours('0'), VereineParticipationRules::hours(1.5),
+	VereineParticipationRules::hours('-1'), VereineParticipationRules::hours('1.555'), VereineParticipationRules::hours(true)), 'hours: none, zero, a number; negative, three decimals or true are none');
+same(array(true, false, false), array(
+	VereineParticipationRules::sameRequest(array('member_id' => 5, 'kind' => 'event', 'title' => 'Fest', 'day' => '2026-06-01', 'hours' => 2.0), 5,
+		array('kind' => 'event', 'title' => 'Fest', 'day' => '2026-06-01', 'hours' => 2)),
+	VereineParticipationRules::sameRequest(array('member_id' => 5, 'kind' => 'event', 'title' => 'Fest', 'day' => '2026-06-01', 'hours' => null), 6,
+		array('kind' => 'event', 'title' => 'Fest', 'day' => '2026-06-01', 'hours' => null)),
+	VereineParticipationRules::sameRequest(array('member_id' => 5, 'kind' => 'event', 'title' => 'Fest', 'day' => '2026-06-01', 'hours' => null), 5,
+		array('kind' => 'event', 'title' => 'Fest', 'day' => '2026-06-01', 'hours' => 1)),
+), 'the same request again under its id, or another member or other hours');
+same(array(array('kind' => 'shift', 'title' => 'Sommerfest – Ausschank', 'day' => '2026-07-04', 'hours' => 3.5, 'source' => 'shift'),
+	array('kind' => 'shift', 'title' => 'Sommerfest', 'day' => '2026-07-04', 'hours' => 2.25, 'source' => 'shift')), array(
+	VereineParticipationRules::fromShift(array('event' => 'Sommerfest', 'label' => 'Ausschank', 'shift_day' => '2026-07-04', 'start_time' => '14:00', 'end_time' => '17:30', 'hours' => null)),
+	VereineParticipationRules::fromShift(array('event' => 'Sommerfest', 'label' => 'Sommerfest', 'shift_day' => '2026-07-04', 'start_time' => '', 'end_time' => '', 'hours' => '2.25')),
+), 'a confirmed helper shift: event and shift as title, the hours noted for the person or the length of the shift');
+$activeYear = VereineParticipationRules::active(array(
+	array('member_id' => 3, 'kind' => 'event', 'hours' => null), array('member_id' => 3, 'kind' => 'shift', 'hours' => 3.5), array('member_id' => 3, 'kind' => 'shift', 'hours' => 2.0),
+	array('member_id' => 8, 'kind' => 'competition', 'hours' => 1.25), array('member_id' => 0, 'kind' => 'event', 'hours' => 4.0),
+));
+same(array(2, array('count' => 3, 'hours' => 5.5), array('count' => 2, 'hours' => 5.5), array('members' => 1, 'count' => 2, 'hours' => 5.5), array('members' => 1, 'count' => 1, 'hours' => 0.0)),
+	array($activeYear['total'], array_intersect_key($activeYear['members'][3], array('count' => 1, 'hours' => 1)), $activeYear['members'][3]['kinds']['shift'],
+	$activeYear['kinds']['shift'], $activeYear['kinds']['event']), 'active members: per member and per kind, a participation of nobody left out');
+
+// Honours in words (#274): the years of a jubilee, an award by what it was for, an own kind with its name.
+same(array('10 Jahre Mitgliedschaft', 'Ehrenmitgliedschaft', 'Turniersieg 2026', 'Goldenes Ehrenzeichen – 30 Jahre Jugendarbeit', 'Verdienstabzeichen'), array(
+	VereineHonourRules::title(array('kind' => 'jubilee', 'years' => 10, 'label' => ''), 'Jubiläum', '10 Jahre Mitgliedschaft', 'Ehrenmitgliedschaft'),
+	VereineHonourRules::title(array('kind' => 'honorary', 'years' => 0, 'label' => ''), 'Ehrenmitglied', '', 'Ehrenmitgliedschaft'),
+	VereineHonourRules::title(array('kind' => 'award', 'years' => 0, 'label' => 'Turniersieg 2026'), 'Auszeichnung', '', ''),
+	VereineHonourRules::title(array('kind' => 'gold', 'years' => 0, 'label' => '30 Jahre Jugendarbeit'), 'Goldenes Ehrenzeichen', '', ''),
+	VereineHonourRules::title(array('kind' => 'merit', 'years' => 0, 'label' => ''), 'Verdienstabzeichen', '', ''),
+), 'an honour in words for the website and the lists');
+same(array('jubilee', 'honorary'), VereineHonourRules::SPECIAL, 'a jubilee and an honorary membership keep a way of their own');
+expect(in_array('record', VereineIdentityRules::CAPABILITIES, true), 'an application can be allowed to read the own member file');
 
 // A meeting goes only when it was planned or called off and nothing is recorded in it (#266).
 same(array(array(), array(), array('VereineMeetingDeleteInvited'), array('VereineMeetingDeleteHeld', 'VereineMeetingDeleteHas_votes'),

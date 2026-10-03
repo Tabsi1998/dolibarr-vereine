@@ -417,7 +417,9 @@ class VereinePortalController extends Controller
 			print '<label>'.$langs->trans('VereineProfileField_'.$field).'<input type="text" name="'.$field.'" maxlength="'.((int) $length).'" value="'
 				.dol_escape_htmltag((string) $profile[$field]).'"></label>';
 		}
-		print '<small>'.$langs->trans('VereinePortalProfileHint').'</small><button type="submit">'.$langs->trans('VereinePortalProfileSend').'</button></form>';
+		// The board allowed one change without looking (#275): the member reads it before sending.
+		print '<small data-vereine-portal-profile-once="'.($profile['direct_once'] ? 1 : 0).'">'.$langs->trans($profile['direct_once'] ? 'VereinePortalProfileOnce' : 'VereinePortalProfileHint').'</small>';
+		print '<button type="submit">'.$langs->trans('VereinePortalProfileSend').'</button></form>';
 		$requests = $profiles->requests($this->memberId);
 		if ($requests) {
 			print '<p><strong>'.$langs->trans('VereinePortalRequests').'</strong></p>';
