@@ -485,8 +485,10 @@ class VereineMeetings
 		global $conf;
 
 		$meeting = $this->fetch($id);
+		// A meeting that has begun is ended, not called off (#271).
 		if ($meeting === null || !in_array($status, array(VereineMeetingRules::STATUS_HELD, VereineMeetingRules::STATUS_CANCELLED), true)
-			|| in_array($meeting['status'], array(VereineMeetingRules::STATUS_HELD, VereineMeetingRules::STATUS_CANCELLED), true)) {
+			|| in_array($meeting['status'], array(VereineMeetingRules::STATUS_HELD, VereineMeetingRules::STATUS_CANCELLED), true)
+			|| ($status === VereineMeetingRules::STATUS_CANCELLED && $meeting['started_at'] > 0)) {
 			$this->errors = array('VereineMeetingErrorStatus');
 			return 0;
 		}

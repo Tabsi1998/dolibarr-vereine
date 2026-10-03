@@ -857,9 +857,10 @@ class Vereine extends DolibarrApi
 	 * Changes since a cursor
 	 *
 	 * What changed about the objects an external application may follow: membership, functions, fees,
-	 * applications and consents. An entry says only that something changed, never what: kind of object,
-	 * its id, its revision, the kind of change and when it happened. The current data is read through
-	 * the ordinary endpoints, which decide for themselves what a client may see.
+	 * applications, consents, documents, ballots and general assemblies. An entry says only that something
+	 * changed, never what: kind of object, its id, its revision, the kind of change and when it happened;
+	 * for ballots and assemblies also the state they reached, such as opened or started. The current data
+	 * is read through the ordinary endpoints, which decide for themselves what a client may see.
 	 *
 	 * A reader follows the feed with the opaque cursor it got last. Entries younger than a few seconds
 	 * are held back, so a transaction that is still open cannot slip in behind a cursor that was already
@@ -901,7 +902,7 @@ class Vereine extends DolibarrApi
 	 * continues with the feed from there and loses nothing in between. Needs the right to follow the
 	 * change feed.
 	 *
-	 * @param string $object_type Kind of object: membership, function, fee, application or consent
+	 * @param string $object_type Kind of object: membership, function, fee, application, consent, document, ballot or meeting
 	 * @param int    $after       Continue after this object, 0 to start
 	 * @param int    $limit       Objects per page, 1 to 500
 	 * @return array Fields as documented in docs/API.md

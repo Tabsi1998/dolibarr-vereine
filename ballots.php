@@ -296,8 +296,8 @@ foreach ($ballots->forMeeting($meeting['id']) as $shown) {
 			$totalsEntered = $ballots->totals($id);
 			$inputs = '';
 			foreach ($shown['options'] as $entry) {
-				$inputs .= '<label class="paddingright">'.$option($entry['code'], $entry['label']).' <input type="number" min="0" class="width50" name="total_'.dol_escape_htmltag($entry['code']).'"'
-					.' value="'.(isset($totalsEntered['totals'][$entry['code']]) ? (int) $totalsEntered['totals'][$entry['code']] : '').'"></label>';
+				$inputs .= '<label class="paddingright">'.$option($entry['code'], $entry['label']).' <input type="number" min="0" class="width50" name="total_'.dol_escape_htmltag($entry['code'])
+					.'" value="'.(isset($totalsEntered['totals'][$entry['code']]) ? (int) $totalsEntered['totals'][$entry['code']] : '').'"></label>';
 			}
 			$inputs .= '<label class="paddingright">'.$langs->trans('VereineBallotInvalid').' <input type="number" min="0" class="width50" name="total_invalid" value="'.($totalsEntered['entered'] ? (int) $totalsEntered['invalid'] : '').'"></label>';
 			print '<div class="paddingtop" data-ballot-totals="'.($totalsEntered['entered'] ? 1 : 0).'">'.$langs->trans('VereineBallotTotals').'<br>';

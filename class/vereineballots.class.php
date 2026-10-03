@@ -515,8 +515,8 @@ class VereineBallots
 			$this->reason = $ballot['status'] === VereineBallotRules::STATUS_RELEASED ? 'not_open' : 'closed';
 			return 0;
 		}
-		$resql = $this->db->query("UPDATE ".MAIN_DB_PREFIX."vereine_ballot_right SET used_at = '".$this->db->idate(dol_now())."', channel = '".VereineBallotRules::CHANNEL_PAPER."'"
-			." WHERE rowid = ".((int) $rightId)." AND fk_ballot = ".((int) $id)." AND eligible = 1 AND used_at IS NULL");
+		$resql = $this->db->query("UPDATE ".MAIN_DB_PREFIX."vereine_ballot_right SET used_at = '".$this->db->idate(dol_now())."', channel = '".VereineBallotRules::CHANNEL_PAPER
+			."' WHERE rowid = ".((int) $rightId)." AND fk_ballot = ".((int) $id)." AND eligible = 1 AND used_at IS NULL");
 		if (!$resql) {
 			$this->error = $this->db->lasterror();
 			return -1;

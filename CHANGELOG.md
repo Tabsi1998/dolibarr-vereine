@@ -7,6 +7,41 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-03
+
+Die Generalversammlung läuft live: Einlass über eine App am Eingang, geheime Wahlen auf Papier mit abgehakten Stimmzetteln, und Website oder App erfahren sofort, wenn die Versammlung beginnt, eine Abstimmung öffnet oder ein Ergebnis bestätigt ist.
+
+Nach dem Update das Modul einmal aus- und wieder einschalten: erst dann gibt es den Einlass, die geheime Wahl und das neue Recht.
+
+### Neu
+
+- **Versammlung beginnen und beenden** (#271): Auf einer eingeladenen Sitzung stehen oben *Sitzung beginnen*
+  und, sobald sie läuft, *Sitzung beenden*. Beginn und Ende stehen mit Uhrzeit bei der Sitzung. Eine
+  begonnene Sitzung lässt sich nicht mehr absagen.
+- **Live-Meldungen für Website und App** (#271): Der Änderungsfeed und die signierten Webhooks melden jetzt
+  auch Generalversammlungen und ihre Abstimmungen, jeweils mit dem Zustand: eingeladen, begonnen, beendet,
+  abgesagt bzw. angekündigt, geöffnet, geschlossen, bestätigt, abgesagt. So zeigt eine App den
+  Stimmzettel, sobald eine Abstimmung öffnet, ohne ständig nachzufragen. Vorstandssitzungen und ihre
+  Abstimmungen bleiben in Dolibarr und kommen nicht vor.
+- **Einlass über eine App** (#272): Eine App am Eingang meldet Mitglieder als anwesend, immer im Namen einer
+  Person aus dem Vorstand und nur am Versammlungstag. Die Antwort sagt sofort, ob das Mitglied
+  stimmberechtigt ist und wie weit die Versammlung von der Beschlussfähigkeit entfernt ist. Dieselbe
+  Meldung zweimal zählt einmal; zurücknehmen geht nur mit Grund. Die Sitzung zeigt unter *Einlass über
+  Anwendungen*, was wann über welche App kam. Dafür gibt es das neue Recht „Nur für Website oder App
+  (API-Benutzer): Mitglieder bei einer Generalversammlung einlassen“; Menschen im Vorstand brauchen es
+  nicht.
+- **Geheime Wahl auf Papier** (#276): Beim Anlegen einer Abstimmung gibt es das Häkchen *geheim – Stimmzettel
+  im Saal*. Die Wahlkommission hakt für jede Person *Stimmzettel ausgegeben* ab, zählt nach dem Schließen
+  im Saal aus und trägt nur die Summen ein – je Antwort bzw. Kandidat und die ungültigen Zettel. Mehr
+  Stimmen als ausgegebene Zettel nimmt das Modul nicht an. Auswerten und Bestätigen laufen wie bei jeder
+  Abstimmung, der Nachweis als PDF nennt keine Personen. Wer wie gewählt hat, steht nirgends. App und
+  Webportal zeigen die Wahl an, bieten aber keine Stimmabgabe an.
+
+### Geändert
+
+- Die Auskunft über die eigenen Daten zeigt auch die Einlass-Meldungen zur Person; beim Löschen nach dem
+  Austritt zählen sie wie die Anwesenheit zu den Vereinsunterlagen, die bleiben.
+
 ## [1.6.0] - 2026-10-02
 
 Im Vorstand stimmt jetzt jede Person selbst in Dolibarr ab, und unterschreiben darf, wer unterschreiben muss. Was auf jemanden wartet, poppt bei dieser Person auf: Abstimmungen, Umlaufbeschlüsse, Unterschriften.
@@ -2219,7 +2254,8 @@ Erste Vorabversion: das Fundament, auf dem jede spätere Version aufbaut.
 - Release-Werkzeuge: Pakete werden lokal gebaut und veröffentlicht und von GitHub
   gegen den getaggten Commit erneut geprüft.
 
-[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/Tabsi1998/dolibarr-vereine/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.7.0
 [1.6.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.6.0
 [1.5.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.5.0
 [1.4.0]: https://github.com/Tabsi1998/dolibarr-vereine/releases/tag/v1.4.0
