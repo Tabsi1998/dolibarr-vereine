@@ -747,6 +747,13 @@ class modVereine extends DolibarrModules
 			$this->error = $participations->error !== '' ? $participations->error : $honourStore->error;
 			dol_syslog('modVereine::init '.$this->error, LOG_ERR);
 		}
+		// Networks Dolibarr's dictionary lacks, such as TikTok and Linktree, for channels and accounts.
+		dol_include_once('/vereine/class/vereinesocial.class.php');
+		$socialStore = new VereineSocial($this->db);
+		if ($socialStore->ensureStandard() < 0) {
+			$this->error = $socialStore->error;
+			dol_syslog('modVereine::init '.$socialStore->error, LOG_ERR);
+		}
 
 		// The e-mails of the module as Dolibarr templates, with the text they always had.
 		dol_include_once('/vereine/class/vereinemailtemplates.class.php');

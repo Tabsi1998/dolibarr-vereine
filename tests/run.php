@@ -2945,6 +2945,17 @@ same('https://www.youtube.com/@lionsquad', VereineSocialRules::link('youtube', '
 same('https://discord.gg/abc', VereineSocialRules::link('discord', 'https://discord.gg/abc', '{socialid}'), 'an address stays as it is');
 same('', VereineSocialRules::link('discord', 'LionSquad', '{socialid}'), 'a Discord name has no address');
 same('https://steamcommunity.com/id/lion', VereineSocialRules::link('steam', 'lion', 'https://steamcommunity.com/id/{socialid}'), 'an own network with its address');
+same(array('https://www.tiktok.com/@lionsquad', 'https://www.tiktok.com/@lionsquad', 'https://linktr.ee/lionsquad', 'https://t.me/lionsquad', ''), array(
+	VereineSocialRules::link('tiktok', 'lionsquad', VereineSocialRules::STANDARD['tiktok'][1]),
+	VereineSocialRules::link('tiktok', '@lionsquad', VereineSocialRules::STANDARD['tiktok'][1]),
+	VereineSocialRules::link('linktree', 'lionsquad', VereineSocialRules::STANDARD['linktree'][1]),
+	VereineSocialRules::link('telegram', '@lionsquad', VereineSocialRules::STANDARD['telegram'][1]),
+	VereineSocialRules::link('kick', '@', VereineSocialRules::STANDARD['kick'][1]),
+), 'TikTok, Linktree and Telegram from a name, an @ before it or not');
+foreach (VereineSocialRules::STANDARD as $code => $network) {
+	expect(VereineSocialRules::networkCode($code) && strpos($network[1], 'https://') === 0 && strpos($network[1], '{socialid}') !== false,
+		'the suggested network '.$code.' has a valid code and an address with {socialid}');
+}
 same('https://www.youtube.com/@lionsquad/live', VereineSocialRules::liveUrl('youtube', 'https://www.youtube.com/@lionsquad/'), 'the live page of a YouTube channel');
 same('https://www.twitch.tv/lionsquad', VereineSocialRules::liveUrl('twitch', 'https://www.twitch.tv/lionsquad'), 'a Twitch channel is its own live page');
 same('', VereineSocialRules::liveUrl('discord', 'https://discord.gg/abc'), 'Discord has no live page');

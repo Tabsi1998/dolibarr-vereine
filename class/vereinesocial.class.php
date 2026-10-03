@@ -80,6 +80,28 @@ class VereineSocial
 	}
 
 	/**
+	 * Put networks Dolibarr's dictionary lacks into it, switched off, such as TikTok or Linktree; a network the
+	 * association already has stays as it is.
+	 *
+	 * @return int 1 when done, -1 on error
+	 */
+	public function ensureStandard()
+	{
+		global $conf;
+
+		foreach (VereineSocialRules::STANDARD as $code => $network) {
+			$sql = "INSERT INTO ".MAIN_DB_PREFIX."c_socialnetworks (entity, code, label, url, icon, active) SELECT ".((int) $conf->entity).", '".$this->db->escape($code)."',";
+			$sql .= " '".$this->db->escape($network[0])."', '".$this->db->escape($network[1])."', '".$this->db->escape($network[2])."', 0 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM ";
+			$sql .= MAIN_DB_PREFIX."c_socialnetworks WHERE entity = ".((int) $conf->entity)." AND code = '".$this->db->escape($code)."')";
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
+				return -1;
+			}
+		}
+		return 1;
+	}
+
+	/**
 	 * Add a network the dictionary lacks, such as Steam or a Riot ID.
 	 *
 	 * @param string $code    Code, small letters

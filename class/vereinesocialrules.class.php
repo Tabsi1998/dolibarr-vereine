@@ -56,6 +56,19 @@ class VereineSocialRules
 		'github' => 'https://github.com/{socialid}',
 	);
 
+	/**
+	 * Networks Dolibarr's dictionary lacks and many associations use (since 1.8.0): code => name, address of a
+	 * profile, icon. Added switched off when missing; what an association changed there stays as it is.
+	 */
+	const STANDARD = array(
+		'tiktok' => array('TikTok', 'https://www.tiktok.com/@{socialid}', 'fa-tiktok'),
+		'kick' => array('Kick', 'https://kick.com/{socialid}', ''),
+		'linktree' => array('Linktree', 'https://linktr.ee/{socialid}', ''),
+		'threads' => array('Threads', 'https://www.threads.net/@{socialid}', ''),
+		'bluesky' => array('Bluesky', 'https://bsky.app/profile/{socialid}', ''),
+		'telegram' => array('Telegram', 'https://t.me/{socialid}', 'fa-telegram'),
+	);
+
 	/** Networks whose channel has a page of its live stream, and how it is found from the channel's address. */
 	const LIVE = array('twitch' => '', 'kick' => '', 'youtube' => '/live');
 
@@ -165,11 +178,14 @@ class VereineSocialRules
 		if (!preg_match('#^https?://#i', $pattern) || strpos($pattern, '{socialid}') === false) {
 			return '';
 		}
-		// A YouTube channel is @name; a bare name gets its @, a channel path stays as it is.
+		// A YouTube channel is @name; a bare name gets its @, a channel path stays as it is. Elsewhere an @ written
+		// before the name is no part of the address; where the network wants one, its address has it.
 		if ($network === 'youtube' && strpos($value, '/') === false && $value[0] !== '@') {
 			$value = '@'.$value;
+		} elseif ($network !== 'youtube') {
+			$value = ltrim($value, '@');
 		}
-		return str_replace('{socialid}', str_replace(' ', '%20', $value), $pattern);
+		return $value === '' ? '' : str_replace('{socialid}', str_replace(' ', '%20', $value), $pattern);
 	}
 
 	/**

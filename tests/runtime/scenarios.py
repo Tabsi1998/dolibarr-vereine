@@ -5865,8 +5865,14 @@ def social(stack: Stack) -> str:
     setup = "/custom/vereine/admin/social.php"
     expect(denied(stack.browser("rtreader").get(setup)), "a non-administrator opens channels and accounts")
 
-    # A network the dictionary lacks.
+    # Networks Dolibarr's dictionary lacks are added by the module, switched off; the channel form offers them.
+    added = stack.sql("SELECT code, url, active FROM llx_c_socialnetworks WHERE entity = 1 AND code IN ('tiktok', 'linktree') ORDER BY code")
+    expect(added == [["linktree", "https://linktr.ee/{socialid}", "0"], ["tiktok", "https://www.tiktok.com/@{socialid}", "0"]], f"TikTok and Linktree: {added}")
     page = page_ok(browser.get(setup), "channels and accounts")
+    expect(re.search(r'<option value="tiktok"', page.text) is not None and re.search(r'<option value="linktree"', page.text) is not None,
+           "the channel form does not offer TikTok and Linktree")
+
+    # A network the dictionary lacks.
     refused = page_ok(browser.submit(page.form(name="vereinesocialnetwork"), {"code": "Steam!", "label": "Steam", "pattern": ""}), "a wrong code")
     expect("Kleinbuchstaben" in html.unescape(refused.text), "a wrong code of a network was taken")
     page = page_ok(browser.get(setup), "channels and accounts again")

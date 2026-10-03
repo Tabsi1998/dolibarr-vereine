@@ -44,6 +44,11 @@ Nach dem Update das Modul einmal aus- und wieder einschalten: erst dann gibt es 
   Protokoll steht „einmalig selbst geändert“; `GET /vereine/me/profile` meldet `direct_once: true`, und das
   Webportal sagt es dem Mitglied vor dem Absenden.
 
+- **TikTok, Linktree & Co. bei den Kanälen**: Dolibarrs Wörterbuch der sozialen Netzwerke kennt TikTok, Kick,
+  Linktree, Threads, Bluesky und Telegram nicht. Das Modul ergänzt sie beim Einschalten – ausgeschaltet, damit
+  sie nicht auf jeder Mitglieds- und Partnerkarte erscheinen. Als Kanal des Vereins stehen sie sofort zur
+  Auswahl; ein „@“ vor dem Namen führt nicht mehr zu einer falschen Adresse.
+
 ### Geändert
 
 - Die Auskunft über die eigenen Daten zeigt die Teilnahmen, bei Ehrungen Notiz und Veröffentlichung und
