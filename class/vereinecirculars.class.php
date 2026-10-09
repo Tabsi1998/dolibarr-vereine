@@ -21,7 +21,7 @@
  * \brief   Circular resolutions of the board: start one, vote in Dolibarr, count the result.
  *
  * The board decides as an organ, so its members vote here in Dolibarr and not through the website
- * (see docs/ARCHITECTURE.md). Everyone gets an e-mail with the link; a reminder can follow. What comes
+ * (principle of #118: what an organ does happens in Dolibarr). Everyone gets an e-mail with the link; a reminder can follow. What comes
  * out of it goes into the register of resolutions like every other resolution.
  */
 

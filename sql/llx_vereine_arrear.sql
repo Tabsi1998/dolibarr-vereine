@@ -13,8 +13,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- A request for access to one's own data (#10, Art. 15 GDPR): when it came in, how the person was
--- checked, when the copy went out and the checksum of what went out. The copy itself is not kept.
+-- A fee arrear the Mahnwesen module reported at its last dunning step (#17): the invoice, the member, the step
+-- and what the board made of it, with the meeting it went to.
 CREATE TABLE llx_vereine_arrear(
 	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
 	entity INTEGER DEFAULT 1 NOT NULL,

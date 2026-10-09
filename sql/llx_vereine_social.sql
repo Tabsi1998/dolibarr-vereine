@@ -13,8 +13,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- A request for access to one's own data (#10, Art. 15 GDPR): when it came in, how the person was
--- checked, when the copy went out and the checksum of what went out. The copy itself is not kept.
+-- An account of a member at a network such as Discord or Twitch (#233), and the application that confirmed it
+-- after the person signed in there.
 CREATE TABLE llx_vereine_social(
 	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
 	entity INTEGER DEFAULT 1 NOT NULL,
