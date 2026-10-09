@@ -1,206 +1,49 @@
 # CLAUDE.md
 
-Notes for Claude Code sessions on dolibarr-vereine, the Dolibarr module for
-associations under Austrian law only (decision #128). Answer the owner
-(Tabsi1998, Fabian) in German. Everything people read is German: UI texts
-(`langs/de_DE`, with `langs/en_US` an exact copy via `scripts/sync_langs.py`),
-PDFs, README and `docs/`, `CHANGELOG.md` and release notes, issues, pull
-requests and commit messages. Code names and comments stay English (Dolibarr's
-coding standard, no umlauts in comments), and so does this file.
+Notes for anyone (and any Claude Code session) changing dolibarr-vereine, the Dolibarr module for associations
+under Austrian law. Project knowledge - status, decisions, history - is kept outside this repository; a local,
+untracked `CLAUDE.local.md` may point to it.
 
-## How work runs
+## Language
 
-- Every piece of work has an issue with type label (`bug`, `enhancement`,
-  `documentation`, `ci`, `release`, `security`), area label (`bereich: ...`)
-  and a milestone. The principles in `docs/ARCHITECTURE.md` (Grundsätze, #118)
-  apply to every issue.
-- One branch per issue (`feat/<n>-<topic>`, `fix/...`, `docs/...`, `ci/...`),
-  never a direct push to `main`. The pull request closes its issues
-  (`Closes #n`). Commits: `feat:`, `fix:`, `docs:`, `ci:`, `chore:`,
-  `release:`, ending with the Co-Authored-By line.
-- Flow: commit, draft PR, `python scripts/local_check.py`, its result as a PR
-  comment, `gh pr ready` (wait about 10 s after the last push). Fabian merges;
-  everything else - issues, checks, releases - is done here.
-- Several pull requests per release (issue #131, `docs/RELEASES.md`): a pull
-  request does not raise the version; it lists its changes in `CHANGELOG.md`
-  under `Unreleased` (German). The release step of the local check refuses a
-  changed package without such entries.
-- When a release is worthwhile (a few merged PRs, end of a milestone, an
-  important fix): a small release pull request raises `$this->version` and
-  moves the Unreleased entries into a dated section. After Fabian merged it:
-  switch to `main`, pull, `python scripts/local_check.py --all`, then
-  `python scripts/release.py --check` and `python scripts/release.py`. Report
-  the release link so he can install the ZIP.
+Everything people read is German: UI texts (`langs/de_DE`; `langs/en_US` is an exact copy made by
+`python scripts/sync_langs.py`), PDFs, README, `docs/`, `CHANGELOG.md`, release notes, issues and pull requests.
+Code names and comments stay English (Dolibarr's coding standard, no umlauts in comments).
 
-## Checks: local first, GitHub second
+## Work
+
+- An issue per change, a branch per issue (`feat/<n>-<topic>`, `fix/...`, `docs/...`), never a push to `main`.
+  The pull request says `Closes #n` (a German "Schließt" closes nothing). The owner merges.
+- A pull request that changes the package either lists its changes under `## [Unreleased]` in `CHANGELOG.md`
+  or carries the release itself: version in `core/modules/modVereine.class.php` and `docs/API.md`
+  (`module_version`), a dated changelog section with its link. After the merge, on `main`:
+  `python scripts/release.py --check`, then `python scripts/release.py` (`docs/RELEASES.md`).
+
+## Checks (local first, GitHub second)
 
 ```bash
-python scripts/local_check.py                 # everything but extra (about 10 minutes)
+python scripts/local_check.py                 # everything but extra (10-20 minutes)
 python scripts/local_check.py --all           # plus deprecations, ShellCheck, OSV
-python scripts/local_check.py --only php,package
-python scripts/local_check.py --only runtime --keep-services   # leave the Dolibarr containers up
-python scripts/local_check.py --list
+python scripts/local_check.py --only php,codestyle
+python scripts/local_check.py --only runtime --keep-services
 ```
 
-Results: `.local-testing/local-check.json`, logs in `.local-testing/logs/`.
+Groups: repository (Gitleaks, CRLF, whitespace), php (lint and `tests/run.php` on PHP 7.4-8.4), codestyle
+(Dolibarr's PHP_CodeSniffer ruleset), dolibarr (`scripts/check_dolibarr_api.py`: what the module uses exists in
+Dolibarr 22, 23, 24), package (reproducible ZIP), release (version, changelog, support matrix), runtime (real
+Dolibarr 22/23/24 in Docker, `tests/runtime/scenarios.py`). Only one runtime run at a time: the containers
+`vereine-rt-*` are shared. Needs Docker, Git, gitleaks and Python 3.10+.
 
-| Group | Runs |
-| --- | --- |
-| repository | shell scripts parse, no CRLF stored, whitespace, Gitleaks over history and new files |
-| php | `scripts/check-module.sh` in `php:7.4-cli` to `php:8.4-cli`: lint, `tests/run.php`, security contracts |
-| codestyle | `scripts/check-codestyle.sh`: PHP_CodeSniffer 4.0.4 with Dolibarr 24.0.1's ruleset, severity 5, pinned by SHA-256 |
-| dolibarr | `scripts/check_dolibarr_api.py`: every function, class and core language key the module uses exists in branches 22.0, 23.0, 24.0 |
-| package | `scripts/build_release.py` from the Git working copy (tracked files only, output inside the repository as on GitHub) and from the snapshot: byte-identical, checked file by file |
-| release | `scripts/release.py` metadata: version scheme, changelog section, support matrix in descriptor, scripts, ci.yml and READMEs; a package changed since the last release has entries under Unreleased, a new version has none left there |
-| runtime | per Dolibarr 22.0.5, 23.0.4, 24.0.1 (ports 18042-18044, Mailpit 18142-18144 for the e-mails): upload the ZIP through *Deploy an external module*, enable in the module list, pages, setup with bad and good input, rights, REST API, disable and enable again, PHP messages from module code (ratchet) |
-| extra | deprecations on PHP 8.4, ShellCheck, OSV |
+## Rules the checks enforce
 
-The php, codestyle, package and runtime steps work on `.local-testing/snapshot`,
-a copy of what Git would commit with LF endings. Runtime containers use tmpfs
-for database, documents and `custom/`, so each run starts from an empty
-Dolibarr; the image `local-ci/dolibarr:24.0.1` is built from Dolibarr's docker
-repository on first use and shared with dolibarr-mahnwesen.
-
-Tools: Docker Desktop (running), Git for Windows, gitleaks, Python 3.11 as
-`python`. A missing tool skips its steps with a hint; a release refuses skipped
-steps.
-
-## Keep in step
-
-- The supported range lives in `modVereine.class.php` (`phpmin`,
-  `need_dolibarr_version`), `scripts/local_check.py` (`PHP_VERSIONS`,
-  `DOLIBARR_VERSIONS`, `RUNTIME_IMAGES`), `scripts/check_dolibarr_api.py`
-  (`SUPPORTED`), `.github/workflows/ci.yml` and the README tables. The release
-  step compares them.
-- A new Dolibarr function, class or core language key in the code needs an
-  entry in `CONTRACTS` or `LANG_KEYS` of `scripts/check_dolibarr_api.py`.
-- A new page (`*.php` in the root or `admin/`) must be added to `pages` in
-  `scripts/check-module.sh`, which enforces the access checks.
-- A new API method must call `$this->checkAccess()`; the contract counts them.
-  It also needs its path, parameters and answer in `docs/openapi.json`:
-  `tests/run.php` compares the paths with the `@url` lines, and the runtime
-  checks validate every answer of `vereine/...` against it (`Stack.api`).
-- `build_release.py` packs everything except `EXCLUDED_TOP`. A new developer-only
-  file or folder at the top level needs an entry there.
-- German and English language files change together; `tests/run.php` checks
-  that every key used by the code exists in English and every language has
-  every key.
+- Every form posts Dolibarr's token; no two string literals joined with `.` across lines.
+- A new page goes into `pages` in `scripts/check-module.sh`; a new API method calls `$this->checkAccess()` and is
+  described in `docs/openapi.json`; a new Dolibarr function or core language key goes into `CONTRACTS` or
+  `LANG_KEYS` of `scripts/check_dolibarr_api.py`.
+- Every language key the code uses exists; keys built at runtime (`'Prefix_'.$x`) are listed in the prefix registry
+  of `tests/run.php`; every right has a `Permission492100NN` label.
+- Schema: new columns only through `sql/update_<version>.sql`; new tables as `llx_*.sql` plus `.key.sql`.
+- Logic without Dolibarr lives in `class/*rules.class.php` with unit tests in `tests/run.php`.
+- A new right or menu entry updates the lists in the runtime scenario `enable`.
 - Legal amounts and deadlines name their source in `docs/LEGAL-SOURCES.md`.
-
-## Shared core
-
-`scripts/local_check.py` has three parts: header (paths, groups, matrices,
-runtime images), the shared core (identical in OmniFM, IT-Tabelander,
-THE-LION_SQUAD-eSPORT-Webseite and dolibarr-mahnwesen - port fixes there), and
-the dolibarr-vereine steps with `plan()`. A step is `(context) -> str`; it
-raises `StepFailed` or `StepSkipped`. Gates beyond GitHub's go through
-`ratchet()`.
-
-## Facts found while building 0.1
-
-- The API class must be named `Vereine`: Dolibarr 22 and 23 dispatch
-  `/vereine/...` only to a class named after the endpoint (`VereineApi` works
-  from 24 on, Dolibarr #37282).
-- *Deploy an external module* accepts only `...-x.y.z.zip`; betas are packaged
-  without `-beta`.
-- Dolibarr shows `README-<lang>.md`, `README-<language>.md`, then `README.md`
-  as module description; the module has only the German `README.md`.
-- Disabling a module deletes its rights definitions but not the rights granted
-  to users; enabling it again restores them.
-- The official Dolibarr images ship `custom/` read-only; web deployment needs a
-  writable `custom/`.
-
-## Facts found while building 0.2
-
-- One member per third party in Dolibarr (`setThirdPartyId` unlinks others).
-- `Societe::update()` does not sync back to the member by default
-  (`$nosyncmember = 1`), so changing a member's third party cannot loop through
-  `MEMBER_MODIFY`; the service still guards against re-entry.
-- `Adherent::validate()` sets `datevalid` only after `MEMBER_VALIDATE` ran.
-- Third party contact roles need the hidden, unstable option
-  `MAIN_SUPPORT_SHARED_CONTACT_BETWEEN_THIRDPARTIES`; guardians use a contact
-  category instead.
-- The runtime `upgrade` scenario deploys the newest earlier release (built from
-  its tag), enables it, stores data, deploys the current package, disables and
-  enables, checks, and then resets with `fixtures.php reset`.
-- Menu entries are written at activation: a new entry reaches an installation
-  only after disabling and enabling the module once.
-- The member edit form and the new contact form keep `backtopage`; the third
-  party edit form does not and always ends on the third party card.
-- Page JavaScript goes through `llxHeader(..., array('/vereine/js/...'))`, which
-  adds Dolibarr's CSP nonce; an inline `<script>` would not get it.
-- *Create third party* and *Linked third party* on the member card change
-  `fk_soc` without any trigger; the hook in `class/actions_vereine.class.php`
-  follows them (doActions notes, addMoreActionsButtons applies).
-- Dolibarr 24 refuses GET actions without token (HTTP 403): runtime tests follow
-  the links a page offers (`action_link`) instead of building URLs.
-- `Adherent::fetch` reads `fk_soc` in 22 and `fk_soc as socid` in 23 and 24;
-  both fill `$member->fk_soc`.
-- Dolibarr passes every translation through `sprintf()`: a lone `%` in a
-  language file stops the page with a ValueError. Write `%%`; `tests/run.php`
-  checks it.
-- Pages must not use `$form` for their own data: Dolibarr's page header sets the
-  global `$form` to a `Form` object.
-- `Translate::trans()` passes at most four parameters to `sprintf()` (the fifth is
-  `$maxsize`): a translation with five placeholders is a fatal error in the middle
-  of the page. `tests/run.php` checks it.
-- A fatal error in Dolibarr's own code called from the module still answers HTTP
-  200: `page_ok` requires `</html>`, and the php-messages step counts uncaught
-  errors whose stack trace passes through `custom/vereine`.
-- `Product::create` stores extra fields before `PRODUCT_CREATE`; a product's VAT
-  changes through `updatePrice()` so the gross price follows. Dolibarr does not
-  copy product extra fields to invoice lines; `LINEBILL_INSERT` and
-  `LINEBILL_SUPPLIER_CREATE` run after the line's extra fields are stored.
-- Never edit repository files with PowerShell `Get-Content`/`Set-Content`: they
-  read UTF-8 as ANSI and write mangled umlauts. Use Python or the edit tools.
-- The invoice template `sponge` calls `beforePDFCreation` with the invoice and
-  its output language, then prints `note_public`; `afterPDFCreation` gets the
-  template as object and the invoice in `$parameters['object']`. The runtime
-  test reads the PDF by inflating its streams with `zlib`: text with the core
-  font appears as `(...)` strings.
-- Module boxes live in `core/boxes/box_<name>.php` with class `box_<name>`,
-  registered in the descriptor's `$this->boxes` and inserted on activation;
-  `$this->hidden` decides per user whether the box shows.
-- Apply scripts must be idempotent: an interrupted run left half a feature in
-  place once. Check whether a change is already there before applying it.
-- `Paiement::create()` needs the class `Facture` loaded and, when
-  `multicurrency_amounts` is set, a `multicurrency_code` per invoice; the
-  runtime fixture leaves the foreign currency out.
-- A fixture that fails prints its PHP error in "What failed, in full" at the end
-  of the local check log, not in the step line.
-
-## Facts found while building 0.3
-
-- Dolibarr's API layer (Restler) validates a parameter named `email` as an
-  e-mail address before the module's code runs: surrounding spaces answer 400.
-- Dolibarr stores a day (subscription end, invoice date) as midnight in the time
-  zone of the user who entered it, written in the server's time zone; round to
-  the nearest midnight (`VereineMemberSummary::dayOf`) to get the day back.
-- `Facture::validate()` does not build the PDF; the invoice card does, and so
-  does `Paiement::create()` for every invoice it pays (unless
-  `MAIN_DISABLE_PDF_AUTOUPDATE`). A fixture invoice without payment has no PDF.
-- Columns the database fills itself (`tms`, `DEFAULT CURRENT_TIMESTAMP`) are in
-  the database's time zone, columns Dolibarr writes with `idate()` in PHP's.
-  The runtime runs PHP in Europe/Vienna and MariaDB in UTC, so `jdate(tms)`
-  reads two hours early; `VereineMemberSummary::clockOffset()` corrects it by
-  comparing `CURRENT_TIMESTAMP` with `dol_now()`.
-- Dolibarr's webhook sends `get_object_vars()` of the event object and, from 23
-  on, stores it in `llx_webhook_history` (22 has the table but writes nothing); a target offers the codes of
-  `llx_c_action_trigger`. It posts while the transaction of the change is still
-  open, and only to external URLs unless `$dolibarr_allow_localurl_for_webhooks`
-  is set (the runtime fixture sets it as a global).
-- Dolibarr treats a subscription period as paid as soon as it is recorded,
-  also when its invoice is open (`Adherent::subscription()` moves `datefin`).
-  The member summary therefore counts a period as paid only without fee
-  invoice or with a paid one (`VereineMemberSummary::periodEnds`).
-- Every answer of `vereine/...` in the runtime checks goes through
-  `docs/openapi.json`; the last API scenario fails when a documented endpoint
-  never answered 200. Dolibarr's answer for a disabled module is not covered
-  (`check=False`).
-- An extra field of type `link` refuses to store an id whose object does not
-  exist (`insertExtraFields`), but deleting the third party later leaves the id
-  behind: the fee run reports such a payer as `no_payer`. A runtime fixture has
-  to write a dangling id with SQL.
-- `Adherent::update()` sets no modification date of its own, and a change of
-  extra fields alone does not touch `llx_adherent`; the extra fields row has its
-  own `tms`, which the website sync reads.
+- Edit files with Python or an editor, never with PowerShell `Get-Content`/`Set-Content` (they break UTF-8).

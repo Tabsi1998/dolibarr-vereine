@@ -208,7 +208,7 @@ einstellen sollte, und erkennt an den Daten, was schon erledigt ist.
 | *Start > Einstellungen > Module > Vereine* | Einrichtung mit den Reitern Erste Schritte, Verein, Mitglieder und Partner, Steuerprofile, Beiträge, Funktionen, Statuten, Sitzungs- und Veranstaltungsvorlagen, Unterschriften, Externe Identitäten, Webhooks, API, Einwilligungen, Mitgliedsantrag, Spendenmeldung, Datenschutz und Über |
 | *Mitglieder*, *Geschäftspartner*, *Kategorien* (Dolibarr-eigene Module) | Pflicht und werden mit Vereine aktiviert; das Mitglieder-Menü bekommt *Verein* mit Übersicht, Abgleich, Beitragslauf, Funktionen, Schreiben an die Behörde und Sitzungen |
 | Startseite | Widget *Vereine: Grenzen des Jahres* (für Benutzer, die Rechnungen lesen dürfen) |
-| Karte eines Geschäftspartners | Reiter *Mitgliedschaft*; Kategorien *Mitglied* und *Ehemaliges Mitglied* |
+| Karte eines Geschäftspartners | Reiter *Verein* (Mitgliedschaft, Bilder für die Website); Kategorien *Mitglied* und *Ehemaliges Mitglied* |
 | Mitgliedskarte | Reiter *Verein*; *Geschäftspartner anlegen* und *Verknüpfung mit Geschäftspartner* zieht das Modul nach |
 | Mitgliedsart | Beitragsmodell (Reiter *Beiträge* in der Einrichtung) |
 | Produkt- und Leistungskarte, Zeilen von Rechnungen und Lieferantenrechnungen | Zusatzfeld *Steuerprofil*; Rechnungen warnen bei Zeilen, deren Umsatzsteuer nicht zum Profil passt |

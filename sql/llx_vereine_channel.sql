@@ -13,8 +13,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see https://www.gnu.org/licenses/.
 
--- A request for access to one's own data (#10, Art. 15 GDPR): when it came in, how the person was
--- checked, when the copy went out and the checksum of what went out. The copy itself is not kept.
+-- A channel of the association for its website (#233): Discord, Twitch, YouTube and the like, several per network,
+-- in the order the association wants, public or not, with a live stream or not.
 CREATE TABLE llx_vereine_channel(
 	rowid INTEGER AUTO_INCREMENT PRIMARY KEY,
 	entity INTEGER DEFAULT 1 NOT NULL,

@@ -7,6 +7,13 @@ Vorabversionen. Der Abschnitt einer Version ist der Text ihres GitHub-Releases.
 
 ## [Unreleased]
 
+### Geändert
+
+- Die Entwickler-Unterlagen (Aufbau, Konzept der geheimen Wahl, DoliStore-Texte) liegen nicht mehr im
+  Paket; das Projektwissen führt der Herausgeber außerhalb des Repos (#281).
+- README und Handbuch nennen den Reiter am Geschäftspartner („Verein“) und die Einstellungsseite
+  „Kanäle, Konten und Partner“ richtig.
+
 ## [1.9.0] - 2026-10-03
 
 Partner und Sponsoren für die Website: mit Logo und Banner, jeweils für hellen und dunklen Hintergrund.
