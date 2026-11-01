@@ -75,7 +75,7 @@ jobs:
           python scripts/build_release.py --out dist-b
           cmp dist-a/module_vereine-*.zip dist-b/module_vereine-*.zip
           mkdir -p dist && cp dist-a/* dist/
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: module_vereine-${{ github.sha }}
           path: dist/
