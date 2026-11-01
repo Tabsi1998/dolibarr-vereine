@@ -54,7 +54,7 @@ jobs:
         dolibarr: ['22.0', '23.0', '24.0']
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-python@v7.0.0
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
       - run: python scripts/check_dolibarr_api.py ${{ matrix.dolibarr }}
@@ -64,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-python@v7.0.0
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
       - name: Release metadata agrees
